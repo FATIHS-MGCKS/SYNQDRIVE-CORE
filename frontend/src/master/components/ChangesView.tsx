@@ -376,6 +376,42 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-10-28T00:00:00.000Z',
   },
   {
+    id: 'tire-v3-calibration-center-p3-1-2026-11-01',
+    version: '4.9.5004',
+    title: 'Master Admin — Tire V3 Calibration Center (P3.1 read-only UI)',
+    summary: [
+      'Engineering nav entry and four-tab dashboard: overview, snapshots, accuracy (not evaluable), data quality (sampled rejections).',
+      'Read-only list/detail APIs for org-scoped snapshot exploration; snapshot drawer with prediction payload sections.',
+      'Writer telemetry labeled replica-local; no customer V3 or writer activation from UI.',
+    ],
+    reason: 'Operational monitoring for calibration shadow P3 without implying persisted measurement pairs or accuracy metrics.',
+    previousBehavior: 'Calibration shadow inspectable via raw Master Admin API only (PR #2289).',
+    details:
+      'backend: tire-wear-v3-calibration-center read routes; frontend: master/tire-v3-calibration-center/*; master.intelligence.tireCalibration.* i18n.',
+    affectsArchitecture: true,
+    module: 'Tires Health',
+    createdAt: '2026-11-01T09:30:00.000Z',
+  },
+  {
+    version: '4.9.5003',
+    title: 'Tire Wear V3 — calibration shadow P3 (snapshots + writer, default OFF)',
+    summary: [
+      'Additive table `tire_wear_v3_calibration_snapshot_v1` for immutable per-wheel V3 predictions; reuses `computeForSetup` with `persistShadow: false`.',
+      'Leader scheduler `tire_wear_v3_calibration_shadow_writer` and `TIRE_WEAR_V3_CALIBRATION_SHADOW_WRITE_ENABLED` (default false); pairing policy + Master Admin read-only inspection API.',
+      'Pre-merge hardening: calibration eligibility digest gate (no odometer-only churn), physical tire id + temporal leakage fields, DB immutability trigger, org-scoped eligibility.',
+      'Separate from P3A `tire_wear_v3_prior_shadow_v1`; no customer UI or wear-equation changes.',
+    ],
+    reason:
+      'Prospective calibration evidence for independent tread measurements without activating production writes in this PR.',
+    previousBehavior:
+      'P2 calibration shadow persistence plan only; no calibration snapshot store or scheduled writer.',
+    details:
+      'backend: wear-v3-calibration-shadow/*, migrations 20261101120000 + 20261101183000; architecture/tires/integration/TIRE_WEAR_V3_CALIBRATION_SHADOW_P3.md.',
+    affectsArchitecture: true,
+    module: 'Tires Health',
+    createdAt: '2026-11-01T02:00:00.000Z',
+  },
+  {
     id: 'oneauto-p1-provider-foundation-2026-10-31',
     version: '4.9.5002',
     title: 'One Auto API — Master Admin provider foundation (backend P1)',
@@ -393,6 +429,64 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     affectsArchitecture: true,
     module: 'Vehicle Onboarding',
     createdAt: '2026-10-31T16:00:00.000Z',
+  },
+  {
+    id: 'oneauto-p25a-contract-hardening-2026-11-01',
+    version: '4.9.5004',
+    title: 'One Auto API — P2.5A documented contracts & HTTP hardening',
+    summary: [
+      'Six vendor-documented GET paths, `x-api-key`, and `vehicle_identification_number` recorded in `oneauto-documented-contracts.ts` — DOCUMENTED ≠ executable.',
+      'Execution registry remains empty; allowlist + outbound HTTP require EXECUTION_VERIFIED attestation. HTTP 206 and async poll billing fail-closed.',
+      'DE PrePay EUR reference minors in `oneauto-prepay-reference-prices.ts` (not auto-quoted); catalog paths updated; `ONEAUTO_MAX_RETRIES` default 0.',
+    ],
+    reason:
+      'Align P1 foundation with P2.5 audit without enabling paid provider calls or bypassing MFA/budget/idempotency gates.',
+    previousBehavior:
+      'Placeholder `oe/.../v1/lookup` paths, `Authorization`/`vin` HTTP defaults, empty verified registry only.',
+    details:
+      'backend: `oneauto-contract-types`, `oneauto-documented-contracts`, `oneauto-prepay-reference-prices`, HTTP client + execution 206/async policy, `oneauto-p25a.contract-hardening.spec.ts`, evidence doc refresh.',
+    affectsArchitecture: false,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-01T08:40:00.000Z',
+  },
+  {
+    id: 'oneauto-p25e-a-offline-security-hardening-2026-11-01',
+    version: '4.9.5006',
+    title: 'One Auto API — P2.5E-A offline security hardening',
+    summary: [
+      'Fail-closed SUCCESS_RESULT_ERROR envelope on HTTP 200 (`success:false` / malformed success never completes jobs).',
+      'HTTP client enforces `isValidVin`, manual redirects, bounded response bytes; non-JSON bodies stored without raw preview text.',
+      'Positive finite `ONEAUTO_ORG_DAILY_BUDGET_MINOR` required when `ONEAUTO_ENABLED=true`; default disabled installs unchanged.',
+      'Execution-verified registry remains empty; mocked regression tests only — no live provider calls.',
+    ],
+    reason: 'Remediate P2.5D live-readiness findings before any sandbox attestation.',
+    previousBehavior:
+      'HTTP 200 could mark jobs SUCCEEDED regardless of OpenAPI success flag; HTTP client lacked VIN regex, redirect policy, and response size cap.',
+    details:
+      'backend: envelope + budget guard utils, HTTP/execution service updates, `oneauto-p25e-offline-security-hardening.spec.ts`; architecture `oneauto-provider/P1_CHANGE_RECORD.md`.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-01T22:15:00.000Z',
+  },
+  {
+    id: 'oneauto-p2-master-admin-ui-2026-11-01',
+    version: '4.9.5003',
+    title: 'One Auto API — Master Admin service dialog (frontend P2)',
+    summary: [
+      'Spec-actions button `vehicle-registration-oneauto-api` opens `OneAutoServiceDialog` beside Fetch AI Specs and ZB-I upload (edit mode only).',
+      'Catalog, quote, explicit cost confirmation, MFA step-up on execute, bounded job polling, and read-only result viewer call existing P1 routes only — no browser calls to One Auto.',
+      'CONTRACT_UNVERIFIED / disabled provider SKUs remain visible but non-executable; no auto-import into vehicle specifications or service history.',
+      'Nine-locale `master.oneAuto.*` keys; component tests for catalog safety, quote gate, MFA, polling, and context binding.',
+    ],
+    reason:
+      'Master operators need a gated UI on top of P1 provider foundation without duplicating backend logic or bypassing contract/MFA gates.',
+    previousBehavior:
+      'Reserved integration marker on spec-actions row; no Master Admin One Auto UI.',
+    details:
+      'frontend: `master/oneauto/*`, VehicleRegistrationModal.tsx, i18n `master.oneAuto.*`; tests: OneAutoServiceDialog.test.tsx, VehicleRegistrationModal.oneauto.test.tsx.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-01T00:00:00.000Z',
   },
   {
     id: 'master-zb1-additive-toolbar-2026-10-29',

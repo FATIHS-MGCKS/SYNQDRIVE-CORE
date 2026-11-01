@@ -11,7 +11,7 @@ import { api } from '../../lib/api';
 import { cn } from '../../components/ui/utils';
 import { useApdsMasterIntelligenceData } from './useApdsMasterIntelligenceData';
 import type { MasterApdsDecisionSummaryDto } from './apds-master-intelligence-api.types';
-import { resolvePhysicalDeviceIdForVehicle } from './resolve-vehicle-physical-device';
+import { ledgerContextForVehicleChange } from './vsi-ledger-url.util';
 
 function formatTime(iso: string | null | undefined, locale: string): string {
   if (!iso) return '—';
@@ -105,11 +105,19 @@ function ApdsMasterIntelligenceContent() {
   }, [context.orgId, context.vehicleId]);
 
   useEffect(() => {
-    if (!context.orgId || !context.vehicleId || context.physicalDeviceId) return;
-    void resolvePhysicalDeviceIdForVehicle(context.orgId, context.vehicleId).then((id) => {
-      if (id) setContextInUrl({ physicalDeviceId: id }, { replace: true });
-    });
-  }, [context.orgId, context.vehicleId, context.physicalDeviceId, setContextInUrl]);
+    if (!context.providerSourceLinkId || linkOptions.length === 0) return;
+    const ids = linkOptions.map((l) => l.id);
+    if (!ids.includes(context.providerSourceLinkId)) {
+      setContextInUrl(
+        {
+          providerSourceLinkId: null,
+          apdOpportunityId: null,
+          ...ledgerContextForVehicleChange({}),
+        },
+        { replace: true },
+      );
+    }
+  }, [linkOptions, context.providerSourceLinkId, setContextInUrl]);
 
   const selectDecision = useCallback(
     (row: MasterApdsDecisionSummaryDto) => {
@@ -125,11 +133,9 @@ function ApdsMasterIntelligenceContent() {
   const openVsiAtDecision = useCallback(() => {
     if (!detail) return;
     navigateCrossLink('vsi-intelligence', {
-      ...context,
       asOf: detail.summary.decisionAt,
-      policyVersion: detail.summary.policyVersion,
     });
-  }, [context, detail, navigateCrossLink]);
+  }, [detail, navigateCrossLink]);
 
   const hasScope = Boolean(context.orgId && context.vehicleId);
 
@@ -153,6 +159,7 @@ function ApdsMasterIntelligenceContent() {
                   vehicleId: null,
                   providerSourceLinkId: null,
                   apdOpportunityId: null,
+                  ...ledgerContextForVehicleChange({}),
                 })
               }
             >
@@ -174,6 +181,7 @@ function ApdsMasterIntelligenceContent() {
                   vehicleId: e.target.value || null,
                   providerSourceLinkId: null,
                   apdOpportunityId: null,
+                  ...ledgerContextForVehicleChange({}),
                 })
               }
               disabled={!context.orgId}

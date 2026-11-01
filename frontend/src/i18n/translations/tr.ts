@@ -1,5 +1,6 @@
 import type { PartialTranslationDictionary } from '../dictionary-types';
 import { masterVehicleIdentityTr } from './master.vehicleIdentity.tr';
+import { masterOneAutoTr } from './master.oneAuto.tr';
 import { masterCvTechnicalSpecsTr } from './master.cv.technicalSpecs.tr';
 import { masterIntelligenceTr } from './master.intelligence.tr';
 import { tireWearV3Tr } from './tire.wearV3.tr';
@@ -10,6 +11,7 @@ import { tireWearV3Tr } from './tire.wearV3.tr';
  */
 export const tr = {
   ...masterVehicleIdentityTr,
+  ...masterOneAutoTr,
   ...masterCvTechnicalSpecsTr,
   ...masterIntelligenceTr,
   'master.registration.lvBatteryConstructionType.label': 'LV yapı tipi',

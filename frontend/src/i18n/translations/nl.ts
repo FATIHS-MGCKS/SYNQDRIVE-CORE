@@ -11,6 +11,7 @@ import { masterPhysicalDeviceInventoryNl } from './master.physicalDeviceInventor
 import { masterIntelligenceNl } from './master.intelligence.nl';
 import { masterMotionPhysicsNl } from './master.motionPhysics.nl';
 import { masterVehicleIdentityNl } from './master.vehicleIdentity.nl';
+import { masterOneAutoNl } from './master.oneAuto.nl';
 import { masterCvTechnicalSpecsNl } from './master.cv.technicalSpecs.nl';
 
 // Dutch translations - start with English as base, override with Dutch
@@ -207,6 +208,7 @@ export const nl = {
   ...masterIntelligenceNl,
   ...masterMotionPhysicsNl,
 ...masterVehicleIdentityNl,
+  ...masterOneAutoNl,
   ...masterCvTechnicalSpecsNl,
   ...batteryV2HvInspectionNL,
   ...tireWearV3Nl,

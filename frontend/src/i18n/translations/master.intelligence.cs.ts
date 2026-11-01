@@ -1,6 +1,8 @@
 export const masterIntelligenceCs = {
   'master.nav.vsiIntelligence': 'VSI – inteligence signálů',
   'master.nav.apdsIntelligence': 'APDS – adaptivní polling',
+
+  'master.nav.tireV3CalibrationCenter': 'Tire V3 Calibration Center',
   'master.intelligence.vsi.title': 'VSI – inteligence signálů',
   'master.intelligence.vsi.description':
     'Profily signálů pouze ke čtení, pozorovaná kadence a důkazy vyhodnocení. Živá data v PR2.',
@@ -47,6 +49,28 @@ export const masterIntelligenceCs = {
   'master.intelligence.pdi.section.timeline': 'Časová osa',
   'master.intelligence.pdi.section.episodes': 'Epizody připojení',
   'master.intelligence.pdi.section.drift': 'Monitoring identity',
+  'master.intelligence.pdi.section.bindings': 'Vazby poskytovatele',
+  'master.intelligence.pdi.section.crossNav': 'Křížová navigace',
+  'master.intelligence.pdi.bindings.noVehicleScope':
+    'U tohoto zařízení chybí rozsah vozidla — vazby nelze použít pro navigaci.',
+  'master.intelligence.pdi.bindings.noneForScope': 'V aktuální odpovědi nejsou žádné vazby poskytovatele.',
+  'master.intelligence.pdi.bindings.attributionNote':
+    'Vozidlo a organizace v řádku odrážejí aktuální atribuci identity (CURRENT_VEHICLE_ONLY), ne důkaz na vazbu.',
+  'master.intelligence.pdi.bindings.selectRequired':
+    'Více vazeb — vyberte jednu před otevřením odkazů VSI, APDS nebo vozidla.',
+  'master.intelligence.pdi.bindings.staleSelection':
+    'Vybraná vazba už není v seznamu. Zvolte aktuální vazbu.',
+  'master.intelligence.pdi.bindings.linkStatus': 'Stav vazby',
+  'master.intelligence.pdi.bindings.status.ACTIVE': 'Aktivní',
+  'master.intelligence.pdi.bindings.status.INACTIVE': 'Neaktivní',
+  'master.intelligence.pdi.bindings.status.UNKNOWN': 'Neznámý',
+  'master.intelligence.pdi.bindings.vehicleScope': 'Vozidlo (atribuce)',
+  'master.intelligence.pdi.bindings.orgScope': 'Organizace (atribuce)',
+  'master.intelligence.pdi.bindings.scopeUnknown': 'Atribuce vozidla/org pro tento rozsah neznámá.',
+  'master.intelligence.pdi.bindings.crossOrgBlocked':
+    'Organizace zařízení neodpovídá kontextu panelu — odkazy zakázány.',
+  'master.intelligence.pdi.bindings.navPending':
+    'Vyberte vazbu poskytovatele pro zapnutí křížové navigace.',
   'master.intelligence.pdi.snapshotNotHistory': 'Aktuální stav a live mirror jsou snímky — ne plná historie.',
   'master.intelligence.pdi.notApplicableR1': 'Fyzický R1 monitoring neplatí (např. softwarová Tesla).',
   'master.intelligence.pdi.noDriftHistory': 'Bez persistované historie driftu. Chybějící záznamy nejsou důkazem bez driftu.',
@@ -211,13 +235,37 @@ export const masterIntelligenceCs = {
   'master.intelligence.vehicleDetail.loading': 'Načítání souhrnů intelligence…',
   'master.intelligence.vehicleDetail.error': 'Souhrny intelligence pro toto vozidlo se nepodařilo načíst.',
   'master.intelligence.vehicleDetail.openVsi': 'Otevřít detail VSI',
+  'master.intelligence.vehicleDetail.openVsiOverview': 'Otevřít přehled VSI',
+  'master.intelligence.vehicleDetail.openVsiLedger': 'Otevřít evidenci',
+  'master.intelligence.vehicleDetail.openEngineRpmDetail': 'Otevřít otáčky motoru v evidenci',
   'master.intelligence.vehicleDetail.openApds': 'Otevřít detail APDS',
   'master.intelligence.vehicleDetail.openPdi': 'Otevřít detail zařízení',
   'master.intelligence.vehicleDetail.noApdsDecision': 'V rozsahu není persistované rozhodnutí.',
   'master.intelligence.vehicleDetail.noPhysicalDevice':
     'Tomuto vozidlu není přiřazeno jediné nainstalované fyzické zařízení.',
   'master.intelligence.vehicleDetail.multipleLinks':
-    'Více provider source linků — zobrazen primární link; ověřte link ve VSI/APDS před předpoklady napříč vozidly.',
+    'Více provider source linků — před navigací VSI/APDS vyberte link.',
+  'master.intelligence.vehicleDetail.selectSourceLink.title': 'Provider source link',
+  'master.intelligence.vehicleDetail.selectSourceLink.hint':
+    'Vyberte persistovaný provider link. Souhrny a navigace platí pouze pro vybraný link.',
+  'master.intelligence.vehicleDetail.selectSourceLink.stale':
+    'Předchozí volba neodpovídá tomuto vozidlu. Vyberte link znovu.',
+  'master.intelligence.vehicleDetail.selectSourceLink.required':
+    'Vyberte provider source link pro povolení navigace intelligence u tohoto vozidla.',
+  'master.intelligence.vehicleDetail.selectSourceLink.summaryPending':
+    'Vyberte provider source link pro zobrazení souhrnů LV/RPM.',
+  'master.intelligence.vehicleDetail.selectSourceLink.apdsPending':
+    'Vyberte provider source link pro načtení souhrnu APDS pro tento link.',
+  'master.intelligence.vehicleDetail.engineRpmUnavailable.notApplicable':
+    'Detail signálu otáček motoru pro tento profil neplatí (persistovaná aplicability VSI).',
+  'master.intelligence.vehicleDetail.engineRpmUnavailable.unknownApplicability':
+    'Detail otáček není k dispozici, dokud VSI nehlásí aplicable RPM evidenci pro tento link.',
+  'master.intelligence.vehicleDetail.engineRpmUnavailable.evaluationBlocked':
+    'Detail otáček není k dispozici, dokud je vyhodnocení profilu blokováno.',
+  'master.intelligence.vehicleDetail.engineRpmUnavailable.noProfile':
+    'Detail otáček vyžaduje vybraný provider source link.',
+  'master.intelligence.vehicleDetail.engineRpmDeepLinkNote':
+    'Otevře ledger a detail signálu k revizi. Použitelnost zde není kombinovaný důkaz RPM (live ani historický)—detail VSI zůstává evidencí.',
 
   'master.intelligence.vsi.ledger.summary.ariaLabel': 'Nezávislé dimenze důkazů',
   'master.intelligence.vsi.ledger.dimension.applicability': 'Použitelnost',
@@ -324,4 +372,100 @@ export const masterIntelligenceCs = {
   'master.intelligence.vsi.ledger.detail.limitations.otherGroup': 'Další omezení',
   'master.intelligence.vsi.ledger.detail.hiddenByFilters':
     'Vybraný signál je skryt filtry. Upravte filtry nebo zrušte výběr.',
+
+  'master.intelligence.tireCalibration.title': 'Tire V3 Calibration Center',
+  'master.intelligence.tireCalibration.description':
+    'Read-only monitoring of calibration shadow snapshots, writer health, and policy pairing quality. Does not change customer Tire V3 or execute the shadow writer.',
+  'master.intelligence.tireCalibration.loading': 'Loading calibration read models…',
+  'master.intelligence.tireCalibration.error': 'Could not load calibration data.',
+  'master.intelligence.tireCalibration.tab.overview': 'Overview',
+  'master.intelligence.tireCalibration.tab.snapshots': 'Snapshots',
+  'master.intelligence.tireCalibration.tab.accuracy': 'Prediction accuracy',
+  'master.intelligence.tireCalibration.tab.quality': 'Data quality',
+  'master.intelligence.tireCalibration.writer.replicaLocal':
+    'Writer tick statistics reflect this API replica only — not a global fleet aggregate.',
+  'master.intelligence.tireCalibration.writer.enabled': 'Shadow writer enabled',
+  'master.intelligence.tireCalibration.writer.disabled': 'Shadow writer disabled',
+  'master.intelligence.tireCalibration.metric.snapshotRows': 'Snapshot rows (global)',
+  'master.intelligence.tireCalibration.metric.setupsWithSnapshots': 'Setups with snapshots',
+  'master.intelligence.tireCalibration.metric.latestSnapshot': 'Latest snapshot (UTC)',
+  'master.intelligence.tireCalibration.metric.lastTick': 'Last writer tick',
+  'master.intelligence.tireCalibration.metric.lastResult': 'Last tick result',
+  'master.intelligence.tireCalibration.metric.inserted': 'Inserted (last tick)',
+  'master.intelligence.tireCalibration.metric.existing': 'Existing (last tick)',
+  'master.intelligence.tireCalibration.metric.skipped': 'Setups skipped (last tick)',
+  'master.intelligence.tireCalibration.empty.noSnapshots.title': 'No calibration snapshots yet',
+  'master.intelligence.tireCalibration.empty.noSnapshots.body':
+    'The calibration shadow writer is off by default. When enabled on a leader replica, snapshots appear here after eligibility changes.',
+  'master.intelligence.tireCalibration.picker.org': 'Organization',
+  'master.intelligence.tireCalibration.picker.vehicle': 'Vehicle',
+  'master.intelligence.tireCalibration.picker.setup': 'Tire setup',
+  'master.intelligence.tireCalibration.picker.wheel': 'Wheel',
+  'master.intelligence.tireCalibration.picker.mountPeriod': 'Mount period',
+  'master.intelligence.tireCalibration.col.wheel': 'Wheel',
+  'master.intelligence.tireCalibration.col.created': 'Snapshot time',
+  'master.intelligence.tireCalibration.col.pairingEligible': 'Pairing eligible',
+  'master.intelligence.tireCalibration.col.physicalTire': 'Physical tire',
+  'master.intelligence.tireCalibration.physical.confirmed': 'Confirmed ID',
+  'master.intelligence.tireCalibration.physical.unconfirmed': 'Unconfirmed',
+  'master.intelligence.tireCalibration.accuracy.notEvaluable.title': 'Accuracy not evaluable',
+  'master.intelligence.tireCalibration.accuracy.notEvaluable.body':
+    'Independent measurement pairs are not persisted yet. MAE, bias, and coverage cannot be computed.',
+  'master.intelligence.tireCalibration.accuracy.policyOpportunities':
+    'Policy pairing opportunities (sampled, not confirmed pairs): {{count}}',
+  'master.intelligence.tireCalibration.quality.sampledScope':
+    'Rejection counts are from a sampled policy re-evaluation (recent measurements × wheels) — not a global census.',
+  'master.intelligence.tireCalibration.quality.pairableCount': 'Policy-eligible pairings (sampled)',
+  'master.intelligence.tireCalibration.quality.sampledMeasurements': 'Measurements sampled',
+  'master.intelligence.tireCalibration.rejection.NO_ELIGIBLE_SNAPSHOT': 'No eligible snapshot',
+  'master.intelligence.tireCalibration.rejection.SNAPSHOT_NOT_BEFORE_MEASUREMENT': 'Snapshot not before measurement',
+  'master.intelligence.tireCalibration.rejection.ROTATION_DURING_MOUNT': 'Rotation during mount',
+  'master.intelligence.tireCalibration.rejection.PAIRING_OBSERVATIONAL_ONLY': 'Observational only',
+  'master.intelligence.tireCalibration.rejection.PHYSICAL_IDENTITY_AMBIGUOUS': 'Physical identity ambiguous',
+  'master.intelligence.tireCalibration.rejection.TARGET_MEASUREMENT_IN_PREDICTION_INPUT': 'Target in prediction inputs',
+  'master.intelligence.tireCalibration.rejection.POST_MEASUREMENT_DATA_LEAKAGE': 'Post-measurement leakage',
+  'master.intelligence.tireCalibration.drawer.title': 'Calibration snapshot',
+  'master.intelligence.tireCalibration.drawer.section.prediction': 'Prediction',
+  'master.intelligence.tireCalibration.drawer.section.provenance': 'Provenance & cutoff',
+  'master.intelligence.tireCalibration.drawer.section.quality': 'Model & DS4 quality',
+  'master.intelligence.tireCalibration.drawer.predictedTread': 'Predicted tread (mm)',
+  'master.intelligence.tireCalibration.drawer.remainingKm': 'Remaining km',
+  'master.intelligence.tireCalibration.drawer.ds4Coverage': 'DS4 severity coverage',
+  'master.intelligence.tireCalibration.drawer.dynamicBeta': 'Dynamic beta',
+  'master.intelligence.tireCalibration.drawer.effectiveFactor': 'Effective factor',
+  'master.intelligence.tireCalibration.drawer.eligibilityDigest': 'Eligibility digest (prefix)',
+  'master.intelligence.tireCalibration.drawer.inputFingerprint': 'Customer fingerprint (prefix)',
+  'master.intelligence.tireCalibration.drawer.measurementIdsUsed': 'Measurement IDs used in prediction',
+  'master.intelligence.tireCalibration.drawer.pairingEligible': 'Pairing eligible flag',
+  'master.intelligence.tireCalibration.drawer.modelVersion': 'Model / schema version',
+  'master.intelligence.tireCalibration.drawer.sourceOdometerKm': 'Source odometer (km)',
+  'master.intelligence.tireCalibration.drawer.sourceCutoffUtc': 'Source cutoff (UTC)',
+  'master.intelligence.tireCalibration.value.yes': 'Yes',
+  'master.intelligence.tireCalibration.value.no': 'No',
+  'master.intelligence.tireCalibration.action.refresh': 'Refresh',
+  'master.intelligence.tireCalibration.filter.allWheels': 'All wheels',
+  'master.intelligence.tireCalibration.filter.allMountPeriods': 'All mount periods',
+  'master.intelligence.tireCalibration.col.pairingEligible.yes': 'Pairing eligible',
+  'master.intelligence.tireCalibration.col.pairingEligible.no': 'Not pairing eligible',
+  'master.intelligence.tireCalibration.drawer.section.eligibility': 'Pairing eligibility',
+  'master.intelligence.tireCalibration.drawer.eligibility.pairingEligible':
+    'Persisted snapshot flag: eligible for prospective calibration pairing under current policy.',
+  'master.intelligence.tireCalibration.drawer.eligibility.observationalOnly':
+    'Persisted snapshot flag: observational-only — not eligible for pairing (pairingEligible=false at write time).',
+  'master.intelligence.tireCalibration.drawer.eligibility.identityAmbiguous':
+    'Physical tire identity was ambiguous when this snapshot was written.',
+  'master.intelligence.tireCalibration.drawer.eligibility.rotationDuringMount':
+    'Rotation events occurred during this mount period (persisted provenance).',
+  'master.intelligence.tireCalibration.drawer.section.temporal': 'Temporal & DS4 quality',
+  'master.intelligence.tireCalibration.drawer.temporalQuality': 'Temporal quality (persisted)',
+  'master.intelligence.tireCalibration.drawer.sourceComputedAt': 'Prediction computed at (UTC)',
+  'master.intelligence.tireCalibration.drawer.latestMeasurementAt': 'Latest measurement in inputs (UTC)',
+  'master.intelligence.tireCalibration.drawer.ledgerRowCount': 'Trip ledger rows',
+  'master.intelligence.tireCalibration.drawer.ledgerDistanceKm': 'Ledger distance (km)',
+  'master.intelligence.tireCalibration.drawer.rotationDuringMount': 'Rotation during mount',
+  'master.intelligence.tireCalibration.drawer.odometerAnchorStatus': 'Odometer anchor status',
+  'master.intelligence.tireCalibration.drawer.pairingMode': 'Snapshot pairing mode',
+  'master.intelligence.tireCalibration.drawer.pairingMode.pairingEligible': 'Pairing-eligible snapshot',
+  'master.intelligence.tireCalibration.drawer.pairingMode.observationalOnly': 'Observational-only snapshot',
+  'master.intelligence.tireCalibration.drawer.loadMore': 'Load more snapshots',
 } as const;

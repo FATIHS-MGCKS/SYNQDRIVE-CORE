@@ -11,6 +11,7 @@ import { masterPhysicalDeviceInventoryFr } from './master.physicalDeviceInventor
 import { masterIntelligenceFr } from './master.intelligence.fr';
 import { masterMotionPhysicsFr } from './master.motionPhysics.fr';
 import { masterVehicleIdentityFr } from './master.vehicleIdentity.fr';
+import { masterOneAutoFr } from './master.oneAuto.fr';
 import { masterCvTechnicalSpecsFr } from './master.cv.technicalSpecs.fr';
 
 export const fr = {
@@ -957,6 +958,7 @@ export const fr = {
   ...masterIntelligenceFr,
   ...masterMotionPhysicsFr,
 ...masterVehicleIdentityFr,
+  ...masterOneAutoFr,
   ...masterCvTechnicalSpecsFr,
   ...batteryV2HvInspectionFR,
   ...tireWearV3Fr,

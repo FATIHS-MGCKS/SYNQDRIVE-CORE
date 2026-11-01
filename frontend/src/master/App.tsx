@@ -22,6 +22,7 @@ import BatteryV2ShadowInspectionView from './battery-v2-shadow-inspection/Batter
 import HvBatteryInspectionView from './battery-v2-hv-inspection/HvBatteryInspectionView';
 import { VsiMasterIntelligenceView } from './intelligence/VsiMasterIntelligenceView';
 import { ApdsMasterIntelligenceView } from './intelligence/ApdsMasterIntelligenceView';
+import TireCalibrationCenterView from './tire-v3-calibration-center/TireCalibrationCenterView';
 import { HighMobilityDataView } from './components/HighMobilityDataView';
 import { PlatformOpsHub } from './platform-ops/PlatformOpsHub';
 import { migratePlatformHealthParams, syncPlatformOpsUrl } from './platform-ops/platform-ops-url';
@@ -593,6 +594,14 @@ export default function App() {
         {currentView === 'apds-intelligence' && (
           <PageContainer variant="wide">
             <ApdsMasterIntelligenceView />
+          </PageContainer>
+        )}
+
+        {currentView === 'tire-v3-calibration-center' && (
+          <PageContainer variant="wide">
+            <TireCalibrationCenterView
+              organizations={organizations.map((o) => ({ id: o.id, companyName: o.company_name }))}
+            />
           </PageContainer>
         )}
 

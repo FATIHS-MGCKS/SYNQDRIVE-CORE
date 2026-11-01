@@ -4,7 +4,9 @@ Append-only record for this authority directory.
 
 | Date (UTC) | Change | Workstream | Evidence |
 |------------|--------|------------|----------|
+| 2026-11-01 | **P0 hardening** — missing-admission priority lane + keyset cursor; fleet-global budget; recovery in reconciliation `finally`; gauge outcomes; reliability postgres regressions | TDL admission reliability | same evidence doc |
 | 2026-10-31 | P0 customer trip list hardening — explicit PARTIAL_TRIP_BOUNDARY_EXTENSION only; safe splitSecondStartAt parsing; stats/TDI alignment | Tiguan incident P0 | `trip-customer-list-reconciled-gap-split-suffix.*` |
+| 2026-10-22 | P1B.10 hardening — atomic JSONB first-write insert; split-first-trip meta preservation; finalize shadow guard; PostgreSQL concurrency integration | TDL P1B | [TDL_P1B10_DURABLE_START_SHADOW_EVIDENCE_2026-10-22.md](../evidence/TDL_P1B10_DURABLE_START_SHADOW_EVIDENCE_2026-10-22.md) |
 | 2026-10-22 | P1B.10 durable per-trip start-shadow evidence on `VehicleTrip.rawDetectionMeta.startBoundaryAdmissionShadowV1`; orchestration persist on start confirm; mid-gap split follow-on `NOT_EXECUTED`; non-blocking persist errors | TDL P1B | [TDL_P1B10_DURABLE_START_SHADOW_EVIDENCE_2026-10-22.md](../evidence/TDL_P1B10_DURABLE_START_SHADOW_EVIDENCE_2026-10-22.md) |
 | 2026-10-17 | P1B.5 hardening — strict UUID allowlist parse (max 16, malformed list fail-closed), shadow route-fetch attempt/error counters (pre-provider), expanded pilot matrix tests | TDL P1B | [TDL_START_BOUNDARY_ADMISSION_P1B_2026-10-16.md](../evidence/TDL_START_BOUNDARY_ADMISSION_P1B_2026-10-16.md) |
 | 2026-10-17 | P1B.5 vehicle-scoped shadow allowlist (`TRIP_START_BOUNDARY_ADMISSION_SHADOW_VEHICLE_IDS`); global OFF default; fail-closed empty allowlist; two-pilot UUID test matrix (Tesla/Tiguan); no Prometheus vehicle labels | TDL P1B | [TDL_START_BOUNDARY_ADMISSION_P1B_2026-10-16.md](../evidence/TDL_START_BOUNDARY_ADMISSION_P1B_2026-10-16.md) |
@@ -106,6 +108,7 @@ Append-only record for this authority directory.
 | 2026-10-16 | **P1B** EXP021 anchor PR #2051 @ `4b387d43…` (P22E_F semantic integrity); reference shadow semantics; P23 not blocking P1B; video excluded from runtime | Docs | same P1B evidence |
 | 2026-10-16 | **P1B.1** shadow-OFF legacy-only — gate before modality DB read; orchestration wiring tests; metric property `tripStartBoundaryAdmissionShadowDeltaSeconds` | PR #2057 | same P1B evidence |
 | 2026-10-22 | **P1B.9C** optional `TRIP_MID_GAP_TELEMETRY_SILENCE_HARDENING_ENABLED` (default off) + vehicle UUID allowlist; synthetic anchor / engine-idle mid-gap suppression; Tiguan 2026-10-21 false-split regression | Live FSM mid-gap only | `trip-mid-gap-detection.util.ts`, `trip-mid-gap-p1b9c-telemetry-silence.spec.ts` |
+| 2026-10-31 | **Tiguan S4 admission hardening (PR #2293)** — admission during retryable refresh requires `boundaryRefreshGenerationMatchesRepair` + row-aligned `boundaryRepair`; recovery via existing `retryPendingBoundaryRefreshes`; required Nest DI for `TripDiBoundaryAdmissionService` on reconciliation | Backend reconciliation + DI admission | same evidence doc + unit/postgres specs |
 
 ## Standard 1.0 phases
 

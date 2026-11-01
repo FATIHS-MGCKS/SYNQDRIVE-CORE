@@ -64,6 +64,7 @@ import { masterPhysicalDeviceInventoryEn } from './master.physicalDeviceInventor
 import { masterIntelligenceEn } from './master.intelligence.en';
 import { masterMotionPhysicsEn } from './master.motionPhysics.en';
 import { masterVehicleIdentityEn } from './master.vehicleIdentity.en';
+import { masterOneAutoEn } from './master.oneAuto.en';
 import { masterRegistrationBrakeEn } from './master.registration.brake.en';
 import { masterCvTechnicalSpecsEn } from './master.cv.technicalSpecs.en';
 
@@ -6008,6 +6009,7 @@ export const en = {
   ...masterIntelligenceEn,
   ...masterMotionPhysicsEn,
 ...masterVehicleIdentityEn,
+  ...masterOneAutoEn,
   ...masterRegistrationBrakeEn,
   ...masterCvTechnicalSpecsEn,
   ...batteryV2HvInspectionEN,

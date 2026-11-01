@@ -3680,7 +3680,8 @@ model VehicleTireSetup {
   snapshots            TireHealthSnapshot[]
   wearDataPoints       TireWearDataPoint[]
   tripUsageLedger      TireTripUsageLedger[]
-  wearV3PriorShadowRows TireWearV3PriorShadowV1[]
+  wearV3PriorShadowRows        TireWearV3PriorShadowV1[]
+  wearV3CalibrationSnapshots   TireWearV3CalibrationSnapshotV1[]
   mountPeriods         VehicleTireSetupMountPeriod[]
   rentalHealthReviews  TireRentalHealthReviewOverride[]
   healthAlerts         TireHealthAlert[]
@@ -4061,6 +4062,40 @@ model TireWearV3PriorShadowV1 {
   @@unique([tireSetupId, modelVersion, inputFingerprint], map: "tire_wear_v3_prior_shadow_setup_model_fp_uq")
   @@index([organizationId, vehicleId], map: "tire_wear_v3_prior_shadow_org_vehicle_idx")
   @@map("tire_wear_v3_prior_shadow_v1")
+}
+
+/// Tire Wear V3 calibration shadow — immutable per-wheel predictions (not customer-facing).
+model TireWearV3CalibrationSnapshotV1 {
+  id                    String   @id @default(uuid())
+  organizationId        String   @map("organization_id")
+  vehicleId             String   @map("vehicle_id")
+  tireSetupId           String   @map("tire_setup_id")
+  mountPeriodId         String?  @map("mount_period_id")
+  wheelPosition         String   @map("wheel_position")
+  physicalTireId        String?  @map("physical_tire_id")
+  predictionCreatedAt   DateTime @map("prediction_created_at") @db.Timestamptz(6)
+  sourceComputedAt      DateTime @map("source_computed_at") @db.Timestamptz(6)
+  sourceOdometerKm      Float?   @map("source_odometer_km")
+  modelVersion          String   @map("model_version")
+  modelConfigHash       String   @map("model_config_hash")
+  inputFingerprint      String   @map("input_fingerprint")
+  calibrationEligibilityDigest String @map("calibration_eligibility_digest")
+  snapshotSchemaVersion String   @map("snapshot_schema_version")
+  idempotencyKey        String   @unique @map("idempotency_key")
+  latestSourceMeasurementAt DateTime? @map("latest_source_measurement_at") @db.Timestamptz(6)
+  sourceDataCutoffAt    DateTime @map("source_data_cutoff_at") @db.Timestamptz(6)
+  pairingEligible       Boolean  @default(false) @map("pairing_eligible")
+  measurementIdsUsed    Json     @default("[]") @map("measurement_ids_used")
+  snapshotPayload       Json     @map("snapshot_payload")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tireSetup VehicleTireSetup @relation(fields: [tireSetupId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, vehicleId], map: "tire_wear_v3_cal_snap_org_vehicle_idx")
+  @@index([tireSetupId, predictionCreatedAt], map: "tire_wear_v3_cal_snap_setup_pred_idx")
+  @@index([tireSetupId, inputFingerprint], map: "tire_wear_v3_cal_snap_setup_fp_idx")
+  @@index([tireSetupId, calibrationEligibilityDigest], map: "tire_wear_v3_cal_snap_setup_elig_idx")
+  @@map("tire_wear_v3_calibration_snapshot_v1")
 }
 
 // ------------------------------------------------

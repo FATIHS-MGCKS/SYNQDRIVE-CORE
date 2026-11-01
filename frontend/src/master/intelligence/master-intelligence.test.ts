@@ -152,6 +152,7 @@ describe('Master Intelligence URL — history', () => {
     expect(params.get('view')).toBe('vsi-intelligence');
     expect(params.get('orgId')).toBe(org);
     expect(params.get('vehicleId')).toBe(vehicle);
+    expect(params.get('signalKey')).toBeNull();
   });
 
   it('does not retain invalid physicalDeviceId in parsed context', () => {

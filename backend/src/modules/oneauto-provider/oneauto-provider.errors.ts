@@ -20,6 +20,14 @@ export function oneAutoBudgetExceededException() {
   return new ConflictException({ code: 'ONEAUTO_BUDGET_EXCEEDED', message: 'Organization One Auto daily budget would be exceeded' });
 }
 
+export function oneAutoBudgetNotConfiguredException() {
+  return new ConflictException({
+    code: 'ONEAUTO_BUDGET_NOT_CONFIGURED',
+    message:
+      'Organization One Auto daily budget must be configured with a positive finite cap before execution when the provider is enabled',
+  });
+}
+
 export function oneAutoCrossTenantException() {
   return new ForbiddenException({ code: 'ONEAUTO_CROSS_TENANT', message: 'Vehicle does not belong to this organization' });
 }

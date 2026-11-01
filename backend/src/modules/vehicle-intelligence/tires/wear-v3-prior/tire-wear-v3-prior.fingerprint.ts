@@ -71,3 +71,26 @@ export function computeTireWearV3PriorInputFingerprint(
   };
   return createHash('sha256').update(canonicalJson(payload)).digest('hex');
 }
+
+/**
+ * Calibration-shadow eligibility digest — same prediction-relevant inputs as the V3 prior
+ * fingerprint except live `currentOdometerKm` / optional replay cutoff (telemetry-only churn).
+ * Does not replace or alter the canonical customer V3 inputFingerprint.
+ */
+export function computeTireWearV3CalibrationEligibilityDigest(
+  input: TireWearV3PriorFingerprintInput,
+): string {
+  const payload = {
+    kind: 'TIRE_WEAR_V3_CALIBRATION_ELIGIBILITY_V1',
+    modelVersion: TIRE_WEAR_V3_PRIOR_MODEL_VERSION,
+    modelConfigHash: computeTireWearV3PriorConfigHash(),
+    tireSetupId: input.tireSetupId,
+    vehicleId: input.vehicleId,
+    organizationId: input.organizationId,
+    setupRevision: input.setupRevision,
+    mountPeriod: input.mountPeriod,
+    ledger: input.ledger,
+    measurements: input.measurements,
+  };
+  return createHash('sha256').update(canonicalJson(payload)).digest('hex');
+}

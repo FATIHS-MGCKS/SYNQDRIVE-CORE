@@ -20,6 +20,7 @@ import {
   Boxes,
   Activity,
   Gauge,
+  CircleDot,
 } from 'lucide-react';
 import type { MasterNavGroupConfig, MasterNavItemConfig } from './master-nav.types';
 
@@ -43,6 +44,7 @@ export const MASTER_NAV_ITEMS: MasterNavItemConfig[] = [
   { id: 'support', labelKey: 'master.nav.support', icon: Headphones, permissions: ['MASTER_ADMIN'], badge: 'support-count', mobilePrimary: true },
   { id: 'battery-v2-shadow-inspection', labelKey: 'master.nav.batteryV2ShadowInspection', icon: Battery, permissions: ['MASTER_ADMIN'] },
   { id: 'battery-v2-hv-inspection', labelKey: 'master.nav.batteryV2HvInspection', icon: BatteryCharging, permissions: ['MASTER_ADMIN'] },
+  { id: 'tire-v3-calibration-center', labelKey: 'master.nav.tireV3CalibrationCenter', icon: CircleDot, permissions: ['MASTER_ADMIN'] },
   { id: 'architektur', labelKey: 'master.nav.architecture', icon: Code2, permissions: ['MASTER_ADMIN'] },
   { id: 'changes', labelKey: 'master.nav.changes', icon: FileText, permissions: ['MASTER_ADMIN'] },
 ];
@@ -59,7 +61,7 @@ export const MASTER_NAV_GROUPS: MasterNavGroupConfig[] = [
   { id: 'connectivity', labelKey: 'master.nav.group.connectivity', collapsible: true, defaultExpanded: true, items: ['platform-integrations', 'vsi-intelligence', 'apds-intelligence', 'high-mobility'] },
   { id: 'partners', labelKey: 'master.nav.group.partners', collapsible: true, defaultExpanded: true, items: ['parts-accessories', 'insurances', 'voice-assistant'] },
   { id: 'operations', labelKey: 'master.nav.group.operations', collapsible: true, defaultExpanded: true, items: ['platform-ops', 'support'] },
-  { id: 'engineering', labelKey: 'master.nav.group.engineering', collapsible: true, defaultExpanded: false, items: ['battery-v2-shadow-inspection', 'battery-v2-hv-inspection', 'architektur', 'changes'] },
+  { id: 'engineering', labelKey: 'master.nav.group.engineering', collapsible: true, defaultExpanded: false, items: ['battery-v2-shadow-inspection', 'battery-v2-hv-inspection', 'tire-v3-calibration-center', 'architektur', 'changes'] },
 ];
 
 export const MASTER_MOBILE_PRIMARY_VIEWS = MASTER_NAV_ITEMS

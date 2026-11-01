@@ -6,6 +6,11 @@ import type {
 } from './master-intelligence.types';
 import { EMPTY_MASTER_INTELLIGENCE_CONTEXT } from './master-intelligence.types';
 import { appendVsiLedgerParams, parseVsiLedgerUrlFields } from './vsi-ledger-url.util';
+import {
+  buildMasterIntelligenceSearchContext,
+  sanitizeMasterIntelligenceContextForTarget,
+  type CrossLinkHygieneOptions,
+} from './master-intelligence-context-hygiene.util';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -83,17 +88,22 @@ export function buildMasterIntelligenceSearch(
   const params = new URLSearchParams();
   params.set('view', view);
 
-  if (context.orgId) params.set('orgId', context.orgId);
-  if (context.vehicleId) params.set('vehicleId', context.vehicleId);
-  if (context.providerSourceLinkId) params.set('providerSourceLinkId', context.providerSourceLinkId);
-  if (context.physicalDeviceId) params.set('physicalDeviceId', context.physicalDeviceId);
-  if (context.apdOpportunityId) params.set('apdOpportunityId', context.apdOpportunityId);
-  if (context.policyVersion) params.set('policyVersion', context.policyVersion);
-  if (context.apdEpochId) params.set('apdEpochId', context.apdEpochId);
-  if (context.asOf) params.set('asOf', context.asOf);
+  const scoped =
+    view === 'vsi-intelligence' || view === 'apds-intelligence'
+      ? buildMasterIntelligenceSearchContext(view, context)
+      : context;
+
+  if (scoped.orgId) params.set('orgId', scoped.orgId);
+  if (scoped.vehicleId) params.set('vehicleId', scoped.vehicleId);
+  if (scoped.providerSourceLinkId) params.set('providerSourceLinkId', scoped.providerSourceLinkId);
+  if (scoped.physicalDeviceId) params.set('physicalDeviceId', scoped.physicalDeviceId);
+  if (scoped.apdOpportunityId) params.set('apdOpportunityId', scoped.apdOpportunityId);
+  if (scoped.policyVersion) params.set('policyVersion', scoped.policyVersion);
+  if (scoped.apdEpochId) params.set('apdEpochId', scoped.apdEpochId);
+  if (scoped.asOf) params.set('asOf', scoped.asOf);
 
   if (view === 'vsi-intelligence') {
-    appendVsiLedgerParams(params, context);
+    appendVsiLedgerParams(params, scoped);
   }
 
   const qs = params.toString();
@@ -134,14 +144,15 @@ export function pushMasterIntelligenceUrl(
 export function navigateMasterIntelligenceCrossLink(
   target: MasterIntelligenceCrossLinkTarget,
   context: MasterIntelligenceContextState,
-  opts?: { replace?: boolean },
+  opts?: { replace?: boolean; hygiene?: CrossLinkHygieneOptions },
 ) {
   if (target === 'vehicles') {
+    const sanitized = sanitizeMasterIntelligenceContextForTarget('vehicles', context);
     const params = new URLSearchParams();
     params.set('view', 'vehicles');
     params.set('cvSection', 'vehicles');
-    if (context.orgId) params.set('orgId', context.orgId);
-    if (context.vehicleId) params.set('vehicleId', context.vehicleId);
+    if (sanitized.orgId) params.set('orgId', sanitized.orgId);
+    if (sanitized.vehicleId) params.set('vehicleId', sanitized.vehicleId);
     const next = `${window.location.pathname}?${params.toString()}`;
     if (opts?.replace) window.history.replaceState(null, '', next);
     else window.history.pushState(null, '', next);
@@ -150,10 +161,15 @@ export function navigateMasterIntelligenceCrossLink(
   }
 
   if (target === 'device-inventory') {
+    const sanitized = sanitizeMasterIntelligenceContextForTarget(
+      'device-inventory',
+      context,
+      opts?.hygiene,
+    );
     const params = new URLSearchParams();
     params.set('view', 'device-inventory');
-    if (context.orgId) params.set('orgId', context.orgId);
-    if (context.physicalDeviceId) params.set('pdiDeviceId', context.physicalDeviceId);
+    if (sanitized.orgId) params.set('orgId', sanitized.orgId);
+    if (sanitized.physicalDeviceId) params.set('pdiDeviceId', sanitized.physicalDeviceId);
     const next = `${window.location.pathname}?${params.toString()}`;
     if (opts?.replace) window.history.replaceState(null, '', next);
     else window.history.pushState(null, '', next);
@@ -161,7 +177,11 @@ export function navigateMasterIntelligenceCrossLink(
     return;
   }
 
-  pushMasterIntelligenceUrl(target, context, opts);
+  pushMasterIntelligenceUrl(
+    target,
+    sanitizeMasterIntelligenceContextForTarget(target, context, opts?.hygiene),
+    opts,
+  );
 }
 
 export function isMasterIntelligenceView(view: string): view is MasterIntelligenceView {

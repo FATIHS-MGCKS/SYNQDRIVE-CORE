@@ -6,7 +6,7 @@ const CANONICAL_VIEWS: MasterView[] = [
   'fleet-connection',
   'parts-accessories', 'insurances', 'voice-assistant', 'high-mobility',
   'architektur', 'changes', 'vehicle-logbook', 'battery-v2-shadow-inspection', 'battery-v2-hv-inspection',
-  'vsi-intelligence', 'apds-intelligence',
+  'vsi-intelligence', 'apds-intelligence', 'tire-v3-calibration-center',
 ];
 
 const LEGACY_VIEWS: MasterView[] = [

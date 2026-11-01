@@ -7,12 +7,14 @@ import {
   resolveCatalogEntryForRuntime,
 } from './catalog/oneauto-service-catalog';
 import { assertOneAutoSkuExecutable } from './catalog/oneauto-contract-gate.util';
+import { assertOneAutoPositiveOrgBudgetWhenEnabled } from './oneauto-execution-budget-guard.util';
 import { buildOneAutoContractGateReport } from './catalog/oneauto-verified-contracts';
 import { isValidVin, normalizeVin } from './client/oneauto-vin.util';
 import { OneAutoProviderExecutionService } from './oneauto-provider-execution.service';
 import {
   oneAutoBudgetExceededException,
   oneAutoBindingMismatchException,
+  oneAutoBudgetNotConfiguredException,
   oneAutoConfirmationRequiredException,
   oneAutoContractUnverifiedException,
   oneAutoCrossTenantException,
@@ -130,6 +132,11 @@ export class OneAutoProviderService {
   }) {
     const cfg = this.runtimeCfg();
     if (cfg.enabled !== true) throw oneAutoDisabledException();
+    try {
+      assertOneAutoPositiveOrgBudgetWhenEnabled(cfg);
+    } catch {
+      throw oneAutoBudgetNotConfiguredException();
+    }
     if (!input.acknowledgeIndicativeNotGuaranteed) throw oneAutoConfirmationRequiredException();
     if (!input.idempotencyKey?.trim()) {
       throw oneAutoConfirmationRequiredException();

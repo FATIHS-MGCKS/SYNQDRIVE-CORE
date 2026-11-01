@@ -6,6 +6,10 @@ const PDI_KEYS = [
   'master.intelligence.pdi.loading',
   'master.intelligence.pdi.error',
   'master.intelligence.pdi.section.identity',
+  'master.intelligence.pdi.section.bindings',
+  'master.intelligence.pdi.section.crossNav',
+  'master.intelligence.pdi.bindings.selectRequired',
+  'master.intelligence.pdi.bindings.status.UNKNOWN',
   'master.intelligence.pdi.notApplicableR1',
   'master.intelligence.pdi.noDriftHistory',
 ] as const;

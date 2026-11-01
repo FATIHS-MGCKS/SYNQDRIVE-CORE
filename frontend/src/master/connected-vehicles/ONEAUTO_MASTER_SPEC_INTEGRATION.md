@@ -9,7 +9,7 @@ Adjacent to existing specification actions in `VehicleRegistrationModal`:
 - Container: `data-testid="vehicle-registration-spec-actions"`
 - Existing: `data-testid="vehicle-registration-fetch-ai-specs"` (unchanged)
 - Existing: `data-testid="vehicle-registration-upload-zb1"` (ZB-I upload)
-- Future: `data-oneauto-future-action="reserved"` on the same flex row (comment-only until implemented)
+- Future: **One Auto API** button on the same flex row (`data-testid="vehicle-registration-oneauto-api"`) opens `OneAutoServiceDialog` (P2).
 
 ## Intended flow (future)
 

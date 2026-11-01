@@ -28,7 +28,9 @@ import { DimoDtcProcessor } from './processors/dimo-dtc.processor';
 import { TireRecalculationProcessor } from './processors/tire-recalculation.processor';
 import { TireDs4ShadowProcessor } from './processors/tire-ds4-shadow.processor';
 import { TireDs4ShadowCatchupScheduler } from './schedulers/tire-ds4-shadow-catchup.scheduler';
+import { TireWearV3CalibrationShadowScheduler } from './schedulers/tire-wear-v3-calibration-shadow.scheduler';
 import { TireDs4ShadowModule } from '@modules/vehicle-intelligence/tires/ds4-shadow/tire-ds4-shadow.module';
+import { TireWearV3CalibrationShadowModule } from '@modules/vehicle-intelligence/tires/wear-v3-calibration-shadow/tire-wear-v3-calibration-shadow.module';
 import { BrakeRecalculationProcessor } from './processors/brake-recalculation.processor';
 import { TripTrackingProcessor } from './processors/trip-tracking.processor';
 import { TripBehaviorEnrichmentProcessor } from './processors/trip-behavior-enrichment.processor';
@@ -128,6 +130,7 @@ import { VehicleRegistryLifecycleOutboxWorker } from '@modules/vehicle-onboardin
     VsiReadonlySignalComposerModule,
     VehicleIntelligenceModule,
     TireDs4ShadowModule,
+    TireWearV3CalibrationShadowModule,
     HighMobilityModule,
     NotificationsModule,
     PaymentsModule,
@@ -182,6 +185,7 @@ import { VehicleRegistryLifecycleOutboxWorker } from '@modules/vehicle-onboardin
     DimoVehicleSyncScheduler,
     TireRecalculationScheduler,
     TireDs4ShadowCatchupScheduler,
+    TireWearV3CalibrationShadowScheduler,
     BrakeRecalculationScheduler,
     TripTrackingRecoveryScheduler,
     TripAnalysisRecoveryScheduler,

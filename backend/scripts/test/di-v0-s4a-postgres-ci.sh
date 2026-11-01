@@ -6,7 +6,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
-EXPECTED_POSTGRES_TESTS=127
+# Baseline count gate — update only with documented inventory change (see script footer comment).
+# 131 = 127 (2026-10-29 baseline) + 4 partial-extension admission postgres cases (#2293 / c4194b17).
+EXPECTED_POSTGRES_TESTS=131
 
 fail_closed_url() {
   local name="$1" url="$2"

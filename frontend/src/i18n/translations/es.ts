@@ -11,6 +11,7 @@ import { masterPhysicalDeviceInventoryEs } from './master.physicalDeviceInventor
 import { masterIntelligenceEs } from './master.intelligence.es';
 import { masterMotionPhysicsEs } from './master.motionPhysics.es';
 import { masterVehicleIdentityEs } from './master.vehicleIdentity.es';
+import { masterOneAutoEs } from './master.oneAuto.es';
 import { masterCvTechnicalSpecsEs } from './master.cv.technicalSpecs.es';
 
 export const es = {
@@ -206,6 +207,7 @@ export const es = {
   ...masterIntelligenceEs,
   ...masterMotionPhysicsEs,
 ...masterVehicleIdentityEs,
+  ...masterOneAutoEs,
   ...masterCvTechnicalSpecsEs,
   ...batteryV2HvInspectionES,
   ...tireWearV3Es,

@@ -5,10 +5,15 @@ import {
   type MasterIntelligenceContextValue,
 } from './master-intelligence-context-core';
 import {
+  crossLinkHygieneOptionsFromPatch,
+  normalizeContextForIntelligenceView,
+} from './master-intelligence-context-hygiene.util';
+import {
   mergeMasterIntelligenceContext,
   navigateMasterIntelligenceCrossLink,
   parseMasterIntelligenceContext,
   pushMasterIntelligenceUrl,
+  buildMasterIntelligenceSearch,
 } from './master-intelligence-url';
 import type {
   MasterIntelligenceContextState,
@@ -16,9 +21,13 @@ import type {
 } from './master-intelligence.types';
 import { EMPTY_MASTER_INTELLIGENCE_CONTEXT } from './master-intelligence.types';
 
-function readContextFromLocation(): MasterIntelligenceContextState {
+function readContextFromLocation(view: MasterView): MasterIntelligenceContextState {
   if (typeof window === 'undefined') return EMPTY_MASTER_INTELLIGENCE_CONTEXT;
-  return parseMasterIntelligenceContext(window.location.search);
+  const parsed = parseMasterIntelligenceContext(window.location.search);
+  if (view === 'vsi-intelligence' || view === 'apds-intelligence') {
+    return normalizeContextForIntelligenceView(view, parsed);
+  }
+  return parsed;
 }
 
 export function MasterIntelligenceContextProvider({
@@ -28,13 +37,24 @@ export function MasterIntelligenceContextProvider({
   view: MasterView;
   children: ReactNode;
 }) {
-  const [context, setContext] = useState<MasterIntelligenceContextState>(readContextFromLocation);
+  const [context, setContext] = useState<MasterIntelligenceContextState>(() =>
+    readContextFromLocation(view),
+  );
 
   useEffect(() => {
-    const onPopState = () => setContext(readContextFromLocation());
+    const onPopState = () => setContext(readContextFromLocation(view));
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, []);
+  }, [view]);
+
+  useEffect(() => {
+    if (view !== 'vsi-intelligence' && view !== 'apds-intelligence') return;
+    const raw = parseMasterIntelligenceContext(window.location.search);
+    const normalized = normalizeContextForIntelligenceView(view, raw);
+    if (buildMasterIntelligenceSearch(view, raw) !== buildMasterIntelligenceSearch(view, normalized)) {
+      pushMasterIntelligenceUrl(view, normalized, { replace: true });
+    }
+  }, [view]);
 
   const navigateCrossLink = useCallback(
     (
@@ -43,17 +63,18 @@ export function MasterIntelligenceContextProvider({
       opts?: { replace?: boolean },
     ) => {
       const merged = mergeMasterIntelligenceContext(context, patch ?? {});
-      navigateMasterIntelligenceCrossLink(target, merged, opts);
-      setContext(readContextFromLocation());
+      const hygiene = crossLinkHygieneOptionsFromPatch(patch);
+      navigateMasterIntelligenceCrossLink(target, merged, { ...opts, hygiene });
+      setContext(readContextFromLocation(view));
     },
-    [context],
+    [context, view],
   );
 
   const setContextInUrl = useCallback(
     (patch: Partial<MasterIntelligenceContextState>, opts?: { replace?: boolean }) => {
       const merged = mergeMasterIntelligenceContext(context, patch);
       pushMasterIntelligenceUrl(view, merged, opts);
-      setContext(readContextFromLocation());
+      setContext(readContextFromLocation(view));
     },
     [context, view],
   );

@@ -152,7 +152,7 @@ describe('VehicleRegistrationModal ZB1 additive toolbar', () => {
 
     const actions = document.querySelector('[data-testid="vehicle-registration-spec-actions"]');
     expect(actions).toBeTruthy();
-    expect(actions?.getAttribute('data-oneauto-future-action')).toBe('reserved');
+    expect(document.querySelector('[data-testid="vehicle-registration-oneauto-api"]')).toBeTruthy();
 
     const fetchBtn = document.querySelector('[data-testid="vehicle-registration-fetch-ai-specs"]');
     const zb1Btn = document.querySelector('[data-testid="vehicle-registration-upload-zb1"]');

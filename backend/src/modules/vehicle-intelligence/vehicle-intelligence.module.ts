@@ -317,6 +317,7 @@ import { DiV0Ds4RpmHfV1aModule } from './driving-intelligence/rpm-hf-v1a/di-v0-d
 import { DiV0Ds4RpmHfV1bModule } from './driving-intelligence/rpm-hf-v1b/di-v0-ds4-rpm-hf-v1b.module';
 import { TireDs4ShadowModule } from './tires/ds4-shadow/tire-ds4-shadow.module';
 import { TireWearV3PriorModule } from './tires/wear-v3-prior/tire-wear-v3-prior.module';
+import { TireWearV3CalibrationShadowModule } from './tires/wear-v3-calibration-shadow/tire-wear-v3-calibration-shadow.module';
 import { TireHealthV3ReadModule } from './tires/tire-health-v3-read.module';
 import { DiV0M7aRoadAssignmentShadowModule } from './driving-intelligence/m7a-road-assignment-shadow-worker/di-v0-m7a-road-assignment-shadow.module';
 
@@ -333,6 +334,7 @@ import { DiV0M7aRoadAssignmentShadowModule } from './driving-intelligence/m7a-ro
     DiV0Ds4RpmHfV1bModule,
     TireDs4ShadowModule,
     TireWearV3PriorModule,
+    TireWearV3CalibrationShadowModule,
     TireHealthV3ReadModule,
     DiV0M7aRoadAssignmentShadowModule,
     forwardRef(() => AiModule),

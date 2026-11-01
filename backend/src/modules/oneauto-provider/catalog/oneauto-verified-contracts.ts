@@ -1,42 +1,50 @@
-import type { OneAutoExecutionMode } from './oneauto-service-catalog';
+import {
+  getDocumentedOneAutoContract,
+  isOneAutoSkuDocumented,
+} from './oneauto-documented-contracts';
+import type { OneAutoExecutionVerifiedProviderContract } from './oneauto-contract-types';
+
+export type {
+  OneAutoDocumentedProviderContract,
+  OneAutoExecutionVerifiedProviderContract,
+  OneAutoProviderHttpContract,
+} from './oneauto-contract-types';
+
+/** @deprecated Use OneAutoExecutionVerifiedProviderContract — alias for P1 import sites. */
+export type VerifiedOneAutoProviderContract = OneAutoExecutionVerifiedProviderContract;
 
 /**
- * Provider contracts attested against official One Auto OpenAPI / Postman evidence.
- * Empty in P1 — no SKU may dispatch outbound HTTP until an entry is added here with
- * full verification (endpoint, method, VIN param, async semantics, pricing, parsing).
+ * Execution-verified registry — empty until async/billing attestation PRs land.
+ * DOCUMENTED contracts alone must never be inserted here.
  */
-export type VerifiedOneAutoProviderContract = {
-  serviceSku: string;
-  providerPathTemplate: string;
-  httpMethod: 'GET';
-  /** Query parameter name for VIN — must match verified docs (not guessed). */
-  vinQueryParameter: 'vin';
-  executionMode: OneAutoExecutionMode;
-  /**
-   * When true, vendor docs verify that polling the same URL after 202 does not create
-   * a new billable request. When false or unset on async SKUs, polling is blocked.
-   */
-  asyncPollSameUrlWithoutNewCharge: boolean;
-  /** Response stored opaquely — no field mapping into vehicle records. */
-  responseHandling: 'OPAQUE_JSON';
-  /** Indicative list price attestation version (not a billing guarantee). */
-  pricingSourceVersion: string;
-};
-
-/** Production registry — intentionally empty until contract attestation lands. */
-export const ONEAUTO_VERIFIED_PROVIDER_CONTRACTS: ReadonlyMap<
+export const ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS: Map<
   string,
-  VerifiedOneAutoProviderContract
+  OneAutoExecutionVerifiedProviderContract
 > = new Map();
 
-export function getVerifiedOneAutoContract(
+/** Back-compat alias (same map reference). */
+export const ONEAUTO_VERIFIED_PROVIDER_CONTRACTS = ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS;
+
+export function getExecutionVerifiedOneAutoContract(
   serviceSku: string,
-): VerifiedOneAutoProviderContract | undefined {
-  return ONEAUTO_VERIFIED_PROVIDER_CONTRACTS.get(serviceSku);
+): OneAutoExecutionVerifiedProviderContract | undefined {
+  return ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.get(serviceSku);
 }
 
+/** @deprecated Prefer getExecutionVerifiedOneAutoContract */
+export function getVerifiedOneAutoContract(
+  serviceSku: string,
+): OneAutoExecutionVerifiedProviderContract | undefined {
+  return getExecutionVerifiedOneAutoContract(serviceSku);
+}
+
+export function isOneAutoSkuExecutionVerified(serviceSku: string): boolean {
+  return ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has(serviceSku);
+}
+
+/** @deprecated Prefer isOneAutoSkuExecutionVerified */
 export function isOneAutoSkuContractVerified(serviceSku: string): boolean {
-  return ONEAUTO_VERIFIED_PROVIDER_CONTRACTS.has(serviceSku);
+  return isOneAutoSkuExecutionVerified(serviceSku);
 }
 
 export type OneAutoContractGateField =
@@ -44,37 +52,71 @@ export type OneAutoContractGateField =
   | 'httpMethod'
   | 'vinParameter'
   | 'asyncSemantics'
+  | 'asyncPollBilling'
+  | 'http206Semantics'
   | 'price'
   | 'responseParsing';
+
+export type OneAutoContractGateReason =
+  | 'CONTRACT_UNVERIFIED'
+  | 'DOCUMENTED_NOT_EXECUTABLE'
+  | 'EXECUTABLE';
 
 export type OneAutoContractGateReport = {
   serviceSku: string;
   executable: boolean;
-  reason: 'CONTRACT_UNVERIFIED' | 'EXECUTABLE';
+  reason: OneAutoContractGateReason;
+  documentationState: 'DOCUMENTED' | 'UNVERIFIED';
+  executionVerificationState: 'EXECUTION_VERIFIED' | 'UNVERIFIED';
   unverifiedFields: OneAutoContractGateField[];
 };
 
 export function buildOneAutoContractGateReport(serviceSku: string): OneAutoContractGateReport {
-  const verified = getVerifiedOneAutoContract(serviceSku);
-  if (!verified) {
+  const execution = getExecutionVerifiedOneAutoContract(serviceSku);
+  if (execution) {
+    return {
+      serviceSku,
+      executable: true,
+      reason: 'EXECUTABLE',
+      documentationState: isOneAutoSkuDocumented(serviceSku) ? 'DOCUMENTED' : 'UNVERIFIED',
+      executionVerificationState: 'EXECUTION_VERIFIED',
+      unverifiedFields: [],
+    };
+  }
+
+  const documented = getDocumentedOneAutoContract(serviceSku);
+  if (documented) {
     return {
       serviceSku,
       executable: false,
-      reason: 'CONTRACT_UNVERIFIED',
+      reason: 'DOCUMENTED_NOT_EXECUTABLE',
+      documentationState: 'DOCUMENTED',
+      executionVerificationState: 'UNVERIFIED',
       unverifiedFields: [
-        'endpoint',
-        'httpMethod',
-        'vinParameter',
-        'asyncSemantics',
+        'asyncPollBilling',
+        'http206Semantics',
         'price',
         'responseParsing',
+        ...(documented.asyncCapability === 'ASYNC_UNVERIFIED' ? (['asyncSemantics'] as const) : []),
       ],
     };
   }
+
   return {
     serviceSku,
-    executable: true,
-    reason: 'EXECUTABLE',
-    unverifiedFields: [],
+    executable: false,
+    reason: 'CONTRACT_UNVERIFIED',
+    documentationState: 'UNVERIFIED',
+    executionVerificationState: 'UNVERIFIED',
+    unverifiedFields: [
+      'endpoint',
+      'httpMethod',
+      'vinParameter',
+      'asyncSemantics',
+      'asyncPollBilling',
+      'http206Semantics',
+      'price',
+      'responseParsing',
+    ],
   };
 }

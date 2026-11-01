@@ -1,40 +1,93 @@
-# One Auto API — verified vs unverified contracts (SynqDrive P1)
+# One Auto API — provider contracts (SynqDrive)
 
-Sources consulted (2026-10-31, no live paid calls from this workstream):
+Last updated: **2026-11-01** (P2.5B OpenAPI evidence alignment). No live paid provider calls from this workstream.
+
+## OpenAPI evidence (P2.5B)
+
+Canonical six-SKU contract snapshot: `docs/provider-evidence/oneauto-six-sku-openapi-evidence.json` (OpenAPI **3.0.3**).  
+Regression: `oneauto-p25b-openapi-contract-alignment.spec.ts`.
+
+## Evidence states (orthogonal)
+
+| State | Meaning | Outbound HTTP | Master Admin execute |
+|-------|---------|---------------|----------------------|
+| **UNVERIFIED** | No vendor attestation in repo | Blocked | Blocked |
+| **DOCUMENTED** | Official marketing/service page paths + auth + VIN param recorded | **Blocked** | **Blocked** |
+| **EXECUTION_VERIFIED** | Async poll billing, HTTP 206, pricing, and parsing attested on registry entry | Allowlisted only | Allowed when flag + env price |
+
+**DOCUMENTED ≠ EXECUTABLE.** Documented contracts live in `catalog/oneauto-documented-contracts.ts`.  
+Execution registry `ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS` remains **empty** until a follow-up attestation PR.
+
+## Official references
 
 | Source | URL |
 |--------|-----|
-| Knowledge base | https://docs.oneautoapi.com |
-| Swagger UI | https://swagger.oneautoapi.com (OpenAPI JSON not publicly fetchable without auth) |
-| Sandbox Postman guide | https://docs.oneautoapi.com/knowledgebase/making-sandbox-api-calls-postman/ |
+| Swagger UI | https://swagger.oneautoapi.com/ (OpenAPI JSON typically account-gated) |
+| DE pricing (PrePay / Business) | https://www.oneautoapi.com/pricing/de/ |
 | Async methods | https://docs.oneautoapi.com/knowledgebase/working-with-asynchronous-api-methods/ |
 | Status codes | https://docs.oneautoapi.com/knowledgebase/understanding-status-codes/ |
 | API keys | https://docs.oneautoapi.com/knowledgebase/creating-api-keys/ |
 
-## Verified (implementation may rely on these)
+## DOCUMENTED — six SKUs (GET)
 
-- **Authentication:** API key sent on requests (dashboard → API Admin → API Keys); same key for sandbox and live per vendor docs.
-- **Sandbox base URL:** `https://sandbox.oneautoapi.com`
-- **Live base URL:** vendor docs reference live calls separately; SynqDrive uses `ONEAUTO_BASE_URL` override (default live host `https://api.oneautoapi.com` when `ONEAUTO_SANDBOX=false`).
-- **HTTP async:** `202 Accepted` / `202 In Progress` → poll same endpoint or use optional callback URL; re-call for `200` when complete (vendor async guide).
-- **Partial content:** `206` may include corrective hints (vendor status guide).
-- **No automatic sandbox→live fallback** in SynqDrive client (config-bound base URL).
+Auth header: **`x-api-key`**. VIN query: **`vehicle_identification_number`**.  
+Sandbox host: `https://sandbox.oneautoapi.com`. Live host: `https://api.oneautoapi.com`.
 
-## Unverified (blocked or stubbed in P1)
+| SKU | Path | Async capability (documented) |
+|-----|------|--------------------------------|
+| OE_SERVICE_HISTORY_EU | `ezyvin/servicehistory/` | ASYNC_CAPABLE → catalog `ASYNC_POLL` |
+| OE_SERVICE_SCHEDULE | `oneauto/oeserviceschedulefromvin/v2` | ASYNC_CAPABLE → `ASYNC_POLL` |
+| OE_BUILD_DECODE | `oneauto/oebuilddecode/v2` | ASYNC_CAPABLE → `ASYNC_CAPABLE` |
+| OE_BUILD_SHEET_EU | `oneauto/oebuildsheeteuropefromvin/v2` | ASYNC_CAPABLE → `ASYNC_POLL` |
+| OE_VIN_LOOKUP_EU | `ezyvin/vinlookup/` | ASYNC_CAPABLE → `ASYNC_CAPABLE` |
+| RECALL_CHECK | `oneauto/recallcheckfromvin/v2` | SYNC_ONLY (OpenAPI: VIN only, no callback params) → `SYNC` |
 
-- **Exact REST paths** per SKU (`OE_SERVICE_HISTORY_EU`, etc.) — not extracted from authenticated Swagger/Postman in this environment.
-- **Query parameter names** per EU service (UK docs use `vehicle_registration_mark`; EU VIN parameter names UNKNOWN).
-- **Response JSON field shapes** — stored opaquely; never mapped into vehicle specs automatically.
-- **Published DE pricing page** — `https://oneautoapi.com/pricing/de/` returned 404 at audit time; indicative prices require `ONEAUTO_INDICATIVE_PRICE_<SKU>_MINOR` env configuration.
-- **Actual billed amounts** — UNKNOWN until provider billing/audit evidence exists.
-- **Inbound webhook authentication** — not implemented (no verified callback contract wired in P1).
+Service page URLs are listed on each entry in `oneauto-documented-contracts.ts` (`evidenceSources`).
 
-## SynqDrive P1 safety
+## EXECUTION_VERIFIED registry
 
-- Feature flag `ONEAUTO_ENABLED=false` by default.
-- HTTP allowlist built **only** from `ONEAUTO_VERIFIED_PROVIDER_CONTRACTS` (empty → no outbound paths).
-- Catalog placeholders are **not** executable (`CONTRACT_UNVERIFIED`) until attestation entry exists.
-- VIN-only request parameters (verified param name required on contract entry).
-- Cost confirmation + quote TTL + idempotency before enqueueing billable work.
-- Master Admin MFA step-up on execute (`MASTER_ONEAUTO_PROVIDER_EXECUTE`) when IAM MFA flags enforce step-up.
-- External responses persisted in `OneAutoProviderResponse` only — no auto-write to vehicle specification or service history.
+**Empty.** No SKU may call the provider until an entry is added with:
+
+- `evidenceState: 'EXECUTION_VERIFIED'`
+- Explicit `asyncPollSameUrlWithoutNewCharge` (required `true` to enable same-URL polling after 202)
+- Explicit `http206CompleteSuccessAllowed` (required `true` to treat HTTP 206 as job success)
+- `pricingSourceVersion` + env `ONEAUTO_INDICATIVE_PRICE_<SKU>_MINOR`
+
+## HTTP client (P2.5A)
+
+- Contract-driven `executeProviderGet` — no `Authorization` / `vin` fallbacks.
+- Base URL host allowlist: `sandbox.oneautoapi.com`, `api.oneautoapi.com` only.
+- Path allowlist: **execution-verified** contracts only.
+- **No automatic retries** for billable requests (`ONEAUTO_MAX_RETRIES` default **0**).
+- API keys never logged.
+- **P2.5E:** `redirect: manual`; bounded response read (`ONEAUTO_MAX_RESPONSE_BYTES`); HTTP 200 `success===false` fails job; `isValidVin` at HTTP client; positive `ONEAUTO_ORG_DAILY_BUDGET_MINOR` required when enabled.
+
+## Async / billing safety
+
+- Same-URL polling after **202** is **fail-closed** until `asyncPollSameUrlWithoutNewCharge` is attested on an execution-verified entry.
+- **Callbacks / webhooks** are documented but **not activated**.
+- **HTTP 206** is **not** job success unless `http206CompleteSuccessAllowed` on execution-verified entry.
+- `actualChargeKnown` remains **false** until provider billing evidence exists.
+- **P2.5E:** HTTP 200 with OpenAPI `success:false` does **not** complete jobs (`ONEAUTO_PROVIDER_ENVELOPE_FAILURE`); envelope does not prove non-billing.
+
+## DE PrePay reference prices (EUR minor, VAT excluded)
+
+Reference only — **not** auto-loaded into quotes. See `catalog/oneauto-prepay-reference-prices.ts`.
+
+| SKU | PrePay EUR minor |
+|-----|------------------|
+| OE_SERVICE_HISTORY_EU | 300 |
+| OE_SERVICE_SCHEDULE | 210 |
+| OE_BUILD_DECODE | 180 |
+| OE_BUILD_SHEET_EU | 195 |
+| OE_VIN_LOOKUP_EU | 36 |
+| RECALL_CHECK | UNVERIFIED (see service page) |
+
+Catalog default currency remains **GBP** until operators configure env indicative prices after account verification.
+
+## SynqDrive safety (unchanged)
+
+- `ONEAUTO_ENABLED=false` by default.
+- Cost confirmation + quote TTL + idempotency before enqueue.
+- Master Admin MFA on execute (`MASTER_ONEAUTO_PROVIDER_EXECUTE`).
+- External JSON stored only — no auto-write to vehicle specs / service history.

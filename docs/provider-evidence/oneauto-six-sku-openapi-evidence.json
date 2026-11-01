@@ -1,0 +1,1114 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "One Auto API",
+    "description": "Subscribe and generate an api key on our website: [https://www.oneautoapi.com](https://www.oneautoapi.com)",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://sandbox.oneautoapi.com",
+      "description": "(Sandbox)"
+    },
+    {
+      "url": "https://api.oneautoapi.com",
+      "description": "(LIVE)"
+    }
+  ],
+  "paths": {
+    "/ezyvin/servicehistory/": {
+      "get": {
+        "tags": [
+          "Ezyvin"
+        ],
+        "operationId": "ezyvin_servicehistory",
+        "summary": "Service History from VIN",
+        "description": "Retrieve digital service history data from 31 manufacturers with full European coverage. ",
+        "parameters": [
+          {
+            "name": "vehicle_identification_number",
+            "in": "query",
+            "description": "Vehicle identification number (VIN).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "callback_url",
+            "in": "query",
+            "description": "The callback URL",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "return_data_in_callback",
+            "in": "query",
+            "description": "Whether the callback should contain the data from the result.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true,
+                      "description": "Whether the api call was successful"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "vehicle_identification_number": {
+                          "type": "string",
+                          "example": "ABCDE123456F78910",
+                          "description": "Vehicle identification number (VIN)."
+                        },
+                        "service_events": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "date_of_service_event": {
+                                "type": "string",
+                                "example": "2019-10-21",
+                                "description": "Date of service."
+                              },
+                              "mileage_observed": {
+                                "type": "integer",
+                                "example": 69343,
+                                "description": "Vehicle odometer reading"
+                              },
+                              "mileage_unit": {
+                                "type": "string",
+                                "example": "km",
+                                "description": "The mileage unit."
+                              },
+                              "service_provider": {
+                                "type": "string",
+                                "example": "Premier Service Centre, 2 York Road, Leicester, LE4 9LS, United Kingdom",
+                                "description": "Service provider."
+                              },
+                              "service_type": {
+                                "type": "string",
+                                "example": "service",
+                                "description": "Service type."
+                              },
+                              "service_actions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "If there is an error the message would go here",
+                      "description": "Details of what went wrong with the api call"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/oneauto/oeserviceschedulefromvin/v2": {
+      "get": {
+        "tags": [
+          "One Auto API"
+        ],
+        "operationId": "oneauto_oeserviceschedulefromvin",
+        "summary": "OE Service Schedule from VIN",
+        "description": "OE service schedule data including detailed work actions, times and parts requirements,  with comprehensive coverage. ",
+        "parameters": [
+          {
+            "name": "vehicle_identification_number",
+            "in": "query",
+            "description": "Vehicle identification number (VIN).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "callback_url",
+            "in": "query",
+            "description": "The callback URL",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "return_data_in_callback",
+            "in": "query",
+            "description": "Whether the callback should contain the data from the result.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true,
+                      "description": "Whether the api call was successful"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "vehicle_identification_number": {
+                          "type": "string",
+                          "example": "ABCDE123456F78910",
+                          "description": "Vehicle identification number (VIN)."
+                        },
+                        "normal_services": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "service_id": {
+                                "type": "string",
+                                "example": "SID1001",
+                                "description": "ID for the service"
+                              },
+                              "service_interval_desc": {
+                                "type": "string",
+                                "example": "every 30000 km or 12 months",
+                                "description": "Service interval description"
+                              },
+                              "service_months": {
+                                "type": "integer",
+                                "example": 12,
+                                "description": "Service months."
+                              },
+                              "service_kms": {
+                                "type": "integer",
+                                "example": 30000,
+                                "description": "Service interval in kilometres"
+                              },
+                              "service_miles": {
+                                "type": "integer",
+                                "example": 18641,
+                                "description": "Service miles."
+                              },
+                              "service_description": {
+                                "type": "string",
+                                "example": "Engine Oil, Filter, interior air, Oil Filter, Sealing Plug, oil sump",
+                                "description": "Service description"
+                              },
+                              "service_time_hours": {
+                                "type": "number",
+                                "example": 1,
+                                "description": "The OE time for the service."
+                              },
+                              "service_tasks": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "task_id": {
+                                      "type": "string",
+                                      "example": "TID1001",
+                                      "description": "ID for the task."
+                                    },
+                                    "task_description": {
+                                      "type": "string",
+                                      "example": "Outstanding campaigns and recalls",
+                                      "description": "Task description"
+                                    },
+                                    "task_action": {
+                                      "type": "string",
+                                      "example": "Check",
+                                      "description": "The required action"
+                                    },
+                                    "vehicle_position": {
+                                      "type": "string",
+                                      "example": "Vehicle On Floor",
+                                      "description": "The position of the vehicle while carrying out the task"
+                                    }
+                                  }
+                                }
+                              },
+                              "service_parts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "part_number": {
+                                      "type": "string",
+                                      "example": "F026407231",
+                                      "description": "Supplier part number"
+                                    },
+                                    "part_desc": {
+                                      "type": "string",
+                                      "example": "Oil Filter",
+                                      "description": "Part description"
+                                    },
+                                    "supplier_id": {
+                                      "type": "integer",
+                                      "example": 30,
+                                      "description": "ID for the supplier"
+                                    },
+                                    "supplier_desc": {
+                                      "type": "string",
+                                      "example": "BOSCH",
+                                      "description": "Supplier name"
+                                    },
+                                    "part_grade": {
+                                      "type": "string",
+                                      "example": "Grade A",
+                                      "description": "The grade of the part"
+                                    },
+                                    "oe_part_number": {
+                                      "type": "string",
+                                      "example": "074 115 562",
+                                      "description": "OE part number"
+                                    },
+                                    "service_id": {
+                                      "type": "string",
+                                      "example": "SID1001",
+                                      "description": "ID for the service"
+                                    },
+                                    "part_attributes": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "name": {
+                                            "type": "string",
+                                            "example": "Outer diameter [mm]",
+                                            "description": "Name of the attribute"
+                                          },
+                                          "value": {
+                                            "type": "string",
+                                            "example": "91",
+                                            "description": "Attribute value."
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "extra_services": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "service_id": {
+                                "type": "string",
+                                "example": "SID1075",
+                                "description": "ID for the service"
+                              },
+                              "service_interval_desc": {
+                                "type": "string",
+                                "example": "every 300000 km,regardless of elapsed time",
+                                "description": "Service interval description"
+                              },
+                              "service_months": {
+                                "type": "integer",
+                                "example": 24,
+                                "description": "Service months."
+                              },
+                              "service_kms": {
+                                "type": "integer",
+                                "example": 300000,
+                                "description": "Service interval in kilometres"
+                              },
+                              "service_miles": {
+                                "type": "integer",
+                                "example": 186412,
+                                "description": "Service miles."
+                              },
+                              "service_description": {
+                                "type": "string",
+                                "example": "Timing Chain",
+                                "description": "Service description"
+                              },
+                              "service_time_hours": {
+                                "type": "number",
+                                "example": 2.9,
+                                "description": "The OE time for the service."
+                              },
+                              "service_tasks": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "task_id": {
+                                      "type": "string",
+                                      "example": "TID1001",
+                                      "description": "ID for the task."
+                                    },
+                                    "task_description": {
+                                      "type": "string",
+                                      "example": "Timing chain(s)",
+                                      "description": "Task description"
+                                    },
+                                    "task_action": {
+                                      "type": "string",
+                                      "example": "Renew",
+                                      "description": "The required action"
+                                    },
+                                    "vehicle_position": {
+                                      "type": "string",
+                                      "example": "Engine Bay Operations",
+                                      "description": "The position of the vehicle while carrying out the task"
+                                    }
+                                  }
+                                }
+                              },
+                              "service_parts": {
+                                "type": "array",
+                                "items": {
+                                  "type": "undefined"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/oneauto/oebuilddecode/v2": {
+      "get": {
+        "tags": [
+          "One Auto API"
+        ],
+        "operationId": "oneauto_oebuilddecode",
+        "summary": "OE Build Decode",
+        "description": "Detailed OE Build Decode from a VIN,  covering 27 manufacturers in multiple markets. ",
+        "parameters": [
+          {
+            "name": "vehicle_identification_number",
+            "in": "query",
+            "description": "Vehicle identification number (VIN).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "callback_url",
+            "in": "query",
+            "description": "The callback URL",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "return_data_in_callback",
+            "in": "query",
+            "description": "Whether the callback should contain the data from the result.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true,
+                      "description": "Whether the api call was successful"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "vehicle_identification_number": {
+                          "type": "string",
+                          "example": "ABCDE123456F78910",
+                          "description": "Vehicle identification number (VIN)."
+                        },
+                        "manufacturer_desc": {
+                          "type": "string",
+                          "example": "Buick",
+                          "description": "Manufacturer description"
+                        },
+                        "model_range_desc": {
+                          "type": "string",
+                          "example": "Encore",
+                          "description": "Model range description."
+                        },
+                        "model_desc": {
+                          "type": "string",
+                          "example": "Buick Encore 1.4T AMT(6-speed) Preferred 2020",
+                          "description": "Model description."
+                        },
+                        "oem_series_desc": {
+                          "type": "string",
+                          "example": "E1",
+                          "description": "Model series name assigned by the manufacturer."
+                        },
+                        "oem_production_code": {
+                          "type": "string",
+                          "example": "wyxyzpjgj",
+                          "description": "Production code assigned by the manufacturer"
+                        },
+                        "oem_body_type_desc": {
+                          "type": "string",
+                          "example": "SUV",
+                          "description": "The body type description as supplied by manufacturer"
+                        },
+                        "oem_power_value": {
+                          "type": "number",
+                          "example": 103,
+                          "description": "Power value provided by the manufacturer,  usually in BHP. "
+                        },
+                        "oem_fuel_type_desc": {
+                          "type": "string",
+                          "example": "Petrol",
+                          "description": "The fuel type as supplied by the manufacturer."
+                        },
+                        "oem_engine_size_litres": {
+                          "type": "number",
+                          "example": 1.4,
+                          "description": "Engine size provided by the manufacturer,  usually in litres."
+                        },
+                        "oem_drive_side": {
+                          "type": "string",
+                          "example": "LHD",
+                          "description": "Drive side value provided by the manufacturer. "
+                        },
+                        "manufactured_date": {
+                          "type": "string",
+                          "example": "2020-05-08",
+                          "description": "The date of manufacture "
+                        },
+                        "oem_colour_desc": {
+                          "type": "string",
+                          "example": "Midnight Black Pearlescent",
+                          "description": "The OEM's colour description."
+                        },
+                        "oem_interior_trim_desc": {
+                          "type": "string",
+                          "example": "INTERIOR TRIM CONFIG #14",
+                          "description": "The interior trim description as supplied by the manufacturer."
+                        },
+                        "oem_engine_desc": {
+                          "type": "string",
+                          "example": "ENGINE GAS, 4 CYL, 1.4L, MFI, DOHC, TURBO, VVT, ALUM, GME",
+                          "description": "The engine description as supplied by manufacturer"
+                        },
+                        "oem_transmission_type_desc": {
+                          "type": "string",
+                          "example": "Automatic",
+                          "description": "The transmission type description as supplied by manufacturer"
+                        },
+                        "oem_drivetrain_desc": {
+                          "type": "string",
+                          "example": "FWD",
+                          "description": "The drivetrain description as supplied by manufacturer"
+                        },
+                        "options": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "factory_code": {
+                                "type": "string",
+                                "example": "AKK",
+                                "description": "The factory code"
+                              },
+                              "factory_desc": {
+                                "type": "string",
+                                "example": "WINDSHIELD STYLE ACOUSTIC PVB",
+                                "description": "Factory description"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/oneauto/oebuildsheeteuropefromvin/": {
+      "get": {
+        "tags": [
+          "One Auto API"
+        ],
+        "operationId": "oneauto_oebuildsheeteuropefromvin",
+        "summary": "OE Build Sheet (Europe) from VIN",
+        "description": "Factory build sheet data for option identification and marketing,  parts ordering and risk management - with European coverage. ",
+        "parameters": [
+          {
+            "name": "vehicle_identification_number",
+            "in": "query",
+            "description": "Vehicle identification number (VIN).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true,
+                      "description": "Whether the api call was successful"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "manufactured_date": {
+                          "type": "string",
+                          "example": "2015-03-19",
+                          "description": "The date of manufacture "
+                        },
+                        "delivered_date": {
+                          "type": "string",
+                          "example": "2020-03-01",
+                          "description": "The delivery date of the vehicle."
+                        },
+                        "oem_colour_desc": {
+                          "type": "string",
+                          "example": "Metallic mythical black (0E)",
+                          "description": "The OEM's colour description."
+                        },
+                        "oem_interior_trim_desc": {
+                          "type": "string",
+                          "example": "Soul (black) (QF)",
+                          "description": "The interior trim description as supplied by the manufacturer."
+                        },
+                        "oem_engine_desc": {
+                          "type": "string",
+                          "example": "CULB (D64 : 4-cylinder SI engine 2.0 l/132 kW (16V) turbo FSI homog. base engine T4U/T56/ TM2/TV2/TL6/TG6/TR6/TS6/TD6/TM6/T06/TD3)",
+                          "description": "The engine description as supplied by manufacturer"
+                        },
+                        "oem_transmission_type_desc": {
+                          "type": "string",
+                          "example": "PUZ (G1D : 7-speed automatic transmission for four-wheel drive vehicle)",
+                          "description": "The transmission type description as supplied by manufacturer"
+                        },
+                        "oem_drivetrain_desc": {
+                          "type": "string",
+                          "example": "All-wheel drive",
+                          "description": "The drivetrain description as supplied by manufacturer"
+                        },
+                        "oem_wheel_desc": {
+                          "type": "string",
+                          "example": "20 Inch Wheel",
+                          "description": "The interior wheel description as supplied by the manufacturer."
+                        },
+                        "options": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "factory_code": {
+                                "type": "string",
+                                "example": "123456",
+                                "description": "The factory code"
+                              },
+                              "factory_desc": {
+                                "type": "string",
+                                "example": "ADDITIONAL AIR CONDITIONING",
+                                "description": "Factory description"
+                              },
+                              "additional_desc": {
+                                "type": "string",
+                                "example": "Without Additional Air Conditioning",
+                                "description": "The additional description of the option. "
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "If there is an error the message would go here",
+                      "description": "Details of what went wrong with the api call"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/oneauto/oebuildsheeteuropefromvin/v2": {
+      "get": {
+        "tags": [
+          "One Auto API"
+        ],
+        "operationId": "oneauto_oebuildsheeteuropefromvin1",
+        "summary": "OE Build Sheet (Europe) from VIN",
+        "description": "Factory build sheet data for option identification and marketing,  parts ordering and risk management - with European coverage. ",
+        "parameters": [
+          {
+            "name": "vehicle_identification_number",
+            "in": "query",
+            "description": "Vehicle identification number (VIN).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "callback_url",
+            "in": "query",
+            "description": "The callback URL",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "return_data_in_callback",
+            "in": "query",
+            "description": "Whether the callback should contain the data from the result.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true,
+                      "description": "Whether the api call was successful"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "manufactured_date": {
+                          "type": "string",
+                          "example": "2015-03-19",
+                          "description": "The date of manufacture "
+                        },
+                        "delivered_date": {
+                          "type": "string",
+                          "example": "2020-03-01",
+                          "description": "The delivery date of the vehicle."
+                        },
+                        "oem_colour_desc": {
+                          "type": "string",
+                          "example": "Metallic mythical black (0E)",
+                          "description": "The OEM's colour description."
+                        },
+                        "oem_interior_trim_desc": {
+                          "type": "string",
+                          "example": "Soul (black) (QF)",
+                          "description": "The interior trim description as supplied by the manufacturer."
+                        },
+                        "oem_engine_desc": {
+                          "type": "string",
+                          "example": "CULB (D64 : 4-cylinder SI engine 2.0 l/132 kW (16V) turbo FSI homog. base engine T4U/T56/ TM2/TV2/TL6/TG6/TR6/TS6/TD6/TM6/T06/TD3)",
+                          "description": "The engine description as supplied by manufacturer"
+                        },
+                        "oem_transmission_type_desc": {
+                          "type": "string",
+                          "example": "PUZ (G1D : 7-speed automatic transmission for four-wheel drive vehicle)",
+                          "description": "The transmission type description as supplied by manufacturer"
+                        },
+                        "oem_drivetrain_desc": {
+                          "type": "string",
+                          "example": "All-wheel drive",
+                          "description": "The drivetrain description as supplied by manufacturer"
+                        },
+                        "oem_wheel_desc": {
+                          "type": "string",
+                          "example": "20 Inch Wheel",
+                          "description": "The interior wheel description as supplied by the manufacturer."
+                        },
+                        "options": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "factory_code": {
+                                "type": "string",
+                                "example": "123456",
+                                "description": "The factory code"
+                              },
+                              "factory_desc": {
+                                "type": "string",
+                                "example": "ADDITIONAL AIR CONDITIONING",
+                                "description": "Factory description"
+                              },
+                              "additional_desc": {
+                                "type": "string",
+                                "example": "Without Additional Air Conditioning",
+                                "description": "The additional description of the option. "
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "If there is an error the message would go here",
+                      "description": "Details of what went wrong with the api call"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/ezyvin/vinlookup/": {
+      "get": {
+        "tags": [
+          "Ezyvin"
+        ],
+        "operationId": "ezyvin_vinlookup",
+        "summary": "OE VIN Lookup (Europe)",
+        "description": "Returns OE sourced vehicle details from a VIN including engine, transmission,  trim level,  interior and exterior colour. ",
+        "parameters": [
+          {
+            "name": "vehicle_identification_number",
+            "in": "query",
+            "description": "Vehicle identification number (VIN).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "callback_url",
+            "in": "query",
+            "description": "The callback URL",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "return_data_in_callback",
+            "in": "query",
+            "description": "Whether the callback should contain the data from the result.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true,
+                      "description": "Whether the api call was successful"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "vehicle_identification_number": {
+                          "type": "string",
+                          "example": "ABCDE123456F78910",
+                          "description": "Vehicle identification number (VIN)."
+                        },
+                        "oem_vehicle_desc": {
+                          "type": "string",
+                          "example": "BMW X1 (E84) xDrive 20 d",
+                          "description": "The vehicle description as supplied by the manufacturer."
+                        },
+                        "vehicle_desc": {
+                          "type": "string",
+                          "example": "BMW X1 xDrive 20 d",
+                          "description": "The Vehicle description"
+                        },
+                        "manufacturer_desc": {
+                          "type": "string",
+                          "example": "BMW",
+                          "description": "Manufacturer description"
+                        },
+                        "oem_model_range_desc": {
+                          "type": "string",
+                          "example": "X1 (E84)",
+                          "description": "The model range description as supplied by manufacturer"
+                        },
+                        "oem_derivative_desc": {
+                          "type": "string",
+                          "example": "xDrive 20 d",
+                          "description": "The derivative description as supplied by manufacturer"
+                        },
+                        "oem_model_year": {
+                          "type": "integer",
+                          "example": 2013,
+                          "description": "The OEM's model year"
+                        },
+                        "manufactured_year": {
+                          "type": "integer",
+                          "example": 2012,
+                          "description": "Year of manufacture."
+                        },
+                        "oem_body_type_desc": {
+                          "type": "string",
+                          "example": "SUV",
+                          "description": "The body type description as supplied by manufacturer"
+                        },
+                        "oem_fuel_type_desc": {
+                          "type": "string",
+                          "example": "Diesel",
+                          "description": "The fuel type as supplied by the manufacturer."
+                        },
+                        "oem_engine_desc": {
+                          "type": "string",
+                          "example": "N47 D20 C",
+                          "description": "The engine description as supplied by manufacturer"
+                        },
+                        "oem_transmission_type_desc": {
+                          "type": "string",
+                          "example": "automatic",
+                          "description": "The transmission type description as supplied by manufacturer"
+                        },
+                        "oem_drivetrain_desc": {
+                          "type": "string",
+                          "example": "All-wheel drive",
+                          "description": "The drivetrain description as supplied by manufacturer"
+                        },
+                        "power_bhp": {
+                          "type": "number",
+                          "example": 184,
+                          "description": "Maximum BHP (Brake Horse Power) of this vehicle."
+                        },
+                        "power_kw": {
+                          "type": "number",
+                          "example": 135,
+                          "description": "The maximum net power in kw"
+                        },
+                        "oem_colour_desc": {
+                          "type": "string",
+                          "example": "Mineral-weiss metallic (A96)",
+                          "description": "The OEM's colour description."
+                        },
+                        "oem_interior_trim_desc": {
+                          "type": "string",
+                          "example": "Leather",
+                          "description": "The interior trim description as supplied by the manufacturer."
+                        },
+                        "date_last_updated": {
+                          "type": "string",
+                          "example": "2025-09-23",
+                          "description": "Date record was last updated"
+                        }
+                      }
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "If there is an error the message would go here",
+                      "description": "Details of what went wrong with the api call"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    },
+    "/oneauto/recallcheckfromvin/v2": {
+      "get": {
+        "tags": [
+          "One Auto API"
+        ],
+        "operationId": "oneauto_recallcheckfromvin",
+        "summary": "Recall Check from VIN",
+        "description": "This endpoint identifies where a vehicle has been recalled by the manufacturer. Manufacturers covered: Abarth, Alfa Romeo, Alpine, Audi, BMW, Chevrolet, Chrysler, Citroen, Cupra, Dacia, Daihatsu, Dodge, DS, Fiat, Ford, Great Wall, Honda, Hyundai, Infiniti, Isuzu, Jaguar, Jeep, Kia, Lancia, Land Rover, Lexus, Mazda, Mercedes-Benz, MINI, Mitsubishi, Nissan, Opel, Peugeot, Polestar, Renault, Seat, Skoda, Smart, Subaru, Suzuki, Toyota, Vauxhall, Volkswagen, Volvo.",
+        "parameters": [
+          {
+            "name": "vehicle_identification_number",
+            "in": "query",
+            "description": "Vehicle identification number (VIN).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true,
+                      "description": "Whether the api call was successful"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "vehicle_registration_mark": {
+                          "type": "string",
+                          "example": "AB21ABC",
+                          "description": "Vehicle registration number (VRM)."
+                        },
+                        "vehicle_identification_number": {
+                          "type": "string",
+                          "example": "ABCDE123456F78910",
+                          "description": "Vehicle identification number (VIN)."
+                        },
+                        "smmt_manufacturer_model_desc": {
+                          "type": "string",
+                          "example": "Mini Cooper S Sport Auto",
+                          "description": "The SMMT model description."
+                        },
+                        "recall_status": {
+                          "type": "string",
+                          "example": "Recall outstanding",
+                          "description": "The vehicle's recall status."
+                        },
+                        "recall_status_checked_datetime": {
+                          "type": "string",
+                          "example": "2022-01-01T16:07:33.6134574+00:00",
+                          "description": "The date and time recall status was checked."
+                        },
+                        "recall_qty": {
+                          "type": "integer",
+                          "example": 1,
+                          "description": "The number of recalls."
+                        },
+                        "recall_data_items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "recall_desc": {
+                                "type": "string",
+                                "example": "REAR SPOILER OUTER SURFACE RETENTION",
+                                "description": "The recall description."
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "If there is an error the message would go here",
+                      "description": "Details of what went wrong with the api call"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "x-api-key": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "x-api-key": {
+        "type": "apiKey",
+        "name": "x-api-key",
+        "in": "header"
+      }
+    }
+  }
+}

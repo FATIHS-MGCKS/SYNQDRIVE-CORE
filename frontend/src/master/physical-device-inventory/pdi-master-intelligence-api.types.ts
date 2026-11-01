@@ -68,6 +68,8 @@ export type MasterPdiDeviceIntelligenceDto = {
     providerSourceLinkId: string;
     providerIdentity: string;
     linkStatus: string | null;
+    attributionScope?: 'CURRENT_VEHICLE_ONLY';
+    historicalLinkAttributionRequiresPersistedAssignment?: true;
   }>;
   timeline: Array<{
     kind: string;

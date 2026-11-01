@@ -1,4 +1,5 @@
 import { TripReconciliationService } from './trip-reconciliation.service';
+import { stubTripDiBoundaryAdmissionService } from './__tests__/trip-reconciliation-di-admission.stub';
 import { REPAIR_STATUS } from './reconciliation.types';
 import { TripOverlapDetector } from '../detectors/trip-overlap.detector';
 
@@ -80,6 +81,7 @@ function buildService() {
     {} as never,
     new TripOverlapDetector(prisma as never),
     {} as never,
+    stubTripDiBoundaryAdmissionService(),
     undefined as never,
     undefined as never,
     undefined as never,

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -7,20 +8,20 @@ import {
   EvidenceFreshnessHint,
   ShadowVsRealPollHint,
 } from '../intelligence/EvidenceFreshnessHint';
+import { SignalProfileBadge } from '../intelligence/SignalProfileBadge';
+import { navigateMasterIntelligenceCrossLink } from '../intelligence/master-intelligence-url';
 import {
-  SignalProfileBadge,
-} from '../intelligence/SignalProfileBadge';
-import {
-  emptyIntelligenceContext,
-  mergeMasterIntelligenceContext,
-  navigateMasterIntelligenceCrossLink,
-} from '../intelligence/master-intelligence-url';
+  assessEngineRpmDeepLinkEligibility,
+  buildVehicleDetailIntelligenceNavContext,
+  resolveNavPhysicalDeviceIdForProviderContext,
+} from '../intelligence/vehicle-detail-intelligence.utils';
 import {
   evidenceKindFromSummary,
   mapSummaryToLvBadge,
   mapSummaryToRpmBadge,
 } from '../intelligence/vsi-master-intelligence-ui.utils';
 import { useVehicleDetailMasterIntelligence } from './useVehicleDetailMasterIntelligence';
+import { VehicleDetailSourceLinkPicker } from './VehicleDetailSourceLinkPicker';
 
 type Props = {
   organizationId: string;
@@ -28,34 +29,87 @@ type Props = {
 };
 
 export function ConnectedVehicleIntelligenceSection({ organizationId, vehicleId }: Props) {
+  if (!isMasterAdmin()) return null;
+  return (
+    <ConnectedVehicleIntelligenceSectionBody
+      key={`${organizationId}:${vehicleId}`}
+      organizationId={organizationId}
+      vehicleId={vehicleId}
+    />
+  );
+}
+
+function ConnectedVehicleIntelligenceSectionBody({ organizationId, vehicleId }: Props) {
   const { t } = useLanguage();
-  const enabled = isMasterAdmin();
-  const { primaryProfile, primaryLink, apdsOverview, physicalDevice, loading, error, refresh } =
+  const enabled = true;
+  const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
+
+  const { profiles, linkPick, activeProfile, apdsOverview, physicalDevice, loading, error, refresh } =
     useVehicleDetailMasterIntelligence({
       enabled,
       organizationId,
       vehicleId,
+      selectedProviderSourceLinkId: selectedLinkId,
     });
 
-  if (!enabled) return null;
-
-  const baseContext = mergeMasterIntelligenceContext(emptyIntelligenceContext(), {
-    orgId: organizationId,
-    vehicleId,
-    providerSourceLinkId: primaryLink.linkId,
-    physicalDeviceId: physicalDevice?.id ?? null,
-    rejectedParams: [],
+  const physicalDeviceId = physicalDevice?.id ?? null;
+  const providerNavPhysicalDeviceId = resolveNavPhysicalDeviceIdForProviderContext({
+    profileCount: profiles.length,
+    navigationReady: linkPick.navigationReady,
+    physicalDeviceId,
   });
 
-  const openVsi = () => navigateMasterIntelligenceCrossLink('vsi-intelligence', baseContext);
-  const openApds = () => navigateMasterIntelligenceCrossLink('apds-intelligence', baseContext);
-  const openPdi = () => navigateMasterIntelligenceCrossLink('device-inventory', baseContext);
+  const navContext = (vsiTarget?: 'overview' | 'ledger' | 'engine_rpm_detail') =>
+    buildVehicleDetailIntelligenceNavContext({
+      organizationId,
+      vehicleId,
+      providerSourceLinkId: linkPick.linkId,
+      physicalDeviceId: providerNavPhysicalDeviceId,
+      vsiTarget,
+    });
 
-  const lv = primaryProfile ? mapSummaryToLvBadge(primaryProfile) : null;
-  const rpm = primaryProfile ? mapSummaryToRpmBadge(primaryProfile) : null;
+  const pdiNavContext = () =>
+    buildVehicleDetailIntelligenceNavContext({
+      organizationId,
+      vehicleId,
+      providerSourceLinkId: linkPick.linkId,
+      physicalDeviceId,
+    });
+
+  const navigationBlocked = !linkPick.navigationReady;
+  const rpmEligibility = assessEngineRpmDeepLinkEligibility(activeProfile);
+
+  const openVsiOverview = () => {
+    if (navigationBlocked) return;
+    navigateMasterIntelligenceCrossLink('vsi-intelligence', navContext('overview'));
+  };
+  const openVsiLedger = () => {
+    if (navigationBlocked) return;
+    navigateMasterIntelligenceCrossLink('vsi-intelligence', navContext('ledger'), {
+      hygiene: { preserveVsiLedgerState: true },
+    });
+  };
+  const openEngineRpmDetail = () => {
+    if (navigationBlocked || !rpmEligibility.eligible) return;
+    navigateMasterIntelligenceCrossLink('vsi-intelligence', navContext('engine_rpm_detail'), {
+      hygiene: { preserveVsiLedgerState: true },
+    });
+  };
+  const openApds = () => {
+    if (navigationBlocked) return;
+    navigateMasterIntelligenceCrossLink('apds-intelligence', navContext());
+  };
+  const openPdi = () => {
+    if (!physicalDeviceId || navigationBlocked) return;
+    navigateMasterIntelligenceCrossLink('device-inventory', pdiNavContext(), {
+      hygiene: { physicalDeviceIdProven: true },
+    });
+  };
+
+  const lv = activeProfile ? mapSummaryToLvBadge(activeProfile) : null;
+  const rpm = activeProfile ? mapSummaryToRpmBadge(activeProfile) : null;
   const pdiNotApplicable =
-    !physicalDevice &&
-    primaryProfile?.rpmApplicability === 'NOT_APPLICABLE';
+    !physicalDevice && activeProfile?.rpmApplicability === 'NOT_APPLICABLE';
 
   return (
     <section className="space-y-3" aria-labelledby="cv-intelligence-heading">
@@ -86,99 +140,159 @@ export function ConnectedVehicleIntelligenceSection({ organizationId, vehicleId 
           <p className="mt-1 font-mono">{error}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-border p-3 space-y-2">
-            <p className="text-xs font-medium">{t('master.intelligence.crossLink.vsi' as never)}</p>
-            {primaryProfile && lv && rpm ? (
-              <>
-                <div className="flex flex-wrap gap-1.5">
-                  <SignalProfileBadge kind="lv" profile={lv.profile} limitationCode={lv.limitationCode} />
-                  <SignalProfileBadge kind="rpm" profile={rpm.profile} applicability={rpm.applicability} />
-                </div>
-                {primaryProfile.evaluationBlocked ? (
-                  <EvaluationBlockedBanner limitationCode={primaryProfile.evaluationBlockedCodes[0]} />
+        <>
+          <VehicleDetailSourceLinkPicker
+            profiles={profiles}
+            selectedLinkId={selectedLinkId}
+            onSelectLinkId={setSelectedLinkId}
+            staleSelection={linkPick.staleSelection}
+          />
+
+          {linkPick.ambiguous && !linkPick.navigationReady ? (
+            <p className="text-[10px] text-muted-foreground" role="status">
+              {t('master.intelligence.vehicleDetail.selectSourceLink.required' as never)}
+            </p>
+          ) : null}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-border p-3 space-y-2">
+              <p className="text-xs font-medium">{t('master.intelligence.crossLink.vsi' as never)}</p>
+              {activeProfile && lv && rpm && linkPick.navigationReady ? (
+                <>
+                  <div className="flex flex-wrap gap-1.5">
+                    <SignalProfileBadge kind="lv" profile={lv.profile} limitationCode={lv.limitationCode} />
+                    <SignalProfileBadge kind="rpm" profile={rpm.profile} applicability={rpm.applicability} />
+                  </div>
+                  {activeProfile.evaluationBlocked ? (
+                    <EvaluationBlockedBanner limitationCode={activeProfile.evaluationBlockedCodes[0]} />
+                  ) : null}
+                  <EvidenceFreshnessHint
+                    kind={evidenceKindFromSummary(activeProfile)}
+                    evaluatedAt={activeProfile.evaluatedAt}
+                    providerSourceTimestamp={activeProfile.lastMaterializedSourceTimestamp}
+                    providerFetchedAt={activeProfile.lastMaterializedProviderFetchAt}
+                    profileRevision={activeProfile.profileRevision}
+                  />
+                </>
+              ) : profiles.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground">
+                  {t('master.intelligence.vsi.noProfiles.body' as never)}
+                </p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  {t('master.intelligence.vehicleDetail.selectSourceLink.summaryPending' as never)}
+                </p>
+              )}
+
+              <div className="flex flex-col gap-1 pt-1">
+                <button
+                  type="button"
+                  className="text-left text-xs font-medium text-primary underline disabled:opacity-50 disabled:no-underline"
+                  onClick={openVsiOverview}
+                  disabled={navigationBlocked}
+                >
+                  {t('master.intelligence.vehicleDetail.openVsiOverview' as never)}
+                </button>
+                <button
+                  type="button"
+                  className="text-left text-xs font-medium text-primary underline disabled:opacity-50 disabled:no-underline"
+                  onClick={openVsiLedger}
+                  disabled={navigationBlocked}
+                >
+                  {t('master.intelligence.vehicleDetail.openVsiLedger' as never)}
+                </button>
+                {rpmEligibility.eligible ? (
+                  <>
+                    <button
+                      type="button"
+                      className="text-left text-xs font-medium text-primary underline disabled:opacity-50"
+                      onClick={openEngineRpmDetail}
+                      disabled={navigationBlocked}
+                    >
+                      {t('master.intelligence.vehicleDetail.openEngineRpmDetail' as never)}
+                    </button>
+                    <p className="text-[10px] text-muted-foreground">
+                      {t('master.intelligence.vehicleDetail.engineRpmDeepLinkNote' as never)}
+                    </p>
+                  </>
+                ) : linkPick.navigationReady && activeProfile ? (
+                  <p className="text-[10px] text-muted-foreground">
+                    {t(
+                      `master.intelligence.vehicleDetail.engineRpmUnavailable.${rpmEligibility.reasonKey}` as never,
+                    )}
+                  </p>
                 ) : null}
-                <EvidenceFreshnessHint
-                  kind={evidenceKindFromSummary(primaryProfile)}
-                  evaluatedAt={primaryProfile.evaluatedAt}
-                  providerSourceTimestamp={primaryProfile.lastMaterializedSourceTimestamp}
-                  providerFetchedAt={primaryProfile.lastMaterializedProviderFetchAt}
-                  profileRevision={primaryProfile.profileRevision}
-                />
-              </>
-            ) : (
-              <p className="text-[11px] text-muted-foreground">
-                {t('master.intelligence.vsi.noProfiles.body' as never)}
-              </p>
-            )}
-            {primaryLink.ambiguous ? (
-              <p className="text-[10px] text-muted-foreground">
-                {t('master.intelligence.vehicleDetail.multipleLinks' as never)}
-              </p>
-            ) : null}
-            <button type="button" className="text-xs font-medium text-primary underline" onClick={openVsi}>
-              {t('master.intelligence.vehicleDetail.openVsi' as never)}
-            </button>
-          </div>
+              </div>
+            </div>
 
-          <div className="rounded-xl border border-border p-3 space-y-2">
-            <p className="text-xs font-medium">{t('master.intelligence.crossLink.apds' as never)}</p>
-            {apdsOverview ? (
-              <>
-                <p className="text-[11px] font-medium">
-                  {t(`master.intelligence.apds.availability.${apdsOverview.availability}` as never)}
+            <div className="rounded-xl border border-border p-3 space-y-2">
+              <p className="text-xs font-medium">{t('master.intelligence.crossLink.apds' as never)}</p>
+              {apdsOverview && linkPick.navigationReady ? (
+                <>
+                  <p className="text-[11px] font-medium">
+                    {t(`master.intelligence.apds.availability.${apdsOverview.availability}` as never)}
+                  </p>
+                  {apdsOverview.latestDecision ? (
+                    <p className="text-[10px] text-muted-foreground">
+                      {t('master.intelligence.apds.latestDecision' as never)}:{' '}
+                      {apdsOverview.latestDecision.decision} ·{' '}
+                      {apdsOverview.latestDecision.opportunityIdPrefix}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">
+                      {t('master.intelligence.vehicleDetail.noApdsDecision' as never)}
+                    </p>
+                  )}
+                  <ShadowVsRealPollHint className="text-[10px]" />
+                </>
+              ) : linkPick.ambiguous && !linkPick.navigationReady ? (
+                <p className="text-[11px] text-muted-foreground">
+                  {t('master.intelligence.vehicleDetail.selectSourceLink.apdsPending' as never)}
                 </p>
-                {apdsOverview.latestDecision ? (
-                  <p className="text-[10px] text-muted-foreground">
-                    {t('master.intelligence.apds.latestDecision' as never)}:{' '}
-                    {apdsOverview.latestDecision.decision} ·{' '}
-                    {apdsOverview.latestDecision.opportunityIdPrefix}
-                  </p>
-                ) : (
-                  <p className="text-[10px] text-muted-foreground">
-                    {t('master.intelligence.vehicleDetail.noApdsDecision' as never)}
-                  </p>
-                )}
-                <ShadowVsRealPollHint className="text-[10px]" />
-              </>
-            ) : (
-              <p className="text-[11px] text-muted-foreground">—</p>
-            )}
-            <button type="button" className="text-xs font-medium text-primary underline" onClick={openApds}>
-              {t('master.intelligence.vehicleDetail.openApds' as never)}
-            </button>
-          </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">—</p>
+              )}
+              <button
+                type="button"
+                className="text-xs font-medium text-primary underline disabled:opacity-50 disabled:no-underline"
+                onClick={openApds}
+                disabled={navigationBlocked}
+              >
+                {t('master.intelligence.vehicleDetail.openApds' as never)}
+              </button>
+            </div>
 
-          <div className="rounded-xl border border-border p-3 space-y-2">
-            <p className="text-xs font-medium">{t('master.intelligence.crossLink.device' as never)}</p>
-            {physicalDevice ? (
-              <>
-                <p className="text-[11px]">
-                  {physicalDevice.modelCode} · {physicalDevice.identityStatus}
+            <div className="rounded-xl border border-border p-3 space-y-2">
+              <p className="text-xs font-medium">{t('master.intelligence.crossLink.device' as never)}</p>
+              {physicalDevice ? (
+                <>
+                  <p className="text-[11px]">
+                    {physicalDevice.modelCode} · {physicalDevice.identityStatus}
+                  </p>
+                  <p className="text-[10px] font-mono text-muted-foreground">
+                    {physicalDevice.serialNumberMasked ?? '—'}
+                  </p>
+                </>
+              ) : pdiNotApplicable ? (
+                <p className="text-[11px] text-muted-foreground">
+                  {t('master.intelligence.pdi.notApplicableR1' as never)}
                 </p>
-                <p className="text-[10px] font-mono text-muted-foreground">
-                  {physicalDevice.serialNumberMasked ?? '—'}
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  {t('master.intelligence.vehicleDetail.noPhysicalDevice' as never)}
                 </p>
-              </>
-            ) : pdiNotApplicable ? (
-              <p className="text-[11px] text-muted-foreground">
-                {t('master.intelligence.pdi.notApplicableR1' as never)}
-              </p>
-            ) : (
-              <p className="text-[11px] text-muted-foreground">
-                {t('master.intelligence.vehicleDetail.noPhysicalDevice' as never)}
-              </p>
-            )}
-            <button
-              type="button"
-              className="text-xs font-medium text-primary underline disabled:opacity-50"
-              onClick={openPdi}
-              disabled={!physicalDevice}
-            >
-              {t('master.intelligence.vehicleDetail.openPdi' as never)}
-            </button>
+              )}
+              <button
+                type="button"
+                className="text-xs font-medium text-primary underline disabled:opacity-50"
+                onClick={openPdi}
+                disabled={!physicalDeviceId}
+              >
+                {t('master.intelligence.vehicleDetail.openPdi' as never)}
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </section>
   );

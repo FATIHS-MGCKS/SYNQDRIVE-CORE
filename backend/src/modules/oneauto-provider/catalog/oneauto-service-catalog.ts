@@ -1,19 +1,22 @@
-import { isOneAutoSkuContractVerified } from './oneauto-verified-contracts';
+import { isOneAutoSkuExecutionVerified } from './oneauto-verified-contracts';
+import {
+  listDocumentedOneAutoContracts,
+} from './oneauto-documented-contracts';
+import type { OneAutoDocumentedProviderContract } from './oneauto-contract-types';
+import type { OneAutoExecutionMode } from './oneauto-contract-types';
 
-export type OneAutoExecutionMode = 'SYNC' | 'ASYNC_POLL';
+export type { OneAutoExecutionMode } from './oneauto-contract-types';
 
 export type OneAutoCatalogAvailability =
   | 'AVAILABLE'
   | 'DISABLED_FLAG'
   | 'PRICE_NOT_CONFIGURED'
-  | 'PATH_UNVERIFIED'
   | 'CONTRACT_UNVERIFIED';
 
 export type OneAutoServiceCatalogEntry = {
   serviceSku: string;
   displayName: string;
   description: string;
-  /** Relative path under base URL — PATH UNVERIFIED until Swagger/Postman attestation. */
   providerPathTemplate: string;
   httpMethod: 'GET';
   executionMode: OneAutoExecutionMode;
@@ -23,97 +26,64 @@ export type OneAutoServiceCatalogEntry = {
   pricingSourceVersion: string;
   availabilityStatus: OneAutoCatalogAvailability;
   resultHandling: 'EXTERNAL_STORE_ONLY';
+  /** P2.5A — path attested on vendor marketing pages; execution still gated separately. */
+  providerPathDocumented: boolean;
 };
 
-const CATALOG_VERSION = 'synqdrive-oneauto-catalog-v1';
+const CATALOG_VERSION = 'synqdrive-oneauto-catalog-v2-documented-paths';
 
-/** Internal catalog — provider path segments are placeholders until verified against OpenAPI. */
-export const ONEAUTO_SERVICE_CATALOG: readonly OneAutoServiceCatalogEntry[] = [
-  {
-    serviceSku: 'OE_SERVICE_HISTORY_EU',
+const DISPLAY: Record<
+  string,
+  Pick<OneAutoServiceCatalogEntry, 'displayName' | 'description'>
+> = {
+  OE_SERVICE_HISTORY_EU: {
     displayName: 'OE Service History EU',
     description: 'Manufacturer service history (EU) — external provider payload only.',
-    providerPathTemplate: 'oe/servicehistoryeu/v1/lookup',
-    httpMethod: 'GET',
-    executionMode: 'ASYNC_POLL',
-    requiredParameters: ['vin'],
-    indicativePriceMinor: null,
-    currency: 'GBP',
-    pricingSourceVersion: CATALOG_VERSION,
-    availabilityStatus: 'PATH_UNVERIFIED',
-    resultHandling: 'EXTERNAL_STORE_ONLY',
   },
-  {
-    serviceSku: 'OE_SERVICE_SCHEDULE',
+  OE_SERVICE_SCHEDULE: {
     displayName: 'OE Service Schedule',
     description: 'Manufacturer service schedule — external provider payload only.',
-    providerPathTemplate: 'oe/serviceschedule/v1/lookup',
-    httpMethod: 'GET',
-    executionMode: 'ASYNC_POLL',
-    requiredParameters: ['vin'],
-    indicativePriceMinor: null,
-    currency: 'GBP',
-    pricingSourceVersion: CATALOG_VERSION,
-    availabilityStatus: 'PATH_UNVERIFIED',
-    resultHandling: 'EXTERNAL_STORE_ONLY',
   },
-  {
-    serviceSku: 'OE_BUILD_DECODE',
+  OE_BUILD_DECODE: {
     displayName: 'OE Build Decode',
     description: 'Build / specification decode — external provider payload only.',
-    providerPathTemplate: 'oe/builddecode/v1/lookup',
-    httpMethod: 'GET',
-    executionMode: 'SYNC',
-    requiredParameters: ['vin'],
-    indicativePriceMinor: null,
-    currency: 'GBP',
-    pricingSourceVersion: CATALOG_VERSION,
-    availabilityStatus: 'PATH_UNVERIFIED',
-    resultHandling: 'EXTERNAL_STORE_ONLY',
   },
-  {
-    serviceSku: 'OE_BUILD_SHEET_EU',
+  OE_BUILD_SHEET_EU: {
     displayName: 'OE Build Sheet EU',
     description: 'EU build sheet — external provider payload only.',
-    providerPathTemplate: 'oe/buildsheeteu/v1/lookup',
-    httpMethod: 'GET',
-    executionMode: 'ASYNC_POLL',
-    requiredParameters: ['vin'],
-    indicativePriceMinor: null,
-    currency: 'GBP',
-    pricingSourceVersion: CATALOG_VERSION,
-    availabilityStatus: 'PATH_UNVERIFIED',
-    resultHandling: 'EXTERNAL_STORE_ONLY',
   },
-  {
-    serviceSku: 'OE_VIN_LOOKUP_EU',
+  OE_VIN_LOOKUP_EU: {
     displayName: 'OE VIN Lookup EU',
     description: 'EU VIN lookup — external provider payload only.',
-    providerPathTemplate: 'oe/vinlookupeu/v1/lookup',
-    httpMethod: 'GET',
-    executionMode: 'SYNC',
-    requiredParameters: ['vin'],
-    indicativePriceMinor: null,
-    currency: 'GBP',
-    pricingSourceVersion: CATALOG_VERSION,
-    availabilityStatus: 'PATH_UNVERIFIED',
-    resultHandling: 'EXTERNAL_STORE_ONLY',
   },
-  {
-    serviceSku: 'RECALL_CHECK',
+  RECALL_CHECK: {
     displayName: 'Recall Check',
     description: 'Recall check — external provider payload only.',
-    providerPathTemplate: 'oe/recallcheck/v1/lookup',
-    httpMethod: 'GET',
-    executionMode: 'SYNC',
+  },
+};
+
+function catalogEntryFromDocumented(doc: OneAutoDocumentedProviderContract): OneAutoServiceCatalogEntry {
+  const meta = DISPLAY[doc.serviceSku];
+  return {
+    serviceSku: doc.serviceSku,
+    displayName: meta?.displayName ?? doc.serviceSku,
+    description: meta?.description ?? '',
+    providerPathTemplate: doc.providerPathTemplate,
+    httpMethod: doc.httpMethod,
+    executionMode: doc.catalogExecutionMode,
     requiredParameters: ['vin'],
     indicativePriceMinor: null,
     currency: 'GBP',
     pricingSourceVersion: CATALOG_VERSION,
-    availabilityStatus: 'PATH_UNVERIFIED',
+    availabilityStatus: 'CONTRACT_UNVERIFIED',
     resultHandling: 'EXTERNAL_STORE_ONLY',
-  },
-] as const;
+    providerPathDocumented: true,
+  };
+}
+
+/** Master Admin catalog — paths from DOCUMENTED registry; execution remains fail-closed. */
+export const ONEAUTO_SERVICE_CATALOG: readonly OneAutoServiceCatalogEntry[] =
+  listDocumentedOneAutoContracts().map(catalogEntryFromDocumented);
 
 export function getOneAutoCatalogEntry(serviceSku: string): OneAutoServiceCatalogEntry | undefined {
   return ONEAUTO_SERVICE_CATALOG.find((e) => e.serviceSku === serviceSku);
@@ -130,7 +100,7 @@ export function resolveCatalogEntryForRuntime(
   const configuredPrice = opts.indicativePriceMinorBySku[entry.serviceSku] ?? null;
   let availabilityStatus: OneAutoCatalogAvailability = entry.availabilityStatus;
   if (!opts.providerEnabled) availabilityStatus = 'DISABLED_FLAG';
-  else if (!isOneAutoSkuContractVerified(entry.serviceSku)) availabilityStatus = 'CONTRACT_UNVERIFIED';
+  else if (!isOneAutoSkuExecutionVerified(entry.serviceSku)) availabilityStatus = 'CONTRACT_UNVERIFIED';
   else if (configuredPrice == null) availabilityStatus = 'PRICE_NOT_CONFIGURED';
   else availabilityStatus = 'AVAILABLE';
   return {

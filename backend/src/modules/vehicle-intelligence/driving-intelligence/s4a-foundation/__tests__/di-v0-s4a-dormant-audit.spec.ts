@@ -30,6 +30,11 @@ const M7A_ROAD_ASSIGNMENT_SHADOW_DIR = path.join(__dirname, '../../m7a-road-assi
 const S4_RESEARCH_DIR = S4_RESEARCH_WORKER_DIR;
 const S4_RUNTIME_DIR = path.join(__dirname, '../../s4-runtime');
 const TRIPS_DI_BOUNDARY_ADMISSION_DIR = path.join(__dirname, '../../../trips/di-boundary-admission');
+/** PostgreSQL-only partial-extension → admission → discovery contract (PR #2293); not AppModule runtime. */
+const TRIPS_PARTIAL_BOUNDARY_EXTENSION_PG_SPEC = path.join(
+  REPO_ROOT,
+  'backend/src/modules/vehicle-intelligence/trips/reconciliation/partial-boundary-extension-admission.postgres.integration.spec.ts',
+);
 const OFFLINE_RESEARCH_SCRIPTS_DIR = path.join(REPO_ROOT, 'backend/scripts/research');
 const MOTION_CORE_SHADOW_TEST_SCRIPTS_DIR = path.join(REPO_ROOT, 'backend/scripts/test');
 
@@ -118,6 +123,7 @@ describe('DI V0 S4A dormant-by-construction audit', () => {
           file.startsWith(S4_RESEARCH_DIR + path.sep) ||
           file.startsWith(S4_RUNTIME_DIR + path.sep) ||
           file.startsWith(TRIPS_DI_BOUNDARY_ADMISSION_DIR + path.sep) ||
+          file === TRIPS_PARTIAL_BOUNDARY_EXTENSION_PG_SPEC ||
           file.startsWith(OFFLINE_RESEARCH_SCRIPTS_DIR + path.sep) ||
           (file.startsWith(MOTION_CORE_SHADOW_TEST_SCRIPTS_DIR + path.sep) &&
             path.basename(file).startsWith('motion-core-shadow')) ||

@@ -11,6 +11,7 @@ import { masterPhysicalDeviceInventoryCs } from './master.physicalDeviceInventor
 import { masterIntelligenceCs } from './master.intelligence.cs';
 import { masterMotionPhysicsCs } from './master.motionPhysics.cs';
 import { masterVehicleIdentityCs } from './master.vehicleIdentity.cs';
+import { masterOneAutoCs } from './master.oneAuto.cs';
 import { masterCvTechnicalSpecsCs } from './master.cv.technicalSpecs.cs';
 
 export const cs = {
@@ -206,6 +207,7 @@ export const cs = {
   ...masterIntelligenceCs,
   ...masterMotionPhysicsCs,
 ...masterVehicleIdentityCs,
+  ...masterOneAutoCs,
   ...masterCvTechnicalSpecsCs,
   ...batteryV2HvInspectionCS,
   ...tireWearV3Cs,

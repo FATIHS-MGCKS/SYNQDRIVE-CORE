@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { TripDecisionEngine } from '../decision/trip-decision.engine';
 import { TripReconciliationService } from './trip-reconciliation.service';
+import { stubTripDiBoundaryAdmissionService } from './__tests__/trip-reconciliation-di-admission.stub';
 import { buildIntraTripGapSplitRepairAuditId } from './intra-trip-gap-split-repair-id.util';
 import { REPAIR_STATUS } from './reconciliation.types';
 import {
@@ -23,6 +24,7 @@ function buildService(
     {} as never,
     {} as never,
     {} as never,
+    stubTripDiBoundaryAdmissionService(),
     {} as never,
     {} as never,
     {} as never,

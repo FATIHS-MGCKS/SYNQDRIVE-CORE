@@ -11,6 +11,7 @@ import { masterPhysicalDeviceInventoryIt } from './master.physicalDeviceInventor
 import { masterIntelligenceIt } from './master.intelligence.it';
 import { masterMotionPhysicsIt } from './master.motionPhysics.it';
 import { masterVehicleIdentityIt } from './master.vehicleIdentity.it';
+import { masterOneAutoIt } from './master.oneAuto.it';
 import { masterCvTechnicalSpecsIt } from './master.cv.technicalSpecs.it';
 
 export const it = {
@@ -206,6 +207,7 @@ export const it = {
   ...masterIntelligenceIt,
   ...masterMotionPhysicsIt,
 ...masterVehicleIdentityIt,
+  ...masterOneAutoIt,
   ...masterCvTechnicalSpecsIt,
   ...batteryV2HvInspectionIT,
   ...tireWearV3It,

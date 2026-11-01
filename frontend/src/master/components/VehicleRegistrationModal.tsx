@@ -4,7 +4,7 @@ import {
   resolveRegistrationLvBatteryFormState,
   resolveRegistrationLvBatteryForSubmit,
 } from '../connected-vehicles/vehicle-specification-canonical.util';
-import { X, Sparkles, ChevronDown, ChevronUp, Save, AlertCircle, CheckCircle2, XCircle, Loader2, Bot, Pencil, Radio, Search, Link2, Shield, Camera, FileText } from 'lucide-react';
+import { X, Sparkles, ChevronDown, ChevronUp, Save, AlertCircle, CheckCircle2, XCircle, Loader2, Bot, Pencil, Radio, Search, Link2, Shield, Camera, FileText, Cloud } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, streamAiSpecs, streamAiTireSpecs } from '../../lib/api';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -62,6 +62,7 @@ import {
 } from './ExteriorImagesEditor';
 import { VehicleIdentityP2Panel } from './VehicleIdentityP2Panel';
 import { MasterZb1RegistrationDialog } from './MasterZb1RegistrationDialog';
+import { OneAutoServiceDialog } from '../oneauto/OneAutoServiceDialog';
 import { isVehicleIdentityP2Enabled } from '../connected-vehicles/vehicle-identity-p2.util';
 import type { Zb1RegistrationFormPatch } from '../connected-vehicles/zb1-registration-form-merge.util';
 
@@ -125,6 +126,7 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
   const [aiLiveStep, setAiLiveStep] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [zb1DialogOpen, setZb1DialogOpen] = useState(false);
+  const [oneAutoDialogOpen, setOneAutoDialogOpen] = useState(false);
   const [batteryValidationError, setBatteryValidationError] = useState<string | null>(null);
 
   // Assignment
@@ -1300,7 +1302,6 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
           <div
             className="flex items-center justify-between"
             data-testid="vehicle-registration-spec-actions"
-            data-oneauto-future-action="reserved"
           >
             <div className="flex items-center gap-3">
               {/* Animated status indicator */}
@@ -1386,6 +1387,21 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
                     {t('master.vehicleIdentity.uploadToolbar' as never)}
                   </button>
                 )
+              ) : null}
+              {isEditMode && existingVehicle?.id && organizationId ? (
+                <button
+                  type="button"
+                  data-testid="vehicle-registration-oneauto-api"
+                  onClick={() => setOneAutoDialogOpen(true)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                    isDarkMode
+                      ? 'border-border/60 text-foreground hover:bg-muted/80'
+                      : 'border-border bg-white/80 text-foreground hover:bg-white shadow-sm'
+                  }`}
+                >
+                  <Cloud className="w-3.5 h-3.5" />
+                  {t('master.oneAuto.buttonLabel' as never)}
+                </button>
               ) : null}
               <button
                 type="button"
@@ -2380,6 +2396,18 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
             applyZb1PatchToRegistrationForm(patch);
             setZb1DialogOpen(false);
           }}
+        />
+      ) : null}
+
+      {isEditMode && existingVehicle?.id && organizationId ? (
+        <OneAutoServiceDialog
+          open={oneAutoDialogOpen}
+          onOpenChange={setOneAutoDialogOpen}
+          organizationId={organizationId}
+          organizationName={orgName}
+          vehicleId={existingVehicle.id}
+          vehicleLabel={`${vehicleIdentity.make} ${vehicleIdentity.model}`.trim() || existingVehicle.vehicleName}
+          vin={vehicleIdentity.vin || existingVehicle.vin}
         />
       ) : null}
     </div>

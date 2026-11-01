@@ -1,62 +1,28 @@
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { Button } from '../../components/ui/button';
-import {
-  navigateMasterIntelligenceCrossLink,
-  emptyIntelligenceContext,
-  mergeMasterIntelligenceContext,
-} from '../intelligence/master-intelligence-url';
+import { navigateMasterIntelligenceCrossLink } from '../intelligence/master-intelligence-url';
 import { usePdiMasterIntelligenceData } from './usePdiMasterIntelligenceData';
+import { PdiProviderBindingsSection } from './PdiProviderBindingsSection';
+import {
+  buildPdiIntelligenceNavContext,
+  pickPdiProviderSourceLink,
+  resolvePdiCrossNavScope,
+} from './pdi-provider-binding.utils';
 
 type Props = {
   physicalDeviceId: string;
   organizationId?: string | null;
 };
 
-export function PhysicalDeviceIntelligencePanel({ physicalDeviceId, organizationId }: Props) {
+function PhysicalDeviceIntelligencePanelBody({ physicalDeviceId, organizationId }: Props) {
   const { t, locale } = useLanguage();
+  const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
   const { data, loading, error, refresh } = usePdiMasterIntelligenceData({
     physicalDeviceId,
     organizationId: organizationId ?? null,
   });
-
-  const openVsi = () => {
-    if (!data?.crossLinkContext.organizationId || !data.crossLinkContext.vehicleId) return;
-    navigateMasterIntelligenceCrossLink(
-      'vsi-intelligence',
-      mergeMasterIntelligenceContext(emptyIntelligenceContext(), {
-        orgId: data.crossLinkContext.organizationId,
-        vehicleId: data.crossLinkContext.vehicleId,
-        providerSourceLinkId: data.crossLinkContext.providerSourceLinkId,
-        physicalDeviceId: data.crossLinkContext.physicalDeviceId,
-      }),
-    );
-  };
-
-  const openApds = () => {
-    if (!data?.crossLinkContext.organizationId || !data.crossLinkContext.vehicleId) return;
-    navigateMasterIntelligenceCrossLink(
-      'apds-intelligence',
-      mergeMasterIntelligenceContext(emptyIntelligenceContext(), {
-        orgId: data.crossLinkContext.organizationId,
-        vehicleId: data.crossLinkContext.vehicleId,
-        providerSourceLinkId: data.crossLinkContext.providerSourceLinkId,
-        physicalDeviceId: data.crossLinkContext.physicalDeviceId,
-      }),
-    );
-  };
-
-  const openVehicle = () => {
-    if (!data?.crossLinkContext.vehicleId) return;
-    navigateMasterIntelligenceCrossLink(
-      'vehicles',
-      mergeMasterIntelligenceContext(emptyIntelligenceContext(), {
-        orgId: data.crossLinkContext.organizationId,
-        vehicleId: data.crossLinkContext.vehicleId,
-        physicalDeviceId: data.crossLinkContext.physicalDeviceId,
-      }),
-    );
-  };
 
   if (loading) {
     return (
@@ -86,6 +52,46 @@ export function PhysicalDeviceIntelligencePanel({ physicalDeviceId, organization
     return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString(locale);
   };
 
+  const bindingPick = pickPdiProviderSourceLink(data.providerBindings, selectedLinkId);
+  const navScope = resolvePdiCrossNavScope({
+    identity: data.identity,
+    panelOrganizationId: organizationId ?? null,
+    bindingPick,
+    bindings: data.providerBindings,
+    bindingCount: data.providerBindings.length,
+  });
+
+  const navBlocked = !navScope.navigationReady;
+
+  const openVsiOverview = () => {
+    const ctx = buildPdiIntelligenceNavContext({ scope: navScope, vsiTarget: 'overview' });
+    if (!ctx) return;
+    navigateMasterIntelligenceCrossLink('vsi-intelligence', ctx);
+  };
+
+  const openVsiLedger = () => {
+    const ctx = buildPdiIntelligenceNavContext({ scope: navScope, vsiTarget: 'ledger' });
+    if (!ctx) return;
+    navigateMasterIntelligenceCrossLink('vsi-intelligence', ctx, {
+      hygiene: { preserveVsiLedgerState: true },
+    });
+  };
+
+  const openApds = () => {
+    const ctx = buildPdiIntelligenceNavContext({ scope: navScope });
+    if (!ctx) return;
+    navigateMasterIntelligenceCrossLink('apds-intelligence', ctx);
+  };
+
+  const openVehicle = () => {
+    const ctx = buildPdiIntelligenceNavContext({
+      scope: navScope,
+      includePhysicalDeviceForDestination: true,
+    });
+    if (!ctx) return;
+    navigateMasterIntelligenceCrossLink('vehicles', ctx);
+  };
+
   return (
     <div className="space-y-4 rounded-lg border border-border/60 p-4">
       <p className="text-sm font-medium">{t('master.intelligence.pdi.section.identity' as never)}</p>
@@ -104,6 +110,27 @@ export function PhysicalDeviceIntelligencePanel({ physicalDeviceId, organization
           </p>
         ) : null}
       </div>
+
+      <PdiProviderBindingsSection
+        bindings={data.providerBindings}
+        identity={data.identity}
+        selectedLinkId={selectedLinkId}
+        onSelectLinkId={setSelectedLinkId}
+        staleSelection={bindingPick.staleSelection}
+        missingVehicleScope={navScope.missingVehicleScope}
+      />
+
+      {navScope.crossOrgMismatch ? (
+        <p className="text-[11px] text-amber-800 dark:text-amber-200" role="status">
+          {t('master.intelligence.pdi.bindings.crossOrgBlocked' as never)}
+        </p>
+      ) : null}
+
+      {bindingPick.ambiguous && !bindingPick.navigationReady ? (
+        <p className="text-[10px] text-muted-foreground" role="status">
+          {t('master.intelligence.pdi.bindings.navPending' as never)}
+        </p>
+      ) : null}
 
       <div>
         <p className="text-sm font-medium">{t('master.intelligence.pdi.section.timeline' as never)}</p>
@@ -147,17 +174,35 @@ export function PhysicalDeviceIntelligencePanel({ physicalDeviceId, organization
         ) : null}
       </div>
 
-      <div className="flex flex-wrap gap-2 pt-2">
-        <Button type="button" size="sm" variant="outline" onClick={openVehicle} disabled={!data.crossLinkContext.vehicleId}>
-          {t('master.intelligence.crossLink.vehicle' as never)}
-        </Button>
-        <Button type="button" size="sm" variant="outline" onClick={openVsi} disabled={!data.crossLinkContext.vehicleId}>
-          {t('master.intelligence.crossLink.vsi' as never)}
-        </Button>
-        <Button type="button" size="sm" variant="outline" onClick={openApds} disabled={!data.crossLinkContext.vehicleId}>
-          {t('master.intelligence.crossLink.apds' as never)}
-        </Button>
+      <div className="space-y-1 pt-2">
+        <p className="text-[10px] font-medium text-muted-foreground">
+          {t('master.intelligence.pdi.section.crossNav' as never)}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={openVehicle} disabled={navBlocked}>
+            {t('master.intelligence.crossLink.vehicle' as never)}
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={openVsiOverview} disabled={navBlocked}>
+            {t('master.intelligence.vehicleDetail.openVsiOverview' as never)}
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={openVsiLedger} disabled={navBlocked}>
+            {t('master.intelligence.vehicleDetail.openVsiLedger' as never)}
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={openApds} disabled={navBlocked}>
+            {t('master.intelligence.crossLink.apds' as never)}
+          </Button>
+        </div>
       </div>
     </div>
+  );
+}
+
+export function PhysicalDeviceIntelligencePanel({ physicalDeviceId, organizationId }: Props) {
+  return (
+    <PhysicalDeviceIntelligencePanelBody
+      key={physicalDeviceId}
+      physicalDeviceId={physicalDeviceId}
+      organizationId={organizationId}
+    />
   );
 }

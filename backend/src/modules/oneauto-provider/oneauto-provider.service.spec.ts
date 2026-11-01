@@ -67,6 +67,43 @@ describe('OneAutoProviderService cost and idempotency', () => {
     }
   });
 
+  it('blocks execute when enabled without org daily budget cap', async () => {
+    const noBudgetConfig = {
+      get: () => ({
+        enabled: true,
+        indicativePriceMinorBySku: { OE_VIN_LOOKUP_EU: 150 },
+        pricingCatalogVersion: 'synqdrive-catalog-v1',
+        orgDailyBudgetMinor: 0,
+        quoteTtlMs: 300_000,
+        jobTtlMs: 86_400_000,
+      }),
+    } as unknown as ConfigService;
+    const noBudgetService = new OneAutoProviderService(
+      prisma as never,
+      noBudgetConfig,
+      execution as unknown as OneAutoProviderExecutionService,
+    );
+    try {
+      await noBudgetService.executeConfirmed({
+        orgId: 'org1',
+        vehicleId: 'v1',
+        serviceSku: 'OE_VIN_LOOKUP_EU',
+        idempotencyKey: 'key-budget-config',
+        confirmedPriceMinor: 150,
+        pricingSourceVersion: 'synqdrive-catalog-v1',
+        quoteIssuedAt: new Date().toISOString(),
+        acknowledgeIndicativeNotGuaranteed: true,
+        masterAdminUserId: 'ma-1',
+      });
+      throw new Error('expected ONEAUTO_BUDGET_NOT_CONFIGURED');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        code: 'ONEAUTO_BUDGET_NOT_CONFIGURED',
+      });
+    }
+  });
+
   it('returns existing job for duplicate idempotency key', async () => {
     prisma.oneAutoProviderJob.findUnique.mockResolvedValue({
       id: 'job-existing',

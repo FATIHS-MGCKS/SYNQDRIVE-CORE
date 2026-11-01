@@ -1,4 +1,5 @@
 import { TripReconciliationService } from './trip-reconciliation.service';
+import { stubTripDiBoundaryAdmissionService } from './__tests__/trip-reconciliation-di-admission.stub';
 import { REPAIR_STATUS } from './reconciliation.types';
 import { TripOverlapDetector } from '../detectors/trip-overlap.detector';
 
@@ -96,6 +97,7 @@ function buildService(options: {
     {} as never, // policy resolver — unused on this path
     new TripOverlapDetector(prisma as never),
     {} as never, // dimo segments
+    stubTripDiBoundaryAdmissionService(),
     {} as never, // ignition detector (presence only)
     undefined as never,
     undefined as never,

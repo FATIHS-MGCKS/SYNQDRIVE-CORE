@@ -26,7 +26,6 @@ import {
   mapSummaryToRpmBadge,
 } from './vsi-master-intelligence-ui.utils';
 import type { MasterVsiProfileSummaryDto } from './vsi-master-intelligence-api.types';
-import { resolvePhysicalDeviceIdForVehicle } from './resolve-vehicle-physical-device';
 import { VsiSignalLedgerTab } from './ledger/VsiSignalLedgerTab';
 import {
   EMPTY_VSI_LEDGER_FILTERS,
@@ -37,6 +36,7 @@ import {
   ledgerContextForVehicleChange,
   pruneLedgerFiltersForSignals,
 } from './vsi-ledger-url.util';
+import { applyVerifiedProviderSourceLink } from './master-intelligence-context-hygiene.util';
 
 function formatUtcProvenance(iso: string | null | undefined, locale: string): string {
   if (!iso) return '—';
@@ -129,19 +129,20 @@ function VsiMasterIntelligenceContent() {
   );
 
   useEffect(() => {
-    if (context.providerSourceLinkId || !context.orgId || !context.vehicleId) return;
-    const first = overview?.profiles[0]?.providerSourceLinkId;
-    if (first) {
-      setContextInUrl({ providerSourceLinkId: first }, { replace: true });
-    }
-  }, [context.orgId, context.vehicleId, context.providerSourceLinkId, overview, setContextInUrl]);
-
-  useEffect(() => {
-    if (!context.orgId || !context.vehicleId || context.physicalDeviceId) return;
-    void resolvePhysicalDeviceIdForVehicle(context.orgId, context.vehicleId).then((id) => {
-      if (id) setContextInUrl({ physicalDeviceId: id }, { replace: true });
-    });
-  }, [context.orgId, context.vehicleId, context.physicalDeviceId, setContextInUrl]);
+    if (!overview?.profiles.length || !context.providerSourceLinkId) return;
+    const ids = overview.profiles.map((p) => p.providerSourceLinkId);
+    if (ids.includes(context.providerSourceLinkId)) return;
+    const reconciled = applyVerifiedProviderSourceLink(context, ids);
+    setContextInUrl(
+      {
+        providerSourceLinkId: reconciled.providerSourceLinkId,
+        vsiTab: reconciled.vsiTab,
+        signalKey: reconciled.signalKey,
+        ledgerFilters: reconciled.ledgerFilters,
+      },
+      { replace: true },
+    );
+  }, [overview, context.providerSourceLinkId, setContextInUrl]);
 
   useEffect(() => {
     if (!profile) return;
@@ -169,8 +170,7 @@ function VsiMasterIntelligenceContent() {
     [overview],
   );
 
-  const selectedLinkId =
-    context.providerSourceLinkId ?? overview?.profiles[0]?.providerSourceLinkId ?? null;
+  const selectedLinkId = context.providerSourceLinkId;
 
   useEffect(() => {
     let cancelled = false;

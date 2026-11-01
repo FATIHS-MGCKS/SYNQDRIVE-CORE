@@ -14,6 +14,7 @@ export { default as zb1RegistrationDocumentP4Config } from './zb1-registration-d
 export { default as fuelStationEnrichmentConfig } from './fuel-station-enrichment.config';
 export { default as tireDs4ShadowConfig } from './tire-ds4-shadow.config';
 export { default as tireWearV3PriorShadowConfig } from './tire-wear-v3-prior-shadow.config';
+export { default as tireWearV3CalibrationShadowConfig } from './tire-wear-v3-calibration-shadow.config';
 export { default as tireWearV3CutoverConfig } from './tire-wear-v3-cutover.config';
 export { default as chargingStationEnrichmentConfig } from './charging-station-enrichment.config';
 export { default as physicalRefuelReconciliationConfig } from './physical-refuel-reconciliation.config';

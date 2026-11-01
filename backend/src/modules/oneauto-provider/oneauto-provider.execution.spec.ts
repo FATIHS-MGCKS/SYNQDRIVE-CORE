@@ -23,7 +23,7 @@ describe('OneAutoProviderExecutionService dispatch safety', () => {
       oneAutoProviderResponse: { create: jest.fn() },
       vehicle: { findFirst: jest.fn() },
     };
-    const http = { getVinLookup: jest.fn() };
+    const http = { executeProviderGet: jest.fn() };
     const config = { get: () => ({ enabled: true }) } as unknown as ConfigService;
     const queue = { add: jest.fn() };
     const svc = new OneAutoProviderExecutionService(
@@ -33,7 +33,7 @@ describe('OneAutoProviderExecutionService dispatch safety', () => {
       queue as never,
     );
     await svc.processJob('j1', 'initial');
-    expect(http.getVinLookup).not.toHaveBeenCalled();
+    expect(http.executeProviderGet).not.toHaveBeenCalled();
     expect(prisma.oneAutoProviderJob.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ lastErrorCode: 'CONTRACT_UNVERIFIED' }),
