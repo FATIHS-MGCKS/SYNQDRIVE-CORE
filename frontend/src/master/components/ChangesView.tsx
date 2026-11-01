@@ -469,6 +469,23 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-11-01T22:15:00.000Z',
   },
   {
+    id: 'oneauto-p25e-c-isolated-attestation-harness-2026-11-02',
+    version: '4.9.5007',
+    title: 'One Auto API — P2.5E-C isolated sandbox attestation harness',
+    summary: [
+      'Dedicated sandbox-only attestation transport (DOCUMENTED contract) decoupled from EXECUTION_VERIFIED registry and ONEAUTO_ENABLED.',
+      'Offline CLI + fixtures simulate HTTP 200/202/206/3xx/4xx/5xx, timeout, network, oversize, invalid VIN — fail-closed except HTTP 200 success===true.',
+      'Live sandbox mode hard-disabled in build until separate owner-reviewed enablement; evidence template for manual redacted capture.',
+    ],
+    reason: 'Prepare controlled first sandbox VIN lookup attestation without weakening production execution gates.',
+    previousBehavior: 'No isolated owner-controlled attestation path; production execute required EXECUTION_VERIFIED promotion first.',
+    details:
+      'backend: attestation/*, scripts/ops/oneauto-p25e-c-sandbox-attestation.ts, oneauto-p25e-c-isolated-attestation.harness.spec.ts; architecture evidence P25E_C_ATTESTATION_TEMPLATE.md.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-02T00:00:00.000Z',
+  },
+  {
     id: 'oneauto-p2-master-admin-ui-2026-11-01',
     version: '4.9.5003',
     title: 'One Auto API — Master Admin service dialog (frontend P2)',

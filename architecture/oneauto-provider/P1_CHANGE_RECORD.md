@@ -24,3 +24,9 @@
 - **Scope:** Fail-closed SUCCESS_RESULT_ERROR envelope on HTTP 200; HTTP client `isValidVin`; redirect manual + response byte cap; positive org budget required when `ONEAUTO_ENABLED=true`.
 - **Tests:** `oneauto-p25e-offline-security-hardening.spec.ts` (mocked only).
 - **Non-effects:** `ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS` remains empty; no live provider calls; no SKU promotions.
+
+## P2.5E-C — Isolated sandbox attestation harness (2026-11-01)
+
+- **Harness:** `attestation/*` + `scripts/ops/oneauto-p25e-c-sandbox-attestation.ts` — offline fixtures default; live sandbox code path hard-disabled (`ONEAUTO_SANDBOX_LIVE_ATTESTATION_CODE_ENABLED=false`).
+- **Evidence template:** `architecture/oneauto-provider/evidence/P25E_C_ATTESTATION_TEMPLATE.md` (manual fill — never auto-promote registry).
+- **Non-effects:** No BullMQ, no Prisma, no `ONEAUTO_ENABLED`, no EXECUTION_VERIFIED registry writes; no live provider calls in CI.
