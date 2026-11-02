@@ -48,6 +48,12 @@
 - **Tests:** `oneauto-p25e-p1-secure-result-capture.spec.ts` (mocked fetch only).
 - **Non-effects:** Default attestation remains fingerprint-only; no Prisma/DB; no vehicle apply; registry unchanged.
 
+## OEM specification PRA — schema alignment (2026-11-02, draft PR)
+
+- **Scope:** Shared nullable `Vehicle` OEM columns + provenance registry for future Master confirm/import (Vehicle Onboarding authority).
+- **Evidence cross-ref:** `architecture/vehicle-onboarding/evidence/ONEAUTO_OEM_SPEC_PRA_SCHEMA_PROVENANCE.md`
+- **Non-effects:** `ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS` unchanged; attestation capture still local-only; no job→Vehicle writes; OpenAPI capture mapping unchanged until product PR.
+
 ## P2.5E-P1 hardening — capture field coverage & safe publish (2026-11-02)
 
 - **Field coverage:** `bodyType` / `interiorTrim` from `oem_body_type_desc` / `oem_interior_trim_desc`; regression asserts **17** non-VIN OpenAPI result keys mapped.

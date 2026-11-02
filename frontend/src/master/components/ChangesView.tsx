@@ -543,6 +543,25 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-11-02T20:45:00.000Z',
   },
   {
+    id: 'oneauto-oem-spec-pra-schema-provenance-2026-11-02',
+    version: '4.9.5011',
+    title: 'One Auto OEM spec PRA — Vehicle schema + provenance registry',
+    summary: [
+      'Ten nullable OEM identity columns on `vehicles` (engine/transmission/colour/trim/model range/derivative) with migration only — no API or UI.',
+      '`registrationIdentityProvenance` accepts legacy v1 JSONB; optional v2 adds `oemFieldRegistryVersion` with ten registered OEM keys.',
+      'Merge guards keep provider OEM suggestions at SUGGESTED only; protected USER_CONFIRMED P3 and technical-spec fields unchanged.',
+    ],
+    reason:
+      'Owner decision: persist optional OEM build identity separately from provider evidence until explicit Master confirmation in a later PR.',
+    previousBehavior:
+      'No durable Vehicle columns or provenance keys for OEM engine/transmission/colour/trim identity beyond generic `color` and transmission enum.',
+    details:
+      'backend: prisma migration 20261102160000_vehicle_oem_specification_identity_pra, vehicle-oem-specification-provenance.*, vehicle-identity-provenance.util v2 parse; architecture vehicle-onboarding/ONEAUTO_OEM_SPEC_PRA_SCHEMA_PROVENANCE.md; tests: vehicle-oem-specification-provenance.registry.spec.ts.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-02T22:00:00.000Z',
+  },
+  {
     id: 'oneauto-p2-master-admin-ui-2026-11-01',
     version: '4.9.5003',
     title: 'One Auto API — Master Admin service dialog (frontend P2)',
