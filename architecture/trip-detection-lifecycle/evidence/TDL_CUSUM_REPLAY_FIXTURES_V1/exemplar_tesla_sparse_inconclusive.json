@@ -1,0 +1,260 @@
+{
+  "fixtureId": "EXEMPLAR_TESLA_INCONCLUSIVE",
+  "tripId": "00000000-0000-4000-8000-000000000001",
+  "provider": "API_SYNTHETIC",
+  "production": {
+    "endMode": "COMPOSITE_INACTIVITY",
+    "endToRecognizedLagSec": 486,
+    "cusumOutcome": "cusum_still_ongoing"
+  },
+  "fsm": {
+    "possibleEndAt": "2026-10-30T10:08:40.000Z",
+    "canonicalEndTime": "2026-10-30T10:08:20.000Z",
+    "lastMovementAt": "2026-10-30T10:09:40.000Z",
+    "tripDurationMs": 600000,
+    "providerSilenceEmptyCore": false,
+    "chAssistEligible": false
+  },
+  "points": [
+    {
+      "timestamp": "2026-10-30T10:00:00.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1000,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:00:20.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1000.4,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:00:40.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1000.8,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:01:00.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1001.2,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:01:20.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1001.6,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:01:40.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1002,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:02:00.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1002.4,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:02:20.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1002.8,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:02:40.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1003.2,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:03:00.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1003.6,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:03:20.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1004,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:03:40.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1004.4,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:04:00.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1004.8,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:04:20.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1005.2,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:04:40.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1005.6,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:05:00.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1006,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:05:20.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1006.4,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:05:40.000Z",
+      "isIgnitionOn": true,
+      "speed": 60,
+      "travelledDistance": 1006.8,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:06:00.000Z",
+      "isIgnitionOn": false,
+      "speed": 0,
+      "travelledDistance": 1007.2,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:06:20.000Z",
+      "isIgnitionOn": false,
+      "speed": 0,
+      "travelledDistance": 1007.6,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:06:40.000Z",
+      "isIgnitionOn": false,
+      "speed": 0,
+      "travelledDistance": 1008,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:07:00.000Z",
+      "isIgnitionOn": false,
+      "speed": 0,
+      "travelledDistance": 1008.4,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:07:20.000Z",
+      "isIgnitionOn": false,
+      "speed": 0,
+      "travelledDistance": 1008.8,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:07:40.000Z",
+      "isIgnitionOn": false,
+      "speed": 0,
+      "travelledDistance": 1009.2,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:08:00.000Z",
+      "isIgnitionOn": false,
+      "speed": 0,
+      "travelledDistance": 1009.6,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:08:20.000Z",
+      "isIgnitionOn": true,
+      "speed": 8,
+      "travelledDistance": 1010,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:08:40.000Z",
+      "isIgnitionOn": true,
+      "speed": 12,
+      "travelledDistance": 1010.4,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:09:00.000Z",
+      "isIgnitionOn": true,
+      "speed": 15,
+      "travelledDistance": 1010.8,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:09:20.000Z",
+      "isIgnitionOn": false,
+      "speed": 0,
+      "travelledDistance": 1011.2,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    },
+    {
+      "timestamp": "2026-10-30T10:09:40.000Z",
+      "isIgnitionOn": true,
+      "speed": 5,
+      "travelledDistance": 1011.6,
+      "fuelAbsoluteLevel": null,
+      "batteryEnergy": null
+    }
+  ]
+}
