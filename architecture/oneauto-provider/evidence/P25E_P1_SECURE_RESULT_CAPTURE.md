@@ -66,6 +66,6 @@ CLI exit codes (live production):
 |------|---------|
 | `0` | Qualified attestation; evidence emitted |
 | `2` | Attestation not qualified |
-| `3` | Capture written + qualified attestation, but evidence build fallback and/or stdout emit failed — inspect stderr line `ONEAUTO_ATTESTATION_CLI_HANDOFF=…` (no secrets) |
+| `3` | Capture written + qualified attestation, but evidence build fallback and/or stdout emit failed — inspect stderr line `ONEAUTO_ATTESTATION_CLI_HANDOFF=…` (`exitCode`, `captureWritten`, `attemptedOutboundRequests`; no secrets) |
 
-Stderr handoff JSON includes: `captureWritten`, `attestationQualified`, `attemptedOutboundRequests` (must stay `1`), `exitPhase`, `evidenceBuildFailed`, `stdoutEmitFailed`.
+Stderr handoff JSON includes: `captureWritten`, `attestationQualified`, `attemptedOutboundRequests` (must stay `1`), `exitPhase`, `evidenceBuildFailed`, `stdoutEmitFailed`, `exitCode`. If both full and redacted evidence builds throw after capture commit, runner returns minimal handoff evidence (still no second GET).

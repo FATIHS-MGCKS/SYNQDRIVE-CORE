@@ -11,7 +11,6 @@ import * as evidenceUtil from './oneauto-sandbox-attestation-evidence.util';
 import { runLiveProductionAttestation } from './oneauto-sandbox-attestation.runner';
 import {
   buildLiveCliHandoffMetadata,
-  resolveLiveCliExitCode,
 } from './oneauto-sandbox-attestation-live-cli-handoff.util';
 import { getDocumentedOneAutoContract } from '../catalog/oneauto-documented-contracts';
 import type { AttestationTransportOutcome } from './oneauto-sandbox-attestation-evaluate.util';
@@ -118,7 +117,45 @@ describe('OneAuto live CLI handoff (offline)', () => {
       evidenceBuildErrorCode: 'EVIDENCE_REDACTION_FAILED',
       stdoutEmitFailed: false,
     });
-    expect(resolveLiveCliExitCode(handoff)).toBe(3);
+    expect(handoff.exitCode).toBe(3);
+  });
+
+  it('preserves capture and handoff when both evidence builds fail', async () => {
+    const target = tempCapturePath();
+    process.env[ONEAUTO_ATTESTATION_RESULT_CAPTURE_ENABLED_ENV] = '1';
+    process.env[ONEAUTO_PRODUCTION_ATTESTATION_RESULT_CAPTURE_OWNER_AUTH_ENV] = '1';
+    process.env[ONEAUTO_ATTESTATION_RESULT_CAPTURE_OUTPUT_PATH_ENV] = target;
+
+    jest.spyOn(evidenceUtil, 'buildSandboxAttestationEvidence').mockImplementation(() => {
+      throw new Error('Attestation evidence leaked full VIN pattern');
+    });
+
+    const evidence = await runLiveProductionAttestation({
+      authorization: fullAuth,
+      fetchImpl: successFetch(),
+      captureRedactedResult: true,
+    });
+
+    expect(fs.existsSync(target)).toBe(true);
+    expect(evidence.resultCapture?.written).toBe(true);
+    expect(evidence.attestationQualified).toBe(true);
+    expect(evidence.attemptedOutboundRequests).toBe(1);
+    expect(evidence.notes.filter((n) => n.startsWith('Evidence build fallback:')).length).toBeGreaterThanOrEqual(
+      2,
+    );
+    expect(evidence.notes.some((n) => n.includes('Capture artifact committed'))).toBe(true);
+    expect(evidence.responseFingerprint.nonJsonBody).toBe(true);
+
+    const handoff = buildLiveCliHandoffMetadata({
+      evidence,
+      evidenceBuildFailed: true,
+      evidenceBuildErrorCode: 'EVIDENCE_REDACTION_FAILED',
+      stdoutEmitFailed: false,
+    });
+    expect(handoff.captureWritten).toBe(true);
+    expect(handoff.evidenceBuildFailed).toBe(true);
+    expect(handoff.attemptedOutboundRequests).toBe(1);
+    expect(handoff.exitCode).toBe(3);
   });
 
   it('does not overwrite an existing capture file when capture path is taken', async () => {
@@ -185,6 +222,6 @@ describe('OneAuto live CLI handoff (offline)', () => {
     });
     expect(handoff.exitPhase).toBe('STDOUT_EMIT_FAILED');
     expect(handoff.attemptedOutboundRequests).toBe(1);
-    expect(resolveLiveCliExitCode(handoff)).toBe(3);
+    expect(handoff.exitCode).toBe(3);
   });
 });
