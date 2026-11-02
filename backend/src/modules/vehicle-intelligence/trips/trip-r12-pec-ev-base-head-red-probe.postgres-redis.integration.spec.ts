@@ -393,6 +393,15 @@ async function waitForNaturalTerminal(params: {
 
           if (probeExpect === 'HEAD') {
             restoreTripR11Clock();
+            await probeWaitForCondition(async () => {
+              const evRuns = await prisma.vehicleTripTrackingRun.count({
+                where: {
+                  tripId: fixture!.trip.id,
+                  runType: 'END_VALIDATION',
+                },
+              });
+              return evRuns >= 1;
+            }, 60_000, 'HEAD END_VALIDATION tracking run before terminal');
             await waitForNaturalTerminal({
               prisma,
               fixture,
