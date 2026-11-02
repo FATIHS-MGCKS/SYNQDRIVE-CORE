@@ -5,7 +5,7 @@ import { createNoopVsiProfileCadenceEvidenceLoader } from './vsi-profile-cadence
 import { PrismaClient, DrivingCapabilityStatus, TripStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import type { ClickHouseHfService } from '@modules/clickhouse/clickhouse-hf.service';
-import { assertVsi03DisposablePostgresTarget } from './vsi-readonly-composer.postgres-guard';
+import { assertVsi03DisposablePostgresTarget, vsiSignalProfileCompoundWhere } from './vsi-readonly-composer.postgres-guard';
 import { VsiDeclaredCatalogResolver } from './vsi-declared-catalog.resolver';
 import { VsiSignalProfileMaterializationService } from './vsi-profile-materialization.service';
 import {
@@ -180,7 +180,7 @@ function mockClickHouseForVerifiedSignals(): ClickHouseHfService {
       });
 
       const before = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
-        where: { organizationId_vehicleId_providerSourceLinkId: scope },
+        where: vsiSignalProfileCompoundWhere(scope),
       });
       const fpBefore = fingerprintVsiProfileSemanticFromPersisted({
         profileContractVersion: before.profileContractVersion,
@@ -204,7 +204,7 @@ function mockClickHouseForVerifiedSignals(): ClickHouseHfService {
       expect(outcome).toBe('applied');
 
       const after = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
-        where: { organizationId_vehicleId_providerSourceLinkId: scope },
+        where: vsiSignalProfileCompoundWhere(scope),
       });
       expect(after.profileRevision).toBe(before.profileRevision);
       expect(after.contentFingerprint).toBe(before.contentFingerprint);
@@ -332,7 +332,7 @@ function mockClickHouseForVerifiedSignals(): ClickHouseHfService {
       });
 
       const row = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
-        where: { organizationId_vehicleId_providerSourceLinkId: scope },
+        where: vsiSignalProfileCompoundWhere(scope),
       });
       const normalized = normalizeNativeSignalDiscoveryInventoryFromProfileRow(row);
       const load = normalized.entries.find((e) => e.providerNativeSignalName === 'obdEngineLoad');
@@ -450,7 +450,7 @@ function mockClickHouseForVerifiedSignals(): ClickHouseHfService {
       ]);
 
       const row = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
-        where: { organizationId_vehicleId_providerSourceLinkId: scope },
+        where: vsiSignalProfileCompoundWhere(scope),
       });
       const names = normalizeNativeSignalDiscoveryInventoryFromProfileRow(row).entries.map(
         (e) => e.providerNativeSignalName,

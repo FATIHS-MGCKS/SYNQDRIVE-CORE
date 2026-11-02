@@ -7,6 +7,7 @@
 
 import type { VsiNativeSignalDiscoveryInventoryV1 } from './vsi-native-signal-discovery-inventory.contract';
 import { assertNativeDiscoveryInventoryScopeMatch } from './vsi-native-signal-discovery-inventory.contract';
+import { stableNativeDiscoveryInventoryJson } from './vsi-native-discovery-inventory.db.util';
 
 export const VsiNativeDiscoveryOperationalWriteOutcome = {
   APPLIED: 'APPLIED',
@@ -70,7 +71,7 @@ export function evaluateNativeDiscoveryOperationalCasPreconditions(
     return VsiNativeDiscoveryOperationalWriteOutcome.STALE_SEMANTICS;
   }
 
-  const nextJson = stableJson(ctx.nextInventory);
+  const nextJson = stableNativeDiscoveryInventoryJson(ctx.nextInventory);
   if (ctx.priorInventoryJson != null && ctx.priorInventoryJson === nextJson) {
     return VsiNativeDiscoveryOperationalWriteOutcome.NOOP;
   }
@@ -91,8 +92,4 @@ export function assertInventoryOnlyRefreshPreservesProfileRevision(input: {
   if (input.semanticFingerprintBefore !== input.semanticFingerprintAfter) {
     throw new Error('inventory-only refresh must not change semantic fingerprint');
   }
-}
-
-function stableJson(value: unknown): string {
-  return JSON.stringify(value, (_k, v) => (v === undefined ? null : v));
 }

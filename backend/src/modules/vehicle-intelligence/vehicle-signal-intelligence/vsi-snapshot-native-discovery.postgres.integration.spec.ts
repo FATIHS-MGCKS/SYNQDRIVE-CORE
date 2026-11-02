@@ -153,6 +153,7 @@ async function addSecondActiveDimoLink(
       vehicleId: input.vehicleId,
       provider: 'DIMO',
       sourceType: 'DIMO',
+      sourceSubtype: 'DIMO_TELEMETRY_P1B_MULTI_LINK',
       dimoVehicleId: dimoId,
       consentId,
       isActive: true,

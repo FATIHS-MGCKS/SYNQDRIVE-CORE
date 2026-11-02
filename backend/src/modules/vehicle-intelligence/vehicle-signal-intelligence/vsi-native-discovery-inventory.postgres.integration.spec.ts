@@ -4,7 +4,7 @@
 import { createNoopVsiProfileCadenceEvidenceLoader } from './vsi-profile-cadence-evidence.loader.stub';
 import { PrismaClient, DrivingCapabilityStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { assertVsi03DisposablePostgresTarget } from './vsi-readonly-composer.postgres-guard';
+import { assertVsi03DisposablePostgresTarget, vsiSignalProfileCompoundWhere } from './vsi-readonly-composer.postgres-guard';
 import { VsiDeclaredCatalogResolver } from './vsi-declared-catalog.resolver';
 import { VsiSignalProfileMaterializationService } from './vsi-profile-materialization.service';
 import {
@@ -215,7 +215,8 @@ async function seedDrivingCapability(
       });
       const row = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
         where: {
-          organizationId_vehicleId_providerSourceLinkId: scope,
+          organizationId_vehicleId_providerSourceLinkId: vsiSignalProfileCompoundWhere(scope)
+            .organizationId_vehicleId_providerSourceLinkId,
         },
       });
       const summary = mapProfileRowToSummary(row, 'DIMO');
@@ -259,7 +260,7 @@ async function seedDrivingCapability(
       });
 
       const before = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
-        where: { organizationId_vehicleId_providerSourceLinkId: scope },
+        where: vsiSignalProfileCompoundWhere(scope),
       });
       const fpBefore = fingerprintVsiProfileSemanticFromPersisted({
         profileContractVersion: before.profileContractVersion,
@@ -284,7 +285,7 @@ async function seedDrivingCapability(
       expect(outcome).toBe('applied');
 
       const after = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
-        where: { organizationId_vehicleId_providerSourceLinkId: scope },
+        where: vsiSignalProfileCompoundWhere(scope),
       });
       expect(after.profileRevision).toBe(before.profileRevision);
       expect(after.contentFingerprint).toBe(before.contentFingerprint);
@@ -493,7 +494,7 @@ async function seedDrivingCapability(
       );
 
       const row = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
-        where: { organizationId_vehicleId_providerSourceLinkId: scope },
+        where: vsiSignalProfileCompoundWhere(scope),
       });
       const names = normalizeNativeSignalDiscoveryInventoryFromProfileRow(row).entries.map(
         (e) => e.providerNativeSignalName,
