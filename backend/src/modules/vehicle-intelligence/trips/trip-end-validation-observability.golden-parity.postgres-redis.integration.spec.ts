@@ -1,10 +1,6 @@
 /**
  * TDL PR2303 — deterministic FSM golden parity (observability OFF vs ON).
  * Requires Postgres + BullMQ/Redis (same harness as R11/R12 integration).
- *
- * COMPOSITE_MAX_ATTEMPT_FALLBACK FSM behavior is additionally proven in
- * `trip-r12-cusum-retry-budget.postgres-redis.integration` / provider-silence suites
- * (R12 postgres+redis CI); observability emission for that outcome is unit-covered.
  */
 import { PrismaClient, TripDetectionState, TripStatus } from '@prisma/client';
 import { Queue } from 'bullmq';
@@ -41,6 +37,13 @@ import {
   waitForTripEndValidationObservations,
 } from './trip-end-validation-observability.golden-parity.harness';
 import type { TripEndValidationObservabilityService } from './trip-end-validation-observability.service';
+import { TripDecisionEngine } from './decision/trip-decision.engine';
+import {
+  buildCompositeCusumOngoingDetectorMock,
+  buildCompositeStopCoreMock,
+  createCompositeGoldenFixture,
+  runCompositeMaxAttemptFallbackChain,
+} from './trip-end-validation-observability.golden-parity-composite.harness';
 
 const LIVE = process.env.TRIP_END_VALIDATION_GOLDEN_PARITY_POSTGRES_REDIS === '1';
 const REQUIRED = process.env.TRIP_END_VALIDATION_GOLDEN_PARITY_POSTGRES_REDIS_REQUIRED === '1';
@@ -63,6 +66,12 @@ async function runGoldenParityCase(params: {
   label: string;
   minObservationsWhenOn?: number;
   createFixture: () => Promise<TripR11PostgresFixture>;
+  buildHarness?: (ctx: {
+    prisma: PrismaClient;
+    queue: Queue<TripTrackingJobData>;
+    fixture: TripR11PostgresFixture;
+    observability: TripEndValidationObservabilityService | undefined;
+  }) => TripR11OrchestrationHarness;
   run: (ctx: {
     harness: TripR11OrchestrationHarness;
     fixture: TripR11PostgresFixture;
@@ -78,18 +87,27 @@ async function runGoldenParityCase(params: {
     const observability = obsEnabled
       ? buildTripEndValidationObservabilityService(params.prisma)
       : undefined;
-    const idleSegments = buildKs661IdleTransitionSegmentsMock(
-      new Date('2026-09-08T19:59:22.000Z'),
-    );
-    const detectorRegistry = buildTripR11DetectorMock(fixture.expectedEndTime);
-    const harness = buildTripR11OrchestrationHarness(
-      params.prisma,
-      params.queue,
-      fixture,
-      idleSegments,
-      detectorRegistry,
-      { endValidationObservability: observability },
-    );
+    const harness = params.buildHarness
+      ? params.buildHarness({
+          prisma: params.prisma,
+          queue: params.queue,
+          fixture,
+          observability,
+        })
+      : (() => {
+          const idleSegments = buildKs661IdleTransitionSegmentsMock(
+            new Date('2026-09-08T19:59:22.000Z'),
+          );
+          const detectorRegistry = buildTripR11DetectorMock(fixture.expectedEndTime);
+          return buildTripR11OrchestrationHarness(
+            params.prisma,
+            params.queue,
+            fixture,
+            idleSegments,
+            detectorRegistry,
+            { endValidationObservability: observability },
+          );
+        })();
     try {
       await params.run({ harness, fixture });
       return {
@@ -450,6 +468,40 @@ function buildEndValidationJob(
         },
       });
     }, 120_000);
+
+    it('COMPOSITE_MAX_ATTEMPT_FALLBACK — full retry-budget terminal chain', async () => {
+      if (!dbOk) return;
+
+      await runGoldenParityCase({
+        prisma,
+        queue: trackingQueue,
+        label: 'COMPOSITE_MAX_ATTEMPT_FALLBACK',
+        minObservationsWhenOn: 4,
+        createFixture: () => createCompositeGoldenFixture(prisma),
+        buildHarness: ({ prisma: p, queue, fixture, observability }) => {
+          const stopMock = buildCompositeStopCoreMock();
+          return buildTripR11OrchestrationHarness(
+            p,
+            queue,
+            fixture,
+            stopMock,
+            buildCompositeCusumOngoingDetectorMock(),
+            { endValidationObservability: observability },
+          );
+        },
+        run: async ({ harness, fixture }) => {
+          const realEvaluateEndCandidate =
+            TripDecisionEngine.prototype.evaluateEndCandidate.bind(harness.decisionEngine);
+          harness.evaluateEndCandidate.mockImplementation(realEvaluateEndCandidate);
+          await runCompositeMaxAttemptFallbackChain({
+            prisma,
+            queue: trackingQueue,
+            harness,
+            fixture,
+          });
+        },
+      });
+    }, 300_000);
 
     it('FSM_HARD_TIMEOUT_FALLBACK when resume fetch fails past timeout', async () => {
       if (!dbOk) return;
