@@ -338,3 +338,14 @@ Newest entry last. Never rewrite or delete entries.
 | EXPECTED_EFFECT | Odometer-only telemetry ticks do not insert; ledger/measurement/setup changes still snapshot; pairing rejects cross-identity/leakage; UPDATE forbidden at DB |
 | VALIDATION | Jest calibration + fingerprint eligibility specs; backend build |
 | NON_EFFECTS | Customer V3 fusion/fingerprint math unchanged; β=0; writer flag default OFF; no DS4 / V4 / production activation |
+
+### Tire V3 Calibration Center P3.2 — existing inventory read (2026-11-02)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | Calibration Center P3.1 exposed snapshot rollups only; registered setups without snapshots were invisible in Master Admin |
+| WHY | Ops need read-only visibility into persisted tire setups, measurements, Tire V3 prior shadow rows, DS4 shadow inputs, and eligibility — without writer enable or new computation |
+| CHANGE | `TireWearV3CalibrationCenterInventoryReadService` + `/inventory/*` MASTER_ADMIN routes; Master UI tab “Existing inventory”; 9-locale i18n keys (DE primary copy); Jest inventory isolation/identity/pagination specs |
+| EXPECTED_EFFECT | Drilldown org → vehicle → setup → wheel with explicit UNCONFIRMED/AMBIGUOUS physical identity; snapshot count may be 0 |
+| VALIDATION | Jest inventory + master-read security specs; frontend vitest URL tab; `npm run i18n:check` |
+| NON_EFFECTS | No migrations; writer OFF; no new Tire V3 computation; measurements not labeled validated calibration pairs |

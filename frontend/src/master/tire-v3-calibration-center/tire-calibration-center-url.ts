@@ -1,6 +1,6 @@
 import type { TireCalibrationCenterTab } from './tire-calibration-center-api.types';
 
-const TAB_IDS: TireCalibrationCenterTab[] = ['overview', 'snapshots', 'accuracy', 'quality'];
+const TAB_IDS: TireCalibrationCenterTab[] = ['overview', 'inventory', 'snapshots', 'accuracy', 'quality'];
 
 export type TireCalibrationCenterUrlState = {
   tab: TireCalibrationCenterTab;

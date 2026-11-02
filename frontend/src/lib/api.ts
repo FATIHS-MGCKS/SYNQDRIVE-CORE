@@ -3850,6 +3850,27 @@ export const api = {
         get<import('../master/tire-v3-calibration-center/tire-calibration-center-api.types').TireCalibrationSetupInspectionDto>(
           `/admin/master-intelligence/tire-wear-v3-calibration-shadow/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/setups/${encodeURIComponent(tireSetupId)}/quality`,
         ),
+      inventorySummary: () =>
+        get<import('../master/tire-v3-calibration-center/tire-calibration-center-api.types').TireInventoryGlobalSummaryDto>(
+          '/admin/master-intelligence/tire-wear-v3-calibration-shadow/inventory/summary',
+        ),
+      inventorySetups: (
+        organizationId: string,
+        vehicleId: string,
+        params?: { limit?: number; offset?: number },
+      ) => {
+        const q = new URLSearchParams();
+        if (params?.limit != null) q.set('limit', String(params.limit));
+        if (params?.offset != null) q.set('offset', String(params.offset));
+        const suffix = q.toString() ? `?${q.toString()}` : '';
+        return get<import('../master/tire-v3-calibration-center/tire-calibration-center-api.types').TireInventorySetupListDto>(
+          `/admin/master-intelligence/tire-wear-v3-calibration-shadow/inventory/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/setups${suffix}`,
+        );
+      },
+      inventorySetupDetail: (organizationId: string, vehicleId: string, tireSetupId: string) =>
+        get<import('../master/tire-v3-calibration-center/tire-calibration-center-api.types').TireInventorySetupDetailDto>(
+          `/admin/master-intelligence/tire-wear-v3-calibration-shadow/inventory/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/setups/${encodeURIComponent(tireSetupId)}`,
+        ),
     },
     masterIntelligencePdi: {
       intelligence: (physicalDeviceId: string, organizationId?: string | null) => {

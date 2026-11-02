@@ -109,4 +109,107 @@ export type TireCalibrationSnapshotDetailDto = {
   payload: TireCalibrationSnapshotPayload;
 };
 
-export type TireCalibrationCenterTab = 'overview' | 'snapshots' | 'accuracy' | 'quality';
+export type TireCalibrationCenterTab =
+  | 'overview'
+  | 'inventory'
+  | 'snapshots'
+  | 'accuracy'
+  | 'quality';
+
+export type TireInventoryGlobalSummaryDto = {
+  organizationCountWithSetups: number;
+  vehicleCountWithSetups: number;
+  registeredSetupCount: number;
+  setupsWithTreadMeasurements: number;
+  setupsWithPriorShadowRows: number;
+  setupsWithCalibrationSnapshots: number;
+  confirmedPhysicalWheelSlots: number;
+  unconfirmedPhysicalWheelSlots: number;
+  ambiguousPhysicalWheelSlots: number;
+  writer: { writeEnabled: boolean };
+};
+
+export type TireInventorySetupListDto = {
+  organizationId: string;
+  vehicleId: string;
+  items: Array<{
+    tireSetupId: string;
+    name: string | null;
+    status: string;
+    installedAt: string | null;
+    removedAt: string | null;
+    snapshotCount: number;
+    measurementCount: number;
+    hasPriorShadow: boolean;
+    latestMeasurementAt: string | null;
+  }>;
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type TireInventorySetupDetailDto = {
+  organizationId: string;
+  vehicleId: string;
+  tireSetupId: string;
+  name: string | null;
+  status: string;
+  tireSeason: string;
+  frontDimension: string | null;
+  rearDimension: string | null;
+  brandModelFront: string | null;
+  brandModelRear: string | null;
+  installedAt: string | null;
+  removedAt: string | null;
+  activeMountPeriodId: string | null;
+  activeMountInstalledAt: string | null;
+  activeMountRemovedAt: string | null;
+  odometerAnchorStatus: string | null;
+  snapshotCount: number;
+  measurementCount: number;
+  wheels: Array<{
+    wheelPosition: string;
+    physicalTireId: string | null;
+    physicalIdentityStatus: 'CONFIRMED' | 'UNCONFIRMED' | 'AMBIGUOUS';
+    tireBrand: string | null;
+    tireModel: string | null;
+    dotCode: string | null;
+    latestMeasurement: {
+      treadDepthMm: number | null;
+      measuredAt: string | null;
+      measurementId: string | null;
+      evidenceSource: string | null;
+      source: string | null;
+      availability: string;
+    };
+  }>;
+  priorShadow: {
+    availability: 'AVAILABLE' | 'NOT_PERSISTED';
+    modelVersion: string | null;
+    computedAt: string | null;
+    inputFingerprintPrefix: string | null;
+    wheelSummaries: Array<{
+      wheelPosition: string;
+      treadEvidenceClass: string | null;
+      displayTreadMmLo: number | null;
+      displayTreadMmHi: number | null;
+      pointEstimateTreadMm: number | null;
+      evidenceLevel: string | null;
+    }>;
+  };
+  ds4: {
+    persistedRowCount: number;
+    latestDs4ReadStatus: string | null;
+    latestEventQualityCoverage: string | null;
+    latestCreatedAt: string | null;
+    availability: 'AVAILABLE' | 'NOT_PERSISTED';
+  };
+  calibrationEligibility: {
+    evaluable: boolean;
+    reason: string | null;
+    calibrationEligibilityDigestPrefix: string | null;
+    rotationDuringMountPeriod: boolean | null;
+    physicalIdentityAmbiguous: boolean | null;
+    latestSourceMeasurementAt: string | null;
+  };
+};
