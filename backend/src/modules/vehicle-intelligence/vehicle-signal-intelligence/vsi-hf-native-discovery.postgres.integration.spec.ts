@@ -149,6 +149,11 @@ function mockClickHouseForVerifiedSignals(): ClickHouseHfService {
         new Date('2026-10-27T11:00:00.000Z'),
       );
 
+      await prisma.vehicleDataSourceLink.update({
+        where: { id: fixture.linkId },
+        data: { activatedAt: new Date('2026-01-01T00:00:00.000Z') },
+      });
+
       await prisma.vehicleSignalCapabilityProfile.create({
         data: {
           organizationId,
@@ -174,10 +179,11 @@ function mockClickHouseForVerifiedSignals(): ClickHouseHfService {
       const hfInventory = await buildHfNativeDiscoveryInventoryUpdate(prisma, {
         ...scope,
         projectionAsOf: evaluatedAt,
-        linkActivatedAt: linkRow.activatedAt,
+        linkActivatedAt: new Date('2026-01-01T00:00:00.000Z'),
         linkDeactivatedAt: linkRow.deactivatedAt,
         clickHouseHf,
       });
+      expect(hfInventory.entries.length).toBeGreaterThan(0);
 
       const before = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
         where: vsiSignalProfileCompoundWhere(scope),

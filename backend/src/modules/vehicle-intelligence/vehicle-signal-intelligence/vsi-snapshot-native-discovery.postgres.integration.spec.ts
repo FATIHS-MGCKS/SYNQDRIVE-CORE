@@ -12,7 +12,10 @@ import {
   createLegacyReconcileOrg,
 } from '../../vehicle-onboarding/connection-identity/legacy-reconciliation/legacy-reconciliation-postgres.fixture';
 import { DRIVING_CAPABILITY_PROVIDER } from '../driving-capability/vehicle-driving-capability.types';
-import { normalizeNativeSignalDiscoveryInventoryFromProfileRow } from './vsi-native-discovery-inventory.db.util';
+import {
+  buildCanonicalEmptyNativeDiscoveryInventoryDbJson,
+  normalizeNativeSignalDiscoveryInventoryFromProfileRow,
+} from './vsi-native-discovery-inventory.db.util';
 import { VsiEvidenceAxisEvaluationState } from './vsi-native-signal-discovery-evaluation-state';
 import {
   resolveNativeDiscoveryInventoryForConsumerContext,
@@ -318,6 +321,22 @@ async function addSecondActiveDimoLink(
       vehicleId: fixture.vehicleId,
     });
     await seedDrivingCapability(prisma, organizationId, fixture.vehicleId);
+    await prisma.vehicleSignalCapabilityProfile.create({
+      data: {
+        organizationId,
+        vehicleId: fixture.vehicleId,
+        providerSourceLinkId: link2Id,
+        providerIdentity: 'DIMO',
+        profileContractVersion: 'vsi-signal-profile-v2',
+        profileRevision: 1,
+        contentFingerprint: 'fp-link2',
+        evaluatedAt: new Date('2026-10-15T12:00:00.000Z'),
+        signalsSnapshot: [],
+        nativeSignalDiscoveryInventory:
+          buildCanonicalEmptyNativeDiscoveryInventoryDbJson() as object,
+        profileLimitations: [],
+      },
+    });
     const ts = new Date('2026-10-15T12:00:00.000Z');
     await upsertVls(prisma, {
       vehicleId: fixture.vehicleId,

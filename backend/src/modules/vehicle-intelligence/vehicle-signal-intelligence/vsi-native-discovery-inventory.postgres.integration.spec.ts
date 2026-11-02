@@ -429,9 +429,14 @@ async function seedDrivingCapability(
           profileLimitations: [],
         },
       });
+      const rowBefore = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
+        where: vsiSignalProfileCompoundWhere(scope),
+      });
+      const normalizedPersisted =
+        normalizeNativeSignalDiscoveryInventoryFromProfileRow(rowBefore);
       const first = await service.persistNativeDiscoveryInventoryOperationalRefresh({
         ...scope,
-        nextInventory: next,
+        nextInventory: normalizedPersisted,
         latestStateProviderBindingId: fixture.linkId,
         latestStateSourceTimestampMs: evaluatedAt.getTime(),
       });
