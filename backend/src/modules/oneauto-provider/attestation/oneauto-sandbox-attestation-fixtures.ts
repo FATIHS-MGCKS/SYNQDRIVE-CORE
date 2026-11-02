@@ -37,8 +37,87 @@ export const ONEAUTO_SANDBOX_ATTESTATION_FIXTURES: readonly OneAutoSandboxAttest
   },
   {
     id: 'http-202',
-    description: 'HTTP 202 async pending',
+    description: 'HTTP 202 async pending without identifiers',
     mock: { kind: 'response', status: 202, bodyText: JSON.stringify({ success: true }) },
+    expectQualified: false,
+    expectCategory: 'HTTP_202_ASYNC',
+  },
+  {
+    id: 'http-202-production-e1-parity',
+    description:
+      'HTTP 202 ~308B — offline parity with production E1 attestation only (portal 200+is_sqs_call row is provider-internal, not a second SynqDrive GET)',
+    mock: {
+      kind: 'response',
+      status: 202,
+      bodyText: JSON.stringify({
+        success: true,
+        message: 'Async processing started',
+        padding: 'x'.repeat(240),
+      }),
+    },
+    expectQualified: false,
+    expectCategory: 'HTTP_202_ASYNC',
+  },
+  {
+    id: 'http-202-with-job-id',
+    description: 'HTTP 202 with async job id in body',
+    mock: {
+      kind: 'response',
+      status: 202,
+      headers: { 'Retry-After': '15', Status: 'PENDING' },
+      bodyText: JSON.stringify({
+        success: true,
+        request_id: 'oa-async-req-12345678',
+      }),
+    },
+    expectQualified: false,
+    expectCategory: 'HTTP_202_ASYNC',
+  },
+  {
+    id: 'http-202-with-location',
+    description: 'HTTP 202 with Location status URL header',
+    mock: {
+      kind: 'response',
+      status: 202,
+      headers: {
+        Location: 'https://api.oneautoapi.com/ezyvin/status/abc123?sig=must-not-store',
+      },
+      bodyText: JSON.stringify({ success: true }),
+    },
+    expectQualified: false,
+    expectCategory: 'HTTP_202_ASYNC',
+  },
+  {
+    id: 'http-202-unexpected-schema',
+    description: 'HTTP 202 with unexpected top-level schema',
+    mock: {
+      kind: 'response',
+      status: 202,
+      bodyText: JSON.stringify({ pending: true, meta: { queue: 'default' } }),
+    },
+    expectQualified: false,
+    expectCategory: 'HTTP_202_ASYNC',
+  },
+  {
+    id: 'http-202-sensitive-fields',
+    description: 'HTTP 202 body contains sensitive fields (values must not appear in evidence)',
+    mock: {
+      kind: 'response',
+      status: 202,
+      bodyText: JSON.stringify({
+        success: true,
+        vehicle_identification_number: 'WBA12345678901234',
+        api_key: 'super-secret-key',
+        result: { owner_name: 'Jane Doe' },
+      }),
+    },
+    expectQualified: false,
+    expectCategory: 'HTTP_202_ASYNC',
+  },
+  {
+    id: 'http-202-malformed-json',
+    description: 'HTTP 202 with malformed JSON body',
+    mock: { kind: 'response', status: 202, bodyText: '{not-json' },
     expectQualified: false,
     expectCategory: 'HTTP_202_ASYNC',
   },

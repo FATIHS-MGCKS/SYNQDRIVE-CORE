@@ -1,5 +1,6 @@
 import type { OneAutoDocumentedProviderContract } from '../catalog/oneauto-contract-types';
 import { evaluateSuccessResultErrorEnvelope } from '../oneauto-response-envelope.util';
+import type { AttestationResponseHeaderSnapshot } from './oneauto-sandbox-attestation-response-fingerprint.types';
 import type { OneAutoSandboxAttestationDiagnosticCategory } from './oneauto-sandbox-attestation.types';
 
 export type AttestationTransportOutcome = {
@@ -8,6 +9,7 @@ export type AttestationTransportOutcome = {
   responseByteLength: number | null;
   envelopeSuccess: boolean | null;
   transportErrorCode: string | null;
+  responseHeaders: AttestationResponseHeaderSnapshot;
 };
 
 export function classifySandboxAttestationOutcome(

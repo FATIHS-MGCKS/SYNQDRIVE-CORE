@@ -1,4 +1,5 @@
 import type { ONEAUTO_ATTESTATION_SKU } from './oneauto-sandbox-attestation.constants';
+import type { OneAutoAttestationResponseFingerprint } from './oneauto-sandbox-attestation-response-fingerprint.types';
 
 export type OneAutoAttestationEnvironment = 'OFFLINE' | 'PRODUCTION';
 
@@ -35,7 +36,7 @@ export type OneAutoSandboxAttestationDiagnosticCategory =
   | 'FIXTURE_UNKNOWN';
 
 export type OneAutoSandboxAttestationEvidence = {
-  schemaVersion: 'oneauto-sandbox-attestation-v1';
+  schemaVersion: 'oneauto-sandbox-attestation-v2';
   recordedAtUtc: string;
   attestationEnvironment: OneAutoAttestationEnvironment;
   targetSku: typeof ONEAUTO_ATTESTATION_SKU;
@@ -52,6 +53,7 @@ export type OneAutoSandboxAttestationEvidence = {
   billingStatus: 'UNKNOWN';
   providerContractStatus: 'DOCUMENTED';
   vinSha256Prefix: string | null;
+  responseFingerprint: OneAutoAttestationResponseFingerprint;
   evidenceSha256: string;
   notes: string[];
 };

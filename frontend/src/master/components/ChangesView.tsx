@@ -486,6 +486,25 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-11-02T00:00:00.000Z',
   },
   {
+    id: 'oneauto-p25e-e2-async-evidence-hardening-2026-11-02',
+    version: '4.9.5008',
+    title: 'One Auto API — P2.5E-E2 attestation async response fingerprint',
+    summary: [
+      'Attestation evidence schema v2 adds responseFingerprint: allowlisted async metadata (job id hash prefix, redacted Location, Retry-After, JSON key names) without raw provider bodies.',
+      'Offline fixtures for HTTP 202 job id, Location header, sensitive fields, malformed JSON, and existing error classes; redaction regression tests.',
+      'Live attestation still capped at exactly one GET — no polling, callbacks, or EXECUTION_VERIFIED registry changes.',
+    ],
+    reason:
+      'Production OE_VIN_LOOKUP_EU returned HTTP 202 with no retained body; future attestation runs need safe async classification metadata.',
+    previousBehavior:
+      'Attestation evidence stored HTTP status and byte length only; async job identifiers and header hints were discarded.',
+    details:
+      'backend: attestation/oneauto-sandbox-attestation-response-fingerprint.*, fixture extensions, p25e-e2 specs; architecture P1_CHANGE_RECORD + P25E_C template v2 fields.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-02T11:00:00.000Z',
+  },
+  {
     id: 'oneauto-p2-master-admin-ui-2026-11-01',
     version: '4.9.5003',
     title: 'One Auto API — Master Admin service dialog (frontend P2)',

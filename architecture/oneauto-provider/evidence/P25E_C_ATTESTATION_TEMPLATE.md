@@ -10,7 +10,7 @@ Copy this template after a **owner-approved** isolated attestation run. Replace 
 
 | Field | Value |
 |-------|--------|
-| schemaVersion | oneauto-sandbox-attestation-v1 |
+| schemaVersion | oneauto-sandbox-attestation-v2 |
 | recordedAtUtc | `<ISO-8601 UTC>` |
 | targetSku | OE_VIN_LOOKUP_EU |
 | mode | `offline` \| `live-sandbox` |
@@ -25,6 +25,12 @@ Copy this template after a **owner-approved** isolated attestation run. Replace 
 | billingStatus | **UNKNOWN** (until vendor + portal evidence) |
 | providerContractStatus | DOCUMENTED |
 | vinSha256Prefix | `<first 16 hex of SHA-256(normalized VIN) — never full VIN>` |
+| responseFingerprint | `<redacted async/sync metadata — no raw body>` |
+| responseFingerprint.asyncState | `SYNC_RESPONSE` \| `ASYNC_ACCEPTED` \| `PARTIAL_CONTENT` \| `NOT_APPLICABLE` |
+| responseFingerprint.asyncJobIdFingerprint | `<16-hex SHA-256 prefix of validated job/request id, or —>` |
+| responseFingerprint.retryAfterSeconds | `<integer seconds or —>` |
+| responseFingerprint.locationHostPathRedacted | `<https://host/path only — no query tokens>` |
+| responseFingerprint.topLevelJsonKeys | `<sorted key names only>` |
 | evidenceSha256 | `<sha256 of sanitized evidence JSON>` |
 
 ## Owner attestation (manual)

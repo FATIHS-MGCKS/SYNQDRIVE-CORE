@@ -36,6 +36,10 @@ function documentedVinLookupContract() {
   return doc;
 }
 
+function emptyAttestationHeaders() {
+  return { retryAfterRaw: null, locationRaw: null, providerStatusRaw: null };
+}
+
 function fixtureFetchImpl(fixture: OneAutoSandboxAttestationFixture): SandboxAttestationFetchImpl {
   return async (_url, _init) => {
     if (fixture.mock.kind === 'reject') {
@@ -45,11 +49,18 @@ function fixtureFetchImpl(fixture: OneAutoSandboxAttestationFixture): SandboxAtt
       throw new Error('invalid-vin fixture should not call fetch');
     }
     const bodyText = fixture.mock.bodyText ?? '';
+    const headerMap =
+      fixture.mock.kind === 'response' ? fixture.mock.headers ?? {} : {};
     return {
       status: fixture.mock.status,
       headers: {
-        get: (name: string) =>
-          fixture.mock.kind === 'response' ? fixture.mock.headers?.[name] ?? null : null,
+        get: (name: string) => {
+          const lower = name.toLowerCase();
+          for (const [key, value] of Object.entries(headerMap)) {
+            if (key.toLowerCase() === lower) return value;
+          }
+          return null;
+        },
       },
       text: async () => bodyText,
     } as unknown as Response;
@@ -74,6 +85,7 @@ export async function runOfflineSandboxAttestationFixture(
         responseByteLength: null,
         envelopeSuccess: null,
         transportErrorCode: 'FIXTURE_UNKNOWN',
+        responseHeaders: emptyAttestationHeaders(),
       },
       attemptedOutboundRequests: 0,
       categoryOverride: 'FIXTURE_UNKNOWN',
@@ -98,6 +110,7 @@ export async function runOfflineSandboxAttestationFixture(
         responseByteLength: null,
         envelopeSuccess: null,
         transportErrorCode: 'ONEAUTO_INVALID_VIN',
+        responseHeaders: emptyAttestationHeaders(),
       },
       attemptedOutboundRequests: 0,
       vinForFingerprint: vin,
@@ -154,6 +167,7 @@ function preflightEvidence(
       responseByteLength: null,
       envelopeSuccess: null,
       transportErrorCode: failure?.code ?? 'ONEAUTO_ATTESTATION_BLOCKED',
+      responseHeaders: emptyAttestationHeaders(),
     },
     attemptedOutboundRequests: 0,
     vinForFingerprint: auth.vin,
