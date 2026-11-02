@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { normalizeVin } from '../client/oneauto-vin.util';
@@ -135,6 +135,10 @@ export function buildCapturedVehicleFields(result: Record<string, unknown>): One
   if (powerBhp != null) out.powerBhp = powerBhp;
   const colour = readString(result.oem_colour_desc);
   if (colour) out.colour = colour;
+  const bodyType = readString(result.oem_body_type_desc);
+  if (bodyType) out.bodyType = bodyType;
+  const interiorTrim = readString(result.oem_interior_trim_desc);
+  if (interiorTrim) out.interiorTrim = interiorTrim;
   const dateLastUpdated = readString(result.date_last_updated);
   if (dateLastUpdated) out.dateLastUpdated = dateLastUpdated;
   return out;
@@ -185,13 +189,48 @@ export function writeResultCaptureArtifactAtomic(
   document: OneAutoAttestationResultCaptureV1,
 ): { artifactSha256: string } {
   const payload = `${JSON.stringify(document, null, 2)}\n`;
-  const fd = fs.openSync(resolvedFilePath, 'wx', 0o600);
+  if (fs.existsSync(resolvedFilePath)) {
+    throw Object.assign(new Error('Capture file already exists'), { code: 'CAPTURE_FILE_EXISTS' });
+  }
+
+  const destDir = path.dirname(resolvedFilePath);
+  const tempPath = path.join(
+    destDir,
+    `.oneauto-capture-${process.pid}-${Date.now()}-${randomBytes(8).toString('hex')}.tmp`,
+  );
+
+  let fd: number | null = null;
   try {
+    fd = fs.openSync(tempPath, 'wx', 0o600);
     fs.writeFileSync(fd, payload, { encoding: 'utf8' });
     fs.fchmodSync(fd, 0o600);
-  } finally {
     fs.closeSync(fd);
+    fd = null;
+    fs.renameSync(tempPath, resolvedFilePath);
+  } catch (err: unknown) {
+    if (fd != null) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {
+      /* ignore */
+    }
+    if (
+      err &&
+      typeof err === 'object' &&
+      'code' in err &&
+      (err as { code: unknown }).code === 'EEXIST'
+    ) {
+      throw Object.assign(new Error('Capture file already exists'), { code: 'CAPTURE_FILE_EXISTS' });
+    }
+    throw err;
   }
+
   const artifactSha256 = createHash('sha256').update(payload, 'utf8').digest('hex');
   return { artifactSha256 };
 }

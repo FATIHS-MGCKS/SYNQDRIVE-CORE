@@ -24,6 +24,8 @@ export type OneAutoAttestationCapturedVehicleFields = {
   powerKw?: number;
   powerBhp?: number;
   colour?: string;
+  bodyType?: string;
+  interiorTrim?: string;
   dateLastUpdated?: string;
 };
 

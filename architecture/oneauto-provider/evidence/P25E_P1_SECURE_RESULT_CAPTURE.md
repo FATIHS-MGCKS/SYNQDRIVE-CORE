@@ -31,13 +31,13 @@ Capture runs **only** when:
 
 - Schema: `oneauto-attestation-result-capture-v1`
 - Separate from shareable attestation JSON (no raw provider body in evidence)
-- Atomic create: `O_CREAT|O_EXCL`, mode **0600**
-- Path must be absolute; no `..`; target must not exist; parent directory resolved with `realpath`
+- Publish: temp file `.oneauto-capture-*.tmp` in the **same resolved directory** (mode **0600**), then atomic `rename` to destination with **no-clobber** (destination must not exist); temp removed on failure
+- Path must be absolute; no `..`; reject symlinks on path segments; target must not exist; parent directory resolved with `realpath`
 - **Never commit** capture files to git
 
 ## Redaction
 
-Stored vehicle object includes allowlisted fields only (make, model range, derivative, year, fuel, engine, transmission, drivetrain, power, colour, descriptions, date last updated).
+Stored vehicle object includes **17** allowlisted non-VIN OpenAPI result fields only: make, model range, derivative, vehicle/oem descriptions, manufactured/oem model year, fuel, engine, transmission, drivetrain, **body type** (`oem_body_type_desc` → `bodyType`), **interior trim** (`oem_interior_trim_desc` → `interiorTrim`), power kW/BHP, colour, date last updated.
 
 Omitted from artifact:
 

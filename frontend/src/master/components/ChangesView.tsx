@@ -510,7 +510,7 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     title: 'One Auto API — P2.5E-P1 secure attestation result capture (opt-in)',
     summary: [
       'Isolated attestation CLI adds `--capture-redacted-result` with separate env gates; default remains fingerprint-only evidence v2.',
-      'Successful HTTP 200 envelopes with VIN binding write a local capture artifact (0600, atomic create) separate from shareable evidence JSON.',
+      'Successful HTTP 200 envelopes with VIN binding write a local capture artifact (17 redacted vehicle fields, temp-file publish 0600, no-clobber) separate from shareable evidence JSON.',
       'No product DB writes, no vehicle apply, no EXECUTION_VERIFIED registry changes; mocked tests only in CI.',
     ],
     reason:

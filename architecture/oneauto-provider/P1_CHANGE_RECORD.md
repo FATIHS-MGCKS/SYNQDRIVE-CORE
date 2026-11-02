@@ -47,3 +47,10 @@
 - **Evidence:** `architecture/oneauto-provider/evidence/P25E_P1_SECURE_RESULT_CAPTURE.md`
 - **Tests:** `oneauto-p25e-p1-secure-result-capture.spec.ts` (mocked fetch only).
 - **Non-effects:** Default attestation remains fingerprint-only; no Prisma/DB; no vehicle apply; registry unchanged.
+
+## P2.5E-P1 hardening — capture field coverage & safe publish (2026-11-02)
+
+- **Field coverage:** `bodyType` / `interiorTrim` from `oem_body_type_desc` / `oem_interior_trim_desc`; regression asserts **17** non-VIN OpenAPI result keys mapped.
+- **File write safety:** Temp-file create in destination dir (0600) → atomic rename; no partial final artifacts; concurrent publish tests; path/symlink guards unchanged.
+- **Tests:** Dedicated HTTP 200 non-JSON guard (no artifact; fingerprint `nonJsonBody`); existing VIN mismatch / 202 / 206 / `success:false` regressions retained.
+- **Non-effects:** Unchanged from P2.5E-P1 baseline (no live API in CI, no EXECUTION_VERIFIED, no vehicle writes).
