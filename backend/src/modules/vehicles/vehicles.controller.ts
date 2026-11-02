@@ -294,9 +294,11 @@ export class VehiclesController {
     @Param('orgId') orgId: string,
     @Param('vehicleId') vehicleId: string,
     @Body() body: Prisma.VehicleUpdateInput,
+    @Req() req: { user?: { platformRole?: string } },
   ) {
     return this.vehiclesService.update(vehicleId, body, orgId, {
       rawBody: body as Record<string, unknown>,
+      actorPlatformRole: req?.user?.platformRole ?? null,
     });
   }
 
@@ -545,6 +547,7 @@ export class VehiclesController {
         : req?.user?.organizationId;
     return this.vehiclesService.update(vehicleId, body, orgId, {
       rawBody: body as Record<string, unknown>,
+      actorPlatformRole: req?.user?.platformRole ?? null,
     });
   }
 

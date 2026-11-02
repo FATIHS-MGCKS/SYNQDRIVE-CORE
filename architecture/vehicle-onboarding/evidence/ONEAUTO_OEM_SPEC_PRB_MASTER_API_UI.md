@@ -4,13 +4,13 @@
 |-------|-------|
 | **Depends on** | PR #2313 merged (`20261102160000_vehicle_oem_specification_identity_pra`) |
 | **Master GET** | `GET /admin/vehicles/:vehicleId` → `mapToRegisteredVehicle` exposes ten nullable OEM fields + `registrationIdentityProvenance` |
-| **Master PATCH** | Existing org-scoped `PATCH …/vehicles/:vehicleId` + `technicalSpecificationSave.confirmedFieldKeys` for OEM keys |
-| **Runtime writes** | Gated on migration applied in target environment; no provider / One Auto auto-apply |
+| **Master PATCH** | `PATCH …/vehicles/:vehicleId` — `OrgScopingGuard`, `@RequirePermission('fleet','write')`; **OEM keys require `actorPlatformRole === MASTER_ADMIN`** in `VehiclesService.update` (technical specs unchanged for org fleet.write) |
+| **Optimistic concurrency** | **All** non-empty OEM patches use conditional `updateMany` on `id` + `updatedAt` (+ org when scoped); stale → `VEHICLE_OEM_SPEC_SAVE_CONFLICT` |
 
 ## Backend
 
 - `vehicle-oem-specification-patch.util.ts` — explicit confirmation, `USER_CONFIRMED` provenance, max-length validation, protected-field blocks, v1→v2 in-memory upgrade on OEM save (P3 fields preserved).
-- `vehicles.service.update` — chains technical then OEM patch; strips OEM keys from generic Prisma body; optimistic concurrency when protected OEM correction.
+- `vehicles.service.update` — chains technical then OEM patch; strips OEM keys from generic Prisma body; **Master Admin gate for OEM bodies**; **optimistic concurrency for every OEM write** (`VEHICLE_OEM_SPEC_SAVE_CONFLICT`).
 
 ## Frontend
 
@@ -26,4 +26,7 @@
 ## Tests
 
 - `vehicle-oem-specification-patch.util.spec.ts` — legacy v1 provenance + protected USER_CONFIRMED regression.
+- `vehicle-oem-specification-patch.security.spec.ts` — controller actor forwarding + Master gate negative.
+- `vehicles.service.oem-update.spec.ts` — stale optimistic rejection (unit).
+- `vehicle-oem-specification-patch.postgres.integration.spec.ts` — auth + concurrent OEM writes (`VEHICLE_OEM_SPEC_PATCH_PG=1`).
 - Frontend util + save helper unit tests.

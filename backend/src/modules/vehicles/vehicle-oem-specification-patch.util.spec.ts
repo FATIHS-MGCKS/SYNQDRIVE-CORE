@@ -1,9 +1,10 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import {
   REGISTRATION_IDENTITY_PROVENANCE_DOCUMENT_VERSION_LEGACY,
   REGISTRATION_IDENTITY_PROVENANCE_DOCUMENT_VERSION_OEM,
 } from '@modules/vehicle-onboarding/vehicle-identity-review/vehicle-oem-specification-provenance.registry';
 import {
+  assertMasterAdminForOemSpecificationSave,
   buildVehicleOemSpecificationPrismaPatch,
   extractOemSpecificationPatchInput,
   mapVehicleOemSpecificationToRegisteredVehicleFields,
@@ -174,6 +175,66 @@ describe('vehicle-oem-specification-patch.util', () => {
       make: 'Audi',
       technicalSpecificationSave: { confirmedFieldKeys: ['oemEngineCode'] },
     });
+  });
+
+  it('requires optimistic concurrency for any persisted OEM write', () => {
+    expect(
+      oemSpecSaveRequiresOptimisticConcurrency(
+        null,
+        emptyOemVehicle,
+        {
+          oemEngineCode: 'NEW',
+          technicalSpecificationSave: { confirmedFieldKeys: ['oemEngineCode'] },
+        },
+      ),
+    ).toBe(true);
+  });
+
+  it('does not require optimistic concurrency when OEM patch is empty', () => {
+    const vehicle = { ...emptyOemVehicle, oemEngineCode: 'SAME' };
+    const input = {
+      oemEngineCode: 'SAME',
+      technicalSpecificationSave: { confirmedFieldKeys: ['oemEngineCode'] },
+    };
+    const patch = buildVehicleOemSpecificationPrismaPatch(vehicle, input, null);
+    expect(patch).toEqual({});
+    expect(oemSpecSaveRequiresOptimisticConcurrency(null, vehicle, input, patch)).toBe(false);
+  });
+
+  it('denies OEM save without Master Admin platform role', () => {
+    expect(() =>
+      assertMasterAdminForOemSpecificationSave(
+        {
+          oemEngineCode: 'N47',
+          technicalSpecificationSave: { confirmedFieldKeys: ['oemEngineCode'] },
+        },
+        undefined,
+      ),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('allows OEM save for MASTER_ADMIN', () => {
+    expect(() =>
+      assertMasterAdminForOemSpecificationSave(
+        {
+          oemEngineCode: 'N47',
+          technicalSpecificationSave: { confirmedFieldKeys: ['oemEngineCode'] },
+        },
+        'MASTER_ADMIN',
+      ),
+    ).not.toThrow();
+  });
+
+  it('does not require Master Admin for technical specification-only PATCH body', () => {
+    expect(() =>
+      assertMasterAdminForOemSpecificationSave(
+        {
+          tankCapacityLiters: 55,
+          technicalSpecificationSave: { confirmedFieldKeys: ['tankCapacityLiters'] },
+        },
+        undefined,
+      ),
+    ).not.toThrow();
   });
 
   it('requires optimistic concurrency when changing protected OEM value', () => {

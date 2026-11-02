@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type { RegistrationIdentityProvenanceDocument } from '@modules/vehicle-onboarding/vehicle-identity-review/vehicle-identity-canonical.types';
 import { getProtectedProvenanceEntry } from '@modules/vehicle-onboarding/vehicle-identity-review/vehicle-identity-field-mapping.util';
@@ -197,6 +197,24 @@ export function buildVehicleOemSpecificationPrismaPatch(
   return patch;
 }
 
+export function oemSpecificationSaveRequested(body: Record<string, unknown>): boolean {
+  return extractOemSpecificationPatchInput(body) != null;
+}
+
+/** OEM column/provenance writes are Master Admin only (org fleet.write is insufficient). */
+export function assertMasterAdminForOemSpecificationSave(
+  body: Record<string, unknown>,
+  platformRole: string | null | undefined,
+): void {
+  if (!oemSpecificationSaveRequested(body)) return;
+  if (platformRole !== 'MASTER_ADMIN') {
+    throw new ForbiddenException({
+      code: 'VEHICLE_OEM_SPEC_MASTER_ADMIN_REQUIRED',
+      message: 'OEM specification changes require Master Admin privileges.',
+    });
+  }
+}
+
 export function extractOemSpecificationPatchInput(
   body: Record<string, unknown>,
 ): VehicleOemSpecificationPatchInput | null {
@@ -244,31 +262,15 @@ export function mapVehicleOemSpecificationToRegisteredVehicleFields(
   return out;
 }
 
+/** True when this save persists any OEM column or provenance (always use optimistic concurrency). */
 export function oemSpecSaveRequiresOptimisticConcurrency(
   provenanceDoc: RegistrationIdentityProvenanceDocument | null,
   vehicle: VehicleOemSpecificationVehicleRow,
   input: VehicleOemSpecificationPatchInput,
+  prebuiltPatch?: Prisma.VehicleUpdateInput,
 ): boolean {
-  const confirmed = new Set(
-    (input.technicalSpecificationSave?.confirmedFieldKeys ?? []).filter((k) =>
-      (REGISTRATION_IDENTITY_OEM_SPECIFICATION_FIELD_KEYS as readonly string[]).includes(k),
-    ),
-  );
-  if (confirmed.size === 0) return false;
-
-  for (const key of REGISTRATION_IDENTITY_OEM_SPECIFICATION_FIELD_KEYS) {
-    if (!confirmed.has(key)) continue;
-    const raw = input[key];
-    if (raw === undefined) continue;
-    if (!isProtectedOemField(provenanceDoc, key)) continue;
-    const locked = protectedStringValue(provenanceDoc, key);
-    let next: string | null;
-    if (raw === null || raw === '') {
-      next = null;
-    } else {
-      next = normalizeOptionalString(raw);
-    }
-    if (locked != null && next != null && !valuesEqualOptionalString(next, locked)) return true;
-  }
-  return false;
+  const patch =
+    prebuiltPatch ??
+    buildVehicleOemSpecificationPrismaPatch(vehicle, input, provenanceDoc);
+  return Object.keys(patch).length > 0;
 }

@@ -104,6 +104,7 @@ import {
   stripTechnicalSpecificationKeysFromUpdateBody,
 } from './vehicle-technical-spec-patch.util';
 import {
+  assertMasterAdminForOemSpecificationSave,
   buildVehicleOemSpecificationPrismaPatch,
   extractOemSpecificationPatchInput,
   mapVehicleOemSpecificationToRegisteredVehicleFields,
@@ -2327,9 +2328,15 @@ export class VehiclesService {
     id: string,
     data: Prisma.VehicleUpdateInput,
     organizationId?: string,
-    options?: { rawBody?: Record<string, unknown> },
+    options?: {
+      rawBody?: Record<string, unknown>;
+      actorPlatformRole?: string | null;
+    },
   ): Promise<Vehicle> {
     const where: Prisma.VehicleWhereUniqueInput = { id };
+    const rawBody = options?.rawBody ?? (data as Record<string, unknown>);
+    assertMasterAdminForOemSpecificationSave(rawBody, options?.actorPlatformRole);
+
     const existing = organizationId
       ? await this.prisma.vehicle.findFirst({
           where: { id, ...this.withOrgScope(organizationId) },
@@ -2395,7 +2402,6 @@ export class VehiclesService {
         });
     if (!existing) throw new NotFoundException('Vehicle not found');
 
-    const rawBody = options?.rawBody ?? (data as Record<string, unknown>);
     const technicalInput = extractTechnicalSpecificationPatchInput(rawBody);
     let merged: Prisma.VehicleUpdateInput = {
       ...stripOemSpecificationKeysFromUpdateBody(
@@ -2438,15 +2444,16 @@ export class VehiclesService {
     const oemInput = extractOemSpecificationPatchInput(rawBody);
     if (oemInput) {
       const oemVehicleRow = existing as VehicleOemSpecificationVehicleRow;
-      optimisticOemSave = oemSpecSaveRequiresOptimisticConcurrency(
-        provenanceDoc,
-        oemVehicleRow,
-        oemInput,
-      );
       const oemPatch = buildVehicleOemSpecificationPrismaPatch(
         oemVehicleRow,
         oemInput,
         provenanceDoc,
+      );
+      optimisticOemSave = oemSpecSaveRequiresOptimisticConcurrency(
+        provenanceDoc,
+        oemVehicleRow,
+        oemInput,
+        oemPatch,
       );
       merged = {
         ...stripOemSpecificationKeysFromUpdateBody(
@@ -2471,9 +2478,12 @@ export class VehiclesService {
       });
       if (writeResult.count !== 1) {
         throw new ConflictException({
-          code: 'VEHICLE_TECH_SPEC_SAVE_CONFLICT',
-          message:
-            'Concurrent vehicle specification save detected; reload and confirm again.',
+          code: optimisticOemSave
+            ? 'VEHICLE_OEM_SPEC_SAVE_CONFLICT'
+            : 'VEHICLE_TECH_SPEC_SAVE_CONFLICT',
+          message: optimisticOemSave
+            ? 'Concurrent OEM specification save detected; reload and confirm again.'
+            : 'Concurrent vehicle specification save detected; reload and confirm again.',
         });
       }
       const updated = await this.prisma.vehicle.findUnique({ where: { id } });
