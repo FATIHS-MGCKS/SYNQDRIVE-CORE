@@ -78,6 +78,10 @@ function buildStatefulHarness(initial: Record<string, unknown> = {}) {
   const runAll = jest.fn();
   const evaluateEndCandidate = jest.fn();
   let parseScheduledAt: Date | null = null;
+  const proto = TripDetectionOrchestrationService.prototype as unknown as Record<
+    string,
+    (...args: never[]) => unknown
+  >;
 
   const svc = {
     logger: { log: jest.fn(), debug: jest.fn(), warn: jest.fn() },
@@ -114,6 +118,11 @@ function buildStatefulHarness(initial: Record<string, unknown> = {}) {
     ensurePossibleEndClockDurability: jest
       .fn()
       .mockImplementation(async (_vehicleId: string, d: typeof det) => d),
+    recordEndValidationObservability: proto.recordEndValidationObservability,
+    endValidationObservability: {
+      isEnabledForVehicle: () => false,
+      record: jest.fn().mockResolvedValue({ inserted: false, deduped: true }),
+    },
   };
 
   return {
