@@ -11,6 +11,9 @@ export const TDL_OBS_TEST_RETENTION_CONFIG: ConfigType<
   retentionDays: 90,
   batchSize: 500,
   maxBatchesPerRun: 200,
+  auditRetentionDays: 180,
+  staleRunningAfterMinutes: 120,
+  auditTrimBatchSize: 200,
 };
 
 export function applyTdlObservabilityActivationEnv(vehicleId: string): void {

@@ -2,6 +2,7 @@ export const TDL_EV_OBS_RETENTION_PURGE_STATUS = {
   RUNNING: 'RUNNING',
   COMPLETED: 'COMPLETED',
   FAILED: 'FAILED',
+  ABANDONED: 'ABANDONED',
   SKIPPED: 'SKIPPED',
 } as const;
 
@@ -15,6 +16,7 @@ export const TDL_EV_OBS_RETENTION_SKIP_REASON = {
   LEADER_SKIP: 'leader_skip',
   LOCK_CONTENTED: 'lock_contended',
   TABLE_MISSING: 'table_missing',
+  TRANSACTION_FAILED: 'transaction_failed',
 } as const;
 
 export type TdlEvObsRetentionSkipReason =

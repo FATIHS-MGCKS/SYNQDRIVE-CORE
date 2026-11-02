@@ -28,7 +28,7 @@ Existing PR0 index `trip_end_validation_decision_observations_persisted_at_idx` 
 
 1. **Scheduler leader guard** — `SchedulerLeaderGuardService.shouldRun('trip_end_validation_observability_retention')` (PM2 replica `:3002` LEADER pattern).
 2. **In-process guard** — single concurrent `runOnce` per Nest instance.
-3. **PostgreSQL session advisory lock** — `pg_try_advisory_lock(hashtextextended('tdl:end_validation_obs:retention:global', 0))` held only for one purge run; released in `finally`.
+3. **PostgreSQL session advisory lock** — `pg_try_advisory_lock(hashtextextended('tdl:end_validation_obs:retention:global', 0))` inside a **single Prisma interactive transaction** (pinned connection; HV-R22 pattern).
 
 Redis is **not** required for exclusivity.
 
@@ -37,7 +37,15 @@ Redis is **not** required for exclusivity.
 Table `trip_end_validation_observability_retention_purge_runs` (global, bounded columns, no tenant PII):
 
 - `eligible_count`, `rows_deleted`, `batch_count`, `duration_ms`, `dry_run`, `status`, `cutoff_at`, `error_message`
+- Statuses: `RUNNING`, `COMPLETED`, `FAILED`, `ABANDONED` (stale RUNNING reconciled after env threshold)
+- Audit row retention: bounded delete of terminal rows older than `TRIP_END_VALIDATION_OBSERVATION_RETENTION_AUDIT_DAYS` (default 180), `auditTrimBatchSize` per purge run
 - Indexes on `(status, completed_at)` and `started_at`
+
+## Lock semantics (PR2310 safety fix)
+
+- **Pinned connection:** `runWithTdlEndValidationObservationRetentionAdvisoryLock` uses Prisma **interactive `$transaction`** (HV-R22 pattern): acquire → all purge batches + audit writes → release on same session.
+- Transaction timeout: `computeRetentionPurgeTransactionTimeoutMs(maxBatchesPerRun, batchSize)` capped at 900s.
+- DB/transaction errors: fail-closed (`TRANSACTION_FAILED` skip + best-effort `FAILED` audit row outside rolled-back tx).
 
 ## Activation safety (fail-closed)
 

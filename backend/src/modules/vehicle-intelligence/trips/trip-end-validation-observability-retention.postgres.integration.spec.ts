@@ -6,10 +6,15 @@ import {
   computeRetentionCutoff,
   TripEndValidationObservabilityRetentionService,
 } from './trip-end-validation-observability-retention.service';
-import { TDL_EV_OBS_RETENTION_SKIP_REASON } from './trip-end-validation-observability-retention.types';
+import {
+  TDL_EV_OBS_RETENTION_PURGE_STATUS,
+  TDL_EV_OBS_RETENTION_SKIP_REASON,
+} from './trip-end-validation-observability-retention.types';
 import { TRIP_END_VALIDATION_OBSERVATION_OUTCOMES } from './trip-end-validation-observability.types';
 import { TDL_OBS_TEST_RETENTION_CONFIG } from './trip-end-validation-observability-test.helpers';
-import { withTdlEndValidationObservationRetentionAdvisoryLock } from './trip-end-validation-observability-retention-advisory-lock';
+import {
+  runWithTdlEndValidationObservationRetentionAdvisoryLock,
+} from './trip-end-validation-observability-retention-advisory-lock';
 
 const LIVE = process.env.TRIP_END_VALIDATION_OBSERVABILITY_POSTGRES_INTEGRATION === '1';
 const REQUIRED =
@@ -307,7 +312,7 @@ function buildRetentionService(
       expect(report.skipReason).toBe(TDL_EV_OBS_RETENTION_SKIP_REASON.LEADER_SKIP);
     });
 
-    it('serializes concurrent purge via PostgreSQL advisory lock', async () => {
+    it('serializes concurrent purge via pinned-connection advisory lock', async () => {
       if (!dbOk || !schemaOk) return;
       const fixture = await createFixture(prisma);
       const now = new Date('2026-11-02T12:00:00.000Z');
@@ -319,31 +324,166 @@ function buildRetentionService(
         token: 'lock-test',
       });
       const cfg = { ...TDL_OBS_TEST_RETENTION_CONFIG, dryRun: false };
-      const prismaPeer = new PrismaClient();
-      await prismaPeer.$connect();
-      const contendedSvc = buildRetentionService(prismaPeer, cfg);
-      const runnerSvc = buildRetentionService(prisma, cfg);
+      const peer = buildRetentionService(prisma, cfg);
+      const runner = buildRetentionService(prisma, cfg);
 
-      try {
-        const lockOutcome = await withTdlEndValidationObservationRetentionAdvisoryLock(
-          prisma as never,
-          async () => {
-            const report = await contendedSvc.runOnce({ trigger: 'manual', now, dryRun: false });
-            expect(report.skipReason).toBe(TDL_EV_OBS_RETENTION_SKIP_REASON.LOCK_CONTENTED);
-            return report;
-          },
-        );
-        expect(lockOutcome.acquired).toBe(true);
+      await runWithTdlEndValidationObservationRetentionAdvisoryLock(prisma as never, async () => {
+        const blocked = await peer.runOnce({ trigger: 'manual', now, dryRun: false });
+        expect(blocked.skipReason).toBe(TDL_EV_OBS_RETENTION_SKIP_REASON.LOCK_CONTENTED);
+        expect(blocked.rowsDeleted).toBe(0);
+      });
 
-        const completed = await runnerSvc.runOnce({ trigger: 'manual', now, dryRun: false });
-        expect(completed.skipped).toBe(false);
-        expect(completed.rowsDeleted).toBe(1);
-      } finally {
-        await prismaPeer.$disconnect().catch(() => undefined);
-      }
+      const completed = await runner.runOnce({ trigger: 'manual', now, dryRun: false });
+      expect(completed.skipped).toBe(false);
+      expect(completed.rowsDeleted).toBe(1);
 
       await prisma.vehicle.delete({ where: { id: fixture.vehicle.id } });
       await prisma.organization.delete({ where: { id: fixture.org.id } });
+    });
+
+    it('two concurrent retention workers cannot both delete rows', async () => {
+      if (!dbOk || !schemaOk) return;
+      const fixture = await createFixture(prisma);
+      const now = new Date('2026-11-02T12:00:00.000Z');
+      const old = new Date(computeRetentionCutoff(90, now).getTime() - 1000);
+      await insertObservation(prisma, {
+        orgId: fixture.org.id,
+        vehicleId: fixture.vehicle.id,
+        persistedAt: old,
+        token: 'dual-worker',
+      });
+      const cfg = { ...TDL_OBS_TEST_RETENTION_CONFIG, dryRun: false };
+      const workerA = buildRetentionService(prisma, cfg);
+      const workerB = buildRetentionService(prisma, cfg);
+      const [ra, rb] = await Promise.all([
+        workerA.runOnce({ trigger: 'manual', now, dryRun: false }),
+        workerB.runOnce({ trigger: 'manual', now, dryRun: false }),
+      ]);
+      const deletedTotal = ra.rowsDeleted + rb.rowsDeleted;
+      expect(deletedTotal).toBe(1);
+      expect(
+        [ra, rb].filter((r) => !r.skipped && r.rowsDeleted > 0),
+      ).toHaveLength(1);
+
+      await prisma.vehicle.delete({ where: { id: fixture.vehicle.id } });
+      await prisma.organization.delete({ where: { id: fixture.org.id } });
+    });
+
+    it('releases advisory lock after transaction failure and allows retry', async () => {
+      if (!dbOk || !schemaOk) return;
+      await expect(
+        runWithTdlEndValidationObservationRetentionAdvisoryLock(prisma as never, async () => {
+          throw new Error('simulated_purge_failure');
+        }),
+      ).rejects.toThrow('simulated_purge_failure');
+
+      const retry = await runWithTdlEndValidationObservationRetentionAdvisoryLock(
+        prisma as never,
+        async () => 'ok',
+      );
+      expect(retry.acquired).toBe(true);
+      if (retry.acquired) {
+        expect(retry.result).toBe('ok');
+      }
+    });
+
+    it('rolls back observation deletes when a batch fails inside the pinned transaction', async () => {
+      if (!dbOk || !schemaOk) return;
+      const fixture = await createFixture(prisma);
+      const now = new Date('2026-11-02T12:00:00.000Z');
+      const old = new Date(computeRetentionCutoff(90, now).getTime() - 1000);
+      await insertObservation(prisma, {
+        orgId: fixture.org.id,
+        vehicleId: fixture.vehicle.id,
+        persistedAt: old,
+        token: 'fail-a',
+      });
+      await insertObservation(prisma, {
+        orgId: fixture.org.id,
+        vehicleId: fixture.vehicle.id,
+        persistedAt: old,
+        token: 'fail-b',
+      });
+
+      const extended = prisma.$extends({
+        query: {
+          tripEndValidationDecisionObservation: {
+            async deleteMany({ args, query }) {
+              if (process.env.TDL_RETENTION_TEST_FAIL_DELETE === '1') {
+                process.env.TDL_RETENTION_TEST_FAIL_DELETE = '0';
+                throw new Error('simulated_batch_delete_failure');
+              }
+              return query(args);
+            },
+          },
+        },
+      });
+      process.env.TDL_RETENTION_TEST_FAIL_DELETE = '1';
+      const cfg = {
+        ...TDL_OBS_TEST_RETENTION_CONFIG,
+        dryRun: false,
+        batchSize: 1,
+        maxBatchesPerRun: 5,
+      };
+      const svc = buildRetentionService(extended as unknown as PrismaClient, cfg);
+      const report = await svc.runOnce({ trigger: 'manual', now, dryRun: false });
+      expect(report.skipReason).toBe(TDL_EV_OBS_RETENTION_SKIP_REASON.TRANSACTION_FAILED);
+      expect(
+        await prisma.tripEndValidationDecisionObservation.count({
+          where: { vehicleId: fixture.vehicle.id },
+        }),
+      ).toBe(2);
+
+      await prisma.vehicle.delete({ where: { id: fixture.vehicle.id } });
+      await prisma.organization.delete({ where: { id: fixture.org.id } });
+    });
+
+    it('reconciles stale RUNNING purge audit rows to ABANDONED', async () => {
+      if (!dbOk || !schemaOk) return;
+      const staleStarted = new Date(Date.now() - 3 * 60 * 60 * 1000);
+      await prisma.tripEndValidationObservabilityRetentionPurgeRun.create({
+        data: {
+          trigger: 'manual',
+          dryRun: true,
+          status: TDL_EV_OBS_RETENTION_PURGE_STATUS.RUNNING,
+          startedAt: staleStarted,
+        },
+      });
+      const svc = buildRetentionService(prisma, {
+        ...TDL_OBS_TEST_RETENTION_CONFIG,
+        staleRunningAfterMinutes: 60,
+      });
+      await svc.runOnce({ trigger: 'manual', dryRun: true });
+      const abandoned = await prisma.tripEndValidationObservabilityRetentionPurgeRun.findFirst({
+        where: { status: TDL_EV_OBS_RETENTION_PURGE_STATUS.ABANDONED },
+      });
+      expect(abandoned).not.toBeNull();
+    });
+
+    it('trims old terminal purge audit rows in bounded batches', async () => {
+      if (!dbOk || !schemaOk) return;
+      const ancient = new Date('2020-01-01T00:00:00.000Z');
+      for (let i = 0; i < 5; i++) {
+        await prisma.tripEndValidationObservabilityRetentionPurgeRun.create({
+          data: {
+            trigger: 'manual',
+            dryRun: true,
+            status: TDL_EV_OBS_RETENTION_PURGE_STATUS.COMPLETED,
+            startedAt: ancient,
+            completedAt: ancient,
+          },
+        });
+      }
+      const before = await prisma.tripEndValidationObservabilityRetentionPurgeRun.count();
+      const svc = buildRetentionService(prisma, {
+        ...TDL_OBS_TEST_RETENTION_CONFIG,
+        auditRetentionDays: 30,
+        auditTrimBatchSize: 3,
+      });
+      await svc.runOnce({ trigger: 'manual', dryRun: true, now: new Date('2026-11-02T12:00:00.000Z') });
+      const after = await prisma.tripEndValidationObservabilityRetentionPurgeRun.count();
+      expect(after).toBeLessThan(before);
+      expect(before - after).toBeGreaterThanOrEqual(3);
     });
 
     it('fail-closed on invalid retention configuration', async () => {

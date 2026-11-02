@@ -1,15 +1,28 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import tripEndValidationObservabilityRetentionConfig, {
+  TRIP_END_VALIDATION_OBSERVATION_RETENTION_AUDIT_DAYS_MAX,
+  TRIP_END_VALIDATION_OBSERVATION_RETENTION_AUDIT_DAYS_MIN,
+  TRIP_END_VALIDATION_OBSERVATION_RETENTION_AUDIT_TRIM_BATCH_MAX,
   TRIP_END_VALIDATION_OBSERVATION_RETENTION_BATCH_SIZE_MAX,
   TRIP_END_VALIDATION_OBSERVATION_RETENTION_DAYS_MAX,
   TRIP_END_VALIDATION_OBSERVATION_RETENTION_DAYS_MIN,
   TRIP_END_VALIDATION_OBSERVATION_RETENTION_MAX_BATCHES_CAP,
+  TRIP_END_VALIDATION_OBSERVATION_RETENTION_STALE_RUNNING_MINUTES_MAX,
+  TRIP_END_VALIDATION_OBSERVATION_RETENTION_STALE_RUNNING_MINUTES_MIN,
 } from '@config/trip-end-validation-observability-retention.config';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
 import { SchedulerLeaderGuardService } from '@shared/scheduler-leader/scheduler-leader-guard.service';
 import { TripMetricsService } from '@modules/observability/trip-metrics.service';
-import { withTdlEndValidationObservationRetentionAdvisoryLock } from './trip-end-validation-observability-retention-advisory-lock';
+import {
+  computeRetentionPurgeTransactionTimeoutMs,
+  runWithTdlEndValidationObservationRetentionAdvisoryLock,
+} from './trip-end-validation-observability-retention-advisory-lock';
+import {
+  reconcileStaleRunningPurgeRuns,
+  trimOldPurgeAuditRuns,
+} from './trip-end-validation-observability-retention-audit.util';
 import {
   TDL_EV_OBS_RETENTION_PURGE_STATUS,
   TDL_EV_OBS_RETENTION_SKIP_REASON,
@@ -41,6 +54,27 @@ export function validateTripEndValidationObservabilityRetentionConfig(
   ) {
     blockers.push(
       `max batches out of range (1-${TRIP_END_VALIDATION_OBSERVATION_RETENTION_MAX_BATCHES_CAP})`,
+    );
+  }
+  if (
+    cfg.auditRetentionDays < TRIP_END_VALIDATION_OBSERVATION_RETENTION_AUDIT_DAYS_MIN ||
+    cfg.auditRetentionDays > TRIP_END_VALIDATION_OBSERVATION_RETENTION_AUDIT_DAYS_MAX
+  ) {
+    blockers.push(
+      `audit retention days out of range (${TRIP_END_VALIDATION_OBSERVATION_RETENTION_AUDIT_DAYS_MIN}-${TRIP_END_VALIDATION_OBSERVATION_RETENTION_AUDIT_DAYS_MAX})`,
+    );
+  }
+  if (
+    cfg.staleRunningAfterMinutes <
+      TRIP_END_VALIDATION_OBSERVATION_RETENTION_STALE_RUNNING_MINUTES_MIN ||
+    cfg.staleRunningAfterMinutes >
+      TRIP_END_VALIDATION_OBSERVATION_RETENTION_STALE_RUNNING_MINUTES_MAX
+  ) {
+    blockers.push('stale running minutes out of range');
+  }
+  if (cfg.auditTrimBatchSize < 1 || cfg.auditTrimBatchSize > TRIP_END_VALIDATION_OBSERVATION_RETENTION_AUDIT_TRIM_BATCH_MAX) {
+    blockers.push(
+      `audit trim batch out of range (1-${TRIP_END_VALIDATION_OBSERVATION_RETENTION_AUDIT_TRIM_BATCH_MAX})`,
     );
   }
   return blockers;
@@ -128,19 +162,33 @@ export class TripEndValidationObservabilityRetentionService {
 
     this.running = true;
     try {
-      const lockOutcome = await withTdlEndValidationObservationRetentionAdvisoryLock(
-        this.prisma,
-        () => this.executePurge(trigger, dryRun, now, startedAtMs),
-      );
-      if (!lockOutcome.acquired) {
+      const timeoutMs = computeRetentionPurgeTransactionTimeoutMs(this.config);
+      try {
+        const lockOutcome = await runWithTdlEndValidationObservationRetentionAdvisoryLock(
+          this.prisma,
+          (tx) => this.executePurge(tx, trigger, dryRun, now, startedAtMs),
+          { timeoutMs },
+        );
+        if (!lockOutcome.acquired) {
+          return this.skippedReport(
+            trigger,
+            dryRun,
+            startedAtMs,
+            TDL_EV_OBS_RETENTION_SKIP_REASON.LOCK_CONTENTED,
+          );
+        }
+        return lockOutcome.result;
+      } catch (err: unknown) {
+        await this.recordBestEffortFailedPurgeRun(trigger, dryRun, now, startedAtMs, err);
+        this.recordMetrics('failed', dryRun, 0, Date.now() - startedAtMs);
         return this.skippedReport(
           trigger,
           dryRun,
           startedAtMs,
-          TDL_EV_OBS_RETENTION_SKIP_REASON.LOCK_CONTENTED,
+          TDL_EV_OBS_RETENTION_SKIP_REASON.TRANSACTION_FAILED,
+          (err as Error).message,
         );
       }
-      return lockOutcome.result!;
     } finally {
       this.running = false;
     }
@@ -179,105 +227,109 @@ export class TripEndValidationObservabilityRetentionService {
   }
 
   private async executePurge(
+    tx: Prisma.TransactionClient,
     trigger: 'cron' | 'manual',
     dryRun: boolean,
     now: Date,
     startedAtMs: number,
   ): Promise<TripEndValidationObservabilityRetentionReport> {
+    await reconcileStaleRunningPurgeRuns(tx, now, this.config);
+    await trimOldPurgeAuditRuns(tx, now, this.config);
+
     const cutoff = computeRetentionCutoff(this.config.retentionDays, now);
-    let runId: string | undefined;
-
-    if (await this.purgeRunTableExists()) {
-      const run = await this.prisma.tripEndValidationObservabilityRetentionPurgeRun.create({
-        data: {
-          trigger,
-          dryRun,
-          status: TDL_EV_OBS_RETENTION_PURGE_STATUS.RUNNING,
-          cutoffAt: cutoff,
-        },
-      });
-      runId = run.id;
-    }
-
-    let eligibleCount = 0;
-    let rowsDeleted = 0;
-    let batchCount = 0;
-    let errorMessage: string | undefined;
-
-    try {
-      eligibleCount = await this.prisma.tripEndValidationDecisionObservation.count({
-        where: { persistedAt: { lt: cutoff } },
-      });
-
-      if (!dryRun && eligibleCount > 0) {
-        for (let i = 0; i < this.config.maxBatchesPerRun; i++) {
-          const rows = await this.prisma.tripEndValidationDecisionObservation.findMany({
-            where: { persistedAt: { lt: cutoff } },
-            select: { id: true },
-            orderBy: [{ persistedAt: 'asc' }, { id: 'asc' }],
-            take: this.config.batchSize,
-          });
-          if (rows.length === 0) break;
-          batchCount++;
-          const res = await this.prisma.tripEndValidationDecisionObservation.deleteMany({
-            where: { id: { in: rows.map((r) => r.id) } },
-          });
-          rowsDeleted += res.count;
-          if (rows.length < this.config.batchSize) break;
-        }
-      }
-
-      const durationMs = Date.now() - startedAtMs;
-      if (runId) {
-        await this.prisma.tripEndValidationObservabilityRetentionPurgeRun.update({
-          where: { id: runId },
-          data: {
-            status: TDL_EV_OBS_RETENTION_PURGE_STATUS.COMPLETED,
-            eligibleCount,
-            rowsDeleted,
-            batchCount,
-            durationMs,
-            completedAt: new Date(),
-          },
-        });
-      }
-
-      this.recordMetrics('completed', dryRun, rowsDeleted, durationMs);
-
-      this.logger.log(
-        `TDL end-validation observability retention ${trigger} — dryRun=${dryRun} eligible=${eligibleCount} deleted=${rowsDeleted} batches=${batchCount} cutoff=${cutoff.toISOString()}`,
-      );
-
-      return {
+    const run = await tx.tripEndValidationObservabilityRetentionPurgeRun.create({
+      data: {
         trigger,
         dryRun,
-        skipped: false,
-        runId,
+        status: TDL_EV_OBS_RETENTION_PURGE_STATUS.RUNNING,
         cutoffAt: cutoff,
+      },
+    });
+
+    let eligibleCount = await tx.tripEndValidationDecisionObservation.count({
+      where: { persistedAt: { lt: cutoff } },
+    });
+
+    let rowsDeleted = 0;
+    let batchCount = 0;
+
+    if (!dryRun && eligibleCount > 0) {
+      for (let i = 0; i < this.config.maxBatchesPerRun; i++) {
+        const rows = await tx.tripEndValidationDecisionObservation.findMany({
+          where: { persistedAt: { lt: cutoff } },
+          select: { id: true },
+          orderBy: [{ persistedAt: 'asc' }, { id: 'asc' }],
+          take: this.config.batchSize,
+        });
+        if (rows.length === 0) break;
+        batchCount++;
+        const res = await tx.tripEndValidationDecisionObservation.deleteMany({
+          where: { id: { in: rows.map((r) => r.id) } },
+        });
+        rowsDeleted += res.count;
+        if (rows.length < this.config.batchSize) break;
+      }
+    }
+
+    const durationMs = Date.now() - startedAtMs;
+    await tx.tripEndValidationObservabilityRetentionPurgeRun.update({
+      where: { id: run.id },
+      data: {
+        status: TDL_EV_OBS_RETENTION_PURGE_STATUS.COMPLETED,
         eligibleCount,
         rowsDeleted,
         batchCount,
         durationMs,
-      };
-    } catch (err: unknown) {
-      errorMessage = (err as Error).message;
-      const durationMs = Date.now() - startedAtMs;
-      if (runId) {
-        await this.prisma.tripEndValidationObservabilityRetentionPurgeRun.update({
-          where: { id: runId },
-          data: {
-            status: TDL_EV_OBS_RETENTION_PURGE_STATUS.FAILED,
-            eligibleCount,
-            rowsDeleted,
-            batchCount,
-            durationMs,
-            errorMessage,
-            completedAt: new Date(),
-          },
-        });
-      }
-      this.recordMetrics('failed', dryRun, rowsDeleted, durationMs);
-      throw err;
+        completedAt: new Date(),
+      },
+    });
+
+    await trimOldPurgeAuditRuns(tx, now, this.config);
+
+    this.recordMetrics('completed', dryRun, rowsDeleted, durationMs);
+
+    this.logger.log(
+      `TDL end-validation observability retention ${trigger} — dryRun=${dryRun} eligible=${eligibleCount} deleted=${rowsDeleted} batches=${batchCount} cutoff=${cutoff.toISOString()}`,
+    );
+
+    return {
+      trigger,
+      dryRun,
+      skipped: false,
+      runId: run.id,
+      cutoffAt: cutoff,
+      eligibleCount,
+      rowsDeleted,
+      batchCount,
+      durationMs,
+    };
+  }
+
+  private async recordBestEffortFailedPurgeRun(
+    trigger: 'cron' | 'manual',
+    dryRun: boolean,
+    now: Date,
+    startedAtMs: number,
+    err: unknown,
+  ): Promise<void> {
+    if (!(await this.purgeRunTableExists())) return;
+    try {
+      await this.prisma.tripEndValidationObservabilityRetentionPurgeRun.create({
+        data: {
+          trigger,
+          dryRun,
+          status: TDL_EV_OBS_RETENTION_PURGE_STATUS.FAILED,
+          cutoffAt: computeRetentionCutoff(this.config.retentionDays, now),
+          eligibleCount: 0,
+          rowsDeleted: 0,
+          batchCount: 0,
+          durationMs: Date.now() - startedAtMs,
+          errorMessage: ((err as Error).message ?? 'purge_transaction_failed').slice(0, 1024),
+          completedAt: new Date(),
+        },
+      });
+    } catch {
+      // Non-blocking audit on catastrophic DB failure.
     }
   }
 
