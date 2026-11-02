@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { projectConnectionIdentitiesFromLinks } from './vsi-connection-identity-projection';
@@ -54,6 +54,9 @@ import {
   VSI_NATIVE_DISCOVERY_INVENTORY_SCHEMA_UNAVAILABLE_LIMITATION,
 } from './vsi-native-discovery-inventory-schema.guard';
 import type { VsiDeclaredCatalogSnapshot } from './vsi-declared-catalog.resolver';
+import { ClickHouseHfService } from '@modules/clickhouse/clickhouse-hf.service';
+import { isVsiDiscoveryHfInventoryEnabled } from './vsi-discovery-hf-inventory.config';
+import { buildHfNativeDiscoveryInventoryUpdate } from './vsi-hf-native-discovery.loader';
 
 const DEFAULT_POLL_LOG_LIMIT = 5;
 
@@ -92,6 +95,7 @@ export class VsiSignalProfileMaterializationService {
     private readonly declaredCatalog: VsiDeclaredCatalogResolver,
     @Inject(VsiProfileCadenceEvidenceLoader)
     private readonly cadenceEvidence: VsiProfileCadenceEvidencePort,
+    @Optional() private readonly clickHouseHf?: ClickHouseHfService,
   ) {}
 
   async getProfileForLink(
@@ -439,6 +443,16 @@ export class VsiSignalProfileMaterializationService {
         stateAttributed: snapshotDiscoveryStateAttributed,
         latestStateSourceTimestampMs: boundLatestState?.sourceTimestamp?.getTime() ?? null,
       });
+      await this.persistHfNativeDiscoveryInventoryIfEnabled({
+        organizationId,
+        vehicleId,
+        providerSourceLinkId,
+        providerIdentity: link.provider,
+        projectionAsOf,
+        linkActivatedAt: link.activatedAt,
+        linkDeactivatedAt: link.deactivatedAt,
+        latestStateSourceTimestampMs: boundLatestState?.sourceTimestamp?.getTime() ?? null,
+      });
       return evaluation;
     }
 
@@ -456,6 +470,16 @@ export class VsiSignalProfileMaterializationService {
       declaredCatalog: declared,
       projectionAsOf,
       stateAttributed: snapshotDiscoveryStateAttributed,
+      latestStateSourceTimestampMs: boundLatestState?.sourceTimestamp?.getTime() ?? null,
+    });
+    await this.persistHfNativeDiscoveryInventoryIfEnabled({
+      organizationId,
+      vehicleId,
+      providerSourceLinkId,
+      providerIdentity: link.provider,
+      projectionAsOf,
+      linkActivatedAt: link.activatedAt,
+      linkDeactivatedAt: link.deactivatedAt,
       latestStateSourceTimestampMs: boundLatestState?.sourceTimestamp?.getTime() ?? null,
     });
     return evaluation;
@@ -539,6 +563,58 @@ export class VsiSignalProfileMaterializationService {
         return;
       }
       throw err;
+    }
+  }
+
+  private async persistHfNativeDiscoveryInventoryIfEnabled(input: {
+    organizationId: string;
+    vehicleId: string;
+    providerSourceLinkId: string;
+    providerIdentity: string;
+    projectionAsOf: Date;
+    linkActivatedAt: Date;
+    linkDeactivatedAt: Date | null;
+    latestStateSourceTimestampMs: number | null;
+  }): Promise<void> {
+    if (!isVsiDiscoveryHfInventoryEnabled()) {
+      return;
+    }
+    if (!(await this.isNativeDiscoveryInventorySchemaAvailable())) {
+      this.logNativeDiscoveryInventorySchemaUnavailable(input);
+      return;
+    }
+    try {
+      const inventory = await buildHfNativeDiscoveryInventoryUpdate(this.prisma, {
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        providerSourceLinkId: input.providerSourceLinkId,
+        providerIdentity: input.providerIdentity,
+        projectionAsOf: input.projectionAsOf,
+        linkActivatedAt: input.linkActivatedAt,
+        linkDeactivatedAt: input.linkDeactivatedAt,
+        clickHouseHf: this.clickHouseHf,
+      });
+      await this.persistNativeDiscoveryInventoryOperationalRefresh({
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        providerSourceLinkId: input.providerSourceLinkId,
+        providerIdentity: input.providerIdentity,
+        nextInventory: inventory,
+        latestStateProviderBindingId: input.providerSourceLinkId,
+        latestStateSourceTimestampMs: input.latestStateSourceTimestampMs,
+        requireBindingMatch: true,
+      });
+    } catch (err) {
+      if (isNativeDiscoveryInventorySchemaPrismaError(err)) {
+        this.nativeDiscoveryInventorySchemaAvailable = false;
+        this.logNativeDiscoveryInventorySchemaUnavailable(input);
+        return;
+      }
+      this.logger.warn(
+        `VSI HF native discovery inventory write skipped (fail-closed): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 
