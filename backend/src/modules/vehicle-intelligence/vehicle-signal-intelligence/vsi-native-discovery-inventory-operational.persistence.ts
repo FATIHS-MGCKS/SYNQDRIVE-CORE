@@ -82,9 +82,12 @@ export async function persistNativeDiscoveryInventoryOperationalCas(
   }
 
   const persistedInventory = normalizeNativeSignalDiscoveryInventoryFromProfileRow(row);
+  const priorJson = stableNativeDiscoveryInventoryJson(persistedInventory);
+  if (priorJson === stableNativeDiscoveryInventoryJson(input.nextInventory)) {
+    return 'noop';
+  }
   const mergedNext = mergeNativeDiscoveryInventoryEntries(persistedInventory, input.nextInventory);
 
-  const priorJson = stableNativeDiscoveryInventoryJson(persistedInventory);
   const preflight = evaluateNativeDiscoveryOperationalCasPreconditions({
     organizationId: input.organizationId,
     vehicleId: input.vehicleId,
