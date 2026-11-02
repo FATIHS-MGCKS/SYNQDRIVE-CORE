@@ -13,6 +13,7 @@ import {
   valuesEqual,
   type VehicleScalarSnapshot,
 } from './vehicle-identity-field-mapping.util';
+import { isRegistrationIdentityCanonicalFieldKey } from './vehicle-oem-specification-provenance.guard';
 
 export type IdentityPersistenceViolation = {
   code: string;
@@ -52,6 +53,9 @@ export function collectProtectedIdentityViolations(input: {
     if (!entry) continue;
     const canonicalKey = normalizeProvenanceStorageKey(rawKey);
     if (canonicalKey === 'systemMotorPowerKw' || canonicalKey === 'resolvedVariant') {
+      continue;
+    }
+    if (!isRegistrationIdentityCanonicalFieldKey(canonicalKey)) {
       continue;
     }
     assertChangeAllowed(canonicalKey, entry.value);

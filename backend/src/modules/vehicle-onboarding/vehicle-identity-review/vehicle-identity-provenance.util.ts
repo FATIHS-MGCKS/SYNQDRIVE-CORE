@@ -3,20 +3,44 @@ import type {
   RegistrationIdentityCanonicalIdentity,
   RegistrationIdentityFieldProvenanceEntry,
   RegistrationIdentityProvenanceDocument,
+  RegistrationIdentityProvenanceDocumentV1,
+  RegistrationIdentityProvenanceDocumentV2,
 } from './vehicle-identity-canonical.types';
 import {
+  getProtectedProvenanceEntry,
   getProtectedProvenanceValue,
   normalizeProvenanceStorageKey,
   valuesEqual,
 } from './vehicle-identity-field-mapping.util';
+import {
+  REGISTRATION_IDENTITY_OEM_FIELD_REGISTRY_VERSION,
+  REGISTRATION_IDENTITY_PROVENANCE_DOCUMENT_VERSION_LEGACY,
+  REGISTRATION_IDENTITY_PROVENANCE_DOCUMENT_VERSION_OEM,
+  isRegistrationIdentityOemSpecificationFieldKey,
+} from './vehicle-oem-specification-provenance.registry';
+import {
+  assertNoImplicitOemConfirmation,
+  normalizeOemProviderSuggestionEntry,
+} from './vehicle-oem-specification-provenance.guard';
+import { preserveRegistrationIdentityProvenanceDocumentVersion } from './vehicle-oem-specification-provenance.versioning';
+
+function isProvenanceDocumentShape(raw: Record<string, unknown>): boolean {
+  if (!raw.fields || typeof raw.fields !== 'object') return false;
+  if (raw.version === REGISTRATION_IDENTITY_PROVENANCE_DOCUMENT_VERSION_LEGACY) return true;
+  if (raw.version === REGISTRATION_IDENTITY_PROVENANCE_DOCUMENT_VERSION_OEM) {
+    return raw.oemFieldRegistryVersion === REGISTRATION_IDENTITY_OEM_FIELD_REGISTRY_VERSION;
+  }
+  return false;
+}
 
 export function parseRegistrationIdentityProvenance(
   raw: unknown,
 ): RegistrationIdentityProvenanceDocument | null {
   if (!raw || typeof raw !== 'object') return null;
-  const doc = raw as RegistrationIdentityProvenanceDocument;
-  if (doc.version !== 1 || !doc.fields || typeof doc.fields !== 'object') return null;
-  return doc;
+  const doc = raw as Record<string, unknown>;
+  if (!isProvenanceDocumentShape(doc)) return null;
+  if (typeof doc.updatedAt !== 'string') return null;
+  return doc as RegistrationIdentityProvenanceDocument;
 }
 
 export function isProtectedProvenanceEntry(
@@ -40,7 +64,9 @@ export function mergeProvenanceOnSave(input: {
 
   for (const field of input.canonical.fields) {
     const prev = getProtectedProvenanceValue(
-      { version: 1, updatedAt: input.existing?.updatedAt ?? now, fields },
+      input.existing
+        ? { ...input.existing, fields }
+        : { version: 1, updatedAt: now, fields },
       field.key,
     );
     if (prev && !valuesEqual(prev.value, field.value) && !explicit.has(field.key)) {
@@ -60,13 +86,33 @@ export function mergeProvenanceOnSave(input: {
     for (const [key, entry] of Object.entries(input.acceptedSuggestions)) {
       if (!entry) continue;
       const canonicalKey = normalizeProvenanceStorageKey(key);
+
+      if (isRegistrationIdentityOemSpecificationFieldKey(canonicalKey)) {
+        assertNoImplicitOemConfirmation(entry);
+        const normalizedEntry = normalizeOemProviderSuggestionEntry(entry);
+        const prev = getProtectedProvenanceEntry(
+          input.existing ? { ...input.existing, fields } : null,
+          canonicalKey,
+        );
+        if (prev && !valuesEqual(prev.value, normalizedEntry.value)) {
+          continue;
+        }
+        extended[canonicalKey] = normalizedEntry;
+        if (key !== canonicalKey && extended[key]) {
+          delete extended[key];
+        }
+        continue;
+      }
+
       const protectedKey =
         canonicalKey === 'systemMotorPowerKw' || canonicalKey === 'resolvedVariant'
           ? null
           : (canonicalKey as RegistrationIdentityCanonicalFieldKey);
       if (protectedKey) {
         const prev = getProtectedProvenanceValue(
-          { version: 1, updatedAt: input.existing?.updatedAt ?? now, fields },
+          input.existing
+            ? { ...input.existing, fields }
+            : { version: 1, updatedAt: now, fields },
           protectedKey,
         );
         if (prev && !valuesEqual(prev.value, entry.value)) {
@@ -83,9 +129,7 @@ export function mergeProvenanceOnSave(input: {
     }
   }
 
-  return {
-    version: 1,
-    updatedAt: now,
-    fields,
-  };
+  return preserveRegistrationIdentityProvenanceDocumentVersion(input.existing, fields, now);
 }
+
+export type { RegistrationIdentityProvenanceDocumentV1, RegistrationIdentityProvenanceDocumentV2 };

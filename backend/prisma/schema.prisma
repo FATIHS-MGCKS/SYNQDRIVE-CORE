@@ -3018,6 +3018,17 @@ model Vehicle {
   tankCapacityLiters                Float?            @map("tank_capacity_liters")
   /// P3: per-field registration identity provenance envelope (no OCR raw text).
   registrationIdentityProvenance    Json?             @map("registration_identity_provenance")
+  /// Optional OEM build identity (PRA) — nullable; never required for onboarding.
+  oemEngineCode                     String?           @map("oem_engine_code")
+  oemEngineDesc                     String?           @map("oem_engine_desc")
+  oemTransmissionCode               String?           @map("oem_transmission_code")
+  oemTransmissionDesc               String?           @map("oem_transmission_desc")
+  exteriorColorDesc                 String?           @map("exterior_color_desc")
+  oemExteriorColorCode              String?           @map("oem_exterior_color_code")
+  interiorTrimDesc                  String?           @map("interior_trim_desc")
+  oemInteriorTrimCode               String?           @map("oem_interior_trim_code")
+  oemModelRangeDesc                 String?           @map("oem_model_range_desc")
+  oemDerivativeDesc                 String?           @map("oem_derivative_desc")
 
   // ── V3 Hardware type ───────────────────────────────────────────────────────
   // Drives the source split for Driving Events (LTE_R1 → Telemetry API Events,

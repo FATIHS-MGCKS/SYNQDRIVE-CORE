@@ -3,6 +3,7 @@ import type {
   RegistrationIdentityCanonicalFieldKey,
   RegistrationIdentityFieldProvenanceEntry,
   RegistrationIdentityProvenanceDocument,
+  RegistrationIdentityProvenanceFieldKey,
 } from './vehicle-identity-canonical.types';
 import { isProtectedProvenanceEntry } from './vehicle-identity-provenance.util';
 
@@ -14,7 +15,8 @@ export const PROVENANCE_KEY_ALIASES: Record<string, RegistrationIdentityCanonica
 export type RegistrationIdentityExtendedProvenanceKey =
   | RegistrationIdentityCanonicalFieldKey
   | 'systemMotorPowerKw'
-  | 'resolvedVariant';
+  | 'resolvedVariant'
+  | RegistrationIdentityProvenanceFieldKey;
 
 export function normalizeProvenanceStorageKey(
   key: string,
@@ -81,12 +83,19 @@ export function getProtectedProvenanceValue(
   doc: RegistrationIdentityProvenanceDocument | null,
   canonicalKey: RegistrationIdentityCanonicalFieldKey,
 ): RegistrationIdentityFieldProvenanceEntry | undefined {
+  return getProtectedProvenanceEntry(doc, canonicalKey);
+}
+
+export function getProtectedProvenanceEntry(
+  doc: RegistrationIdentityProvenanceDocument | null,
+  fieldKey: RegistrationIdentityProvenanceFieldKey | string,
+): RegistrationIdentityFieldProvenanceEntry | undefined {
   if (!doc?.fields) return undefined;
-  const direct = doc.fields[canonicalKey];
+  const normalized = normalizeProvenanceStorageKey(fieldKey);
+  const direct = doc.fields[normalized as keyof typeof doc.fields];
   if (isProtectedProvenanceEntry(direct)) return direct;
   for (const [rawKey, entry] of Object.entries(doc.fields)) {
-    const normalized = normalizeProvenanceStorageKey(rawKey);
-    if (normalized === canonicalKey && isProtectedProvenanceEntry(entry)) {
+    if (normalizeProvenanceStorageKey(rawKey) === normalized && isProtectedProvenanceEntry(entry)) {
       return entry;
     }
   }
