@@ -39,3 +39,11 @@
 - **Tests:** `oneauto-sandbox-attestation-response-fingerprint.util.spec.ts`, `oneauto-p25e-e2-async-evidence-hardening.spec.ts`.
 - **Evidence:** `architecture/oneauto-provider/evidence/P25E_E2_PROVIDER_DASHBOARD_ASYNC_SEQUENCE.md` — portal 202 then ~22s portal 200 (`is_sqs_call=Y`) is **not** modeled as a second SynqDrive HTTP response in one attestation run.
 - **Non-effects:** Still exactly one outbound GET in live attestation; no polling/callback activation; `ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS` unchanged.
+
+## P2.5E-P1 — Secure attestation result capture (2026-11-02)
+
+- **Scope:** Opt-in `--capture-redacted-result` on P25E-C CLI + `oneauto-sandbox-attestation-result-capture.*` (local atomic artifact, mode 0600).
+- **Gates:** `ONEAUTO_ATTESTATION_RESULT_CAPTURE_ENABLED=1`, `ONEAUTO_PRODUCTION_ATTESTATION_RESULT_CAPTURE_OWNER_AUTHORIZED=1`, absolute `ONEAUTO_ATTESTATION_RESULT_CAPTURE_OUTPUT_PATH`.
+- **Evidence:** `architecture/oneauto-provider/evidence/P25E_P1_SECURE_RESULT_CAPTURE.md`
+- **Tests:** `oneauto-p25e-p1-secure-result-capture.spec.ts` (mocked fetch only).
+- **Non-effects:** Default attestation remains fingerprint-only; no Prisma/DB; no vehicle apply; registry unchanged.

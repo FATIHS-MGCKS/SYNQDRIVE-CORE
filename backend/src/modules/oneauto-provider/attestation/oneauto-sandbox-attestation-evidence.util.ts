@@ -16,6 +16,7 @@ import {
   classifySandboxAttestationOutcome,
 } from './oneauto-sandbox-attestation-evaluate.util';
 import type { OneAutoDocumentedProviderContract } from '../catalog/oneauto-contract-types';
+import type { OneAutoAttestationResultCaptureEvidenceMeta } from './oneauto-sandbox-attestation-result-capture.types';
 import {
   assertAttestationEvidenceRedaction,
   buildAttestationResponseFingerprint,
@@ -48,6 +49,7 @@ export function buildSandboxAttestationEvidence(input: {
   vinForFingerprint?: string | null;
   notes?: string[];
   categoryOverride?: OneAutoSandboxAttestationEvidence['diagnosticCategory'];
+  resultCapture?: OneAutoAttestationResultCaptureEvidenceMeta;
 }): OneAutoSandboxAttestationEvidence {
   const category =
     input.categoryOverride ??
@@ -76,6 +78,7 @@ export function buildSandboxAttestationEvidence(input: {
     providerContractStatus: 'DOCUMENTED',
     vinSha256Prefix: vinSha256Prefix(input.vinForFingerprint),
     responseFingerprint,
+    ...(input.resultCapture ? { resultCapture: input.resultCapture } : {}),
     notes: input.notes ?? [],
   };
   const evidenceSha256 = createHash('sha256').update(stableEvidencePayload(base), 'utf8').digest('hex');

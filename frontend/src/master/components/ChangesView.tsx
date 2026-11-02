@@ -505,6 +505,25 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-11-02T11:00:00.000Z',
   },
   {
+    id: 'oneauto-p25e-p1-secure-result-capture-2026-11-02',
+    version: '4.9.5009',
+    title: 'One Auto API — P2.5E-P1 secure attestation result capture (opt-in)',
+    summary: [
+      'Isolated attestation CLI adds `--capture-redacted-result` with separate env gates; default remains fingerprint-only evidence v2.',
+      'Successful HTTP 200 envelopes with VIN binding write a local capture artifact (0600, atomic create) separate from shareable evidence JSON.',
+      'No product DB writes, no vehicle apply, no EXECUTION_VERIFIED registry changes; mocked tests only in CI.',
+    ],
+    reason:
+      'E2 proved sync result fields but did not retain payload; owner-authorized tests need a redacted local artifact without git or logs exposure.',
+    previousBehavior:
+      'Attestation discarded provider result values after fingerprinting key names only.',
+    details:
+      'backend: oneauto-sandbox-attestation-result-capture.*, runner/CLI wiring; architecture P25E_P1_SECURE_RESULT_CAPTURE.md; tests: oneauto-p25e-p1-secure-result-capture.spec.ts.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-02T13:30:00.000Z',
+  },
+  {
     id: 'oneauto-p2-master-admin-ui-2026-11-01',
     version: '4.9.5003',
     title: 'One Auto API — Master Admin service dialog (frontend P2)',

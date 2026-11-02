@@ -18,11 +18,13 @@ function parseArgs(argv: string[]): {
   fixtureId: string | null;
   allFixtures: boolean;
   json: boolean;
+  captureRedactedResult: boolean;
 } {
   let liveProduction = false;
   let fixtureId: string | null = null;
   let allFixtures = false;
   let json = false;
+  let captureRedactedResult = false;
   for (let i = 2; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--fixture' && argv[i + 1]) {
@@ -33,9 +35,11 @@ function parseArgs(argv: string[]): {
       json = true;
     } else if (arg === '--live-production') {
       liveProduction = true;
+    } else if (arg === '--capture-redacted-result') {
+      captureRedactedResult = true;
     }
   }
-  return { liveProduction, fixtureId, allFixtures, json };
+  return { liveProduction, fixtureId, allFixtures, json, captureRedactedResult };
 }
 
 function emit(evidence: OneAutoSandboxAttestationEvidence | OneAutoSandboxAttestationEvidence[], json: boolean): void {
@@ -54,7 +58,10 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv);
   if (args.liveProduction) {
     const authorization = resolveProductionAttestationAuthorization(true);
-    const evidence = await runLiveProductionAttestation({ authorization });
+    const evidence = await runLiveProductionAttestation({
+      authorization,
+      captureRedactedResult: args.captureRedactedResult,
+    });
     emit(evidence, args.json);
     process.exit(evidence.attestationQualified ? 0 : 2);
   }

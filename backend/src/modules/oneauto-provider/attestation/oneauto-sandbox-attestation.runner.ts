@@ -20,6 +20,7 @@ import {
   getSandboxAttestationFixture,
   ONEAUTO_SANDBOX_ATTESTATION_FIXTURES,
 } from './oneauto-sandbox-attestation-fixtures';
+import { classifySandboxAttestationOutcome } from './oneauto-sandbox-attestation-evaluate.util';
 import type {
   OneAutoSandboxAttestationEvidence,
   OneAutoSandboxAttestationFixture,
@@ -29,6 +30,11 @@ import {
   executeAttestationGet,
   type SandboxAttestationFetchImpl,
 } from './oneauto-sandbox-attestation-transport';
+import {
+  attemptResultCapture,
+  captureAuthorizationFromEnv,
+} from './oneauto-sandbox-attestation-result-capture.util';
+import type { OneAutoAttestationResultCaptureEvidenceMeta } from './oneauto-sandbox-attestation-result-capture.types';
 
 function documentedVinLookupContract() {
   const doc = getDocumentedOneAutoContract('OE_VIN_LOOKUP_EU');
@@ -176,9 +182,41 @@ function preflightEvidence(
   });
 }
 
+function buildResultCaptureEvidenceMeta(input: {
+  cliCaptureRequested: boolean;
+  diagnosticCategory: OneAutoSandboxAttestationEvidence['diagnosticCategory'];
+  outcome: Awaited<ReturnType<typeof executeAttestationGet>>;
+  expectedVin: string;
+}): OneAutoAttestationResultCaptureEvidenceMeta | undefined {
+  if (!input.cliCaptureRequested) return undefined;
+  const env = captureAuthorizationFromEnv();
+  const capture = attemptResultCapture({
+    cliCaptureRequested: true,
+    diagnosticCategory: input.diagnosticCategory,
+    outcome: input.outcome,
+    expectedVin: input.expectedVin,
+    envCaptureEnabled: env.envCaptureEnabled,
+    captureOwnerAuthorized: env.captureOwnerAuthorized,
+    outputPath: env.outputPath,
+  });
+  if (capture.ok) {
+    return {
+      attempted: true,
+      written: true,
+      artifactSha256Prefix: capture.artifactSha256.slice(0, 16),
+    };
+  }
+  return {
+    attempted: true,
+    written: false,
+    rejectCode: capture.rejectCode,
+  };
+}
+
 export async function runLiveProductionAttestation(input: {
   authorization: ProductionAttestationAuthorization;
   fetchImpl?: SandboxAttestationFetchImpl;
+  captureRedactedResult?: boolean;
 }): Promise<OneAutoSandboxAttestationEvidence> {
   try {
     rejectCustomBaseUrlOverride(undefined);
@@ -212,6 +250,23 @@ export async function runLiveProductionAttestation(input: {
     requestBudget: budget,
   });
 
+  const category = classifySandboxAttestationOutcome(outcome, contract);
+  const resultCapture = buildResultCaptureEvidenceMeta({
+    cliCaptureRequested: input.captureRedactedResult === true,
+    diagnosticCategory: category,
+    outcome,
+    expectedVin: input.authorization.vin!.trim(),
+  });
+  const notes = [
+    'Live production attestation — exactly one GET to documented ezyvin/vinlookup/',
+    'Billing may apply regardless of outcome',
+  ];
+  if (resultCapture?.written) {
+    notes.push('Redacted result capture artifact written locally (path omitted from evidence JSON)');
+  } else if (resultCapture?.rejectCode) {
+    notes.push(`Result capture not written: ${resultCapture.rejectCode}`);
+  }
+
   return buildSandboxAttestationEvidence({
     mode: 'live-production',
     attestationEnvironment: 'PRODUCTION',
@@ -221,10 +276,9 @@ export async function runLiveProductionAttestation(input: {
     outcome,
     attemptedOutboundRequests: budget.attemptedCount,
     vinForFingerprint: input.authorization.vin,
-    notes: [
-      'Live production attestation — exactly one GET to documented ezyvin/vinlookup/',
-      'Billing may apply regardless of outcome',
-    ],
+    categoryOverride: category,
+    resultCapture,
+    notes,
   });
 }
 
