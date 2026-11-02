@@ -74,7 +74,7 @@ function loadFixture(file: string): ReplayFixture {
   return JSON.parse(fs.readFileSync(path.join(fixtureDir, file), 'utf8'));
 }
 
-function msBetween(a: string, b: string): number {
+function msBetween(a: string | Date, b: string | Date): number {
   return new Date(b).getTime() - new Date(a).getTime();
 }
 
