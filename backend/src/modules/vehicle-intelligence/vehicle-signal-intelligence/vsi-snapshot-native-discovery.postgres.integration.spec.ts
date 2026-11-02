@@ -446,5 +446,11 @@ async function addSecondActiveDimoLink(
       DROP COLUMN IF EXISTS native_signal_discovery_inventory
     `;
     expect(await probeNativeDiscoveryInventoryColumnAvailable(prisma)).toBe(false);
+    await prisma.$executeRaw`
+      ALTER TABLE vehicle_signal_capability_profiles
+      ADD COLUMN IF NOT EXISTS native_signal_discovery_inventory JSONB NOT NULL
+      DEFAULT '{"contractVersion":"vsi-native-signal-discovery-v1","entries":[],"profileLimitations":[]}'::jsonb
+    `;
+    expect(await probeNativeDiscoveryInventoryColumnAvailable(prisma)).toBe(true);
   });
 });
