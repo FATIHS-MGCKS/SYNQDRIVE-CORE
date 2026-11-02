@@ -36,6 +36,7 @@ import {
   setTripEndValidationObservabilityTestEnv,
   waitForTripEndValidationObservations,
 } from './trip-end-validation-observability.golden-parity.harness';
+import { seedCompletedTdlObsRetentionPurgeRun } from './trip-end-validation-observability-test.helpers';
 import type { TripEndValidationObservabilityService } from './trip-end-validation-observability.service';
 import { TripDecisionEngine } from './decision/trip-decision.engine';
 import {
@@ -84,6 +85,9 @@ async function runGoldenParityCase(params: {
     const fixture = await params.createFixture();
     clearTripEndValidationObservabilityTestEnv();
     setTripEndValidationObservabilityTestEnv(fixture.vehicle.id, obsEnabled);
+    if (obsEnabled) {
+      await seedCompletedTdlObsRetentionPurgeRun(params.prisma, true);
+    }
     const observability = obsEnabled
       ? buildTripEndValidationObservabilityService(params.prisma)
       : undefined;
@@ -577,6 +581,7 @@ function buildEndValidationJob(
 
         let observability: TripEndValidationObservabilityService | undefined;
         if (obsEnabled) {
+          await seedCompletedTdlObsRetentionPurgeRun(prisma, true);
           observability = buildTripEndValidationObservabilityService(prisma);
           if (writerMode === 'fail') {
             const realRecord = observability.record.bind(observability);

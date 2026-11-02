@@ -80,6 +80,8 @@ import { HmHealthPollingScheduler } from './schedulers/hm-health-polling.schedul
 import { DataRetentionScheduler } from './schedulers/data-retention.scheduler';
 import { StorageOrphanSweepScheduler } from './schedulers/storage-orphan-sweep.scheduler';
 import { BatteryV2RetentionScheduler } from './schedulers/battery-v2-retention.scheduler';
+import { TripEndValidationObservabilityRetentionScheduler } from './schedulers/trip-end-validation-observability-retention.scheduler';
+import { TripEndValidationObservabilityRetentionModule } from '@modules/vehicle-intelligence/trips/trip-end-validation-observability-retention.module';
 import { BatteryV2ReconciliationScheduler } from './schedulers/battery-v2-reconciliation.scheduler';
 import { BatteryV2LongitudinalMaterializationReconciliationScheduler } from './schedulers/battery-v2-longitudinal-materialization-reconciliation.scheduler';
 import { BatteryHvH4A3ReconciliationScheduler } from './schedulers/battery-hv-h4-a3-reconciliation.scheduler';
@@ -140,6 +142,7 @@ import { VehicleRegistryLifecycleOutboxWorker } from '@modules/vehicle-onboardin
     BatteryV2JobsModule,
     BatteryGeneralizedEvidenceModule,
     BatteryHvH4A3ReconciliationModule,
+    TripEndValidationObservabilityRetentionModule,
     VoiceWebhookIngestionModule,
     VoiceAssistantModule,
     IamDataRetentionModule,
@@ -200,6 +203,7 @@ import { VehicleRegistryLifecycleOutboxWorker } from '@modules/vehicle-onboardin
     BatteryV2LongitudinalMaterializationReconciliationScheduler,
     BatteryHvH4A3ReconciliationScheduler,
     BatteryV2RetentionScheduler,
+    TripEndValidationObservabilityRetentionScheduler,
     VoiceRetentionScheduler,
     IamDataRetentionScheduler,
     FuelStationEnrichmentRecoveryScheduler,

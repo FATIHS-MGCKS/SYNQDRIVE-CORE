@@ -58,6 +58,7 @@ export const SINGLETON_GLOBAL_SCHEDULER_NAMES = [
   'vehicle_registry_lifecycle_outbox',
   'vsi_profile_lifecycle_outbox',
   'reference_capture_retention',
+  'trip_end_validation_observability_retention',
   'reference_capture_settlement_shadow_recovery',
   'reference_capture_exp021_maturation_shadow_recovery',
   'reference_capture_exp021_fleet_coordinator',

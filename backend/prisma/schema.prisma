@@ -16609,6 +16609,26 @@ model TripEndValidationDecisionObservation {
   @@map("trip_end_validation_decision_observations")
 }
 
+/// PR1 — bounded audit trail for observability retention purge runs (global scope).
+model TripEndValidationObservabilityRetentionPurgeRun {
+  id            String    @id @default(uuid())
+  trigger       String
+  dryRun        Boolean   @default(true) @map("dry_run")
+  status        String
+  cutoffAt      DateTime? @map("cutoff_at") @db.Timestamptz(6)
+  eligibleCount Int       @default(0) @map("eligible_count")
+  rowsDeleted   Int       @default(0) @map("rows_deleted")
+  batchCount    Int       @default(0) @map("batch_count")
+  durationMs    Int?      @map("duration_ms")
+  errorMessage  String?   @map("error_message") @db.VarChar(1024)
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([status, completedAt])
+  @@index([startedAt])
+  @@map("trip_end_validation_observability_retention_purge_runs")
+}
+
 // ── Trip Repair / Reconciliation Audit Trail ──────────────────────────────────
 //
 // Records every proposed or applied repair action taken by the reconciliation

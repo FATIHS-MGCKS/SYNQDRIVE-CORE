@@ -365,6 +365,9 @@ export class TripMetricsService implements OnModuleInit {
   readonly tripEndValidationClickHouseAssistTotal: Counter<string>;
   readonly tripEndValidationObservabilityWriteFailures: Counter<string>;
   readonly tripEndValidationDecisionLatencySeconds: Histogram<string>;
+  readonly tripEndValidationObservabilityRetentionRunsTotal: Counter<string>;
+  readonly tripEndValidationObservabilityRetentionRowsDeletedTotal: Counter<string>;
+  readonly tripEndValidationObservabilityRetentionLastSuccessTimestamp: Gauge<string>;
   readonly detectorLatency: Histogram<string>;
   readonly queueLag: Histogram<string>;
   readonly clickHouseQueryDuration: Histogram<string>;
@@ -1183,6 +1186,25 @@ export class TripMetricsService implements OnModuleInit {
         'Seconds from canonical/event end boundary to worker decision time for observed end-validation outcomes.',
       buckets: [1, 5, 15, 30, 60, 120, 300, 600, 900, 1800, 3600],
       labelNames: ['outcome', 'phase'],
+      registers: [this.registry],
+    });
+
+    this.tripEndValidationObservabilityRetentionRunsTotal = new Counter({
+      name: 'synqdrive_trip_end_validation_observability_retention_runs_total',
+      help: 'TDL end-validation observability retention purge runs.',
+      labelNames: ['status', 'dry_run'],
+      registers: [this.registry],
+    });
+
+    this.tripEndValidationObservabilityRetentionRowsDeletedTotal = new Counter({
+      name: 'synqdrive_trip_end_validation_observability_retention_rows_deleted_total',
+      help: 'Rows deleted by TDL end-validation observability retention purge.',
+      registers: [this.registry],
+    });
+
+    this.tripEndValidationObservabilityRetentionLastSuccessTimestamp = new Gauge({
+      name: 'synqdrive_trip_end_validation_observability_retention_last_success_timestamp',
+      help: 'Unix timestamp of last successful TDL end-validation observability retention purge.',
       registers: [this.registry],
     });
 

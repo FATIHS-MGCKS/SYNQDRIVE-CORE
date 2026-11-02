@@ -55,8 +55,9 @@ Exports MUST filter by `organizationId` (and optional vehicle allowlist). Cross-
 ## Retention (operational)
 
 - Append-only table; no in-place updates.
-- **Documented target:** 90 days rolling delete by `persistedAt` — **NOT enforced in PR0** (no purge job, no DB TTL).
-- **Activation gate:** a dedicated retention worker or scheduled purge is **mandatory before** fleet-wide observability flag rollout at scale.
+- **PR0:** documented target 90 days @ `persistedAt` — **not enforced** (no purge job).
+- **PR1 (merged separately):** bounded batch purge + audit + activation gates — see [TDL_END_VALIDATION_OBSERVABILITY_PR1_RETENTION_OPS_V1.md](./TDL_END_VALIDATION_OBSERVABILITY_PR1_RETENTION_OPS_V1.md).
+- **Activation gate:** retention worker proof + operator/manual gates **mandatory before** fleet-wide observability flag rollout.
 - No historical backfill in PR0.
 
 ## Input / output provenance linkage
