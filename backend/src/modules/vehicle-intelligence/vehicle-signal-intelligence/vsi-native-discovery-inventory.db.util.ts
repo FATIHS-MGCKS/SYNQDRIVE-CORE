@@ -7,13 +7,21 @@ import {
 } from './vsi-native-signal-discovery-inventory.contract';
 
 /** Canonical DB default / backfill shape (scope filled on first scoped write or read). */
-export const VSI_NATIVE_DISCOVERY_CANONICAL_EMPTY_DB = {
+export const VSI_NATIVE_DISCOVERY_CANONICAL_EMPTY_DB: {
+  contractVersion: typeof VSI_NATIVE_SIGNAL_DISCOVERY_INVENTORY_CONTRACT_VERSION;
+  entries: [];
+  profileLimitations: string[];
+} = {
   contractVersion: VSI_NATIVE_SIGNAL_DISCOVERY_INVENTORY_CONTRACT_VERSION,
   entries: [],
   profileLimitations: [],
-} as const;
+};
 
-export function buildCanonicalEmptyNativeDiscoveryInventoryDbJson(): typeof VSI_NATIVE_DISCOVERY_CANONICAL_EMPTY_DB {
+export function buildCanonicalEmptyNativeDiscoveryInventoryDbJson(): {
+  contractVersion: typeof VSI_NATIVE_SIGNAL_DISCOVERY_INVENTORY_CONTRACT_VERSION;
+  entries: [];
+  profileLimitations: string[];
+} {
   return {
     contractVersion: VSI_NATIVE_DISCOVERY_CANONICAL_EMPTY_DB.contractVersion,
     entries: [],
