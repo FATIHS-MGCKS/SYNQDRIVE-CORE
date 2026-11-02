@@ -10,6 +10,7 @@ import type {
   VsiNativeSignalDiscoveryInventoryV1,
 } from './vsi-native-signal-discovery-inventory.contract';
 import { truncateNativeSignalDiscoveryInventory } from './vsi-native-signal-discovery-inventory.contract';
+import { stableNativeDiscoveryInventoryJson } from './vsi-native-discovery-inventory.db.util';
 
 function isP1bSnapshotHistoricalPlaceholder(historical: VsiNativeDiscoveryHistoricalAxisV1): boolean {
   return (
@@ -187,6 +188,9 @@ export function mergeNativeDiscoveryInventoryEntries(
   persisted: VsiNativeSignalDiscoveryInventoryV1,
   incoming: VsiNativeSignalDiscoveryInventoryV1,
 ): VsiNativeSignalDiscoveryInventoryV1 {
+  if (stableNativeDiscoveryInventoryJson(persisted) === stableNativeDiscoveryInventoryJson(incoming)) {
+    return persisted;
+  }
   const byName = new Map<string, VsiNativeSignalDiscoveryInventoryEntryV1>();
   for (const entry of persisted.entries) {
     byName.set(entry.providerNativeSignalName, entry);
