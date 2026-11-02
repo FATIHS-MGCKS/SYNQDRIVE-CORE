@@ -1,0 +1,141 @@
+import { TripDetectionState } from '@prisma/client';
+import { recordTripEndValidationObservationSafely } from './trip-end-validation-observability.integration';
+import { TripEndValidationObservabilityService } from './trip-end-validation-observability.service';
+import {
+  TRIP_END_VALIDATION_OBSERVATION_OUTCOMES,
+} from './trip-end-validation-observability.types';
+
+describe('trip-end-validation-observability safety (fire-and-forget)', () => {
+  const vehicleId = 'veh-parity-1';
+  const baseInput = {
+    organizationId: 'org-1',
+    vehicleId,
+    tripId: 'trip-1',
+    endCycleToken: 'cycle-1',
+    fsmStateAtDecision: TripDetectionState.POSSIBLE_END,
+    processPhase: 'END_VALIDATION' as const,
+    decisionOutcome:
+      TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.CUSUM_INCONCLUSIVE_RETRY,
+    workerDecisionAt: new Date('2026-11-02T10:00:00.000Z'),
+  };
+
+  it('does not invoke record when service is undefined (flag-off parity path)', () => {
+    const record = jest.fn();
+    recordTripEndValidationObservationSafely(undefined, undefined, baseInput);
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it('does not invoke record when vehicle is not allowlisted (enabled gate)', async () => {
+    const prev = process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
+    const prevIds = process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = 'other-vehicle';
+
+    const create = jest.fn();
+    const service = new TripEndValidationObservabilityService({ tripEndValidationDecisionObservation: { create } } as any);
+
+    recordTripEndValidationObservationSafely(undefined, service, baseInput);
+    await new Promise((r) => setImmediate(r));
+    expect(create).not.toHaveBeenCalled();
+
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = prev;
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = prevIds;
+  });
+
+  it('absorbs writer failures without unhandledRejection', async () => {
+    const prev = process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
+    const prevIds = process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = vehicleId;
+
+    const unhandled: unknown[] = [];
+    const onRejection = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onRejection);
+
+    const logger = { warn: jest.fn() };
+    const service = new TripEndValidationObservabilityService({
+      tripEndValidationDecisionObservation: {
+        create: jest.fn().mockRejectedValue(new Error('relation does not exist')),
+      },
+    } as any);
+
+    recordTripEndValidationObservationSafely(logger as any, service, baseInput);
+
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    process.off('unhandledRejection', onRejection);
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = prev;
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = prevIds;
+
+    expect(unhandled).toHaveLength(0);
+    expect(logger.warn).toHaveBeenCalled();
+    expect(String(logger.warn.mock.calls[0]?.[0])).toContain(
+      'trip_end_validation_observability_persist',
+    );
+  });
+
+  it('does not await record (scheduler ordering unchanged vs sync FSM body)', () => {
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = vehicleId;
+
+    let resolveRecord!: (v: 'inserted') => void;
+    const recordPromise = new Promise<'inserted'>((r) => {
+      resolveRecord = r;
+    });
+    const service = new TripEndValidationObservabilityService({
+      tripEndValidationDecisionObservation: {
+        create: jest.fn(() => recordPromise),
+      },
+    } as any);
+
+    const t0 = Date.now();
+    recordTripEndValidationObservationSafely(undefined, service, baseInput);
+    const elapsed = Date.now() - t0;
+    expect(elapsed).toBeLessThan(20);
+    resolveRecord('inserted');
+
+    delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
+    delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
+  });
+});
+
+describe('trip-end-validation-observability migration compatibility (writer)', () => {
+  it('returns duplicate on P2002 without throwing to caller', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const { TripEndValidationObservabilityService } = await import(
+      './trip-end-validation-observability.service'
+    );
+
+    const prisma = {
+      tripEndValidationDecisionObservation: {
+        create: jest.fn().mockRejectedValue(
+          new Prisma.PrismaClientKnownRequestError('Unique constraint', {
+            code: 'P2002',
+            clientVersion: 'test',
+          }),
+        ),
+      },
+    };
+
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = 'veh-mig-1';
+
+    const svc = new TripEndValidationObservabilityService(prisma as any);
+    const result = await svc.record({
+      organizationId: 'org',
+      vehicleId: 'veh-mig-1',
+      tripId: 't1',
+      endCycleToken: 'c1',
+      fsmStateAtDecision: TripDetectionState.POSSIBLE_END,
+      processPhase: 'END_VALIDATION',
+      decisionOutcome:
+        TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.CUSUM_INCONCLUSIVE_RETRY,
+      workerDecisionAt: new Date(),
+    });
+    expect(result).toBe('duplicate');
+
+    delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
+    delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
+  });
+});

@@ -55,7 +55,8 @@ Exports MUST filter by `organizationId` (and optional vehicle allowlist). Cross-
 ## Retention (operational)
 
 - Append-only table; no in-place updates.
-- Recommended retention: **90 days** rolling delete by `persistedAt` (job not implemented in PR0).
+- **Documented target:** 90 days rolling delete by `persistedAt` — **NOT enforced in PR0** (no purge job, no DB TTL).
+- **Activation gate:** a dedicated retention worker or scheduled purge is **mandatory before** fleet-wide observability flag rollout at scale.
 - No historical backfill in PR0.
 
 ## Input / output provenance linkage
@@ -71,6 +72,8 @@ Exports MUST filter by `organizationId` (and optional vehicle allowlist). Cross-
 
 When simulating attempt *k* at worker time *t*, exclude observations with `persistedAt > t` and
 evidence with `evidenceAvailableAt > t`. PR0 only persists live decisions; replay engine remains future work.
+
+**Status:** `AS_OF_REPLAY_CONTRACT_DEFINED=YES`, `AS_OF_REPLAY_REPRODUCIBLE=NO` — core window time series and per-attempt evidence availability are not fully persisted for historical reconstruction; observations capture bounded metadata only.
 
 ## Related metrics (Prometheus)
 
