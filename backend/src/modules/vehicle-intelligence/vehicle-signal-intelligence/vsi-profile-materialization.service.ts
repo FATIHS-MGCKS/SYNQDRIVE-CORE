@@ -31,6 +31,7 @@ import {
 import type { VsiProfileEvaluationResult } from './vsi-profile.types';
 import { VSI_PROFILE_CONTRACT_VERSION } from './vsi-profile.types';
 import type { VsiSourceLinkRow } from './vsi-readonly-composer.types';
+import type { VsiLatestStateSnapshot } from './vsi-readonly-composer.types';
 import {
   VSI_PROFILE_LIFECYCLE_LIMITATION_SOURCE_LINK_INACTIVE,
   VSI_PROFILE_LIFECYCLE_LIMITATION_SOURCE_LINK_SUPERSEDED,
@@ -44,6 +45,10 @@ import {
   type VsiDtcConfirmedCompleteEvidence,
 } from './vsi-dtc-complete-evidence.util';
 import { parseConfirmedObdCodesFromHeadJson } from './vsi-vls-obd-dtc-normalize.util';
+import { isVsiDiscoverySnapshotInventoryEnabled } from './vsi-discovery-snapshot-inventory.config';
+import { buildSnapshotNativeDiscoveryInventory } from './vsi-snapshot-native-discovery.extractor';
+import { isLatestStateAttributedToLink } from './vsi-readonly-composer.evidence';
+import type { VsiDeclaredCatalogSnapshot } from './vsi-declared-catalog.resolver';
 
 const DEFAULT_POLL_LOG_LIMIT = 5;
 
@@ -290,6 +295,30 @@ export class VsiSignalProfileMaterializationService {
         : null;
     const lastDtcSuccessfulCheckAtForVsi = dtcConfirmedComplete?.fetchObservedAt ?? null;
 
+    const latestStateSnapshot = boundLatestState
+      ? {
+          vehicleId: boundLatestState.vehicleId,
+          providerBindingId: boundLatestState.providerBindingId,
+          providerSource: boundLatestState.providerSource,
+          lvBatteryVoltage: boundLatestState.lvBatteryVoltage,
+          evSoc: boundLatestState.evSoc,
+          online: boundLatestState.online,
+          sourceTimestamp: boundLatestState.sourceTimestamp,
+          providerFetchedAt: boundLatestState.providerFetchedAt,
+          updatedAt: boundLatestState.updatedAt,
+          rawPayloadJson: boundLatestState.rawPayloadJson,
+          obdDtcList: obdDtcListForVsi,
+          lastDtcSuccessfulCheckAt: lastDtcSuccessfulCheckAtForVsi,
+        }
+      : null;
+    const snapshotDiscoveryStateAttributed =
+      latestStateSnapshot != null &&
+      isLatestStateAttributedToLink({
+        latestState: latestStateSnapshot,
+        link: linkRow,
+        activeLinkCount: 1,
+      });
+
     const projectionAsOf =
       dtcConfirmedComplete != null
         ? resolveVsiMaterializationProjectionAsOf({
@@ -311,22 +340,7 @@ export class VsiSignalProfileMaterializationService {
         link: linkRow,
         identity,
         projectionAsOf,
-        latestState: boundLatestState
-          ? {
-              vehicleId: boundLatestState.vehicleId,
-              providerBindingId: boundLatestState.providerBindingId,
-              providerSource: boundLatestState.providerSource,
-              lvBatteryVoltage: boundLatestState.lvBatteryVoltage,
-              evSoc: boundLatestState.evSoc,
-              online: boundLatestState.online,
-              sourceTimestamp: boundLatestState.sourceTimestamp,
-              providerFetchedAt: boundLatestState.providerFetchedAt,
-              updatedAt: boundLatestState.updatedAt,
-              rawPayloadJson: boundLatestState.rawPayloadJson,
-              obdDtcList: obdDtcListForVsi,
-              lastDtcSuccessfulCheckAt: lastDtcSuccessfulCheckAtForVsi,
-            }
-          : null,
+        latestState: latestStateSnapshot,
         pollLogs,
         declaredCatalog: declared,
         priorAggregatedSourceTimestamp:
@@ -405,6 +419,17 @@ export class VsiSignalProfileMaterializationService {
         existingProfile.id,
         semanticFingerprint,
       );
+      await this.persistSnapshotNativeDiscoveryInventoryIfEnabled({
+        organizationId,
+        vehicleId,
+        providerSourceLinkId,
+        providerIdentity: link.provider,
+        latestState: latestStateSnapshot,
+        declaredCatalog: declared,
+        projectionAsOf,
+        stateAttributed: snapshotDiscoveryStateAttributed,
+        latestStateSourceTimestampMs: boundLatestState?.sourceTimestamp?.getTime() ?? null,
+      });
       return evaluation;
     }
 
@@ -413,7 +438,58 @@ export class VsiSignalProfileMaterializationService {
       input.lifecycleMode ?? 'SNAPSHOT_HOOK',
       semanticFingerprint,
     );
+    await this.persistSnapshotNativeDiscoveryInventoryIfEnabled({
+      organizationId,
+      vehicleId,
+      providerSourceLinkId,
+      providerIdentity: link.provider,
+      latestState: latestStateSnapshot,
+      declaredCatalog: declared,
+      projectionAsOf,
+      stateAttributed: snapshotDiscoveryStateAttributed,
+      latestStateSourceTimestampMs: boundLatestState?.sourceTimestamp?.getTime() ?? null,
+    });
     return evaluation;
+  }
+
+  private async persistSnapshotNativeDiscoveryInventoryIfEnabled(input: {
+    organizationId: string;
+    vehicleId: string;
+    providerSourceLinkId: string;
+    providerIdentity: string;
+    latestState: VsiLatestStateSnapshot | null;
+    declaredCatalog: VsiDeclaredCatalogSnapshot;
+    projectionAsOf: Date;
+    stateAttributed: boolean;
+    latestStateSourceTimestampMs: number | null;
+  }): Promise<void> {
+    if (!isVsiDiscoverySnapshotInventoryEnabled()) {
+      return;
+    }
+    const inventory = buildSnapshotNativeDiscoveryInventory({
+      scope: {
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        providerSourceLinkId: input.providerSourceLinkId,
+        providerIdentity: input.providerIdentity,
+      },
+      evaluatedAt: input.projectionAsOf,
+      latestState: input.latestState,
+      declaredCatalog: input.declaredCatalog,
+      projectionAsOf: input.projectionAsOf,
+      stateAttributed: input.stateAttributed,
+      providerIdentity: input.providerIdentity,
+    });
+    await this.persistNativeDiscoveryInventoryOperationalRefresh({
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      providerSourceLinkId: input.providerSourceLinkId,
+      providerIdentity: input.providerIdentity,
+      nextInventory: inventory,
+      latestStateProviderBindingId: input.providerSourceLinkId,
+      latestStateSourceTimestampMs: input.latestStateSourceTimestampMs,
+      requireBindingMatch: true,
+    });
   }
 
   private async persistOperationalRefreshWithConcurrencyRetry(
