@@ -93,3 +93,43 @@ export {
   VsiProfileRevisionSignalTemporalState,
 } from './vsi-profile-revision-signal-temporal';
 export { VsiProfileRevisionHistoryRepository } from './vsi-profile-revision-history.repository';
+
+export {
+  VSI_NATIVE_SIGNAL_DISCOVERY_INVENTORY_CONTRACT_VERSION,
+  VSI_NATIVE_DISCOVERY_INVENTORY_MAX_ENTRIES,
+  VSI_NATIVE_DISCOVERY_INVENTORY_TRUNCATION_LIMITATION,
+  VsiNativeDiscoveryIngestionLimitation,
+  validateNativeSignalDiscoveryInventoryWellFormed,
+  truncateNativeSignalDiscoveryInventory,
+  assertNativeDiscoveryInventoryScopeMatch,
+  type VsiNativeSignalDiscoveryInventoryV1,
+  type VsiNativeSignalDiscoveryInventoryEntryV1,
+} from './vsi-native-signal-discovery-inventory.contract';
+
+export {
+  VsiEvidenceAxisEvaluationState,
+  VsiEvidenceAxisNotEvaluatedReason,
+  axisAllowsPositiveObservationClaim,
+  type VsiEvidenceAxisEvaluationV1,
+} from './vsi-native-signal-discovery-evaluation-state';
+
+export {
+  VsiNativeDiscoveryOperationalWriteOutcome,
+  evaluateNativeDiscoveryOperationalCasPreconditions,
+  assertInventoryOnlyRefreshPreservesProfileRevision,
+} from './vsi-native-signal-discovery-operational-cas.contract';
+
+export {
+  VSI_NATIVE_DISCOVERY_INVENTORY_NOT_AS_OF_LIMITATION,
+  VsiNativeDiscoveryConsumerTemporalMode,
+  resolveNativeDiscoveryInventoryForConsumerContext,
+  assertApdsHistoricalContextDoesNotUseHeadDiscoveryInventory,
+} from './vsi-native-signal-discovery-as-of.guard';
+
+export {
+  VSI_DISCOVERY_CH_MAX_FINALIZED_TRIPS,
+  VSI_DISCOVERY_CH_HISTORY_DAYS,
+  validateClickHouseDiscoveryQueryScope,
+  linkAttributionAllowsPositiveHistoricalClaim,
+  assertClickHouseDiscoverySqlContainsTenantPredicates,
+} from './vsi-clickhouse-discovery-safety.contract';
