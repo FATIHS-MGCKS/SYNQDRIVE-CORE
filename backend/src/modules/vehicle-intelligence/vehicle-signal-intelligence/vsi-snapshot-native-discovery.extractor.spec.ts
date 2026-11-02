@@ -188,4 +188,40 @@ describe('vsi-snapshot-native-discovery.extractor', () => {
     });
     expect(keys).toEqual(['speed']);
   });
+
+  it('512-key scan truncation records SNAPSHOT_INGEST_FIELD_LIST_BOUNDED', () => {
+    const raw: Record<string, unknown> = {};
+    for (let i = 0; i < 600; i += 1) {
+      raw[`signalKey${String(i).padStart(4, '0')}`] = { value: i, timestamp: '2026-01-01T00:00:00.000Z' };
+    }
+    const { keys, scanTruncated } = listDimoNativeSignalKeysFromRawPayload(raw);
+    expect(scanTruncated).toBe(true);
+    expect(keys).toHaveLength(512);
+    const ts = '2026-10-27T10:00:00.000Z';
+    const inv = buildSnapshotNativeDiscoveryInventory({
+      scope,
+      evaluatedAt: new Date(ts),
+      latestState: {
+        vehicleId: scope.vehicleId,
+        providerBindingId: scope.providerSourceLinkId,
+        providerSource: 'DIMO',
+        lvBatteryVoltage: null,
+        evSoc: null,
+        online: true,
+        sourceTimestamp: new Date(ts),
+        providerFetchedAt: new Date(ts),
+        updatedAt: new Date(ts),
+        rawPayloadJson: raw,
+        obdDtcList: null,
+        lastDtcSuccessfulCheckAt: null,
+      },
+      declaredCatalog: emptyCatalog,
+      projectionAsOf: new Date(ts),
+      stateAttributed: true,
+      providerIdentity: 'DIMO',
+    });
+    expect(inv.profileLimitations).toContain('SNAPSHOT_INGEST_FIELD_LIST_BOUNDED');
+    expect(inv.entries).toHaveLength(256);
+    expect(inv.profileLimitations).toContain('NATIVE_INVENTORY_TRUNCATED');
+  });
 });

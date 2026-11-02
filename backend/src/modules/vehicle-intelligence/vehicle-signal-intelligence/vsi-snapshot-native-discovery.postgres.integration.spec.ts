@@ -20,6 +20,12 @@ import {
 } from './vsi-native-signal-discovery-as-of.guard';
 import { fingerprintVsiProfileSemanticFromPersisted } from './vsi-profile-fingerprint.util';
 import { isVsiDiscoverySnapshotInventoryEnabled } from './vsi-discovery-snapshot-inventory.config';
+import { probeNativeDiscoveryInventoryColumnAvailable } from './vsi-native-discovery-inventory-schema.guard';
+import { VsiEvidenceAxisNotEvaluatedReason } from './vsi-native-signal-discovery-evaluation-state';
+import {
+  VehicleProviderConsentGrantType,
+  VehicleProviderConsentStatus,
+} from '@prisma/client';
 
 const LIVE = (() => {
   if (process.env.VSI03_READONLY_COMPOSER_PG !== '1') {
@@ -97,6 +103,67 @@ async function seedDrivingCapability(
       metadata: { listedInAvailableSignals: true },
     },
   });
+}
+
+async function addSecondActiveDimoLink(
+  prisma: PrismaClient,
+  input: {
+    organizationId: string;
+    vehicleId: string;
+  },
+): Promise<string> {
+  const dimoId = randomUUID();
+  const externalId = `0x${randomUUID().replace(/-/g, '')}`;
+  const raw = JSON.stringify(RUPTELA_RAW);
+  await prisma.$executeRaw`
+    INSERT INTO dimo_vehicles (
+      id, external_id, vin, make, model, year, fuel_type, connection_status, raw_json, token_id, created_at, updated_at
+    )
+    VALUES (
+      ${dimoId}::text,
+      ${externalId},
+      NULL,
+      'Make',
+      'Model',
+      2021,
+      'GASOLINE',
+      'CONNECTED'::"DimoConnectionStatus",
+      ${raw}::jsonb,
+      ${Math.floor(Math.random() * 1_000_000) + 4_000_000},
+      NOW(),
+      NOW()
+    )
+  `;
+  const consentId = randomUUID();
+  await prisma.vehicleProviderConsent.create({
+    data: {
+      id: consentId,
+      vehicleId: input.vehicleId,
+      organizationId: input.organizationId,
+      provider: 'DIMO',
+      grantType: VehicleProviderConsentGrantType.DIMO_DIRECT,
+      status: VehicleProviderConsentStatus.ACTIVE,
+      scopes: [],
+    },
+  });
+  const linkId = randomUUID();
+  await prisma.vehicleDataSourceLink.create({
+    data: {
+      id: linkId,
+      vehicleId: input.vehicleId,
+      provider: 'DIMO',
+      sourceType: 'DIMO',
+      dimoVehicleId: dimoId,
+      consentId,
+      isActive: true,
+      metadata: {
+        provenance: 'backfill',
+        version: 1,
+        dimoExternalId: externalId,
+      },
+    },
+  });
+  return linkId;
 }
 
 (LIVE ? describe : describe.skip)('VSI snapshot native discovery P1b (PostgreSQL)', () => {
@@ -235,5 +302,149 @@ async function seedDrivingCapability(
 
     await prisma.vehicleSignalCapabilityProfile.deleteMany({ where: { organizationId } });
     await prisma.organization.delete({ where: { id: organizationId } });
+  });
+
+  it('multi active links: unique binding observes on bound link only', async () => {
+    process.env.VSI_DISCOVERY_SNAPSHOT_INVENTORY_ENABLED = 'true';
+    const organizationId = await createLegacyReconcileOrg(prisma);
+    const fixture = await createLegacyDimoLinkFixture(prisma, {
+      organizationId,
+      externalId: `0x${randomUUID().replace(/-/g, '')}`,
+      rawJson: RUPTELA_RAW,
+    });
+    const link2Id = await addSecondActiveDimoLink(prisma, {
+      organizationId,
+      vehicleId: fixture.vehicleId,
+    });
+    await seedDrivingCapability(prisma, organizationId, fixture.vehicleId);
+    const ts = new Date('2026-10-15T12:00:00.000Z');
+    await upsertVls(prisma, {
+      vehicleId: fixture.vehicleId,
+      linkId: fixture.linkId,
+      sourceTimestamp: ts,
+      providerFetchedAt: new Date('2026-10-15T12:00:01.000Z'),
+      rawPayloadJson: {
+        powertrainCombustionEngineECT: { value: 91, timestamp: ts.toISOString() },
+      },
+    });
+
+    await service.materializeFromPersistedEvidence({
+      organizationId,
+      vehicleId: fixture.vehicleId,
+      providerSourceLinkId: fixture.linkId,
+    });
+    await service.materializeFromPersistedEvidence({
+      organizationId,
+      vehicleId: fixture.vehicleId,
+      providerSourceLinkId: link2Id,
+    });
+
+    const boundRow = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
+      where: {
+        organizationId_vehicleId_providerSourceLinkId: {
+          organizationId,
+          vehicleId: fixture.vehicleId,
+          providerSourceLinkId: fixture.linkId,
+        },
+      },
+    });
+    const otherRow = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
+      where: {
+        organizationId_vehicleId_providerSourceLinkId: {
+          organizationId,
+          vehicleId: fixture.vehicleId,
+          providerSourceLinkId: link2Id,
+        },
+      },
+    });
+    const boundInv = normalizeNativeSignalDiscoveryInventoryFromProfileRow(boundRow);
+    const otherInv = normalizeNativeSignalDiscoveryInventoryFromProfileRow(otherRow);
+    const boundEct = boundInv.entries.find(
+      (e) => e.providerNativeSignalName === 'powertrainCombustionEngineECT',
+    );
+    expect(boundEct?.snapshot.evaluation.state).toBe(VsiEvidenceAxisEvaluationState.EVALUATED_OBSERVED);
+    expect(otherInv.entries).toHaveLength(0);
+
+    await prisma.vehicleSignalCapabilityProfile.deleteMany({ where: { organizationId } });
+    await prisma.organization.delete({ where: { id: organizationId } });
+  });
+
+  it('multi active links with null binding fail-closes snapshot axis', async () => {
+    process.env.VSI_DISCOVERY_SNAPSHOT_INVENTORY_ENABLED = 'true';
+    const organizationId = await createLegacyReconcileOrg(prisma);
+    const fixture = await createLegacyDimoLinkFixture(prisma, {
+      organizationId,
+      externalId: `0x${randomUUID().replace(/-/g, '')}`,
+      rawJson: RUPTELA_RAW,
+    });
+    await addSecondActiveDimoLink(prisma, {
+      organizationId,
+      vehicleId: fixture.vehicleId,
+    });
+    await seedDrivingCapability(prisma, organizationId, fixture.vehicleId);
+    const ts = new Date('2026-10-15T12:00:00.000Z');
+    const id = randomUUID();
+    const raw = JSON.stringify({
+      powertrainCombustionEngineECT: { value: 91, timestamp: ts.toISOString() },
+    });
+    await prisma.$executeRaw`
+      INSERT INTO vehicle_latest_states (
+        id, vehicle_id, online, lv_battery_voltage, ev_soc, source_timestamp,
+        provider_fetched_at, provider_binding_id, provider_source, raw_payload_json, updated_at
+      ) VALUES (
+        ${id}::uuid,
+        ${fixture.vehicleId},
+        true,
+        null,
+        null,
+        ${ts},
+        ${new Date('2026-10-15T12:00:01.000Z')},
+        NULL,
+        'DIMO',
+        ${raw}::jsonb,
+        ${new Date('2026-10-15T12:00:01.000Z')}
+      )
+      ON CONFLICT (vehicle_id) DO UPDATE SET
+        source_timestamp = EXCLUDED.source_timestamp,
+        provider_fetched_at = EXCLUDED.provider_fetched_at,
+        provider_binding_id = EXCLUDED.provider_binding_id,
+        raw_payload_json = EXCLUDED.raw_payload_json,
+        updated_at = EXCLUDED.updated_at
+    `;
+
+    await service.materializeFromPersistedEvidence({
+      organizationId,
+      vehicleId: fixture.vehicleId,
+      providerSourceLinkId: fixture.linkId,
+    });
+    const row = await prisma.vehicleSignalCapabilityProfile.findUniqueOrThrow({
+      where: {
+        organizationId_vehicleId_providerSourceLinkId: {
+          organizationId,
+          vehicleId: fixture.vehicleId,
+          providerSourceLinkId: fixture.linkId,
+        },
+      },
+    });
+    const inv = normalizeNativeSignalDiscoveryInventoryFromProfileRow(row);
+    const ect = inv.entries.find(
+      (e) => e.providerNativeSignalName === 'powertrainCombustionEngineECT',
+    );
+    expect(ect?.snapshot.evaluation.state).toBe(VsiEvidenceAxisEvaluationState.NOT_EVALUATED);
+    expect(ect?.snapshot.evaluation.notEvaluatedReason).toBe(
+      VsiEvidenceAxisNotEvaluatedReason.LINK_ATTRIBUTION_AMBIGUOUS,
+    );
+
+    await prisma.vehicleSignalCapabilityProfile.deleteMany({ where: { organizationId } });
+    await prisma.organization.delete({ where: { id: organizationId } });
+  });
+
+  it('P1a column probe fails closed when column dropped', async () => {
+    expect(await probeNativeDiscoveryInventoryColumnAvailable(prisma)).toBe(true);
+    await prisma.$executeRaw`
+      ALTER TABLE vehicle_signal_capability_profiles
+      DROP COLUMN IF EXISTS native_signal_discovery_inventory
+    `;
+    expect(await probeNativeDiscoveryInventoryColumnAvailable(prisma)).toBe(false);
   });
 });

@@ -47,7 +47,12 @@ import {
 import { parseConfirmedObdCodesFromHeadJson } from './vsi-vls-obd-dtc-normalize.util';
 import { isVsiDiscoverySnapshotInventoryEnabled } from './vsi-discovery-snapshot-inventory.config';
 import { buildSnapshotNativeDiscoveryInventory } from './vsi-snapshot-native-discovery.extractor';
-import { isLatestStateAttributedToLink } from './vsi-readonly-composer.evidence';
+import { resolveSnapshotNativeDiscoveryStateAttributed } from './vsi-snapshot-discovery-attribution';
+import {
+  isNativeDiscoveryInventorySchemaPrismaError,
+  probeNativeDiscoveryInventoryColumnAvailable,
+  VSI_NATIVE_DISCOVERY_INVENTORY_SCHEMA_UNAVAILABLE_LIMITATION,
+} from './vsi-native-discovery-inventory-schema.guard';
 import type { VsiDeclaredCatalogSnapshot } from './vsi-declared-catalog.resolver';
 
 const DEFAULT_POLL_LOG_LIMIT = 5;
@@ -79,6 +84,8 @@ export type VsiProfileMaterializeFromSnapshotInput = {
 @Injectable()
 export class VsiSignalProfileMaterializationService {
   private readonly logger = new Logger(VsiSignalProfileMaterializationService.name);
+  /** Cached P1a column probe — one information_schema read per service instance. */
+  private nativeDiscoveryInventorySchemaAvailable: boolean | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -149,6 +156,10 @@ export class VsiSignalProfileMaterializationService {
     if (!link) {
       return null;
     }
+
+    const activeSourceLinkCount = await this.prisma.vehicleDataSourceLink.count({
+      where: { vehicleId, isActive: true },
+    });
 
     const latestState = await this.prisma.vehicleLatestState.findUnique({
       where: { vehicleId },
@@ -311,13 +322,11 @@ export class VsiSignalProfileMaterializationService {
           lastDtcSuccessfulCheckAt: lastDtcSuccessfulCheckAtForVsi,
         }
       : null;
-    const snapshotDiscoveryStateAttributed =
-      latestStateSnapshot != null &&
-      isLatestStateAttributedToLink({
-        latestState: latestStateSnapshot,
-        link: linkRow,
-        activeLinkCount: 1,
-      });
+    const snapshotDiscoveryStateAttributed = resolveSnapshotNativeDiscoveryStateAttributed({
+      latestState: latestStateSnapshot,
+      link: linkRow,
+      activeLinkCount: activeSourceLinkCount,
+    });
 
     const projectionAsOf =
       dtcConfirmedComplete != null
@@ -452,6 +461,34 @@ export class VsiSignalProfileMaterializationService {
     return evaluation;
   }
 
+  private async isNativeDiscoveryInventorySchemaAvailable(): Promise<boolean> {
+    if (this.nativeDiscoveryInventorySchemaAvailable !== null) {
+      return this.nativeDiscoveryInventorySchemaAvailable;
+    }
+    try {
+      this.nativeDiscoveryInventorySchemaAvailable =
+        await probeNativeDiscoveryInventoryColumnAvailable(this.prisma);
+    } catch (err) {
+      this.logger.warn(
+        `VSI native discovery inventory schema probe failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      this.nativeDiscoveryInventorySchemaAvailable = false;
+    }
+    return this.nativeDiscoveryInventorySchemaAvailable;
+  }
+
+  private logNativeDiscoveryInventorySchemaUnavailable(input: {
+    organizationId: string;
+    vehicleId: string;
+    providerSourceLinkId: string;
+  }): void {
+    this.logger.warn(
+      `VSI native discovery inventory write skipped (${VSI_NATIVE_DISCOVERY_INVENTORY_SCHEMA_UNAVAILABLE_LIMITATION}) org=${input.organizationId} vehicle=${input.vehicleId} link=${input.providerSourceLinkId}`,
+    );
+  }
+
   private async persistSnapshotNativeDiscoveryInventoryIfEnabled(input: {
     organizationId: string;
     vehicleId: string;
@@ -464,6 +501,10 @@ export class VsiSignalProfileMaterializationService {
     latestStateSourceTimestampMs: number | null;
   }): Promise<void> {
     if (!isVsiDiscoverySnapshotInventoryEnabled()) {
+      return;
+    }
+    if (!(await this.isNativeDiscoveryInventorySchemaAvailable())) {
+      this.logNativeDiscoveryInventorySchemaUnavailable(input);
       return;
     }
     const inventory = buildSnapshotNativeDiscoveryInventory({
@@ -480,16 +521,25 @@ export class VsiSignalProfileMaterializationService {
       stateAttributed: input.stateAttributed,
       providerIdentity: input.providerIdentity,
     });
-    await this.persistNativeDiscoveryInventoryOperationalRefresh({
-      organizationId: input.organizationId,
-      vehicleId: input.vehicleId,
-      providerSourceLinkId: input.providerSourceLinkId,
-      providerIdentity: input.providerIdentity,
-      nextInventory: inventory,
-      latestStateProviderBindingId: input.providerSourceLinkId,
-      latestStateSourceTimestampMs: input.latestStateSourceTimestampMs,
-      requireBindingMatch: true,
-    });
+    try {
+      await this.persistNativeDiscoveryInventoryOperationalRefresh({
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        providerSourceLinkId: input.providerSourceLinkId,
+        providerIdentity: input.providerIdentity,
+        nextInventory: inventory,
+        latestStateProviderBindingId: input.providerSourceLinkId,
+        latestStateSourceTimestampMs: input.latestStateSourceTimestampMs,
+        requireBindingMatch: true,
+      });
+    } catch (err) {
+      if (isNativeDiscoveryInventorySchemaPrismaError(err)) {
+        this.nativeDiscoveryInventorySchemaAvailable = false;
+        this.logNativeDiscoveryInventorySchemaUnavailable(input);
+        return;
+      }
+      throw err;
+    }
   }
 
   private async persistOperationalRefreshWithConcurrencyRetry(
