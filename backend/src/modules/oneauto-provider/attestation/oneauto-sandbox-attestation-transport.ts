@@ -44,6 +44,12 @@ export async function executeAttestationGet(input: {
   maxResponseBytes?: number;
 }): Promise<AttestationTransportOutcome> {
   const normalized = normalizeVin(input.vin);
+  const emptyHeaders = {
+    retryAfterRaw: null,
+    locationRaw: null,
+    providerStatusRaw: null,
+  } as const;
+
   if (!isValidVin(normalized)) {
     return {
       httpStatus: null,
@@ -51,6 +57,7 @@ export async function executeAttestationGet(input: {
       responseByteLength: null,
       envelopeSuccess: null,
       transportErrorCode: 'ONEAUTO_INVALID_VIN',
+      responseHeaders: { ...emptyHeaders },
     };
   }
 
@@ -71,6 +78,7 @@ export async function executeAttestationGet(input: {
       responseByteLength: null,
       envelopeSuccess: null,
       transportErrorCode: code,
+      responseHeaders: { ...emptyHeaders },
     };
   }
 
@@ -90,6 +98,12 @@ export async function executeAttestationGet(input: {
 
     assertNotRedirectStatus(res.status);
 
+    const responseHeaders = {
+      retryAfterRaw: res.headers.get('retry-after') ?? res.headers.get('Retry-After'),
+      locationRaw: res.headers.get('location') ?? res.headers.get('Location'),
+      providerStatusRaw: res.headers.get('status') ?? res.headers.get('Status'),
+    };
+
     const text = await readBoundedResponseText(res, maxBytes);
     const responseByteLength = text ? utf8ByteLength(text) : 0;
     let body: unknown = null;
@@ -107,6 +121,7 @@ export async function executeAttestationGet(input: {
       responseByteLength,
       envelopeSuccess: envelopeSuccessFromBody(res.status, body),
       transportErrorCode: null,
+      responseHeaders,
     };
   } catch (err: unknown) {
     const code =
@@ -120,6 +135,7 @@ export async function executeAttestationGet(input: {
         responseByteLength: null,
         envelopeSuccess: null,
         transportErrorCode: code,
+        responseHeaders: { ...emptyHeaders },
       };
     }
     const isAbort = err instanceof Error && err.name === 'AbortError';
@@ -129,6 +145,7 @@ export async function executeAttestationGet(input: {
       responseByteLength: null,
       envelopeSuccess: null,
       transportErrorCode: isAbort ? 'ONEAUTO_PROVIDER_TIMEOUT' : 'ONEAUTO_ATTESTATION_NETWORK',
+      responseHeaders: { ...emptyHeaders },
     };
   }
 }

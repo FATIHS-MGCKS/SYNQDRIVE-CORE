@@ -48,6 +48,8 @@ describe('OneAuto P2.5E-C isolated attestation harness', () => {
         expect(evidence.attestationQualified).toBe(fixture.expectQualified);
         expect(evidence.diagnosticCategory).toBe(fixture.expectCategory);
         expect(evidence.attestationEnvironment).toBe('OFFLINE');
+        expect(evidence.schemaVersion).toBe('oneauto-sandbox-attestation-v2');
+        expect(evidence.responseFingerprint).toBeDefined();
         expect(evidence.attemptedOutboundRequests).toBeLessThanOrEqual(1);
         expect(evidence.billingStatus).toBe('UNKNOWN');
         expect(JSON.stringify(evidence)).not.toMatch(/offline-fixture-no-key/);
