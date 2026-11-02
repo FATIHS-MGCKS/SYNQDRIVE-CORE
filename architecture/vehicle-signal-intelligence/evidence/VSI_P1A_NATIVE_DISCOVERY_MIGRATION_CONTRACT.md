@@ -26,8 +26,9 @@ discoveryContractVersion String? @map("discovery_contract_version")
 
 ## 2. Default and backfill
 
-- Migration SQL: `DEFAULT '[]'` or application default empty inventory object matching `emptyNativeSignalDiscoveryInventory()` shape.
-- Existing rows: empty array `[]` **or** canonical empty object `{ contractVersion, scope, evaluatedAt, entries: [], profileLimitations: [] }` — pick one in P1a migration script; readers must accept both until normalize pass (document in P1a PR).
+- **Canonical empty (P1a):** JSON object `{ "contractVersion": "vsi-native-signal-discovery-v1", "entries": [], "profileLimitations": [] }` (no scope in DB default; readers fill scope from profile row via `normalizeNativeSignalDiscoveryInventoryFromProfileRow`).
+- Migration backfills legacy `[]` to the canonical object.
+- Readers accept legacy `[]` until normalized on read.
 
 ## 3. Writer rules (P1b preview)
 
