@@ -17,6 +17,7 @@
     "lint:legal-documents": "eslint \"src/modules/documents/**/*.ts\" \"src/modules/bookings/booking-pickup-gate/**/*.ts\" \"src/modules/notifications/**/*legal-document*.ts\" \"src/modules/outbound-email/**/*legal-document*.ts\" \"src/modules/outbound-email/**/*booking-document*.ts\" \"src/config/legal-document*.ts\" \"src/workers/**/*booking-document*.ts\"",
     "lint:all": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
+    "ops:oneauto:sandbox-attestation:offline": "ts-node scripts/ops/oneauto-p25e-c-sandbox-attestation.ts --all-fixtures --json",
     "test:rfrf:settled-post-replay": "jest --config scripts/ops/rfrf-settled-post/jest.config.js",
     "test:battery:observation": "jest battery-provider-observation.integration battery-provider-observation.policy battery-freshness.policy hv-snapshot-observation hv-battery-health.service.observation",
     "test:battery:retention": "jest battery-v2-retention",
