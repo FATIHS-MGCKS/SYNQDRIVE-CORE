@@ -1,0 +1,51 @@
+{
+  "operation": "TDL_CUSUM_FINALIZATION_REPLAY_EVIDENCE_V1",
+  "baselineOperation": "TDL_FINALIZATION_CUSUM_FORENSIC_AUDIT_V1",
+  "productionSha": "a27ca9059b9fa9e8aa88696e811107fb427cb369",
+  "anchorUtc": "2026-10-30T10:00:00.000Z",
+  "schemaVersion": 1,
+  "deterministic": true,
+  "noProductionReplay": true,
+  "fixtures": [
+    {
+      "file": "exemplar_composite_provider_silence_858dce.json",
+      "tripId": "858dcef6-53f8-4a6a-8f7e-9675052ff38b",
+      "label": "RUPTELA composite fallback + provider silence"
+    },
+    {
+      "file": "exemplar_cusum_validated_95bee8.json",
+      "tripId": "95bee8d9-9360-41d6-85d8-4576327077c9",
+      "label": "CUSUM_VALIDATED success"
+    },
+    {
+      "file": "exemplar_cusum_boundary_adjust_b304e9.json",
+      "tripId": "b304e9ad-0dcb-4b69-a93e-5364078a20a1",
+      "label": "CUSUM_VALIDATED with downstream boundary revision"
+    },
+    {
+      "file": "exemplar_gap_split_db96eba.json",
+      "tripId": "db96eba6-6821-4d50-a705-7cf1d4653f04",
+      "label": "MID_TRIP_GAP_SPLIT long finalize lag"
+    },
+    {
+      "file": "exemplar_ch_assist_0e64835.json",
+      "tripId": "0e64835e-ba73-429d-b226-74cbfc241561",
+      "label": "CLICKHOUSE_END_ASSIST fast path"
+    },
+    {
+      "file": "exemplar_tesla_sparse_inconclusive.json",
+      "tripId": "00000000-0000-4000-8000-000000000001",
+      "label": "Synthetic Tesla-like sparse trailing movement (inconclusive CUSUM)"
+    }
+  ],
+  "fsmDefaultsMs": {
+    "tripEndStabilityWindowMs": 90000,
+    "tripEndMinInactivityBeforeCusumMs": 120000,
+    "tripEndValidationRetryMs": 60000,
+    "tripEndValidationMaxAttempts": 3,
+    "workerTripTrackingIntervalMs": 30000,
+    "tripEndChAssistStabilityMs": 30000,
+    "tripEndChAssistMinStationaryMs": 45000,
+    "tripEndChAssistMinTripDurationMs": 60000
+  }
+}

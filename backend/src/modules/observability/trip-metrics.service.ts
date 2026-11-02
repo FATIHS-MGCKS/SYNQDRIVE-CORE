@@ -358,6 +358,13 @@ export class TripMetricsService implements OnModuleInit {
   readonly tripEndBoundaryAdjustment: Histogram<string>;
   readonly tripDuration: Histogram<string>;
   readonly tripTimingSampleRejected: Counter<string>;
+  /** TDL PR0 — end-validation decision observability (flag-off default). */
+  readonly tripEndValidationDecisionTotal: Counter<string>;
+  readonly tripEndValidationCusumOutcomeTotal: Counter<string>;
+  readonly tripEndValidationRetryExhaustionTotal: Counter<string>;
+  readonly tripEndValidationClickHouseAssistTotal: Counter<string>;
+  readonly tripEndValidationObservabilityWriteFailures: Counter<string>;
+  readonly tripEndValidationDecisionLatencySeconds: Histogram<string>;
   readonly detectorLatency: Histogram<string>;
   readonly queueLag: Histogram<string>;
   readonly clickHouseQueryDuration: Histogram<string>;
@@ -1131,6 +1138,51 @@ export class TripMetricsService implements OnModuleInit {
       name: 'synqdrive_trip_timing_sample_rejected_total',
       help: 'Rejected trip timing histogram samples (invalid anchor, negative delta, invalid timestamp).',
       labelNames: ['metric', 'reason'],
+      registers: [this.registry],
+    });
+
+    this.tripEndValidationDecisionTotal = new Counter({
+      name: 'synqdrive_trip_end_validation_decision_total',
+      help:
+        'Append-only end-validation / finalize decision observations persisted (TDL PR0; non-authoritative).',
+      labelNames: ['outcome', 'end_mode', 'confirmation_source'],
+      registers: [this.registry],
+    });
+
+    this.tripEndValidationCusumOutcomeTotal = new Counter({
+      name: 'synqdrive_trip_end_validation_cusum_outcome_total',
+      help: 'CUSUM END_VALIDATION branch outcomes (validated / inconclusive / still_ongoing).',
+      labelNames: ['cusum_outcome'],
+      registers: [this.registry],
+    });
+
+    this.tripEndValidationRetryExhaustionTotal = new Counter({
+      name: 'synqdrive_trip_end_validation_retry_exhaustion_total',
+      help: 'Max CUSUM attempt budget exhausted before composite fallback finalize.',
+      labelNames: ['end_mode'],
+      registers: [this.registry],
+    });
+
+    this.tripEndValidationClickHouseAssistTotal = new Counter({
+      name: 'synqdrive_trip_end_validation_clickhouse_assist_total',
+      help: 'ClickHouse end-assist observability outcomes on END_VALIDATION path.',
+      labelNames: ['assist_outcome'],
+      registers: [this.registry],
+    });
+
+    this.tripEndValidationObservabilityWriteFailures = new Counter({
+      name: 'synqdrive_trip_end_validation_observability_write_failures_total',
+      help: 'Failed persistence attempts for trip end-validation observability (FSM unaffected).',
+      labelNames: ['phase'],
+      registers: [this.registry],
+    });
+
+    this.tripEndValidationDecisionLatencySeconds = new Histogram({
+      name: 'synqdrive_trip_end_validation_decision_latency_seconds',
+      help:
+        'Seconds from canonical/event end boundary to worker decision time for observed end-validation outcomes.',
+      buckets: [1, 5, 15, 30, 60, 120, 300, 600, 900, 1800, 3600],
+      labelNames: ['outcome', 'phase'],
       registers: [this.registry],
     });
 

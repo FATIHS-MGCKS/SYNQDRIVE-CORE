@@ -458,6 +458,9 @@ export function buildTripR11OrchestrationHarness(
   fixture: TripR11PostgresFixture,
   segments: TripR11SegmentsMock,
   detectorRegistry: TripR11DetectorMock,
+  options?: {
+    endValidationObservability?: unknown;
+  },
 ): TripR11OrchestrationHarness {
   RuntimeStatusRegistry.setWorkersEnabled(true);
   const decisionEngine = new TripDecisionEngine(prisma as never);
@@ -561,6 +564,8 @@ export function buildTripR11OrchestrationHarness(
     },
     runObservabilitySafely: (name: string, fn: () => void) =>
       runTripObservabilitySafely(logger, name, fn),
+    recordEndValidationObservability: proto.recordEndValidationObservability,
+    endValidationObservability: options?.endValidationObservability,
   };
 
   const runJob = async (job: TripTrackingJobData): Promise<void> => {

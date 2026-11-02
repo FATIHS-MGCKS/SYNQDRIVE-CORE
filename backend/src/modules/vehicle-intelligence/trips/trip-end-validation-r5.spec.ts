@@ -107,6 +107,11 @@ function buildOrchestrationHarness(detOverrides: Record<string, unknown> = {}) {
     ensurePossibleEndClockDurability: jest
       .fn()
       .mockImplementation(async (_vehicleId: string, d: typeof det) => d),
+    recordEndValidationObservability: proto.recordEndValidationObservability,
+    endValidationObservability: {
+      isEnabledForVehicle: () => false,
+      record: jest.fn().mockResolvedValue({ inserted: false, deduped: true }),
+    },
   };
 
   return {

@@ -55,6 +55,7 @@ import { DTC_RESEARCH_PORT } from './dtc-knowledge/dtc-research.port';
 import { DrivingEventsService } from './driving-events/driving-events.service';
 import { TripsService } from './trips/trips.service';
 import { TripDetectionOrchestrationService } from './trips/trip-detection-orchestration.service';
+import { TripEndValidationObservabilityService } from './trips/trip-end-validation-observability.service';
 import { TripLifecycleRecoveryService } from './trips/trip-lifecycle-recovery.service';
 import { TripBehaviorEnrichmentService } from './trips/trip-behavior-enrichment.service';
 import { TripEnrichmentOrchestratorService } from './trips/trip-enrichment-orchestrator.service';
@@ -430,6 +431,7 @@ import { DiV0M7aRoadAssignmentShadowModule } from './driving-intelligence/m7a-ro
     DrivingEventsService,
     TripsService,
     TripDetectionOrchestrationService,
+    TripEndValidationObservabilityService,
     TripLifecycleRecoveryService,
     TripBehaviorEnrichmentService,
     TripEnrichmentOrchestratorService,
@@ -696,6 +698,7 @@ import { DiV0M7aRoadAssignmentShadowModule } from './driving-intelligence/m7a-ro
     DrivingEventsService,
     TripsService,
     TripDetectionOrchestrationService,
+    TripEndValidationObservabilityService,
     TripLifecycleRecoveryService,
     TripBehaviorEnrichmentService,
     TripEnrichmentOrchestratorService,

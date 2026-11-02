@@ -224,6 +224,13 @@ import {
   runShadowResumeObservation,
 } from './trip-fsm-shadow-observability.integration';
 import {
+  observeEndValidationCusumValidated,
+  observeEndValidationOutcome,
+  observeFinalizeCommitted,
+} from './trip-end-validation-observability.integration';
+import { TripEndValidationObservabilityService } from './trip-end-validation-observability.service';
+import { TRIP_END_VALIDATION_OBSERVATION_OUTCOMES } from './trip-end-validation-observability.types';
+import {
   observeEndBoundaryAdjustment,
   observeEndCandidateLatency,
   observeEndRecognitionLatency,
@@ -360,6 +367,8 @@ export class TripDetectionOrchestrationService {
     private readonly shutdownEvidenceTripContext?: ShutdownEvidenceTripContextService,
     @Optional() private readonly clickHouse?: ClickHouseService,
     @Optional() private readonly tripMetrics?: TripMetricsService,
+    @Optional()
+    private readonly endValidationObservability?: TripEndValidationObservabilityService,
     @Optional() private readonly redis?: RedisService,
     @Optional() private readonly dtc02Observability?: Dtc02ObservabilityService,
   ) {
@@ -415,6 +424,20 @@ export class TripDetectionOrchestrationService {
     return buildDimoProviderRequestContext(dimoTokenId, {
       vehicleId,
       organizationId: organizationId ?? undefined,
+    });
+  }
+
+  private recordEndValidationObservability(
+    input: Omit<
+      Parameters<typeof observeEndValidationOutcome>[0],
+      'logger' | 'service' | 'retryBudgetMax'
+    >,
+  ): void {
+    observeEndValidationOutcome({
+      logger: this.logger,
+      service: this.endValidationObservability,
+      retryBudgetMax: this.TRIP_END_VALIDATION_MAX_ATTEMPTS,
+      ...input,
     });
   }
 
@@ -3361,6 +3384,17 @@ export class TripDetectionOrchestrationService {
             },
             durationMs: Date.now() - startedMs,
           });
+          this.recordEndValidationObservability({
+            organizationId,
+            vehicleId,
+            det,
+            workerNow: now,
+            processPhase: 'POSSIBLE_END_CHECK',
+            outcome: TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.FSM_HARD_TIMEOUT_FALLBACK,
+            transitionToState: TripDetectionState.RESTING,
+            endDetectionMode: det.endDetectionMode ?? END_DETECTION_MODES.NO_ACTIVITY_TIMEOUT,
+            decisionReason: 'hard_timeout_fallback',
+          });
           return;
         }
 
@@ -3401,6 +3435,17 @@ export class TripDetectionOrchestrationService {
             profile,
           },
           durationMs: Date.now() - startedMs,
+        });
+        this.recordEndValidationObservability({
+          organizationId,
+          vehicleId,
+          det,
+          workerNow: now,
+          processPhase: 'POSSIBLE_END_CHECK',
+          outcome: TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.FSM_HARD_TIMEOUT_FALLBACK,
+          transitionToState: TripDetectionState.RESTING,
+          endDetectionMode: det.endDetectionMode ?? END_DETECTION_MODES.NO_ACTIVITY_TIMEOUT,
+          decisionReason: 'hard_timeout_fallback',
         });
         return;
       }
@@ -3513,6 +3558,22 @@ export class TripDetectionOrchestrationService {
         },
         durationMs: Date.now() - startedMs,
       });
+      this.recordEndValidationObservability({
+        organizationId,
+        vehicleId,
+        det: {
+          ...det,
+          endDetectionMode: END_DETECTION_MODES.COMPOSITE_INACTIVITY,
+          endValidationAttempts: attempts,
+        },
+        workerNow: now,
+        processPhase: 'POSSIBLE_END_CHECK',
+        outcome: TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.COMPOSITE_MAX_ATTEMPT_FALLBACK,
+        transitionToState: TripDetectionState.RESTING,
+        endDetectionMode: END_DETECTION_MODES.COMPOSITE_INACTIVITY,
+        decisionReason: 'max_completed_cusum_attempts_fallback',
+        retryCount: attempts,
+      });
     } catch (err) {
       this.logger.warn(`POSSIBLE_END_CHECK error for ${vehicleId}: ${err}`);
       await this.schedulePossibleEndCheck(vehicleId, organizationId, dimoTokenId).catch(() => {});
@@ -3610,6 +3671,20 @@ export class TripDetectionOrchestrationService {
             },
             durationMs: Date.now() - startedMs,
           });
+          this.recordEndValidationObservability({
+            organizationId,
+            vehicleId,
+            det,
+            workerNow: now,
+            processPhase: 'END_VALIDATION',
+            outcome:
+              TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.CLICKHOUSE_END_ASSIST_RESUME_INVALIDATED,
+            transitionToState: TripDetectionState.ACTIVE_TRIP,
+            endDetectionMode: END_DETECTION_MODES.CLICKHOUSE_END_ASSIST,
+            decisionReason: 'clickhouse_end_assist_skip_resume_invalidated',
+            canonicalEndBoundaryAt: validatedEndTime,
+            workerConfirmationAt: now,
+          });
           return;
         }
 
@@ -3649,6 +3724,17 @@ export class TripDetectionOrchestrationService {
                 chSkipRevalidation.immaturityBoundMs,
             },
             durationMs: Date.now() - startedMs,
+          });
+          this.recordEndValidationObservability({
+            organizationId,
+            vehicleId,
+            det,
+            workerNow: now,
+            processPhase: 'END_VALIDATION',
+            outcome: TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.CLICKHOUSE_END_ASSIST_DEFERRED,
+            decisionReason: String(chSkipRevalidation.outcome),
+            endDetectionMode: END_DETECTION_MODES.CLICKHOUSE_END_ASSIST,
+            canonicalEndBoundaryAt: validatedEndTime,
           });
           return;
         }
@@ -3698,6 +3784,17 @@ export class TripDetectionOrchestrationService {
           priorSummary =
             (det.lastEvidenceSummary as Record<string, unknown> | null) ?? {};
           priorSummaryForFailure = priorSummary;
+          this.recordEndValidationObservability({
+            organizationId,
+            vehicleId,
+            det,
+            workerNow: now,
+            processPhase: 'END_VALIDATION',
+            outcome:
+              TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.CLICKHOUSE_END_ASSIST_HANDOFF_CUSUM,
+            decisionReason: handoffReason,
+            canonicalEndBoundaryAt: validatedEndTime,
+          });
         } else {
         this.logTripEndTimeline('clickhouse_end_assist_confirmed', {
           vehicleId,
@@ -3729,6 +3826,23 @@ export class TripDetectionOrchestrationService {
             validatedEndTime: validatedEndTime.toISOString(),
           },
           durationMs: Date.now() - startedMs,
+        });
+        this.recordEndValidationObservability({
+          organizationId,
+          vehicleId,
+          det: {
+            ...det,
+            cusumValidatedAt: now,
+            endDetectionMode: END_DETECTION_MODES.CLICKHOUSE_END_ASSIST,
+          },
+          workerNow: now,
+          processPhase: 'END_VALIDATION',
+          outcome: TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.CLICKHOUSE_END_ASSIST_CONFIRMED,
+          transitionToState: TripDetectionState.RESTING,
+          endDetectionMode: END_DETECTION_MODES.CLICKHOUSE_END_ASSIST,
+          decisionReason: 'clickhouse_end_assist_skip_cusum',
+          canonicalEndBoundaryAt: validatedEndTime,
+          workerConfirmationAt: now,
         });
         return;
         }
@@ -3813,6 +3927,17 @@ export class TripDetectionOrchestrationService {
           },
           durationMs: Date.now() - startedMs,
         });
+        this.recordEndValidationObservability({
+          organizationId,
+          vehicleId,
+          det,
+          workerNow: now,
+          processPhase: 'END_VALIDATION',
+          outcome: TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.CUSUM_DETECTOR_FAILURE,
+          detectorOutcome: findingOutcome,
+          decisionReason: failureReason,
+          coreWindowPointCount: corePoints.length,
+        });
         return;
       }
 
@@ -3870,10 +3995,21 @@ export class TripDetectionOrchestrationService {
           },
           durationMs: Date.now() - startedMs,
         });
+        this.recordEndValidationObservability({
+          organizationId,
+          vehicleId,
+          det,
+          workerNow: now,
+          processPhase: 'END_VALIDATION',
+          outcome: TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.CUSUM_STILL_ONGOING_REOPEN,
+          transitionToState: TripDetectionState.ACTIVE_TRIP,
+          decisionReason: endDecision.reason,
+          cusumReason: endDecision.reason,
+          retryCount: completedAttempt,
+          coreWindowPointCount: corePoints.length,
+        });
         return;
       }
-
-      // ── Clear change-point detected → finalize ──
       if (endDecision.shouldEnd && endDecision.detectedEndAt) {
         const validatedEndTime = endDecision.detectedEndAt;
         const lastMovementStr = endFinding?.evidence?.cusumLastMovementAt as
@@ -3940,10 +4076,23 @@ export class TripDetectionOrchestrationService {
           },
           durationMs: Date.now() - startedMs,
         });
+        observeEndValidationCusumValidated({
+          logger: this.logger,
+          service: this.endValidationObservability,
+          organizationId,
+          vehicleId,
+          det,
+          workerNow: now,
+          validatedEndTime,
+          completedAttempt,
+          retryBudgetMax: this.TRIP_END_VALIDATION_MAX_ATTEMPTS,
+          decisionReason: endDecision.reason,
+          cusumReason: endDecision.reason,
+          coreWindowPointCount: corePoints.length,
+          workerConfirmationAt: now,
+        });
         return;
       }
-
-      // ── Inconclusive: persist completed attempt and reschedule PEC ──
       this.logger.debug(
         `CUSUM inconclusive for ${vehicleId}: ${endDecision.reason} — rescheduling (completedAttempt=${completedAttempt})`,
       );
@@ -3975,6 +4124,18 @@ export class TripDetectionOrchestrationService {
         },
         durationMs: Date.now() - startedMs,
       });
+      this.recordEndValidationObservability({
+        organizationId,
+        vehicleId,
+        det: { ...det, endValidationAttempts: completedAttempt },
+        workerNow: now,
+        processPhase: 'END_VALIDATION',
+        outcome: TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.CUSUM_INCONCLUSIVE_RETRY,
+        decisionReason: endDecision.reason,
+        cusumReason: endDecision.reason,
+        retryCount: completedAttempt,
+        coreWindowPointCount: corePoints.length,
+      });
     } catch (err) {
       this.logger.warn(`END_VALIDATION error for ${vehicleId}: ${err}`);
       const failureMsg = err instanceof Error ? err.message : String(err);
@@ -3990,6 +4151,17 @@ export class TripDetectionOrchestrationService {
       await this.schedulePossibleEndCheck(vehicleId, organizationId, dimoTokenId,
         this.TRIP_END_VALIDATION_RETRY_MS,
       ).catch(() => {});
+      if (det) {
+        this.recordEndValidationObservability({
+          organizationId,
+          vehicleId,
+          det,
+          workerNow: new Date(),
+          processPhase: 'END_VALIDATION',
+          outcome: TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.CUSUM_FETCH_FAILURE,
+          decisionReason: failureMsg,
+        });
+      }
     } finally {
       await this.releaseWorkerLock(vehicleId, lock.runToken);
       // Must run inside finally: schedule after lock release so concurrent BullMQ
@@ -4323,6 +4495,18 @@ export class TripDetectionOrchestrationService {
               });
               return;
             }
+
+            observeFinalizeCommitted({
+              logger: this.logger,
+              service: this.endValidationObservability,
+              organizationId,
+              vehicleId,
+              det,
+              workerNow: endRecognizedAt,
+              canonicalEndAt: endTime,
+              endRecognizedAt,
+              retryBudgetMax: this.TRIP_END_VALIDATION_MAX_ATTEMPTS,
+            });
 
             await this.decisionEngine.finalizeTrip(tripId, {
               endTime,

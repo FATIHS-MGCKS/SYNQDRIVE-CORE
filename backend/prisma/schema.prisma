@@ -3131,6 +3131,7 @@ model Vehicle {
   erdRechargeProjectionShadowObservations         ErdRechargeProjectionShadowObservation[]
   tripDetectionState                     VehicleTripDetectionState?
   tripTrackingRuns                       VehicleTripTrackingRun[]
+  tripEndValidationDecisionObservations  TripEndValidationDecisionObservation[]
   tripBehaviorEvents                     TripBehaviorEvent[]
   misuseCases                            MisuseCase[]
   tripRepairs                            TripRepair[]
@@ -16562,6 +16563,50 @@ model VehicleTripTrackingRun {
   @@index([runType])
   @@index([createdAt])
   @@map("vehicle_trip_tracking_runs")
+}
+
+/// PR0 — append-only, bounded end-validation decision provenance (flag-off by default).
+/// Idempotent via idempotency_key; no authoritative FSM consumption.
+model TripEndValidationDecisionObservation {
+  id                     String    @id @default(uuid())
+  schemaVersion          Int       @default(1) @map("schema_version")
+  idempotencyKey         String    @unique @map("idempotency_key") @db.VarChar(512)
+  organizationId         String?   @map("organization_id")
+  vehicleId              String    @map("vehicle_id")
+  tripId                 String?   @map("trip_id")
+  endCycleToken          String?   @map("end_cycle_token") @db.VarChar(64)
+  fsmStateAtDecision     String    @map("fsm_state_at_decision") @db.VarChar(64)
+  transitionToState      String?   @map("transition_to_state") @db.VarChar(64)
+  processPhase           String    @map("process_phase") @db.VarChar(64)
+  decisionOutcome        String    @map("decision_outcome") @db.VarChar(128)
+  endDetectionMode       String?   @map("end_detection_mode") @db.VarChar(64)
+  endConfirmationSource  String?   @map("end_confirmation_source") @db.VarChar(64)
+  decisionReason         String?   @map("decision_reason") @db.VarChar(512)
+  detectorOutcome        String?   @map("detector_outcome") @db.VarChar(128)
+  cusumReason            String?   @map("cusum_reason") @db.VarChar(256)
+  retryCount             Int?      @map("retry_count")
+  retryBudgetMax         Int?      @map("retry_budget_max")
+  evidenceRevision       String?   @map("evidence_revision") @db.VarChar(64)
+  inputFingerprint       String?   @map("input_fingerprint") @db.VarChar(128)
+  qualifiedStopBoundaryAt DateTime? @map("qualified_stop_boundary_at") @db.Timestamptz(6)
+  canonicalEndBoundaryAt DateTime? @map("canonical_end_boundary_at") @db.Timestamptz(6)
+  eventTimeAt            DateTime? @map("event_time_at") @db.Timestamptz(6)
+  evidenceAvailableAt    DateTime? @map("evidence_available_at") @db.Timestamptz(6)
+  workerDecisionAt       DateTime  @map("worker_decision_at") @db.Timestamptz(6)
+  workerConfirmationAt   DateTime? @map("worker_confirmation_at") @db.Timestamptz(6)
+  persistedAt            DateTime  @default(now()) @map("persisted_at") @db.Timestamptz(6)
+  coreWindowPointCount   Int?      @map("core_window_point_count")
+  providerSource         String?   @map("provider_source") @db.VarChar(64)
+  dataQualityFlags       Json?     @map("data_quality_flags")
+  missingEvidenceFlags   Json?     @map("missing_evidence_flags")
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, vehicleId, persistedAt])
+  @@index([vehicleId, tripId])
+  @@index([persistedAt])
+  @@index([decisionOutcome, persistedAt])
+  @@map("trip_end_validation_decision_observations")
 }
 
 // ── Trip Repair / Reconciliation Audit Trail ──────────────────────────────────

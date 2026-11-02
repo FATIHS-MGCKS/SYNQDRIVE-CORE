@@ -120,6 +120,17 @@ export default registerAs('worker', () => ({
     .map((id) => id.trim())
     .filter(Boolean),
 
+  tripEndValidationObservabilityEnabled: parseBoolEnv(
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED,
+    false,
+  ),
+  tripEndValidationObservabilityVehicleIds: (
+    process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS ?? ''
+  )
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean),
+
   // ── Repair suppression: containment-aware coverage rollout ──
   // legacy  — binary overlap decides, exactly as before.
   // shadow  — binary overlap still decides; the coverage verdict is computed
