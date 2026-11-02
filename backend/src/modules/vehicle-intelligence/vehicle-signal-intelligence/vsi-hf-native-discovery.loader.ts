@@ -258,7 +258,7 @@ export async function buildHfNativeDiscoveryInventoryUpdate(
   const aggregates = new Map<string, SignalAggregate>();
   let hadAttributableTrips = false;
   let chUnavailable = false;
-  let signalsDiscovered = 0;
+  let hadTripQueryFailure = false;
 
   for (const trip of tripWindows) {
     const attribution = evaluateTripWindowSourceLinkAttributionV1({
@@ -292,6 +292,7 @@ export async function buildHfNativeDiscoveryInventoryUpdate(
       continue;
     }
     if (read.status === 'QUERY_FAILED') {
+      hadTripQueryFailure = true;
       for (const row of read.signals) {
         const agg =
           aggregates.get(row.signalName) ??
@@ -313,11 +314,13 @@ export async function buildHfNativeDiscoveryInventoryUpdate(
     }
 
     for (const row of read.signals) {
-      if (signalsDiscovered >= VSI_DISCOVERY_CH_MAX_INVENTORY_SIGNALS) {
+      if (
+        !aggregates.has(row.signalName) &&
+        aggregates.size >= VSI_DISCOVERY_CH_MAX_INVENTORY_SIGNALS
+      ) {
         profileLimitations.push(VsiNativeDiscoveryIngestionLimitation.HF_MIRROR_SIGNAL_SET_BOUNDED);
         break;
       }
-      signalsDiscovered += 1;
       const prev =
         aggregates.get(row.signalName) ??
         ({
@@ -358,6 +361,10 @@ export async function buildHfNativeDiscoveryInventoryUpdate(
       }
       aggregates.set(row.signalName, prev);
     }
+  }
+
+  if (hadTripQueryFailure) {
+    profileLimitations.push('HF_DISCOVERY_TRIP_QUERY_FAILED');
   }
 
   const snapshotPlaceholder = buildHistoricalNotEvaluatedP1bPlaceholderSnapshotAxis();
