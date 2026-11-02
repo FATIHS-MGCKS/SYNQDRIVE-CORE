@@ -5,6 +5,25 @@ import {
   TRIP_END_VALIDATION_OBSERVATION_OUTCOMES,
 } from './trip-end-validation-observability.types';
 
+import {
+  TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT_ENV,
+  TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK_ENV,
+} from './trip-end-validation-observability.config';
+
+function enableObservabilityForVehicle(vehicleId: string): void {
+  process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
+  process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = vehicleId;
+  process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK_ENV] = 'true';
+  process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT_ENV] = 'true';
+}
+
+function disableObservabilityEnv(): void {
+  delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
+  delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
+  delete process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK_ENV];
+  delete process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT_ENV];
+}
+
 describe('trip-end-validation-observability safety (fire-and-forget)', () => {
   const vehicleId = 'veh-parity-1';
   const baseInput = {
@@ -28,8 +47,7 @@ describe('trip-end-validation-observability safety (fire-and-forget)', () => {
   it('does not invoke record when vehicle is not allowlisted (enabled gate)', async () => {
     const prev = process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
     const prevIds = process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
-    process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
-    process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = 'other-vehicle';
+    enableObservabilityForVehicle('other-vehicle');
 
     const create = jest.fn();
     const service = new TripEndValidationObservabilityService({ tripEndValidationDecisionObservation: { create } } as any);
@@ -40,13 +58,14 @@ describe('trip-end-validation-observability safety (fire-and-forget)', () => {
 
     process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = prev;
     process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = prevIds;
+    delete process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK_ENV];
+    delete process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT_ENV];
   });
 
   it('absorbs writer failures without unhandledRejection', async () => {
     const prev = process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
     const prevIds = process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
-    process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
-    process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = vehicleId;
+    enableObservabilityForVehicle(vehicleId);
 
     const unhandled: unknown[] = [];
     const onRejection = (reason: unknown) => unhandled.push(reason);
@@ -67,6 +86,8 @@ describe('trip-end-validation-observability safety (fire-and-forget)', () => {
     process.off('unhandledRejection', onRejection);
     process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = prev;
     process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = prevIds;
+    delete process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK_ENV];
+    delete process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT_ENV];
 
     expect(unhandled).toHaveLength(0);
     expect(logger.warn).toHaveBeenCalled();
@@ -76,8 +97,7 @@ describe('trip-end-validation-observability safety (fire-and-forget)', () => {
   });
 
   it('does not await record (scheduler ordering unchanged vs sync FSM body)', () => {
-    process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
-    process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = vehicleId;
+    enableObservabilityForVehicle(vehicleId);
 
     let resolveRecord!: (v: 'inserted') => void;
     const recordPromise = new Promise<'inserted'>((r) => {
@@ -95,8 +115,7 @@ describe('trip-end-validation-observability safety (fire-and-forget)', () => {
     expect(elapsed).toBeLessThan(20);
     resolveRecord('inserted');
 
-    delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
-    delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
+    disableObservabilityEnv();
   });
 });
 
@@ -120,6 +139,8 @@ describe('trip-end-validation-observability migration compatibility (writer)', (
 
     process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
     process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = 'veh-mig-1';
+    process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK_ENV] = 'true';
+    process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT_ENV] = 'true';
 
     const svc = new TripEndValidationObservabilityService(prisma as any);
     const result = await svc.record({
@@ -135,7 +156,6 @@ describe('trip-end-validation-observability migration compatibility (writer)', (
     });
     expect(result).toBe('duplicate');
 
-    delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
-    delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
+    disableObservabilityEnv();
   });
 });

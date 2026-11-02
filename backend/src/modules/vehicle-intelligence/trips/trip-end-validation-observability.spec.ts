@@ -25,11 +25,19 @@ describe('trip-end-validation-observability config', () => {
     ).toBe(false);
   });
 
-  it('enables only allowlisted vehicles', () => {
+  it('enables only allowlisted vehicles with activation attestation', () => {
     expect(
       isTripEndValidationObservabilityEnabledForVehicle(VEHICLE, {
         TRIP_END_VALIDATION_OBSERVABILITY_ENABLED: 'true',
         TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS: VEHICLE,
+      }),
+    ).toBe(false);
+    expect(
+      isTripEndValidationObservabilityEnabledForVehicle(VEHICLE, {
+        TRIP_END_VALIDATION_OBSERVABILITY_ENABLED: 'true',
+        TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS: VEHICLE,
+        TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK: 'true',
+        TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT: 'true',
       }),
     ).toBe(true);
   });

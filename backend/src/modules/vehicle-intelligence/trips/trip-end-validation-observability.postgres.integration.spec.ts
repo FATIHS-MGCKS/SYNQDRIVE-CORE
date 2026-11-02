@@ -85,11 +85,15 @@ async function createMinimalVehicleFixture(prisma: PrismaClient) {
       process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = '';
       fixture = await createMinimalVehicleFixture(prisma);
       process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = fixture.vehicle.id;
+      process.env.TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK = 'true';
+      process.env.TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT = 'true';
     });
 
     afterEach(async () => {
       delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
       delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
+      delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK;
+      delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT;
       if (!dbOk || !fixture) return;
       await prisma.tripEndValidationDecisionObservation.deleteMany({
         where: { vehicleId: fixture.vehicle.id },

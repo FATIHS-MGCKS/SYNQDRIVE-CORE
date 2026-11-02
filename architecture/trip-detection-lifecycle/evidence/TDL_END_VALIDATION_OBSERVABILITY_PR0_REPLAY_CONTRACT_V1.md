@@ -86,9 +86,33 @@ Low-cardinality counters/histograms registered on `TripMetricsService`:
 - `synqdrive_trip_end_validation_observability_write_failures_total`
 - `synqdrive_trip_end_validation_decision_latency_seconds`
 
+## Crash window and durability (PR0)
+
+- Observability writes are **best-effort** and **not lossless**.
+- Evidence may be **lost in the window between FSM commit and the asynchronous Postgres insert** (process crash, worker restart, or DB outage after the decision path returns).
+- PR0 does **not** implement transactional outbox, synchronous dual-write, or replay-from-observations authority.
+- **As-of replay** is contract-defined only; historical reconstruction from persisted inputs alone remains **NOT reproducible** in PR0 (`AS_OF_REPLAY_REPRODUCIBLE=NO`).
+
+## Activation prerequisites (fail-closed)
+
+Production or fleet-wide activation must set **all** of:
+
+| Variable | Requirement |
+|----------|-------------|
+| `TRIP_END_VALIDATION_OBSERVABILITY_ENABLED` | `true` |
+| `TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS` | non-empty allowlist |
+| `TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK` | `true` — owner attests migration applied |
+| `TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT` | `true` — owner accepts best-effort / crash-window loss |
+
+Missing any gate ⇒ **no writes** (same as flag OFF for FSM decisions).
+
 ## Feature flag
 
 - `TRIP_END_VALIDATION_OBSERVABILITY_ENABLED` (default **false**)
 - `TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS` (comma allowlist; empty allowlist ⇒ **no writes**)
+- `TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK` (default **false**)
+- `TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT` (default **false**)
 
 Writer failures must not affect trip FSM (errors swallowed after metric increment).
+
+**Follow-up PR (not PR0):** enforced 90-day purge job and/or transactional outbox if fleet-scale retention guarantees are required.
