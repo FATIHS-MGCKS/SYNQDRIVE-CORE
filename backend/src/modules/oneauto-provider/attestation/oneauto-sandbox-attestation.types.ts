@@ -1,5 +1,6 @@
 import type { ONEAUTO_ATTESTATION_SKU } from './oneauto-sandbox-attestation.constants';
 import type { OneAutoAttestationResponseFingerprint } from './oneauto-sandbox-attestation-response-fingerprint.types';
+import type { OneAutoAttestationResultCaptureEvidenceMeta } from './oneauto-sandbox-attestation-result-capture.types';
 
 export type OneAutoAttestationEnvironment = 'OFFLINE' | 'PRODUCTION';
 
@@ -54,6 +55,8 @@ export type OneAutoSandboxAttestationEvidence = {
   providerContractStatus: 'DOCUMENTED';
   vinSha256Prefix: string | null;
   responseFingerprint: OneAutoAttestationResponseFingerprint;
+  /** Separate from shareable fingerprint evidence — no raw capture payload. */
+  resultCapture?: OneAutoAttestationResultCaptureEvidenceMeta;
   evidenceSha256: string;
   notes: string[];
 };
