@@ -37,4 +37,5 @@
 - **Scope:** Attestation evidence schema v2 adds `responseFingerprint` — allowlisted async metadata (job id SHA prefix, redacted Location host/path, Retry-After seconds, JSON key names, provider error codes) without raw bodies or credentials.
 - **Fixtures:** Additional offline HTTP 202/206/malformed/sensitive-field scenarios in `oneauto-sandbox-attestation-fixtures.ts`.
 - **Tests:** `oneauto-sandbox-attestation-response-fingerprint.util.spec.ts`, `oneauto-p25e-e2-async-evidence-hardening.spec.ts`.
+- **Evidence:** `architecture/oneauto-provider/evidence/P25E_E2_PROVIDER_DASHBOARD_ASYNC_SEQUENCE.md` — portal 202 then ~22s portal 200 (`is_sqs_call=Y`) is **not** modeled as a second SynqDrive HTTP response in one attestation run.
 - **Non-effects:** Still exactly one outbound GET in live attestation; no polling/callback activation; `ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS` unchanged.

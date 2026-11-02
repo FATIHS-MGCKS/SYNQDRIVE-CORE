@@ -1,5 +1,8 @@
 import { runOfflineSandboxAttestationFixture } from './oneauto-sandbox-attestation.runner';
 import { ONEAUTO_SANDBOX_ATTESTATION_FIXTURES } from './oneauto-sandbox-attestation-fixtures';
+import { getDocumentedOneAutoContract } from '../catalog/oneauto-documented-contracts';
+import { buildOneAutoDocumentedGetUrl } from '../catalog/oneauto-documented-request.util';
+import { ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS } from '../catalog/oneauto-verified-contracts';
 
 describe('OneAuto P25E-E2 async evidence hardening (offline fixtures)', () => {
   it('http-202-with-job-id captures fingerprint metadata only', async () => {
@@ -48,7 +51,58 @@ describe('OneAuto P25E-E2 async evidence hardening (offline fixtures)', () => {
     expect(evidence.responseFingerprint.nonJsonBody).toBe(true);
   });
 
+  describe('provider dashboard async sequence (not SynqDrive second response)', () => {
+    it('E1 parity fixture models only the single 202 GET SynqDrive performed', async () => {
+      const e1 = await runOfflineSandboxAttestationFixture('http-202-production-e1-parity');
+      expect(e1.httpStatus).toBe(202);
+      expect(e1.diagnosticCategory).toBe('HTTP_202_ASYNC');
+      expect(e1.attestationQualified).toBe(false);
+      expect(e1.attemptedOutboundRequests).toBe(1);
+      expect(e1.responseFingerprint.asyncState).toBe('ASYNC_ACCEPTED');
+      expect((e1.responseByteLength ?? 0) >= 200).toBe(true);
+    });
+
+    it('does not treat a separate sync-200 fixture as the provider portal audit row', async () => {
+      const portalFollowUpNotSeenBySynqDrive = await runOfflineSandboxAttestationFixture(
+        'http-200-success-true',
+      );
+      expect(portalFollowUpNotSeenBySynqDrive.httpStatus).toBe(200);
+      expect(portalFollowUpNotSeenBySynqDrive.responseFingerprint.asyncState).toBe('SYNC_RESPONSE');
+      expect(portalFollowUpNotSeenBySynqDrive.notes.some((n) => n.includes('portal'))).toBe(false);
+      expect(JSON.stringify(portalFollowUpNotSeenBySynqDrive)).not.toMatch(/is_sqs_call/);
+    });
+
+    it('each offline run remains capped at one mocked outbound GET', async () => {
+      const fixtures = ['http-202-production-e1-parity', 'http-200-success-true'] as const;
+      for (const id of fixtures) {
+        const evidence = await runOfflineSandboxAttestationFixture(id);
+        expect(evidence.attemptedOutboundRequests).toBeLessThanOrEqual(1);
+      }
+    });
+  });
+
   it('keeps fixture catalog size aligned', () => {
-    expect(ONEAUTO_SANDBOX_ATTESTATION_FIXTURES.length).toBeGreaterThanOrEqual(21);
+    expect(ONEAUTO_SANDBOX_ATTESTATION_FIXTURES.length).toBeGreaterThanOrEqual(22);
+  });
+
+  describe('documented callback vs attestation transport (offline audit)', () => {
+    it('records optional callback query params in DOCUMENTED contract only', () => {
+      const doc = getDocumentedOneAutoContract('OE_VIN_LOOKUP_EU')!;
+      expect(doc.callbackSupported).toBe(true);
+      expect(doc.optionalQueryParameters.map((p) => p.name)).toEqual([
+        'callback_url',
+        'return_data_in_callback',
+      ]);
+      const url = buildOneAutoDocumentedGetUrl(
+        'https://api.oneautoapi.com',
+        doc,
+        'WBA12345678901234',
+      );
+      expect(url).not.toMatch(/callback/i);
+    });
+
+    it('does not activate production execution registry or callbacks in attestation path', () => {
+      expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.size).toBe(0);
+    });
   });
 });

@@ -43,6 +43,22 @@ export const ONEAUTO_SANDBOX_ATTESTATION_FIXTURES: readonly OneAutoSandboxAttest
     expectCategory: 'HTTP_202_ASYNC',
   },
   {
+    id: 'http-202-production-e1-parity',
+    description:
+      'HTTP 202 ~308B — offline parity with production E1 attestation only (portal 200+is_sqs_call row is provider-internal, not a second SynqDrive GET)',
+    mock: {
+      kind: 'response',
+      status: 202,
+      bodyText: JSON.stringify({
+        success: true,
+        message: 'Async processing started',
+        padding: 'x'.repeat(240),
+      }),
+    },
+    expectQualified: false,
+    expectCategory: 'HTTP_202_ASYNC',
+  },
+  {
     id: 'http-202-with-job-id',
     description: 'HTTP 202 with async job id in body',
     mock: {
