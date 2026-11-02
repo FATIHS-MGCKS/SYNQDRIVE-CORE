@@ -18,6 +18,12 @@ export function classifySandboxAttestationOutcome(
   if (outcome.transportErrorCode === 'ONEAUTO_ATTESTATION_REQUEST_BUDGET_EXCEEDED') {
     return 'REQUEST_BUDGET_EXCEEDED';
   }
+  if (outcome.transportErrorCode === 'ONEAUTO_ATTESTATION_SANDBOX_HOST_FORBIDDEN') {
+    return 'SANDBOX_HOST_REJECTED';
+  }
+  if (outcome.transportErrorCode === 'ONEAUTO_ATTESTATION_CUSTOM_HOST_FORBIDDEN') {
+    return 'CUSTOM_HOST_REJECTED';
+  }
   if (outcome.transportErrorCode === 'ONEAUTO_UNEXPECTED_REDIRECT') return 'REDIRECT';
   if (outcome.transportErrorCode === 'ONEAUTO_RESPONSE_TOO_LARGE') return 'RESPONSE_TOO_LARGE';
   if (outcome.transportErrorCode === 'ONEAUTO_PROVIDER_TIMEOUT') return 'TIMEOUT';

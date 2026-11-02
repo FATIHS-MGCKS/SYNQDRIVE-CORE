@@ -1,42 +1,41 @@
 #!/usr/bin/env npx ts-node
 /**
- * Isolated One Auto sandbox attestation CLI (P2.5E-C).
+ * Isolated One Auto attestation CLI (P2.5E-C / C3).
  * Default: offline mocked fixtures — no network, no API key.
+ * Production one-shot: requires --live-production plus explicit env authorizations.
  */
 import {
   formatAttestationEvidenceMarkdown,
   runAllOfflineSandboxAttestationFixtures,
-  runLiveSandboxAttestation,
+  runLiveProductionAttestation,
   runOfflineSandboxAttestationFixture,
-  resolveLiveAttestationEnv,
+  resolveProductionAttestationAuthorization,
 } from '../../src/modules/oneauto-provider/attestation/oneauto-sandbox-attestation.runner';
 import type { OneAutoSandboxAttestationEvidence } from '../../src/modules/oneauto-provider/attestation/oneauto-sandbox-attestation.types';
 
 function parseArgs(argv: string[]): {
-  mode: 'offline' | 'live-sandbox';
+  liveProduction: boolean;
   fixtureId: string | null;
   allFixtures: boolean;
   json: boolean;
 } {
-  let mode: 'offline' | 'live-sandbox' = 'offline';
+  let liveProduction = false;
   let fixtureId: string | null = null;
   let allFixtures = false;
   let json = false;
   for (let i = 2; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--mode' && argv[i + 1]) {
-      mode = argv[++i] as 'offline' | 'live-sandbox';
-    } else if (arg === '--fixture' && argv[i + 1]) {
+    if (arg === '--fixture' && argv[i + 1]) {
       fixtureId = argv[++i];
     } else if (arg === '--all-fixtures') {
       allFixtures = true;
     } else if (arg === '--json') {
       json = true;
-    } else if (arg === '--live-sandbox') {
-      mode = 'live-sandbox';
+    } else if (arg === '--live-production') {
+      liveProduction = true;
     }
   }
-  return { mode, fixtureId, allFixtures, json };
+  return { liveProduction, fixtureId, allFixtures, json };
 }
 
 function emit(evidence: OneAutoSandboxAttestationEvidence | OneAutoSandboxAttestationEvidence[], json: boolean): void {
@@ -53,20 +52,15 @@ function emit(evidence: OneAutoSandboxAttestationEvidence | OneAutoSandboxAttest
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
-  if (args.mode === 'live-sandbox') {
-    const env = resolveLiveAttestationEnv();
-    const evidence = await runLiveSandboxAttestation({
-      vin: process.env.ONEAUTO_SANDBOX_ATTESTATION_VIN?.trim() ?? '',
-      apiKey: env.apiKey ?? '',
-      ownerAuthorizedEnv: env.ownerAuthorizedEnv,
-    });
+  if (args.liveProduction) {
+    const authorization = resolveProductionAttestationAuthorization(true);
+    const evidence = await runLiveProductionAttestation({ authorization });
     emit(evidence, args.json);
     process.exit(evidence.attestationQualified ? 0 : 2);
   }
 
   if (args.allFixtures) {
-    const all = await runAllOfflineSandboxAttestationFixtures();
-    emit(all, args.json);
+    emit(await runAllOfflineSandboxAttestationFixtures(), args.json);
     process.exit(0);
   }
 

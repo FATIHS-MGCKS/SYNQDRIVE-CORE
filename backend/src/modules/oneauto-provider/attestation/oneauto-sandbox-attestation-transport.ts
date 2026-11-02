@@ -7,10 +7,9 @@ import {
 } from '../client/oneauto-http-response-body.util';
 import { isValidVin, normalizeVin } from '../client/oneauto-vin.util';
 import {
-  ONEAUTO_SANDBOX_ATTESTATION_LIVE_MAX_RESPONSE_BYTES,
-  ONEAUTO_SANDBOX_ATTESTATION_LIVE_TIMEOUT_MS,
+  ONEAUTO_ATTESTATION_LIVE_MAX_RESPONSE_BYTES,
+  ONEAUTO_ATTESTATION_LIVE_TIMEOUT_MS,
 } from './oneauto-sandbox-attestation.constants';
-import { resolveSandboxAttestationBaseUrl } from './oneauto-sandbox-attestation-guards.util';
 import type { AttestationTransportOutcome } from './oneauto-sandbox-attestation-evaluate.util';
 import type { OneAutoSandboxAttestationRequestBudget } from './oneauto-sandbox-attestation-guards.util';
 
@@ -31,16 +30,16 @@ function utf8ByteLength(text: string): number {
   return new TextEncoder().encode(text).length;
 }
 
-export async function executeSandboxAttestationGet(input: {
+export async function executeAttestationGet(input: {
   contract: Pick<
     OneAutoDocumentedProviderContract,
     'providerPathTemplate' | 'vinQueryParameter' | 'authHeaderName'
   >;
   vin: string;
   apiKey: string;
+  baseUrl: string;
   fetchImpl: SandboxAttestationFetchImpl;
   requestBudget: OneAutoSandboxAttestationRequestBudget;
-  baseUrlOverride?: string;
   timeoutMs?: number;
   maxResponseBytes?: number;
 }): Promise<AttestationTransportOutcome> {
@@ -55,10 +54,9 @@ export async function executeSandboxAttestationGet(input: {
     };
   }
 
-  const baseUrl = resolveSandboxAttestationBaseUrl(input.baseUrlOverride);
-  const url = buildOneAutoDocumentedGetUrl(baseUrl, input.contract, normalized as string);
-  const timeoutMs = input.timeoutMs ?? ONEAUTO_SANDBOX_ATTESTATION_LIVE_TIMEOUT_MS;
-  const maxBytes = input.maxResponseBytes ?? ONEAUTO_SANDBOX_ATTESTATION_LIVE_MAX_RESPONSE_BYTES;
+  const url = buildOneAutoDocumentedGetUrl(input.baseUrl, input.contract, normalized as string);
+  const timeoutMs = input.timeoutMs ?? ONEAUTO_ATTESTATION_LIVE_TIMEOUT_MS;
+  const maxBytes = input.maxResponseBytes ?? ONEAUTO_ATTESTATION_LIVE_MAX_RESPONSE_BYTES;
 
   try {
     input.requestBudget.assertSingleRequestAllowed();
@@ -134,3 +132,6 @@ export async function executeSandboxAttestationGet(input: {
     };
   }
 }
+
+/** @deprecated use executeAttestationGet */
+export const executeSandboxAttestationGet = executeAttestationGet;

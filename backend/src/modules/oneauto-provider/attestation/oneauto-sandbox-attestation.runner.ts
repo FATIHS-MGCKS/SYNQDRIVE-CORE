@@ -1,28 +1,32 @@
 import { getDocumentedOneAutoContract } from '../catalog/oneauto-documented-contracts';
 import {
-  ONEAUTO_SANDBOX_ATTESTATION_API_KEY_ENV,
-  ONEAUTO_SANDBOX_ATTESTATION_OWNER_AUTH_ENV,
-  ONEAUTO_SANDBOX_ATTESTATION_SYNTHETIC_VIN,
+  ONEAUTO_ATTESTATION_SYNTHETIC_VIN,
 } from './oneauto-sandbox-attestation.constants';
 import {
-  assertLiveAttestationPreconditions,
   OneAutoSandboxAttestationRequestBudget,
+  readProductionAttestationAuthorizationFromEnv,
+  rejectCustomBaseUrlOverride,
+  resolveOfflineFixtureBaseUrl,
+  resolveProductionAttestationBaseUrl,
+  validateProductionAttestationAuthorization,
 } from './oneauto-sandbox-attestation-guards.util';
 import {
   buildSandboxAttestationEvidence,
   formatAttestationEvidenceMarkdown,
+  offlineEvidenceHostname,
+  productionEvidenceHostname,
 } from './oneauto-sandbox-attestation-evidence.util';
 import {
   getSandboxAttestationFixture,
   ONEAUTO_SANDBOX_ATTESTATION_FIXTURES,
 } from './oneauto-sandbox-attestation-fixtures';
 import type {
-  OneAutoSandboxAttestationDiagnosticCategory,
   OneAutoSandboxAttestationEvidence,
   OneAutoSandboxAttestationFixture,
+  ProductionAttestationAuthorization,
 } from './oneauto-sandbox-attestation.types';
 import {
-  executeSandboxAttestationGet,
+  executeAttestationGet,
   type SandboxAttestationFetchImpl,
 } from './oneauto-sandbox-attestation-transport';
 
@@ -44,7 +48,8 @@ function fixtureFetchImpl(fixture: OneAutoSandboxAttestationFixture): SandboxAtt
     return {
       status: fixture.mock.status,
       headers: {
-        get: (name: string) => fixture.mock.kind === 'response' ? fixture.mock.headers?.[name] ?? null : null,
+        get: (name: string) =>
+          fixture.mock.kind === 'response' ? fixture.mock.headers?.[name] ?? null : null,
       },
       text: async () => bodyText,
     } as unknown as Response;
@@ -55,51 +60,56 @@ export async function runOfflineSandboxAttestationFixture(
   fixtureId: string,
 ): Promise<OneAutoSandboxAttestationEvidence> {
   const fixture = getSandboxAttestationFixture(fixtureId);
+  const contract = documentedVinLookupContract();
   if (!fixture) {
-    const outcome = {
-      httpStatus: null,
-      body: null,
-      responseByteLength: null,
-      envelopeSuccess: null,
-      transportErrorCode: 'FIXTURE_UNKNOWN',
-    };
     return buildSandboxAttestationEvidence({
       mode: 'offline',
+      attestationEnvironment: 'OFFLINE',
+      targetHostname: offlineEvidenceHostname(),
       fixtureId,
-      contract: documentedVinLookupContract(),
-      outcome,
+      contract,
+      outcome: {
+        httpStatus: null,
+        body: null,
+        responseByteLength: null,
+        envelopeSuccess: null,
+        transportErrorCode: 'FIXTURE_UNKNOWN',
+      },
+      attemptedOutboundRequests: 0,
       categoryOverride: 'FIXTURE_UNKNOWN',
       notes: [`Unknown fixture id: ${fixtureId}`],
     });
   }
 
-  const contract = documentedVinLookupContract();
   const budget = new OneAutoSandboxAttestationRequestBudget();
   const vin =
-    fixture.mock.kind === 'invalid-vin' ? 'NOT-A-VIN' : ONEAUTO_SANDBOX_ATTESTATION_SYNTHETIC_VIN;
+    fixture.mock.kind === 'invalid-vin' ? 'NOT-A-VIN' : ONEAUTO_ATTESTATION_SYNTHETIC_VIN;
 
   if (fixture.mock.kind === 'invalid-vin') {
-    const outcome = {
-      httpStatus: null,
-      body: null,
-      responseByteLength: null,
-      envelopeSuccess: null,
-      transportErrorCode: 'ONEAUTO_INVALID_VIN',
-    };
     return buildSandboxAttestationEvidence({
       mode: 'offline',
+      attestationEnvironment: 'OFFLINE',
+      targetHostname: offlineEvidenceHostname(),
       fixtureId,
       contract,
-      outcome,
+      outcome: {
+        httpStatus: null,
+        body: null,
+        responseByteLength: null,
+        envelopeSuccess: null,
+        transportErrorCode: 'ONEAUTO_INVALID_VIN',
+      },
+      attemptedOutboundRequests: 0,
       vinForFingerprint: vin,
       notes: [fixture.description, 'No network I/O — invalid VIN gate'],
     });
   }
 
-  const outcome = await executeSandboxAttestationGet({
+  const outcome = await executeAttestationGet({
     contract,
     vin,
     apiKey: 'offline-fixture-no-key',
+    baseUrl: resolveOfflineFixtureBaseUrl(),
     fetchImpl: fixtureFetchImpl(fixture),
     requestBudget: budget,
     maxResponseBytes: fixture.id === 'oversized' ? 128 : 256 * 1024,
@@ -108,9 +118,12 @@ export async function runOfflineSandboxAttestationFixture(
 
   return buildSandboxAttestationEvidence({
     mode: 'offline',
+    attestationEnvironment: 'OFFLINE',
+    targetHostname: offlineEvidenceHostname(),
     fixtureId,
     contract,
     outcome,
+    attemptedOutboundRequests: budget.attemptedCount,
     vinForFingerprint: vin,
     notes: [fixture.description, 'Offline mocked transport — zero network calls'],
   });
@@ -124,77 +137,88 @@ export async function runAllOfflineSandboxAttestationFixtures(): Promise<OneAuto
   return results;
 }
 
-export async function runLiveSandboxAttestation(input: {
-  vin: string;
-  apiKey: string;
-  ownerAuthorizedEnv: string | undefined;
+function preflightEvidence(
+  failure: ReturnType<typeof validateProductionAttestationAuthorization>,
+  auth: ProductionAttestationAuthorization,
+  notes: string[],
+): OneAutoSandboxAttestationEvidence {
+  return buildSandboxAttestationEvidence({
+    mode: 'live-production',
+    attestationEnvironment: 'PRODUCTION',
+    targetHostname: productionEvidenceHostname(),
+    fixtureId: null,
+    contract: documentedVinLookupContract(),
+    outcome: {
+      httpStatus: null,
+      body: null,
+      responseByteLength: null,
+      envelopeSuccess: null,
+      transportErrorCode: failure?.code ?? 'ONEAUTO_ATTESTATION_BLOCKED',
+    },
+    attemptedOutboundRequests: 0,
+    vinForFingerprint: auth.vin,
+    categoryOverride: failure?.category ?? 'LIVE_PRODUCTION_CLI_REQUIRED',
+    notes,
+  });
+}
+
+export async function runLiveProductionAttestation(input: {
+  authorization: ProductionAttestationAuthorization;
   fetchImpl?: SandboxAttestationFetchImpl;
-  baseUrlOverride?: string;
 }): Promise<OneAutoSandboxAttestationEvidence> {
   try {
-    assertLiveAttestationPreconditions({
-      ownerAuthorizedEnv: input.ownerAuthorizedEnv,
-      apiKeyPresent: Boolean(input.apiKey?.trim()),
-    });
+    rejectCustomBaseUrlOverride(undefined);
   } catch (err: unknown) {
     const code =
       err && typeof err === 'object' && 'code' in err
         ? String((err as { code: unknown }).code)
-        : 'ONEAUTO_ATTESTATION_LIVE_BLOCKED';
-    const category: OneAutoSandboxAttestationDiagnosticCategory =
-      code === 'ONEAUTO_ATTESTATION_LIVE_CODE_DISABLED'
-        ? 'LIVE_ATTESTATION_CODE_DISABLED'
-        : code === 'ONEAUTO_ATTESTATION_LIVE_OWNER_AUTH_REQUIRED'
-          ? 'LIVE_OWNER_AUTHORIZATION_REQUIRED'
-          : code === 'ONEAUTO_ATTESTATION_MISSING_API_KEY'
-            ? 'MISSING_API_KEY'
-            : 'LIVE_ATTESTATION_CODE_DISABLED';
-    return buildSandboxAttestationEvidence({
-      mode: 'live-sandbox',
-      fixtureId: null,
-      contract: documentedVinLookupContract(),
-      outcome: {
-        httpStatus: null,
-        body: null,
-        responseByteLength: null,
-        envelopeSuccess: null,
-        transportErrorCode: code,
-      },
-      categoryOverride: category,
-      notes: ['Live sandbox attestation blocked by harness gates'],
-    });
+        : 'ONEAUTO_ATTESTATION_CUSTOM_HOST_FORBIDDEN';
+    return preflightEvidence(
+      { code, category: 'CUSTOM_HOST_REJECTED' },
+      input.authorization,
+      ['Custom base URL forbidden'],
+    );
+  }
+
+  const failure = validateProductionAttestationAuthorization(input.authorization);
+  if (failure) {
+    return preflightEvidence(failure, input.authorization, ['Production attestation preflight failed']);
   }
 
   const contract = documentedVinLookupContract();
   const budget = new OneAutoSandboxAttestationRequestBudget();
+  const baseUrl = resolveProductionAttestationBaseUrl();
   const fetchImpl = input.fetchImpl ?? fetch;
-  const outcome = await executeSandboxAttestationGet({
+  const outcome = await executeAttestationGet({
     contract,
-    vin: input.vin,
-    apiKey: input.apiKey.trim(),
+    vin: input.authorization.vin!.trim(),
+    apiKey: input.authorization.apiKey!.trim(),
+    baseUrl,
     fetchImpl,
     requestBudget: budget,
-    baseUrlOverride: input.baseUrlOverride,
   });
 
   return buildSandboxAttestationEvidence({
-    mode: 'live-sandbox',
+    mode: 'live-production',
+    attestationEnvironment: 'PRODUCTION',
+    targetHostname: productionEvidenceHostname(),
     fixtureId: null,
     contract,
     outcome,
-    vinForFingerprint: input.vin,
-    notes: ['Live sandbox attestation path — owner authorized when enabled in build'],
+    attemptedOutboundRequests: budget.attemptedCount,
+    vinForFingerprint: input.authorization.vin,
+    notes: [
+      'Live production attestation — exactly one GET to documented ezyvin/vinlookup/',
+      'Billing may apply regardless of outcome',
+    ],
   });
 }
 
-export function resolveLiveAttestationEnv(): {
-  ownerAuthorizedEnv: string | undefined;
-  apiKey: string | undefined;
-} {
-  return {
-    ownerAuthorizedEnv: process.env[ONEAUTO_SANDBOX_ATTESTATION_OWNER_AUTH_ENV],
-    apiKey: process.env[ONEAUTO_SANDBOX_ATTESTATION_API_KEY_ENV]?.trim(),
-  };
+export function resolveProductionAttestationAuthorization(
+  cliLiveProduction: boolean,
+): ProductionAttestationAuthorization {
+  const env = readProductionAttestationAuthorizationFromEnv();
+  return { cliLiveProduction, ...env };
 }
 
 export { formatAttestationEvidenceMarkdown };

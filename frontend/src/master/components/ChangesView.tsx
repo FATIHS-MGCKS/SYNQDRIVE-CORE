@@ -474,8 +474,8 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     title: 'One Auto API — P2.5E-C isolated sandbox attestation harness',
     summary: [
       'Dedicated sandbox-only attestation transport (DOCUMENTED contract) decoupled from EXECUTION_VERIFIED registry and ONEAUTO_ENABLED.',
-      'Offline CLI + fixtures simulate HTTP 200/202/206/3xx/4xx/5xx, timeout, network, oversize, invalid VIN — fail-closed except HTTP 200 success===true.',
-      'Live sandbox mode hard-disabled in build until separate owner-reviewed enablement; evidence template for manual redacted capture.',
+      'Offline CLI + fixtures simulate HTTP outcomes; production one-shot via --live-production with explicit env authorizations (api.oneautoapi.com only).',
+      'Evidence template + DE runbook for manual redacted capture; no automatic registry promotion.',
     ],
     reason: 'Prepare controlled first sandbox VIN lookup attestation without weakening production execution gates.',
     previousBehavior: 'No isolated owner-controlled attestation path; production execute required EXECUTION_VERIFIED promotion first.',

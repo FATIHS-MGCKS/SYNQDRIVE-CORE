@@ -1,12 +1,14 @@
 import { createHash } from 'node:crypto';
 import { normalizeVin } from '../client/oneauto-vin.util';
 import type {
+  OneAutoAttestationEnvironment,
   OneAutoSandboxAttestationEvidence,
   OneAutoSandboxAttestationMode,
 } from './oneauto-sandbox-attestation.types';
 import {
+  ONEAUTO_ATTESTATION_SKU,
+  ONEAUTO_PRODUCTION_ATTESTATION_HOST,
   ONEAUTO_SANDBOX_ATTESTATION_HOST,
-  ONEAUTO_SANDBOX_ATTESTATION_SKU,
 } from './oneauto-sandbox-attestation.constants';
 import type { AttestationTransportOutcome } from './oneauto-sandbox-attestation-evaluate.util';
 import {
@@ -27,9 +29,12 @@ export function vinSha256Prefix(vin: string | null | undefined): string | null {
 
 export function buildSandboxAttestationEvidence(input: {
   mode: OneAutoSandboxAttestationMode;
+  attestationEnvironment: OneAutoAttestationEnvironment;
+  targetHostname: string;
   fixtureId: string | null;
   contract: Pick<OneAutoDocumentedProviderContract, 'responseEnvelope'>;
   outcome: AttestationTransportOutcome;
+  attemptedOutboundRequests: number;
   vinForFingerprint?: string | null;
   notes?: string[];
   categoryOverride?: OneAutoSandboxAttestationEvidence['diagnosticCategory'];
@@ -40,16 +45,18 @@ export function buildSandboxAttestationEvidence(input: {
   const base: Omit<OneAutoSandboxAttestationEvidence, 'evidenceSha256'> = {
     schemaVersion: 'oneauto-sandbox-attestation-v1',
     recordedAtUtc: new Date().toISOString(),
-    targetSku: ONEAUTO_SANDBOX_ATTESTATION_SKU,
+    attestationEnvironment: input.attestationEnvironment,
+    targetSku: ONEAUTO_ATTESTATION_SKU,
     mode: input.mode,
     fixtureId: input.fixtureId,
-    sandboxHostname: ONEAUTO_SANDBOX_ATTESTATION_HOST,
+    targetHostname: input.targetHostname,
     httpMethod: 'GET',
     httpStatus: input.outcome.httpStatus,
     envelopeSuccess: input.outcome.envelopeSuccess,
     responseByteLength: input.outcome.responseByteLength,
     diagnosticCategory: category,
     attestationQualified: attestationQualified(category),
+    attemptedOutboundRequests: input.attemptedOutboundRequests,
     billingStatus: 'UNKNOWN',
     providerContractStatus: 'DOCUMENTED',
     vinSha256Prefix: vinSha256Prefix(input.vinForFingerprint),
@@ -59,24 +66,34 @@ export function buildSandboxAttestationEvidence(input: {
   return { ...base, evidenceSha256 };
 }
 
+export function offlineEvidenceHostname(): string {
+  return ONEAUTO_SANDBOX_ATTESTATION_HOST;
+}
+
+export function productionEvidenceHostname(): string {
+  return ONEAUTO_PRODUCTION_ATTESTATION_HOST;
+}
+
 export function formatAttestationEvidenceMarkdown(evidence: OneAutoSandboxAttestationEvidence): string {
   return [
-    '# One Auto sandbox attestation evidence (generated — do not auto-promote)',
+    '# One Auto attestation evidence (generated — do not auto-commit or auto-promote)',
     '',
     '| Field | Value |',
     '|-------|-------|',
     `| schemaVersion | ${evidence.schemaVersion} |`,
     `| recordedAtUtc | ${evidence.recordedAtUtc} |`,
+    `| attestationEnvironment | ${evidence.attestationEnvironment} |`,
     `| targetSku | ${evidence.targetSku} |`,
     `| mode | ${evidence.mode} |`,
     `| fixtureId | ${evidence.fixtureId ?? '—'} |`,
-    `| sandboxHostname | ${evidence.sandboxHostname} |`,
+    `| targetHostname | ${evidence.targetHostname} |`,
     `| httpMethod | ${evidence.httpMethod} |`,
     `| httpStatus | ${evidence.httpStatus ?? '—'} |`,
     `| envelopeSuccess | ${evidence.envelopeSuccess ?? '—'} |`,
     `| responseByteLength | ${evidence.responseByteLength ?? '—'} |`,
     `| diagnosticCategory | ${evidence.diagnosticCategory} |`,
     `| attestationQualified | ${evidence.attestationQualified} |`,
+    `| attemptedOutboundRequests | ${evidence.attemptedOutboundRequests} |`,
     `| billingStatus | ${evidence.billingStatus} |`,
     `| providerContractStatus | ${evidence.providerContractStatus} |`,
     `| vinSha256Prefix | ${evidence.vinSha256Prefix ?? '—'} |`,

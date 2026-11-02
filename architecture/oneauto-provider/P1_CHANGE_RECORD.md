@@ -27,6 +27,7 @@
 
 ## P2.5E-C — Isolated sandbox attestation harness (2026-11-01)
 
-- **Harness:** `attestation/*` + `scripts/ops/oneauto-p25e-c-sandbox-attestation.ts` — offline fixtures default; live sandbox code path hard-disabled (`ONEAUTO_SANDBOX_LIVE_ATTESTATION_CODE_ENABLED=false`).
+- **Harness:** `attestation/*` + `scripts/ops/oneauto-p25e-c-sandbox-attestation.ts` — offline fixtures default; live production one-shot via `--live-production` + explicit env authorizations (no compile-time disable).
 - **Evidence template:** `architecture/oneauto-provider/evidence/P25E_C_ATTESTATION_TEMPLATE.md` (manual fill — never auto-promote registry).
-- **Non-effects:** No BullMQ, no Prisma, no `ONEAUTO_ENABLED`, no EXECUTION_VERIFIED registry writes; no live provider calls in CI.
+- **Runbook (DE):** `architecture/oneauto-provider/evidence/P25E_C3_PRODUCTION_ONE_SHOT_RUNBOOK.de.md`
+- **Non-effects:** No BullMQ, no Prisma, no `ONEAUTO_ENABLED`, no EXECUTION_VERIFIED registry writes; CI uses mocked fetch only.
