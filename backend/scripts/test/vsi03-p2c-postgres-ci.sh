@@ -54,4 +54,7 @@ npx jest \
   vsi-apds-p5b2-phase2-manifest-replay.postgres.integration \
   vsi-apds-p5b1-evidence.writer.postgres.integration \
   vsi-p3a-per-link-catalog.postgres.integration \
-  vsi-p3a-per-link-catalog.concurrency.postgres.integration
+  vsi-p3a-per-link-catalog.concurrency.postgres.integration \
+  vsi-native-discovery-inventory.postgres.integration \
+  vsi-snapshot-native-discovery.postgres.integration \
+  vsi-hf-native-discovery.postgres.integration

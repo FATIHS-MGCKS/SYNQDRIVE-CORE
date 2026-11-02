@@ -146,6 +146,9 @@ export {
 } from './vsi-native-discovery-inventory-operational.persistence';
 
 export { isVsiDiscoverySnapshotInventoryEnabled } from './vsi-discovery-snapshot-inventory.config';
+export { isVsiDiscoveryHfInventoryEnabled } from './vsi-discovery-hf-inventory.config';
+export { buildHfNativeDiscoveryInventoryUpdate } from './vsi-hf-native-discovery.loader';
+export { mergeNativeDiscoveryInventoryEntryAxes } from './vsi-native-discovery-inventory-merge.util';
 export {
   buildSnapshotNativeDiscoveryInventory,
   listDimoNativeSignalKeysFromRawPayload,

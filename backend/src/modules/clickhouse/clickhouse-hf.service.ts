@@ -14,8 +14,11 @@ import type {
   HfTripRpmPointsReadResult,
   HfTripWindowsResult,
   HfWindowSummary,
+  HfVsiDiscoveryTripSignalAggregatesReadResult,
 } from './clickhouse-hf.types';
 import { parseHfRpmValueFloat } from './hf-rpm-value-parse.util';
+import { assertClickHouseDiscoverySqlContainsTenantPredicates } from '../vehicle-intelligence/vehicle-signal-intelligence/vsi-clickhouse-discovery-safety.contract';
+import { VSI_DISCOVERY_CH_MAX_EXECUTION_TIME_SEC } from '../vehicle-intelligence/vehicle-signal-intelligence/vsi-clickhouse-discovery-safety.contract';
 
 const HF_POINTS_TABLE = 'telemetry_hf_points';
 const HF_EVENTS_TABLE = 'telemetry_hf_events';
@@ -1052,6 +1055,133 @@ export class ClickHouseHfService {
       });
       this.logger.warn(`getRecentHfEvents failed: ${(err as Error).message}`);
       return { ...base, degradedReason: (err as Error).message };
+    }
+  }
+
+  /**
+   * VSI P2: org/vehicle/trip-scoped distinct HF signal aggregates (telemetry_hf_points).
+   * Never queries vehicle_id alone — org_id is mandatory in SQL.
+   */
+  async getVsiDiscoveryTripHfSignalAggregates(input: {
+    orgId: string;
+    vehicleId: string;
+    tripId: string;
+    tripStart: Date;
+    tripEnd: Date;
+    maxSignals?: number;
+    expectedTokenId?: number | null;
+    requireTokenMatch?: boolean;
+  }): Promise<HfVsiDiscoveryTripSignalAggregatesReadResult> {
+    const maxSignals = input.maxSignals ?? 32;
+    const base: HfVsiDiscoveryTripSignalAggregatesReadResult = {
+      status: 'UNAVAILABLE',
+      orgId: input.orgId,
+      vehicleId: input.vehicleId,
+      tripId: input.tripId,
+      signals: [],
+      tenantScopeViolation: false,
+    };
+
+    if (!this.ch.isAvailable) {
+      return { ...base, degradedReason: 'clickhouse_unavailable' };
+    }
+
+    const fromMs = input.tripStart.getTime();
+    const toMs = input.tripEnd.getTime();
+    if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs > toMs) {
+      return { ...base, status: 'QUERY_FAILED', degradedReason: 'invalid_trip_window' };
+    }
+
+    const query = `
+      SELECT
+        signal_name AS signal_name,
+        count() AS point_count,
+        min(recorded_at) AS first_seen_at,
+        max(recorded_at) AS last_seen_at,
+        any(token_id) AS sample_token_id
+      FROM ${HF_POINTS_TABLE}
+      WHERE org_id = {orgId: String}
+        AND vehicle_id = {vehicleId: String}
+        AND trip_id = {tripId: String}
+        AND recorded_at >= parseDateTime64BestEffort({from: String})
+        AND recorded_at <= parseDateTime64BestEffort({to: String})
+      GROUP BY signal_name
+      ORDER BY signal_name
+      LIMIT {maxSignals: UInt32}
+    `;
+    assertClickHouseDiscoverySqlContainsTenantPredicates(query);
+
+    try {
+      const result = await this.ch.getClient().query({
+        query,
+        query_params: {
+          orgId: input.orgId,
+          vehicleId: input.vehicleId,
+          tripId: input.tripId,
+          from: toChDateTimeParam(input.tripStart),
+          to: toChDateTimeParam(input.tripEnd),
+          maxSignals,
+        },
+        format: 'JSONEachRow',
+        clickhouse_settings: {
+          max_execution_time: VSI_DISCOVERY_CH_MAX_EXECUTION_TIME_SEC,
+        },
+      });
+
+      const rows = await result.json<{
+        signal_name: string;
+        point_count: string | number;
+        first_seen_at: string | null;
+        last_seen_at: string | null;
+        sample_token_id: string | number | null;
+      }>();
+
+      this.metrics?.clickHouseAnalyticsQueries.inc({
+        query: 'vsi_discovery_trip_hf_signals',
+        result: 'success',
+      });
+
+      if (
+        input.requireTokenMatch &&
+        input.expectedTokenId != null &&
+        rows.some((r) => {
+          const token = r.sample_token_id == null ? null : Number(r.sample_token_id);
+          return token != null && token !== input.expectedTokenId;
+        })
+      ) {
+        return {
+          ...base,
+          status: 'TENANT_SCOPE_VIOLATION',
+          tenantScopeViolation: true,
+          degradedReason: 'token_id_mismatch',
+        };
+      }
+
+      const signals = rows.map((r) => ({
+        signalName: r.signal_name,
+        pointCount: Number(r.point_count ?? 0),
+        firstSeenAtIso: parseChUtc(r.first_seen_at),
+        lastSeenAtIso: parseChUtc(r.last_seen_at),
+      }));
+
+      return {
+        ...base,
+        status: signals.length > 0 ? 'SUCCESS' : 'EMPTY',
+        signals,
+      };
+    } catch (err: unknown) {
+      this.metrics?.clickHouseAnalyticsQueries.inc({
+        query: 'vsi_discovery_trip_hf_signals',
+        result: 'error',
+      });
+      this.logger.warn(
+        `getVsiDiscoveryTripHfSignalAggregates failed: ${(err as Error).message}`,
+      );
+      return {
+        ...base,
+        status: 'QUERY_FAILED',
+        degradedReason: (err as Error).message,
+      };
     }
   }
 }

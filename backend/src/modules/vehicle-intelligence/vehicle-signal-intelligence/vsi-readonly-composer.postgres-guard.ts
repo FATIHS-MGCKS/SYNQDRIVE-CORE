@@ -80,3 +80,18 @@ export function assertVsi03DisposablePostgresTarget(): void {
     );
   }
 }
+
+/** Prisma compound key for vehicle_signal_capability_profiles (excludes providerIdentity). */
+export function vsiSignalProfileCompoundWhere(input: {
+  organizationId: string;
+  vehicleId: string;
+  providerSourceLinkId: string;
+}) {
+  return {
+    organizationId_vehicleId_providerSourceLinkId: {
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      providerSourceLinkId: input.providerSourceLinkId,
+    },
+  };
+}

@@ -269,3 +269,28 @@ export interface HfTripRpmPointsReadResult {
   tenantScopeViolation: boolean;
   degradedReason?: string | null;
 }
+
+/** VSI P2 — per-signal aggregate within one attributable trip window. */
+export interface HfVsiDiscoveryTripSignalAggregateRow {
+  signalName: string;
+  pointCount: number;
+  firstSeenAtIso: string | null;
+  lastSeenAtIso: string | null;
+}
+
+export type HfVsiDiscoveryTripSignalAggregatesReadStatus =
+  | 'SUCCESS'
+  | 'UNAVAILABLE'
+  | 'QUERY_FAILED'
+  | 'EMPTY'
+  | 'TENANT_SCOPE_VIOLATION';
+
+export interface HfVsiDiscoveryTripSignalAggregatesReadResult {
+  status: HfVsiDiscoveryTripSignalAggregatesReadStatus;
+  orgId: string;
+  vehicleId: string;
+  tripId: string;
+  signals: HfVsiDiscoveryTripSignalAggregateRow[];
+  tenantScopeViolation: boolean;
+  degradedReason?: string | null;
+}

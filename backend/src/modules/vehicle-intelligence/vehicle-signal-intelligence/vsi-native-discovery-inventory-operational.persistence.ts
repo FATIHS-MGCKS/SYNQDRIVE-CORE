@@ -5,9 +5,7 @@ import {
 } from './vsi-native-signal-discovery-operational-cas.contract';
 import {
   assertNativeDiscoveryInventoryScopeMatch,
-  truncateNativeSignalDiscoveryInventory,
   validateNativeSignalDiscoveryInventoryWellFormed,
-  type VsiNativeSignalDiscoveryInventoryEntryV1,
   type VsiNativeSignalDiscoveryInventoryV1,
 } from './vsi-native-signal-discovery-inventory.contract';
 import { buildOperationalProfileRefreshCasWhere } from './vsi-profile-operational-refresh.util';
@@ -15,6 +13,7 @@ import {
   normalizeNativeSignalDiscoveryInventoryFromProfileRow,
   stableNativeDiscoveryInventoryJson,
 } from './vsi-native-discovery-inventory.db.util';
+import { mergeNativeDiscoveryInventoryEntries } from './vsi-native-discovery-inventory-merge.util';
 
 export type VsiNativeDiscoveryInventoryOperationalPersistOutcome =
   | 'applied'
@@ -56,32 +55,6 @@ function mapCasOutcome(
   }
 }
 
-export function mergeNativeDiscoveryInventoryEntries(
-  persisted: VsiNativeSignalDiscoveryInventoryV1,
-  incoming: VsiNativeSignalDiscoveryInventoryV1,
-): VsiNativeSignalDiscoveryInventoryV1 {
-  const byName = new Map<string, VsiNativeSignalDiscoveryInventoryEntryV1>();
-  for (const entry of persisted.entries) {
-    byName.set(entry.providerNativeSignalName, entry);
-  }
-  for (const entry of incoming.entries) {
-    byName.set(entry.providerNativeSignalName, entry);
-  }
-  const mergedLimitations = new Set([
-    ...persisted.profileLimitations,
-    ...incoming.profileLimitations,
-  ]);
-  return truncateNativeSignalDiscoveryInventory({
-    ...incoming,
-    scope: incoming.scope,
-    evaluatedAt: incoming.evaluatedAt,
-    entries: [...byName.values()].sort((a, b) =>
-      a.providerNativeSignalName.localeCompare(b.providerNativeSignalName),
-    ),
-    profileLimitations: [...mergedLimitations],
-  });
-}
-
 export async function persistNativeDiscoveryInventoryOperationalCas(
   tx: Prisma.TransactionClient,
   input: VsiNativeDiscoveryInventoryOperationalPersistInput,
@@ -109,9 +82,12 @@ export async function persistNativeDiscoveryInventoryOperationalCas(
   }
 
   const persistedInventory = normalizeNativeSignalDiscoveryInventoryFromProfileRow(row);
+  const priorJson = stableNativeDiscoveryInventoryJson(persistedInventory);
+  if (priorJson === stableNativeDiscoveryInventoryJson(input.nextInventory)) {
+    return 'noop';
+  }
   const mergedNext = mergeNativeDiscoveryInventoryEntries(persistedInventory, input.nextInventory);
 
-  const priorJson = stableNativeDiscoveryInventoryJson(persistedInventory);
   const preflight = evaluateNativeDiscoveryOperationalCasPreconditions({
     organizationId: input.organizationId,
     vehicleId: input.vehicleId,
