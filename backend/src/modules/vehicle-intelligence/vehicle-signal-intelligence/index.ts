@@ -144,3 +144,9 @@ export {
   persistNativeDiscoveryInventoryOperationalCas,
   type VsiNativeDiscoveryInventoryOperationalPersistOutcome,
 } from './vsi-native-discovery-inventory-operational.persistence';
+
+export { isVsiDiscoverySnapshotInventoryEnabled } from './vsi-discovery-snapshot-inventory.config';
+export {
+  buildSnapshotNativeDiscoveryInventory,
+  listDimoNativeSignalKeysFromRawPayload,
+} from './vsi-snapshot-native-discovery.extractor';
