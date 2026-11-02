@@ -4695,6 +4695,7 @@ model VehicleSignalCapabilityProfile {
   lastMaterializedProviderFetchAt DateTime? @map("last_materialized_provider_fetch_at") @db.Timestamptz(3)
   lastProvenStrictSourceAdvanceAt DateTime? @map("last_proven_strict_source_advance_at") @db.Timestamptz(3)
   signalsSnapshot                 Json      @map("signals_snapshot")
+  nativeSignalDiscoveryInventory  Json      @default("{\"contractVersion\":\"vsi-native-signal-discovery-v1\",\"entries\":[],\"profileLimitations\":[]}") @map("native_signal_discovery_inventory")
   profileLimitations              Json      @default("[]") @map("profile_limitations")
   createdAt                       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
