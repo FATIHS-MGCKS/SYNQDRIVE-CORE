@@ -19,6 +19,8 @@ import { formatDateTimeDe } from './cv.utils';
 import { OffboardReleaseGatePanel } from './OffboardReleaseGatePanel';
 import { ConnectedVehicleTechnicalSpecsSection } from './ConnectedVehicleTechnicalSpecsSection';
 import { useConnectedVehicleTechnicalSpecs } from './useConnectedVehicleTechnicalSpecs';
+import { ConnectedVehicleOemSpecificationsSection } from './ConnectedVehicleOemSpecificationsSection';
+import { useConnectedVehicleOemSpecifications } from './useConnectedVehicleOemSpecifications';
 import { ConnectedVehicleIntelligenceSection } from './ConnectedVehicleIntelligenceSection';
 
 interface ConnectedVehicleDetailDrawerProps {
@@ -90,6 +92,19 @@ export function ConnectedVehicleDetailDrawer({
     error: specsError,
     refresh: refreshSpecs,
   } = useConnectedVehicleTechnicalSpecs(
+    vehicleId,
+    detail?.organizationId ?? null,
+    specsEnabled,
+  );
+
+  const {
+    view: oemSpecsView,
+    loading: oemSpecsLoading,
+    error: oemSpecsError,
+    savingFieldKey: oemSavingFieldKey,
+    refresh: refreshOemSpecs,
+    saveField: saveOemField,
+  } = useConnectedVehicleOemSpecifications(
     vehicleId,
     detail?.organizationId ?? null,
     specsEnabled,
@@ -225,6 +240,18 @@ export function ConnectedVehicleDetailDrawer({
                 editLoading={editSpecificationsLoading}
                 onEdit={onEditSpecifications}
                 onRetry={() => void refreshSpecs()}
+              />
+            ) : null}
+
+            {vehicleId && detail.organizationId ? (
+              <ConnectedVehicleOemSpecificationsSection
+                view={oemSpecsView}
+                loading={oemSpecsLoading}
+                error={oemSpecsError}
+                canEdit={canEditSpecifications}
+                savingFieldKey={oemSavingFieldKey}
+                onSaveField={saveOemField}
+                onRetry={() => void refreshOemSpecs()}
               />
             ) : null}
 

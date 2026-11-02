@@ -13,6 +13,7 @@ import { masterMotionPhysicsIt } from './master.motionPhysics.it';
 import { masterVehicleIdentityIt } from './master.vehicleIdentity.it';
 import { masterOneAutoIt } from './master.oneAuto.it';
 import { masterCvTechnicalSpecsIt } from './master.cv.technicalSpecs.it';
+import { masterCvOemSpecsIt } from './master.cv.oemSpecs.it';
 
 export const it = {
   'dashboard.welcomeBack': 'Bentornato, {name}',
@@ -209,6 +210,7 @@ export const it = {
 ...masterVehicleIdentityIt,
   ...masterOneAutoIt,
   ...masterCvTechnicalSpecsIt,
+  ...masterCvOemSpecsIt,
   ...batteryV2HvInspectionIT,
   ...tireWearV3It,
 } satisfies PartialTranslationDictionary;

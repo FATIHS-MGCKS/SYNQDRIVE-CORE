@@ -103,6 +103,14 @@ import {
   mapVehicleTechnicalSpecsToRegisteredVehicleFields,
   stripTechnicalSpecificationKeysFromUpdateBody,
 } from './vehicle-technical-spec-patch.util';
+import {
+  buildVehicleOemSpecificationPrismaPatch,
+  extractOemSpecificationPatchInput,
+  mapVehicleOemSpecificationToRegisteredVehicleFields,
+  oemSpecSaveRequiresOptimisticConcurrency,
+  stripOemSpecificationKeysFromUpdateBody,
+  type VehicleOemSpecificationVehicleRow,
+} from './vehicle-oem-specification-patch.util';
 import { DataAuthorizationsService } from '@modules/data-authorizations/data-authorizations.service';
 import { DataAuthorizationEnforcementService } from '@modules/data-authorizations/data-authorization-enforcement.service';
 import { DeviceConnectionQueryService } from '@modules/dimo/device-connection-query.service';
@@ -979,6 +987,19 @@ export class VehiclesService {
       hvMasterSpecificationFieldChangeClassification:
         hvMaster?.fieldChangeClassification ?? null,
       registrationIdentityProvenance: v.registrationIdentityProvenance ?? null,
+      ...mapVehicleOemSpecificationToRegisteredVehicleFields({
+        oemEngineCode: v.oemEngineCode ?? null,
+        oemEngineDesc: v.oemEngineDesc ?? null,
+        oemTransmissionCode: v.oemTransmissionCode ?? null,
+        oemTransmissionDesc: v.oemTransmissionDesc ?? null,
+        exteriorColorDesc: v.exteriorColorDesc ?? null,
+        oemExteriorColorCode: v.oemExteriorColorCode ?? null,
+        interiorTrimDesc: v.interiorTrimDesc ?? null,
+        oemInteriorTrimCode: v.oemInteriorTrimCode ?? null,
+        oemModelRangeDesc: v.oemModelRangeDesc ?? null,
+        oemDerivativeDesc: v.oemDerivativeDesc ?? null,
+        registrationIdentityProvenance: v.registrationIdentityProvenance ?? null,
+      }),
     };
   }
 
@@ -2329,6 +2350,16 @@ export class VehiclesService {
             driveType: true,
             registrationIdentityProvenance: true,
             updatedAt: true,
+            oemEngineCode: true,
+            oemEngineDesc: true,
+            oemTransmissionCode: true,
+            oemTransmissionDesc: true,
+            exteriorColorDesc: true,
+            oemExteriorColorCode: true,
+            interiorTrimDesc: true,
+            oemInteriorTrimCode: true,
+            oemModelRangeDesc: true,
+            oemDerivativeDesc: true,
           },
         })
       : await this.prisma.vehicle.findUnique({
@@ -2350,6 +2381,16 @@ export class VehiclesService {
             driveType: true,
             registrationIdentityProvenance: true,
             updatedAt: true,
+            oemEngineCode: true,
+            oemEngineDesc: true,
+            oemTransmissionCode: true,
+            oemTransmissionDesc: true,
+            exteriorColorDesc: true,
+            oemExteriorColorCode: true,
+            interiorTrimDesc: true,
+            oemInteriorTrimCode: true,
+            oemModelRangeDesc: true,
+            oemDerivativeDesc: true,
           },
         });
     if (!existing) throw new NotFoundException('Vehicle not found');
@@ -2357,16 +2398,19 @@ export class VehiclesService {
     const rawBody = options?.rawBody ?? (data as Record<string, unknown>);
     const technicalInput = extractTechnicalSpecificationPatchInput(rawBody);
     let merged: Prisma.VehicleUpdateInput = {
-      ...stripTechnicalSpecificationKeysFromUpdateBody(data as Record<string, unknown>),
+      ...stripOemSpecificationKeysFromUpdateBody(
+        stripTechnicalSpecificationKeysFromUpdateBody(data as Record<string, unknown>),
+      ),
     };
+    let provenanceDoc = parseRegistrationIdentityProvenance(
+      existing.registrationIdentityProvenance,
+    );
     let optimisticTechnicalSave = false;
+    let optimisticOemSave = false;
     if (technicalInput) {
       assertAiTechnicalFieldsConfirmed(
         technicalInput,
         rawBody.aiFieldProvenance as Record<string, { category?: string }> | undefined,
-      );
-      const provenanceDoc = parseRegistrationIdentityProvenance(
-        existing.registrationIdentityProvenance,
       );
       optimisticTechnicalSave = technicalSpecSaveRequiresOptimisticConcurrency(
         provenanceDoc,
@@ -2379,12 +2423,41 @@ export class VehiclesService {
         provenanceDoc,
       );
       merged = {
-        ...stripTechnicalSpecificationKeysFromUpdateBody(merged as Record<string, unknown>),
+        ...stripOemSpecificationKeysFromUpdateBody(
+          stripTechnicalSpecificationKeysFromUpdateBody(merged as Record<string, unknown>),
+        ),
         ...technicalPatch,
+      } as Prisma.VehicleUpdateInput;
+      if (technicalPatch.registrationIdentityProvenance != null) {
+        provenanceDoc = parseRegistrationIdentityProvenance(
+          technicalPatch.registrationIdentityProvenance,
+        );
+      }
+    }
+
+    const oemInput = extractOemSpecificationPatchInput(rawBody);
+    if (oemInput) {
+      const oemVehicleRow = existing as VehicleOemSpecificationVehicleRow;
+      optimisticOemSave = oemSpecSaveRequiresOptimisticConcurrency(
+        provenanceDoc,
+        oemVehicleRow,
+        oemInput,
+      );
+      const oemPatch = buildVehicleOemSpecificationPrismaPatch(
+        oemVehicleRow,
+        oemInput,
+        provenanceDoc,
+      );
+      merged = {
+        ...stripOemSpecificationKeysFromUpdateBody(
+          stripTechnicalSpecificationKeysFromUpdateBody(merged as Record<string, unknown>),
+        ),
+        ...oemPatch,
       } as Prisma.VehicleUpdateInput;
     }
 
-    if (optimisticTechnicalSave) {
+    const optimisticSave = optimisticTechnicalSave || optimisticOemSave;
+    if (optimisticSave) {
       const optimisticWhere: Prisma.VehicleWhereInput = {
         id,
         updatedAt: existing.updatedAt,
@@ -2399,7 +2472,8 @@ export class VehiclesService {
       if (writeResult.count !== 1) {
         throw new ConflictException({
           code: 'VEHICLE_TECH_SPEC_SAVE_CONFLICT',
-          message: 'Concurrent technical specification save detected; reload and confirm again.',
+          message:
+            'Concurrent vehicle specification save detected; reload and confirm again.',
         });
       }
       const updated = await this.prisma.vehicle.findUnique({ where: { id } });
