@@ -2,7 +2,7 @@
  * OEM specification PATCH authorization + optimistic concurrency (PostgreSQL).
  *   VEHICLE_OEM_SPEC_PATCH_PG=1 DATABASE_URL=postgresql://.../synqdrive_oem_spec_test npm test -- vehicle-oem-specification-patch.postgres.integration.spec.ts
  */
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import {
   BusinessType,
   DriveType,
@@ -177,6 +177,34 @@ async function serviceUpdate(
     expect(['RACE_A', 'RACE_B']).toContain(row?.oemEngineCode);
     const doc = parseRegistrationIdentityProvenance(row?.registrationIdentityProvenance);
     expect(doc?.fields?.oemEngineCode?.value).toBe(row?.oemEngineCode);
+  });
+
+  it('does not apply OEM PATCH when vehicleId is resolved under a different organizationId', async () => {
+    const otherOrgId = randomUUID();
+    await prisma.organization.create({
+      data: {
+        id: otherOrgId,
+        companyName: `OEM-OTHER ${otherOrgId.slice(0, 8)}`,
+        businessType: BusinessType.FLEET,
+      },
+    });
+    await ensureOrganizationProductEntitlement(prisma, otherOrgId, ProductSlug.FLEET);
+    try {
+      await expect(
+        serviceUpdate(prisma, otherOrgId, vehicleId, {
+          oemEngineCode: 'CROSS_TENANT',
+          technicalSpecificationSave: { confirmedFieldKeys: ['oemEngineCode'] },
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      const row = await prisma.vehicle.findUnique({
+        where: { id: vehicleId },
+        select: { oemEngineCode: true },
+      });
+      expect(row?.oemEngineCode).toBeNull();
+    } finally {
+      await prisma.organizationProduct.deleteMany({ where: { organizationId: otherOrgId } });
+      await prisma.organization.deleteMany({ where: { id: otherOrgId } });
+    }
   });
 
   it('single-field OEM save does not mutate unrelated OEM columns', async () => {
