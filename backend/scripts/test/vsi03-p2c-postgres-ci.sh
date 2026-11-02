@@ -57,4 +57,6 @@ npx jest \
   vsi-p3a-per-link-catalog.concurrency.postgres.integration \
   vsi-native-discovery-inventory.postgres.integration \
   vsi-snapshot-native-discovery.postgres.integration \
-  vsi-hf-native-discovery.postgres.integration
+  vsi-hf-native-discovery.postgres.integration \
+  vsi-native-discovery-inventory-reconcile.postgres.integration \
+  vsi-native-discovery-inventory-reconcile.evaluation

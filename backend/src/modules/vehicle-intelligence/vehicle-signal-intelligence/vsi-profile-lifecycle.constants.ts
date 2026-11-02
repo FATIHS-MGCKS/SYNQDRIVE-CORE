@@ -17,3 +17,9 @@ export const VSI_PROFILE_LIFECYCLE_LIMITATION_SOURCE_LINK_SUPERSEDED =
 
 /** Bounded backfill: max active links processed per operator/CLI invocation. */
 export const VSI_PROFILE_BACKFILL_MAX_LINKS_PER_RUN = 200;
+
+/** P3A inventory reconcile: max per-link events planned per sweep batch. */
+export const VSI_DISCOVERY_INVENTORY_RECONCILE_MAX_LINKS_PER_SWEEP = 50;
+
+/** P3A sweep tick on lifecycle leader (no separate process). */
+export const VSI_DISCOVERY_INVENTORY_SWEEP_INTERVAL_MS = 300_000;

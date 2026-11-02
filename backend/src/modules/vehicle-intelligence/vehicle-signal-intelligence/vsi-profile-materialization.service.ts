@@ -56,7 +56,12 @@ import {
 import type { VsiDeclaredCatalogSnapshot } from './vsi-declared-catalog.resolver';
 import { ClickHouseHfService } from '@modules/clickhouse/clickhouse-hf.service';
 import { isVsiDiscoveryHfInventoryEnabled } from './vsi-discovery-hf-inventory.config';
+import { isVsiDiscoveryInventoryReconcileEnabled } from './vsi-discovery-inventory-reconcile.config';
 import { buildHfNativeDiscoveryInventoryUpdate } from './vsi-hf-native-discovery.loader';
+import {
+  normalizeNativeSignalDiscoveryInventoryFromProfileRow,
+  stableNativeDiscoveryInventoryJson,
+} from './vsi-native-discovery-inventory.db.util';
 
 const DEFAULT_POLL_LOG_LIMIT = 5;
 
@@ -1060,6 +1065,168 @@ export class VsiSignalProfileMaterializationService {
       }
     }
     return 'conflict';
+  }
+
+  /**
+   * P3A — inventory-only reconciliation for an active source link (no semantic revision bump).
+   */
+  async reconcileNativeDiscoveryInventoryForActiveLink(input: {
+    organizationId: string;
+    vehicleId: string;
+    providerSourceLinkId: string;
+  }): Promise<'skipped' | 'refreshed' | 'noop'> {
+    if (!isVsiDiscoveryInventoryReconcileEnabled()) {
+      return 'skipped';
+    }
+    if (!isVsiDiscoverySnapshotInventoryEnabled() && !isVsiDiscoveryHfInventoryEnabled()) {
+      return 'skipped';
+    }
+
+    const { organizationId, vehicleId, providerSourceLinkId } = input;
+    const existingProfile = await this.prisma.vehicleSignalCapabilityProfile.findUnique({
+      where: {
+        organizationId_vehicleId_providerSourceLinkId: {
+          organizationId,
+          vehicleId,
+          providerSourceLinkId,
+        },
+      },
+    });
+    if (!existingProfile) {
+      return 'skipped';
+    }
+
+    const link = await this.prisma.vehicleDataSourceLink.findFirst({
+      where: { id: providerSourceLinkId, vehicleId, vehicle: { organizationId } },
+      select: {
+        id: true,
+        provider: true,
+        isActive: true,
+        metadata: true,
+        consentId: true,
+        activatedAt: true,
+        deactivatedAt: true,
+        supersededByLinkId: true,
+      },
+    });
+    if (!link?.isActive) {
+      return 'skipped';
+    }
+
+    const activeSourceLinkCount = await this.prisma.vehicleDataSourceLink.count({
+      where: { vehicleId, isActive: true },
+    });
+
+    const latestState = await this.prisma.vehicleLatestState.findUnique({
+      where: { vehicleId },
+      select: {
+        vehicleId: true,
+        providerBindingId: true,
+        providerSource: true,
+        lvBatteryVoltage: true,
+        evSoc: true,
+        online: true,
+        sourceTimestamp: true,
+        providerFetchedAt: true,
+        updatedAt: true,
+        rawPayloadJson: true,
+      },
+    });
+
+    const boundLatestState =
+      latestState?.providerBindingId && latestState.providerBindingId !== providerSourceLinkId
+        ? null
+        : latestState;
+
+    const linkRow: VsiSourceLinkRow = {
+      id: link.id,
+      provider: link.provider,
+      isActive: link.isActive,
+      metadata: link.metadata,
+      consentId: link.consentId,
+    };
+
+    const declared = await this.declaredCatalog.resolveForMaterialization(
+      organizationId,
+      vehicleId,
+      providerSourceLinkId,
+      link.provider,
+    );
+
+    const latestStateSnapshot = boundLatestState
+      ? {
+          vehicleId: boundLatestState.vehicleId,
+          providerBindingId: boundLatestState.providerBindingId,
+          providerSource: boundLatestState.providerSource,
+          lvBatteryVoltage: boundLatestState.lvBatteryVoltage,
+          evSoc: boundLatestState.evSoc,
+          online: boundLatestState.online,
+          sourceTimestamp: boundLatestState.sourceTimestamp,
+          providerFetchedAt: boundLatestState.providerFetchedAt,
+          updatedAt: boundLatestState.updatedAt,
+          rawPayloadJson: boundLatestState.rawPayloadJson,
+          obdDtcList: null,
+          lastDtcSuccessfulCheckAt: null,
+        }
+      : null;
+
+    const snapshotDiscoveryStateAttributed = resolveSnapshotNativeDiscoveryStateAttributed({
+      latestState: latestStateSnapshot,
+      link: linkRow,
+      activeLinkCount: activeSourceLinkCount,
+    });
+
+    const projectionAsOf =
+      boundLatestState?.providerFetchedAt ??
+      boundLatestState?.updatedAt ??
+      existingProfile.evaluatedAt ??
+      new Date();
+
+    const beforeJson = stableNativeDiscoveryInventoryJson(
+      normalizeNativeSignalDiscoveryInventoryFromProfileRow(existingProfile),
+    );
+
+    await this.persistSnapshotNativeDiscoveryInventoryIfEnabled({
+      organizationId,
+      vehicleId,
+      providerSourceLinkId,
+      providerIdentity: link.provider,
+      latestState: latestStateSnapshot,
+      declaredCatalog: declared,
+      projectionAsOf,
+      stateAttributed: snapshotDiscoveryStateAttributed,
+      latestStateSourceTimestampMs: boundLatestState?.sourceTimestamp?.getTime() ?? null,
+    });
+    await this.persistHfNativeDiscoveryInventoryIfEnabled({
+      organizationId,
+      vehicleId,
+      providerSourceLinkId,
+      providerIdentity: link.provider,
+      projectionAsOf,
+      linkActivatedAt: link.activatedAt,
+      linkDeactivatedAt: link.deactivatedAt,
+      latestStateSourceTimestampMs: boundLatestState?.sourceTimestamp?.getTime() ?? null,
+    });
+
+    const afterProfile = await this.prisma.vehicleSignalCapabilityProfile.findUnique({
+      where: {
+        organizationId_vehicleId_providerSourceLinkId: {
+          organizationId,
+          vehicleId,
+          providerSourceLinkId,
+        },
+      },
+    });
+    if (!afterProfile) {
+      return 'skipped';
+    }
+    const afterJson = stableNativeDiscoveryInventoryJson(
+      normalizeNativeSignalDiscoveryInventoryFromProfileRow(afterProfile),
+    );
+    if (beforeJson === afterJson) {
+      return 'noop';
+    }
+    return 'refreshed';
   }
 
   private resolveDtcConfirmedCompleteEvidence(

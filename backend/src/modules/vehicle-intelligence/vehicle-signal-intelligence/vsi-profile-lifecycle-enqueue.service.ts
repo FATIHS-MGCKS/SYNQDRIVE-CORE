@@ -29,6 +29,7 @@ export class VsiProfileLifecycleEnqueueService {
       catalogCheckedAt: input.payload?.catalogCheckedAt ?? null,
       supersededByLinkId: input.payload?.supersededByLinkId ?? null,
       backfillCursor: input.payload?.backfillCursor ?? null,
+      inventorySweepCursor: input.payload?.inventorySweepCursor ?? null,
     };
 
     const result = await this.repository.enqueue(
@@ -139,6 +140,60 @@ export class VsiProfileLifecycleEnqueueService {
         organizationId: input.organizationId,
         backfillCursor: input.cursor,
       },
+    });
+  }
+
+  async enqueueNativeDiscoveryInventorySweepTick(input: {
+    organizationId: string;
+    vehicleId: string;
+    occurredAt: Date;
+    tickBucket: number;
+  }): Promise<void> {
+    await this.enqueue({
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      providerSourceLinkId: null,
+      eventType: 'NATIVE_DISCOVERY_INVENTORY_SWEEP',
+      occurredAt: input.occurredAt,
+      idempotencyKey: `vsi-p3a:INVENTORY_SWEEP_TICK:${input.tickBucket}`,
+      payload: { reason: 'scheduled_inventory_sweep' },
+    });
+  }
+
+  async enqueueNativeDiscoveryInventorySweepContinuation(input: {
+    organizationId: string;
+    vehicleId: string;
+    cursor: { organizationId: string; providerSourceLinkId: string };
+    occurredAt: Date;
+  }): Promise<void> {
+    await this.enqueue({
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      providerSourceLinkId: null,
+      eventType: 'NATIVE_DISCOVERY_INVENTORY_SWEEP',
+      occurredAt: input.occurredAt,
+      idempotencyKey: `vsi-p3a:INVENTORY_SWEEP:${input.cursor.organizationId}:${input.cursor.providerSourceLinkId}`,
+      payload: {
+        inventorySweepCursor: input.cursor,
+      },
+    });
+  }
+
+  async enqueueNativeDiscoveryInventoryReconcile(input: {
+    organizationId: string;
+    vehicleId: string;
+    providerSourceLinkId: string;
+    profileUpdatedAt: Date;
+    occurredAt: Date;
+  }): Promise<void> {
+    await this.enqueue({
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      providerSourceLinkId: input.providerSourceLinkId,
+      eventType: 'NATIVE_DISCOVERY_INVENTORY_RECONCILE',
+      occurredAt: input.occurredAt,
+      idempotencyKey: `vsi-p3a:INVENTORY_RECONCILE:${input.providerSourceLinkId}:${input.profileUpdatedAt.toISOString()}`,
+      payload: { reason: 'inventory_reconcile' },
     });
   }
 
