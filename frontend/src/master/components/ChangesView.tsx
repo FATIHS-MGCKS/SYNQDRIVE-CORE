@@ -586,7 +586,7 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     title: 'One Auto OEM spec PR-B — i18n governance split + OEM PostgreSQL CI',
     summary: [
       'Product PR drops `hardcoded-copy-inventory.json` so i18n gates avoid mixed authority/product classification; inventory refresh moves to a separate authority-only PR (merge after product).',
-      'Vehicle Detail CI runs six OEM spec PATCH PostgreSQL integration tests on disposable `synqdrive_ci_ephemeral` (`VEHICLE_OEM_SPEC_PATCH_PG=1`).',
+      'Vehicle Detail CI runs six OEM spec PATCH PostgreSQL integration tests on disposable `synqdrive_ci_ephemeral` via extended `vehicle-tech-spec-patch-postgres-ci.sh` (`VEHICLE_OEM_SPEC_PATCH_PG=1`).',
       'Cross-tenant org scope negative added to OEM postgres integration suite.',
     ],
     reason:

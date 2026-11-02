@@ -38,6 +38,14 @@ assert_accepts "disposable tech_spec name" bash -c 'source "'"${SCRIPT_DIR}"'/li
 assert_rejects "missing flag" bash -c 'source "'"${SCRIPT_DIR}"'/lib/vehicle-tech-spec-patch-postgres-guard.sh"; VEHICLE_TECH_SPEC_PATCH_PG=0 vehicle_tech_spec_patch_assert_pg_flag'
 assert_accepts "pg flag" bash -c 'source "'"${SCRIPT_DIR}"'/lib/vehicle-tech-spec-patch-postgres-guard.sh"; VEHICLE_TECH_SPEC_PATCH_PG=1 vehicle_tech_spec_patch_assert_pg_flag'
 
+# shellcheck source=lib/vehicle-oem-spec-patch-postgres-guard.sh
+source "${SCRIPT_DIR}/lib/vehicle-oem-spec-patch-postgres-guard.sh"
+
+assert_rejects "oem remote host" bash -c 'source "'"${SCRIPT_DIR}"'/lib/vehicle-oem-spec-patch-postgres-guard.sh"; DATABASE_URL="postgresql://u:p@db.example.com/synqdrive_ci_ephemeral" vehicle_oem_spec_patch_assert_ci_local_database_url'
+assert_accepts "oem ci ephemeral" bash -c 'source "'"${SCRIPT_DIR}"'/lib/vehicle-oem-spec-patch-postgres-guard.sh"; DATABASE_URL="postgresql://synqdrive:synqdrive@127.0.0.1:5432/synqdrive_ci_ephemeral?schema=public" vehicle_oem_spec_patch_assert_ci_local_database_url'
+assert_rejects "oem missing flag" bash -c 'source "'"${SCRIPT_DIR}"'/lib/vehicle-oem-spec-patch-postgres-guard.sh"; VEHICLE_OEM_SPEC_PATCH_PG=0 vehicle_oem_spec_patch_assert_pg_flag'
+assert_accepts "oem pg flag" bash -c 'source "'"${SCRIPT_DIR}"'/lib/vehicle-oem-spec-patch-postgres-guard.sh"; VEHICLE_OEM_SPEC_PATCH_PG=1 vehicle_oem_spec_patch_assert_pg_flag'
+
 if [[ "$failures" -gt 0 ]]; then
   echo "vehicle-tech-spec-patch-postgres-guard contract: ${failures} failure(s)" >&2
   exit 1

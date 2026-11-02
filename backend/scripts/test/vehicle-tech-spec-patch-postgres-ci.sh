@@ -42,4 +42,35 @@ if ! grep -Eq 'Tests:[[:space:]]+10 passed' "$JEST_OUT"; then
   exit 1
 fi
 
-log "vehicle-tech-spec-patch-postgres-ci completed successfully (10/10)"
+log "vehicle-technical-spec-patch.postgres.integration OK (10/10)"
+
+# shellcheck source=lib/vehicle-oem-spec-patch-postgres-guard.sh
+source "${SCRIPT_DIR}/lib/vehicle-oem-spec-patch-postgres-guard.sh"
+export VEHICLE_OEM_SPEC_PATCH_PG=1
+vehicle_oem_spec_patch_assert_pg_flag
+vehicle_oem_spec_patch_assert_ci_local_database_url
+
+log "Running vehicle-oem-specification-patch.postgres.integration (expect 6 executed tests)"
+OEM_JEST_OUT="$(mktemp)"
+set +e
+npm test -- --testPathPatterns='vehicle-oem-specification-patch.postgres.integration' --runInBand --verbose 2>&1 | tee "$OEM_JEST_OUT"
+OEM_JEST_RC=${PIPESTATUS[0]}
+set -e
+
+if [[ "$OEM_JEST_RC" -ne 0 ]]; then
+  log "OEM Jest failed with exit code ${OEM_JEST_RC}"
+  exit "$OEM_JEST_RC"
+fi
+
+if grep -Eq 'Tests:[[:space:]]+0 passed' "$OEM_JEST_OUT" || grep -Eq 'Test Suites:[[:space:]]+1 skipped' "$OEM_JEST_OUT"; then
+  log "FAIL: OEM integration suite skipped or zero tests executed"
+  exit 1
+fi
+
+if ! grep -Eq 'Tests:[[:space:]]+6 passed' "$OEM_JEST_OUT"; then
+  log "FAIL: expected exactly 6 passing tests in vehicle-oem-specification-patch.postgres.integration"
+  grep 'Tests:' "$OEM_JEST_OUT" || true
+  exit 1
+fi
+
+log "vehicle-tech-spec-patch-postgres-ci completed successfully (technical 10/10 + OEM 6/6)"

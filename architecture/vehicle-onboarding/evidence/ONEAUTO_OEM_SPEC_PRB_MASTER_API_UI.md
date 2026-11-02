@@ -28,6 +28,6 @@
 - `vehicle-oem-specification-patch.util.spec.ts` — legacy v1 provenance + protected USER_CONFIRMED regression.
 - `vehicle-oem-specification-patch.security.spec.ts` — controller actor forwarding + Master gate negative.
 - `vehicles.service.oem-update.spec.ts` — stale optimistic rejection (unit).
-- `vehicle-oem-specification-patch.postgres.integration.spec.ts` — auth + concurrent OEM writes (`VEHICLE_OEM_SPEC_PATCH_PG=1`); Vehicle Detail CI via `scripts/test/vehicle-oem-spec-patch-postgres-ci.sh` (6 tests, disposable DB).
+- `vehicle-oem-specification-patch.postgres.integration.spec.ts` — auth + concurrent OEM writes (`VEHICLE_OEM_SPEC_PATCH_PG=1`); Vehicle Detail CI via extended `scripts/test/vehicle-tech-spec-patch-postgres-ci.sh` (6 tests, shared disposable DB job).
 - **i18n governance:** `hardcoded-copy-inventory.json` updates belong in a separate authority-only PR (merge after this PR) to avoid `MIXED_GOVERNANCE_AUTHORITY_AND_PRODUCT_CHANGE`.
 - Frontend util + save helper unit tests.
