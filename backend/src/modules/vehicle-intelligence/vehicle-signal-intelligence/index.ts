@@ -133,3 +133,14 @@ export {
   linkAttributionAllowsPositiveHistoricalClaim,
   assertClickHouseDiscoverySqlContainsTenantPredicates,
 } from './vsi-clickhouse-discovery-safety.contract';
+
+export {
+  VSI_NATIVE_DISCOVERY_CANONICAL_EMPTY_DB,
+  buildCanonicalEmptyNativeDiscoveryInventoryDbJson,
+  normalizeNativeSignalDiscoveryInventoryFromProfileRow,
+} from './vsi-native-discovery-inventory.db.util';
+
+export {
+  persistNativeDiscoveryInventoryOperationalCas,
+  type VsiNativeDiscoveryInventoryOperationalPersistOutcome,
+} from './vsi-native-discovery-inventory-operational.persistence';

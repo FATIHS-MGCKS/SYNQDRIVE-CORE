@@ -12,6 +12,12 @@ import {
   buildOperationalProfileRefreshCasWhere,
   buildOperationalProfileRefreshUpdate,
 } from './vsi-profile-operational-refresh.util';
+import { emptyNativeSignalDiscoveryInventory } from './vsi-native-signal-discovery-inventory.contract';
+import {
+  persistNativeDiscoveryInventoryOperationalCas,
+  type VsiNativeDiscoveryInventoryOperationalPersistInput,
+  type VsiNativeDiscoveryInventoryOperationalPersistOutcome,
+} from './vsi-native-discovery-inventory-operational.persistence';
 import { loadVsiBundleHistoricalEvidence } from './vsi-profile-historical-evidence.loader';
 import { enrichVsiProfileWithSignalFingerprints } from './vsi-signal-fingerprint.enricher';
 import {
@@ -607,6 +613,15 @@ export class VsiSignalProfileMaterializationService {
         lastMaterializedProviderFetchAt: evaluation.lastMaterializedProviderFetchAt,
         lastProvenStrictSourceAdvanceAt: evaluation.lastProvenStrictSourceAdvanceAt,
         signalsSnapshot: evaluation.signals as unknown as Prisma.InputJsonValue,
+        nativeSignalDiscoveryInventory: emptyNativeSignalDiscoveryInventory(
+          {
+            organizationId: evaluation.organizationId,
+            vehicleId: evaluation.vehicleId,
+            providerSourceLinkId: evaluation.providerSourceLinkId,
+            providerIdentity: evaluation.providerIdentity,
+          },
+          evaluation.evaluatedAt,
+        ) as unknown as Prisma.InputJsonValue,
         profileLimitations: evaluation.profileLimitations as Prisma.InputJsonValue,
       };
 
@@ -825,6 +840,24 @@ export class VsiSignalProfileMaterializationService {
         });
       }
     });
+  }
+
+  /**
+   * Operational-only persistence for HEAD native discovery inventory (P1a).
+   * Does not bump profileRevision or semantic contentFingerprint.
+   */
+  async persistNativeDiscoveryInventoryOperationalRefresh(
+    input: VsiNativeDiscoveryInventoryOperationalPersistInput,
+  ): Promise<VsiNativeDiscoveryInventoryOperationalPersistOutcome> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const outcome = await this.prisma.$transaction((tx) =>
+        persistNativeDiscoveryInventoryOperationalCas(tx, input),
+      );
+      if (outcome !== 'conflict' || attempt >= 2) {
+        return outcome;
+      }
+    }
+    return 'conflict';
   }
 
   private resolveDtcConfirmedCompleteEvidence(
