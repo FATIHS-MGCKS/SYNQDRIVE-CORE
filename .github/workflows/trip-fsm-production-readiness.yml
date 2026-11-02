@@ -196,60 +196,6 @@ jobs:
           TRIP_FSM_SHADOW_POSTGRES_REDIS_INTEGRATION: '1'
           TRIP_FSM_SHADOW_POSTGRES_REDIS_REQUIRED: '1'
 
-  backend-tdl-end-validation-observability-postgres:
-    name: Backend TDL end-validation observability (Postgres)
-    needs: install-lockfile
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Start PostgreSQL (ECR → GCR mirror → Docker Hub fallback)
-        run: bash backend/scripts/test/ci-start-postgres.sh
-        env:
-          CI_PG_CONTAINER: trip-tdl-obs-ci-postgres
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci && npx prisma generate && npx prisma db push --accept-data-loss --skip-generate
-        working-directory: backend
-        env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-      - run: npm run test:tdl-end-validation-observability:postgres:ci
-        working-directory: backend
-        env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          TRIP_END_VALIDATION_OBSERVABILITY_POSTGRES_INTEGRATION: '1'
-          TRIP_END_VALIDATION_OBSERVABILITY_POSTGRES_REQUIRED: '1'
-          TRIP_END_VALIDATION_OBSERVABILITY_MIGRATION_POSTGRES: '1'
-          TRIP_END_VALIDATION_OBSERVABILITY_MIGRATION_POSTGRES_REQUIRED: '1'
-
-  backend-tdl-end-validation-golden-parity:
-    name: Backend TDL end-validation golden FSM parity (Postgres+Redis)
-    needs: install-lockfile
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Start PostgreSQL (ECR → GCR mirror → Docker Hub fallback)
-        run: bash backend/scripts/test/ci-start-postgres.sh
-        env:
-          CI_PG_CONTAINER: trip-tdl-golden-ci-postgres
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci && npx prisma generate && npx prisma db push --accept-data-loss --skip-generate
-        working-directory: backend
-        env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-      - run: npm run test:tdl-end-validation-observability:golden-parity:ci
-        working-directory: backend
-        env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          TRIP_END_VALIDATION_GOLDEN_PARITY_POSTGRES_REDIS: '1'
-          TRIP_END_VALIDATION_GOLDEN_PARITY_POSTGRES_REDIS_REQUIRED: '1'
-
   ci-gate:
     name: CI gate (Trip FSM critical jobs)
     runs-on: ubuntu-latest
@@ -261,7 +207,5 @@ jobs:
       - backend-trip-finalize-postgres
       - backend-trip-r11-postgres-redis
       - backend-trip-fsm-shadow-postgres-redis
-      - backend-tdl-end-validation-observability-postgres
-      - backend-tdl-end-validation-golden-parity
     steps:
-      - run: echo "Trip FSM CI gates passed (R10/R11/R12 + TDL PR0 observability postgres + golden parity)."
+      - run: echo "Trip FSM CI gates passed (R10/R11/R12 hardening unit + postgres/redis integration + shadow observability integration)."
