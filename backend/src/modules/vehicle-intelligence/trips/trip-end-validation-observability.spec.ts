@@ -38,6 +38,7 @@ describe('trip-end-validation-observability config', () => {
         TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS: VEHICLE,
         TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK: 'true',
         TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT: 'true',
+        TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK: 'true',
       }),
     ).toBe(true);
   });

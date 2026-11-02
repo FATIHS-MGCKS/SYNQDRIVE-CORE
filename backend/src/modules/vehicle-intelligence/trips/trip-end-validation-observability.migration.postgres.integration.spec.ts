@@ -4,6 +4,9 @@ import * as path from 'node:path';
 import { TripMetricsService } from '../../observability/trip-metrics.service';
 import { TripEndValidationObservabilityService } from './trip-end-validation-observability.service';
 import {
+  TDL_OBS_TEST_RETENTION_CONFIG,
+} from './trip-end-validation-observability-test.helpers';
+import {
   TRIP_END_VALIDATION_OBSERVATION_OUTCOMES,
 } from './trip-end-validation-observability.types';
 
@@ -64,7 +67,11 @@ async function probeObservationTable(prisma: PrismaClient): Promise<boolean> {
       delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
       delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
 
-      const svc = new TripEndValidationObservabilityService(prisma as never, new TripMetricsService());
+      const svc = new TripEndValidationObservabilityService(
+        prisma as never,
+        TDL_OBS_TEST_RETENTION_CONFIG,
+        new TripMetricsService(),
+      );
       const result = await svc.record({
         organizationId: 'org-off',
         vehicleId: 'veh-off',
@@ -79,40 +86,54 @@ async function probeObservationTable(prisma: PrismaClient): Promise<boolean> {
       expect(result).toBe('skipped');
     });
 
-    it('flag ON without table fails closed without throwing to FSM caller', async () => {
+    it('flag ON without PR0 table fails closed (skipped, no FSM throw)', async () => {
       if (!dbOk) return;
+      const create = jest.fn().mockRejectedValue(new Error('relation does not exist'));
       const prismaNoTable = {
-        tripEndValidationDecisionObservation: {
-          create: jest.fn().mockRejectedValue(new Error('relation does not exist')),
+        $queryRaw: jest.fn().mockResolvedValue([{ exists: false }]),
+        tripEndValidationObservabilityRetentionPurgeRun: {
+          findFirst: jest.fn(),
         },
+        tripEndValidationDecisionObservation: { create },
       };
       process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
       process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = 'veh-missing-table';
       process.env.TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK = 'true';
       process.env.TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT = 'true';
+      process.env.TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK = 'true';
 
       const svc = new TripEndValidationObservabilityService(
         prismaNoTable as never,
+        TDL_OBS_TEST_RETENTION_CONFIG,
         new TripMetricsService(),
       );
-      await expect(
-        svc.record({
-          organizationId: 'org-x',
-          vehicleId: 'veh-missing-table',
-          tripId: null,
-          endCycleToken: 'c1',
-          fsmStateAtDecision: TripDetectionState.POSSIBLE_END,
-          processPhase: 'END_VALIDATION',
-          decisionOutcome:
-            TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.CUSUM_INCONCLUSIVE_RETRY,
-          workerDecisionAt: new Date(),
-        }),
-      ).rejects.toThrow(/relation does not exist/);
+      const result = await svc.record({
+        organizationId: 'org-x',
+        vehicleId: 'veh-missing-table',
+        tripId: null,
+        endCycleToken: 'c1',
+        fsmStateAtDecision: TripDetectionState.POSSIBLE_END,
+        processPhase: 'END_VALIDATION',
+        decisionOutcome:
+          TRIP_END_VALIDATION_OBSERVATION_OUTCOMES.CUSUM_INCONCLUSIVE_RETRY,
+        workerDecisionAt: new Date(),
+      });
+      expect(result).toBe('skipped');
+      expect(create).not.toHaveBeenCalled();
 
       delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
       delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
       delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK;
       delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT;
+      delete process.env.TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK;
+    });
+
+    it('PR1 purge audit table exists after db push', async () => {
+      if (!dbOk) return;
+      const rows = await prisma.$queryRaw<Array<{ exists: boolean }>>`
+        SELECT to_regclass('public.trip_end_validation_observability_retention_purge_runs') IS NOT NULL AS exists
+      `;
+      expect(rows[0]?.exists).toBe(true);
     });
   },
 );

@@ -25,6 +25,9 @@ describe('trip-end-validation observability metrics registry', () => {
       'synqdrive_trip_end_validation_clickhouse_assist_total',
       'synqdrive_trip_end_validation_observability_write_failures_total',
       'synqdrive_trip_end_validation_decision_latency_seconds',
+      'synqdrive_trip_end_validation_observability_retention_runs_total',
+      'synqdrive_trip_end_validation_observability_retention_rows_deleted_total',
+      'synqdrive_trip_end_validation_observability_retention_last_success_timestamp',
     ];
     for (const name of names) {
       expect(serialized).toContain(`# HELP ${name}`);

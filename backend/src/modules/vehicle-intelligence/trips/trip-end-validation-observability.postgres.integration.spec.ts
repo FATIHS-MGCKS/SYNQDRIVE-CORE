@@ -4,6 +4,12 @@ import { TripEndValidationObservabilityService } from './trip-end-validation-obs
 import {
   TRIP_END_VALIDATION_OBSERVATION_OUTCOMES,
 } from './trip-end-validation-observability.types';
+import {
+  applyTdlObservabilityActivationEnv,
+  clearTdlObservabilityActivationEnv,
+  seedCompletedTdlObsRetentionPurgeRun,
+  TDL_OBS_TEST_RETENTION_CONFIG,
+} from './trip-end-validation-observability-test.helpers';
 
 const LIVE = process.env.TRIP_END_VALIDATION_OBSERVABILITY_POSTGRES_INTEGRATION === '1';
 const REQUIRED =
@@ -76,28 +82,27 @@ async function createMinimalVehicleFixture(prisma: PrismaClient) {
           'trip_end_validation_decision_observations missing — run prisma migrate deploy',
         );
       }
-      service = new TripEndValidationObservabilityService(prisma as any, new TripMetricsService());
+      service = new TripEndValidationObservabilityService(
+        prisma as any,
+        TDL_OBS_TEST_RETENTION_CONFIG,
+        new TripMetricsService(),
+      );
     }, 120_000);
 
     beforeEach(async () => {
       if (!dbOk || !tableOk) return;
-      process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
-      process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = '';
       fixture = await createMinimalVehicleFixture(prisma);
-      process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = fixture.vehicle.id;
-      process.env.TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK = 'true';
-      process.env.TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT = 'true';
+      applyTdlObservabilityActivationEnv(fixture.vehicle.id);
+      await seedCompletedTdlObsRetentionPurgeRun(prisma, true);
     });
 
     afterEach(async () => {
-      delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
-      delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
-      delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK;
-      delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT;
+      clearTdlObservabilityActivationEnv();
       if (!dbOk || !fixture) return;
       await prisma.tripEndValidationDecisionObservation.deleteMany({
         where: { vehicleId: fixture.vehicle.id },
       });
+      await prisma.tripEndValidationObservabilityRetentionPurgeRun.deleteMany({});
       await prisma.vehicle.delete({ where: { id: fixture.vehicle.id } }).catch(() => undefined);
       await prisma.organization.delete({ where: { id: fixture.org.id } }).catch(() => undefined);
     });

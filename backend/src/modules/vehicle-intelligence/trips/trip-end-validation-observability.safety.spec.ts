@@ -6,15 +6,21 @@ import {
 } from './trip-end-validation-observability.types';
 
 import {
+  TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK_ENV,
   TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT_ENV,
   TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK_ENV,
 } from './trip-end-validation-observability.config';
+import {
+  buildMockPrismaPassingObservabilityActivation,
+  TDL_OBS_TEST_RETENTION_CONFIG,
+} from './trip-end-validation-observability-test.helpers';
 
 function enableObservabilityForVehicle(vehicleId: string): void {
   process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
   process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = vehicleId;
   process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK_ENV] = 'true';
   process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT_ENV] = 'true';
+  process.env[TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK_ENV] = 'true';
 }
 
 function disableObservabilityEnv(): void {
@@ -22,6 +28,7 @@ function disableObservabilityEnv(): void {
   delete process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS;
   delete process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK_ENV];
   delete process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT_ENV];
+  delete process.env[TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK_ENV];
 }
 
 describe('trip-end-validation-observability safety (fire-and-forget)', () => {
@@ -50,7 +57,10 @@ describe('trip-end-validation-observability safety (fire-and-forget)', () => {
     enableObservabilityForVehicle('other-vehicle');
 
     const create = jest.fn();
-    const service = new TripEndValidationObservabilityService({ tripEndValidationDecisionObservation: { create } } as any);
+    const service = new TripEndValidationObservabilityService(
+      { tripEndValidationDecisionObservation: { create } } as any,
+      TDL_OBS_TEST_RETENTION_CONFIG,
+    );
 
     recordTripEndValidationObservationSafely(undefined, service, baseInput);
     await new Promise((r) => setImmediate(r));
@@ -59,8 +69,8 @@ describe('trip-end-validation-observability safety (fire-and-forget)', () => {
     process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = prev;
     process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = prevIds;
     delete process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK_ENV];
-    delete process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT_ENV];
-  });
+  delete process.env[TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK_ENV];
+});
 
   it('absorbs writer failures without unhandledRejection', async () => {
     const prev = process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED;
@@ -72,11 +82,11 @@ describe('trip-end-validation-observability safety (fire-and-forget)', () => {
     process.on('unhandledRejection', onRejection);
 
     const logger = { warn: jest.fn() };
-    const service = new TripEndValidationObservabilityService({
-      tripEndValidationDecisionObservation: {
-        create: jest.fn().mockRejectedValue(new Error('relation does not exist')),
-      },
-    } as any);
+    const create = jest.fn().mockRejectedValue(new Error('relation does not exist'));
+    const service = new TripEndValidationObservabilityService(
+      buildMockPrismaPassingObservabilityActivation({ create }) as any,
+      TDL_OBS_TEST_RETENTION_CONFIG,
+    );
 
     recordTripEndValidationObservationSafely(logger as any, service, baseInput);
 
@@ -103,11 +113,11 @@ describe('trip-end-validation-observability safety (fire-and-forget)', () => {
     const recordPromise = new Promise<'inserted'>((r) => {
       resolveRecord = r;
     });
-    const service = new TripEndValidationObservabilityService({
-      tripEndValidationDecisionObservation: {
-        create: jest.fn(() => recordPromise),
-      },
-    } as any);
+    const create = jest.fn(() => recordPromise);
+    const service = new TripEndValidationObservabilityService(
+      buildMockPrismaPassingObservabilityActivation({ create }) as any,
+      TDL_OBS_TEST_RETENTION_CONFIG,
+    );
 
     const t0 = Date.now();
     recordTripEndValidationObservationSafely(undefined, service, baseInput);
@@ -126,23 +136,24 @@ describe('trip-end-validation-observability migration compatibility (writer)', (
       './trip-end-validation-observability.service'
     );
 
-    const prisma = {
-      tripEndValidationDecisionObservation: {
-        create: jest.fn().mockRejectedValue(
-          new Prisma.PrismaClientKnownRequestError('Unique constraint', {
-            code: 'P2002',
-            clientVersion: 'test',
-          }),
-        ),
-      },
-    };
+    const create = jest.fn().mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+    const prisma = buildMockPrismaPassingObservabilityActivation({ create });
 
     process.env.TRIP_END_VALIDATION_OBSERVABILITY_ENABLED = 'true';
     process.env.TRIP_END_VALIDATION_OBSERVABILITY_VEHICLE_IDS = 'veh-mig-1';
     process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK_ENV] = 'true';
     process.env[TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT_ENV] = 'true';
+    process.env[TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK_ENV] = 'true';
 
-    const svc = new TripEndValidationObservabilityService(prisma as any);
+    const svc = new TripEndValidationObservabilityService(
+      prisma as any,
+      TDL_OBS_TEST_RETENTION_CONFIG,
+    );
     const result = await svc.record({
       organizationId: 'org',
       vehicleId: 'veh-mig-1',

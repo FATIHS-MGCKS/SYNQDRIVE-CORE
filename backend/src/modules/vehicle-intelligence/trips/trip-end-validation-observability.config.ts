@@ -14,6 +14,9 @@ export const TRIP_END_VALIDATION_OBSERVABILITY_ACTIVATION_ACK_ENV =
 export const TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT_ENV =
   'TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT';
 
+export const TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK_ENV =
+  'TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK';
+
 export function parseTripEndValidationObservabilityEnabled(
   raw: string | undefined,
   fallback = false,
@@ -67,6 +70,13 @@ export function isTripEndValidationObservabilityEnabledForVehicle(
   ) {
     return false;
   }
+  if (
+    !parseTripEndValidationObservabilityEnabled(
+      env[TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK_ENV],
+    )
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -103,6 +113,13 @@ export function readTripEndValidationObservabilityActivationBlockers(
     )
   ) {
     blockers.push('TRIP_END_VALIDATION_OBSERVABILITY_ACK_BEST_EFFORT!=true');
+  }
+  if (
+    !parseTripEndValidationObservabilityEnabled(
+      env[TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK_ENV],
+    )
+  ) {
+    blockers.push('TRIP_END_VALIDATION_OBSERVATION_RETENTION_READY_ACK!=true');
   }
   return blockers;
 }

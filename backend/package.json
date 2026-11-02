@@ -224,7 +224,7 @@
     "test:trip-fsm-shadow:postgres-redis:ci": "TRIP_FSM_SHADOW_POSTGRES_REDIS_INTEGRATION=1 TRIP_FSM_SHADOW_POSTGRES_REDIS_REQUIRED=1 jest trip-fsm-shadow-observability.postgres-redis.integration --runInBand --verbose --forceExit",
     "test:tdl-end-validation-observability": "jest trip-end-validation-observability --no-coverage",
     "test:tdl-end-validation-observability:postgres": "TRIP_END_VALIDATION_OBSERVABILITY_POSTGRES_INTEGRATION=1 jest trip-end-validation-observability.postgres.integration --runInBand --forceExit",
-    "test:tdl-end-validation-observability:postgres:ci": "TRIP_END_VALIDATION_OBSERVABILITY_POSTGRES_INTEGRATION=1 TRIP_END_VALIDATION_OBSERVABILITY_POSTGRES_REQUIRED=1 jest trip-end-validation-observability.postgres.integration trip-end-validation-observability.migration.postgres.integration --runInBand --forceExit",
+    "test:tdl-end-validation-observability:postgres:ci": "TRIP_END_VALIDATION_OBSERVABILITY_POSTGRES_INTEGRATION=1 TRIP_END_VALIDATION_OBSERVABILITY_POSTGRES_REQUIRED=1 jest trip-end-validation-observability.postgres.integration trip-end-validation-observability.migration.postgres.integration trip-end-validation-observability-retention.postgres.integration --runInBand --forceExit",
     "test:tdl-end-validation-observability:golden-parity:ci": "TRIP_END_VALIDATION_GOLDEN_PARITY_POSTGRES_REDIS=1 TRIP_END_VALIDATION_GOLDEN_PARITY_POSTGRES_REDIS_REQUIRED=1 jest trip-end-validation-observability.golden-parity.postgres-redis.integration --runInBand --verbose --forceExit",
     "test:trip-r12:unit": "jest trip-fsm-r12-stop-boundary-end-liveness trip-fsm-r12-clock-authority --no-coverage",
     "test:trip-r12:postgres-redis": "TRIP_R12_POSTGRES_REDIS_INTEGRATION=1 jest trip-r12- --runInBand --forceExit",

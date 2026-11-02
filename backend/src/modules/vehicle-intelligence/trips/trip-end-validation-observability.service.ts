@@ -1,7 +1,10 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { ConfigType } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import tripEndValidationObservabilityRetentionConfig from '@config/trip-end-validation-observability-retention.config';
 import { PrismaService } from '@shared/database/prisma.service';
-import type { TripMetricsService } from '../../observability/trip-metrics.service';
+import { TripMetricsService } from '../../observability/trip-metrics.service';
+import { assertObservabilityWritesAllowed } from './trip-end-validation-observability-activation.readiness';
 import { isTripEndValidationObservabilityEnabledForVehicle } from './trip-end-validation-observability.config';
 import {
   buildTripEndValidationObservationRow,
@@ -15,6 +18,8 @@ export class TripEndValidationObservabilityService {
 
   constructor(
     private readonly prisma: PrismaService,
+    @Inject(tripEndValidationObservabilityRetentionConfig.KEY)
+    private readonly retentionConfig: ConfigType<typeof tripEndValidationObservabilityRetentionConfig>,
     @Optional() private readonly tripMetrics?: TripMetricsService,
   ) {}
 
@@ -24,6 +29,15 @@ export class TripEndValidationObservabilityService {
 
   async record(input: TripEndValidationObservationInput): Promise<'inserted' | 'skipped' | 'duplicate'> {
     if (!this.isEnabledForVehicle(input.vehicleId)) {
+      return 'skipped';
+    }
+
+    const activationBlockers = await assertObservabilityWritesAllowed(
+      this.prisma,
+      input.vehicleId,
+      this.retentionConfig,
+    );
+    if (activationBlockers.length > 0) {
       return 'skipped';
     }
 

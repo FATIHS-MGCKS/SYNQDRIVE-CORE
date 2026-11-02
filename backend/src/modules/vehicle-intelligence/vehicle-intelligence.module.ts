@@ -1,4 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import tripEndValidationObservabilityRetentionConfig from '@config/trip-end-validation-observability-retention.config';
 import { BullModule } from '@nestjs/bullmq';
 import { DataAuthorizationsModule } from '../data-authorizations/data-authorizations.module';
 import { VehicleIntelligenceController } from './vehicle-intelligence.controller';
@@ -56,6 +58,7 @@ import { DrivingEventsService } from './driving-events/driving-events.service';
 import { TripsService } from './trips/trips.service';
 import { TripDetectionOrchestrationService } from './trips/trip-detection-orchestration.service';
 import { TripEndValidationObservabilityService } from './trips/trip-end-validation-observability.service';
+import { TripEndValidationObservabilityRetentionModule } from './trips/trip-end-validation-observability-retention.module';
 import { TripLifecycleRecoveryService } from './trips/trip-lifecycle-recovery.service';
 import { TripBehaviorEnrichmentService } from './trips/trip-behavior-enrichment.service';
 import { TripEnrichmentOrchestratorService } from './trips/trip-enrichment-orchestrator.service';
@@ -338,6 +341,8 @@ import { DiV0M7aRoadAssignmentShadowModule } from './driving-intelligence/m7a-ro
     TireWearV3CalibrationShadowModule,
     TireHealthV3ReadModule,
     DiV0M7aRoadAssignmentShadowModule,
+    ConfigModule.forFeature(tripEndValidationObservabilityRetentionConfig),
+    TripEndValidationObservabilityRetentionModule,
     forwardRef(() => AiModule),
     forwardRef(() => MisuseCasesModule),
     forwardRef(() => InvoicesModule),
