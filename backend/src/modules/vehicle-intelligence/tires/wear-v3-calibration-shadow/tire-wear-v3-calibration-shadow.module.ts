@@ -7,6 +7,7 @@ import { TireWearV3CalibrationShadowMasterReadService } from './tire-wear-v3-cal
 import { TireWearV3CalibrationShadowWriterService } from './tire-wear-v3-calibration-shadow-writer.service';
 import { TireWearV3CalibrationEligibilityService } from './tire-wear-v3-calibration-eligibility.service';
 import { TireWearV3CalibrationSnapshotRepository } from './tire-wear-v3-calibration-snapshot.repository';
+import { TireWearV3CalibrationCenterInventoryReadService } from './tire-wear-v3-calibration-center-inventory-read.service';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { TireWearV3CalibrationSnapshotRepository } from './tire-wear-v3-calibrat
     TireWearV3CalibrationEligibilityService,
     TireWearV3CalibrationShadowWriterService,
     TireWearV3CalibrationShadowMasterReadService,
+    TireWearV3CalibrationCenterInventoryReadService,
   ],
   exports: [TireWearV3CalibrationShadowWriterService, TireWearV3CalibrationSnapshotRepository],
 })

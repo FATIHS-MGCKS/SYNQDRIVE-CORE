@@ -2,12 +2,16 @@ import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { Roles } from '@shared/decorators/roles.decorator';
 import { RolesGuard } from '@shared/auth/roles.guard';
 import { TireWearV3CalibrationShadowMasterReadService } from './tire-wear-v3-calibration-shadow-master-read.service';
+import { TireWearV3CalibrationCenterInventoryReadService } from './tire-wear-v3-calibration-center-inventory-read.service';
 
 @Controller('admin/master-intelligence/tire-wear-v3-calibration-shadow')
 @UseGuards(RolesGuard)
 @Roles('MASTER_ADMIN')
 export class TireWearV3CalibrationShadowMasterReadController {
-  constructor(private readonly reads: TireWearV3CalibrationShadowMasterReadService) {}
+  constructor(
+    private readonly reads: TireWearV3CalibrationShadowMasterReadService,
+    private readonly inventory: TireWearV3CalibrationCenterInventoryReadService,
+  ) {}
 
   @Get('summary')
   getSummary() {
@@ -110,6 +114,63 @@ export class TireWearV3CalibrationShadowMasterReadController {
     @Param('tireSetupId') tireSetupId: string,
   ) {
     return this.reads.getSetupInspection({
+      organizationId,
+      vehicleId,
+      tireSetupId,
+    });
+  }
+
+  @Get('inventory/summary')
+  getInventorySummary() {
+    return this.inventory.getGlobalSummary();
+  }
+
+  @Get('inventory/organizations')
+  listInventoryOrganizations(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.inventory.listOrganizations({
+      limit: limit != null ? Number(limit) : undefined,
+      offset: offset != null ? Number(offset) : undefined,
+    });
+  }
+
+  @Get('inventory/organizations/:organizationId/vehicles')
+  listInventoryVehicles(
+    @Param('organizationId') organizationId: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.inventory.listVehicles({
+      organizationId,
+      limit: limit != null ? Number(limit) : undefined,
+      offset: offset != null ? Number(offset) : undefined,
+    });
+  }
+
+  @Get('inventory/organizations/:organizationId/vehicles/:vehicleId/setups')
+  listInventorySetups(
+    @Param('organizationId') organizationId: string,
+    @Param('vehicleId') vehicleId: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.inventory.listSetupsForVehicle({
+      organizationId,
+      vehicleId,
+      limit: limit != null ? Number(limit) : undefined,
+      offset: offset != null ? Number(offset) : undefined,
+    });
+  }
+
+  @Get('inventory/organizations/:organizationId/vehicles/:vehicleId/setups/:tireSetupId')
+  getInventorySetupDetail(
+    @Param('organizationId') organizationId: string,
+    @Param('vehicleId') vehicleId: string,
+    @Param('tireSetupId') tireSetupId: string,
+  ) {
+    return this.inventory.getSetupDetail({
       organizationId,
       vehicleId,
       tireSetupId,

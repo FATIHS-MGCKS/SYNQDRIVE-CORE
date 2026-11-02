@@ -21,6 +21,7 @@ import {
   type TireCalibrationCenterUrlState,
 } from './tire-calibration-center-url';
 import { TireCalibrationSnapshotDrawer } from './TireCalibrationSnapshotDrawer';
+import { TireCalibrationInventoryPanel } from './TireCalibrationInventoryPanel';
 
 type MasterOrgOption = { id: string; companyName: string };
 
@@ -158,6 +159,7 @@ export function TireCalibrationCenterView({ organizations }: Props) {
     () =>
       [
         { id: 'overview' as const, label: t('master.intelligence.tireCalibration.tab.overview' as never) },
+        { id: 'inventory' as const, label: t('master.intelligence.tireCalibration.tab.inventory' as never) },
         { id: 'snapshots' as const, label: t('master.intelligence.tireCalibration.tab.snapshots' as never) },
         { id: 'accuracy' as const, label: t('master.intelligence.tireCalibration.tab.accuracy' as never) },
         { id: 'quality' as const, label: t('master.intelligence.tireCalibration.tab.quality' as never) },
@@ -287,6 +289,16 @@ export function TireCalibrationCenterView({ organizations }: Props) {
             </>
           )}
         </MasterPageSection>
+      )}
+
+      {url.tab === 'inventory' && (
+        <TireCalibrationInventoryPanel
+          organizations={organizations}
+          url={url}
+          syncUrl={syncUrl}
+          vehicleOptions={vehicleOptions}
+          loadingScope={loading}
+        />
       )}
 
       {(url.tab === 'snapshots' || url.tab === 'quality' || url.tab === 'accuracy') && (
