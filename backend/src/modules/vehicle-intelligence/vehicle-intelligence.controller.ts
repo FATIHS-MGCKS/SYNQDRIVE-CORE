@@ -1212,7 +1212,7 @@ export class VehicleIntelligenceController {
   ) {
     const organizationId = await this.resolveOrganizationId(req, vehicleId);
     const driverFilter = resolveDriverFilterQuery(driver);
-    const trips = await this.tripsService.findByVehicle(organizationId, vehicleId, {
+    const trips = await this.tripsService.findCustomerVisibleTripsByVehicle(organizationId, vehicleId, {
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,
       ...driverFilter,
@@ -1295,7 +1295,7 @@ export class VehicleIntelligenceController {
     const toDate = to ? new Date(to) : undefined;
     const driverFilter = resolveDriverFilterQuery(driver);
 
-    const trips = await this.tripsService.findByVehicle(organizationId, vehicleId, {
+    const trips = await this.tripsService.findCustomerVisibleTripsByVehicle(organizationId, vehicleId, {
       from: fromDate,
       to: toDate,
       ...driverFilter,
