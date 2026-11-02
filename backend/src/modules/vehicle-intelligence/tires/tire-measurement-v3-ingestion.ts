@@ -14,6 +14,7 @@ import {
 } from './tire-odometer-anchor';
 import type { RecordTireMeasurementCommand } from './tire-lifecycle.service';
 import type { TireWearV3PriorSetupResult } from './wear-v3-prior/tire-wear-v3-prior.types';
+import { assessPosteriorCalibrationEligibleFromPrior } from './wear-v3-prior/tire-wear-v3-numerical-evidence';
 
 export const TIRE_MEASUREMENT_TREAD_MIN_MM = 0;
 export const TIRE_MEASUREMENT_TREAD_MAX_MM = 20;
@@ -25,12 +26,25 @@ export type TireMeasurementV3WarningCode =
   | 'V3_MEASUREMENT_OUTSIDE_MOUNT_PERIOD'
   | 'V3_NOT_GROUND_TRUTH_SOURCE'
   | 'V3_VERIFICATION_SOURCE_EXCLUDED'
+  | 'V3_REGISTRATION_BASELINE_NOT_VERIFICATION_ANCHOR'
   | 'V3_NO_TREAD_VALUES'
-  | 'V3_POSTERIOR_INSUFFICIENT_EVIDENCE';
+  | 'V3_POSTERIOR_INSUFFICIENT_EVIDENCE'
+  | 'V3_MEASUREMENT_RECORDED_UNVERIFIED'
+  | 'V3_VERIFICATION_ANCHOR_ONE_POINT'
+  | 'V3_RATE_CALIBRATION_REQUIRES_TWO_POINTS'
+  | 'V3_WORKSHOP_ODOMETER_MISSING'
+  | 'V3_WORKSHOP_PROVENANCE_INCOMPLETE';
+
+export type TireMeasurementV3EvidenceClass =
+  | 'VERIFICATION_ELIGIBLE'
+  | 'UNVERIFIED_GROUND_TRUTH'
+  | 'EXCLUDED_SOURCE'
+  | 'NON_GROUND_TRUTH';
 
 export interface TireMeasurementV3IngestionAssessment {
   verificationEligible: boolean;
   posteriorCalibrationEligible: boolean;
+  evidenceClass: TireMeasurementV3EvidenceClass;
   warnings: Array<{ code: TireMeasurementV3WarningCode; message: string }>;
   verificationStatus: string | null;
 }
@@ -53,7 +67,18 @@ export function resolveExplicitMeasurementOdometerKm(
   command: RecordTireMeasurementCommand,
 ): number | null {
   if (!isOdometerExplicitlyConfirmed(command)) return null;
-  return toFiniteOdometerKm(command.odometerKm);
+  const km = toFiniteOdometerKm(command.odometerKm);
+  if (km == null) return null;
+  return km;
+}
+
+export function isRegistrationBaselineLegacySource(source: string | null | undefined): boolean {
+  const normalized = String(source ?? '').trim().toLowerCase();
+  return (
+    normalized === 'manual_registration' ||
+    normalized === 'documented_registration' ||
+    normalized === 'registration'
+  );
 }
 
 export function resolveInferredMeasurementOdometerKm(
@@ -72,8 +97,10 @@ export function isGroundTruthMeasurementCommand(
   legacySource: string,
   evidenceSource: TireEvidenceSource,
 ): boolean {
+  if (!isGroundTruthEvidenceSource(evidenceSource)) return false;
+  if (isRegistrationBaselineLegacySource(legacySource)) return true;
   if (isVerificationExcludedLegacySource(legacySource)) return false;
-  return isGroundTruthEvidenceSource(evidenceSource);
+  return true;
 }
 
 export function validateTreadMmValues(values: {
@@ -130,15 +157,7 @@ function buildMeasurementRowForV3Assessment(args: {
 export function assessPosteriorCalibrationEligible(
   prior: TireWearV3PriorSetupResult | null | undefined,
 ): boolean {
-  if (!prior?.rated) return false;
-  const blocked = new Set([
-    'RATE_INSUFFICIENT_POINTS',
-    'RATE_INSUFFICIENT_SPAN',
-    'RATE_ROTATION_UNVERIFIED',
-    'ROTATION_DURING_MOUNT_PERIOD',
-    'VERIFICATION_ROTATION_IDENTITY_UNVERIFIED',
-  ]);
-  return !prior.setupFlags.some((f) => blocked.has(f));
+  return assessPosteriorCalibrationEligibleFromPrior(prior);
 }
 
 export function assessV3Ingestion(args: {
@@ -155,6 +174,7 @@ export function assessV3Ingestion(args: {
     rearRightMm: number | null;
   };
   priorResult: TireWearV3PriorSetupResult | null;
+  workshopName?: string | null;
 }): TireMeasurementV3IngestionAssessment {
   const warnings: TireMeasurementV3IngestionAssessment['warnings'] = [];
   const groundTruth = isGroundTruthMeasurementCommand(args.legacySource, args.evidenceSource);
@@ -171,6 +191,30 @@ export function assessV3Ingestion(args: {
       code: 'V3_VERIFICATION_SOURCE_EXCLUDED',
       message: 'This legacy source cannot anchor V3 verification.',
     });
+    if (isRegistrationBaselineLegacySource(args.legacySource)) {
+      warnings.push({
+        code: 'V3_REGISTRATION_BASELINE_NOT_VERIFICATION_ANCHOR',
+        message:
+          'Registration baseline tread is stored for inventory only and does not create a V3 verification anchor.',
+      });
+    }
+  }
+
+  const legacyNormalized = args.legacySource.trim().toLowerCase();
+  if (legacyNormalized === 'workshop') {
+    const workshopName = String(args.workshopName ?? '').trim();
+    if (!workshopName) {
+      warnings.push({
+        code: 'V3_WORKSHOP_PROVENANCE_INCOMPLETE',
+        message: 'Workshop name is recommended for verifiable workshop odometer provenance.',
+      });
+    }
+    if (args.explicitOdometerKm == null && groundTruth) {
+      warnings.push({
+        code: 'V3_WORKSHOP_ODOMETER_MISSING',
+        message: 'Workshop measurements require an explicit odometer reading on the report for V3 evidence.',
+      });
+    }
   }
 
   if (!assertMeasuredAtInMountPeriod(args.measuredAt, args.mountPeriod)) {
@@ -206,8 +250,16 @@ export function assessV3Ingestion(args: {
   });
 
   const accepted = isAcceptedVerificationMeasurement(row);
-  const verificationEligible = groundTruth && accepted.accepted;
-  const posteriorCalibrationEligible = assessPosteriorCalibrationEligible(args.priorResult);
+  const verificationExcluded = isVerificationExcludedLegacySource(args.legacySource);
+  const inMountPeriod = assertMeasuredAtInMountPeriod(args.measuredAt, args.mountPeriod);
+  const verificationEligible =
+    groundTruth &&
+    !verificationExcluded &&
+    accepted.accepted &&
+    inMountPeriod;
+  const posteriorCalibrationEligible = assessPosteriorCalibrationEligibleFromPrior(
+    args.priorResult,
+  );
 
   if (groundTruth && !accepted.accepted && accepted.flags.includes('VERIFICATION_NO_TREAD_VALUES')) {
     warnings.push({
@@ -222,11 +274,40 @@ export function assessV3Ingestion(args: {
       message:
         'V3 rate calibration remains gated (insufficient odometer span, points, or rotation safety).',
     });
+    warnings.push({
+      code: 'V3_RATE_CALIBRATION_REQUIRES_TWO_POINTS',
+      message:
+        'Empirical wear-rate calibration requires at least two spaced measurements with explicit odometer — a single point can anchor verification only.',
+    });
+    warnings.push({
+      code: 'V3_VERIFICATION_ANCHOR_ONE_POINT',
+      message:
+        'This measurement can anchor V3 verification cadence; empirical rate calibration requires additional spaced points.',
+    });
+  }
+
+  let evidenceClass: TireMeasurementV3EvidenceClass = 'NON_GROUND_TRUTH';
+  if (!groundTruth) {
+    evidenceClass = 'NON_GROUND_TRUTH';
+  } else if (verificationExcluded) {
+    evidenceClass = 'EXCLUDED_SOURCE';
+  } else if (verificationEligible) {
+    evidenceClass = 'VERIFICATION_ELIGIBLE';
+  } else {
+    evidenceClass = 'UNVERIFIED_GROUND_TRUTH';
+    if (!verificationExcluded) {
+      warnings.push({
+        code: 'V3_MEASUREMENT_RECORDED_UNVERIFIED',
+        message:
+          'Tread was saved but this measurement is not V3 verification evidence until odometer and source rules are satisfied.',
+      });
+    }
   }
 
   return {
     verificationEligible,
     posteriorCalibrationEligible,
+    evidenceClass,
     warnings,
     verificationStatus: args.priorResult?.verification?.status ?? null,
   };

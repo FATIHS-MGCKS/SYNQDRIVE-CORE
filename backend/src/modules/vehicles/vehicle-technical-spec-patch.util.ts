@@ -1,16 +1,18 @@
 import { BadRequestException } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { DriveType, Prisma } from '@prisma/client';
 import {
   getProtectedProvenanceValue,
   normalizeProvenanceStorageKey,
 } from '@modules/vehicle-onboarding/vehicle-identity-review/vehicle-identity-field-mapping.util';
 import type { RegistrationIdentityProvenanceDocument } from '@modules/vehicle-onboarding/vehicle-identity-review/vehicle-identity-canonical.types';
 import { isProtectedProvenanceEntry } from '@modules/vehicle-onboarding/vehicle-identity-review/vehicle-identity-provenance.util';
+import { mapMasterFormDrivetrainToDriveType } from '@modules/vehicle-onboarding/master-dimo/master-dimo-registration.mapper';
 import {
   formatFrontRearWeightDistribution,
   parseBrakeForceFrontPercent,
   parseFrontWeightDistributionPct,
   parsePositiveIntegerField,
+  parseTankCapacityLiters,
   parseVehicleRpmField,
   valuesEqualScalar,
   vehicleRpmPairIsConsistent,
@@ -22,7 +24,12 @@ export type VehicleTechnicalSpecFieldKey =
   | 'frontWeightDistributionPct'
   | 'idleRpm'
   | 'maxRpm'
-  | 'brakeForceFrontPercent';
+  | 'brakeForceFrontPercent'
+  | 'tankCapacityLiters'
+  | 'serviceIntervalManufacturerKm'
+  | 'serviceIntervalManufacturerMonths'
+  | 'oilChangeIntervalKm'
+  | 'oilChangeIntervalMonths';
 
 export type VehicleTechnicalSpecificationSaveMeta = {
   confirmedFieldKeys?: string[];
@@ -37,6 +44,12 @@ export type VehicleTechnicalSpecificationPatchInput = {
   maxRpm?: number | string | null;
   brakeForceFrontPercent?: number | string | null;
   brakeForceDistribution?: string | number | null;
+  tankCapacityLiters?: number | string | null;
+  serviceIntervalManufacturerKm?: number | string | null;
+  serviceIntervalManufacturerMonths?: number | string | null;
+  oilChangeIntervalKm?: number | string | null;
+  oilChangeIntervalMonths?: number | string | null;
+  drivetrain?: string | null;
   technicalSpecificationSave?: VehicleTechnicalSpecificationSaveMeta;
 };
 
@@ -47,6 +60,12 @@ export type VehicleTechnicalSpecificationVehicleRow = {
   idleRpm: number | null;
   maxRpm: number | null;
   brakeForceFrontPercent: number | null;
+  tankCapacityLiters: number | null;
+  serviceIntervalManufacturerKm: number | null;
+  serviceIntervalManufacturerMonths: number | null;
+  oilChangeIntervalKm: number | null;
+  oilChangeIntervalMonths: number | null;
+  driveType: DriveType | null;
   registrationIdentityProvenance: unknown;
 };
 
@@ -55,6 +74,10 @@ const AI_PROVENANCE_CATEGORIES = new Set(['AI_ESTIMATED', 'KNOWLEDGE_ONLY']);
 function normalizeConfirmedFieldKey(key: string): VehicleTechnicalSpecFieldKey | string {
   if (key === 'frontToRearWeightDistribution') return 'frontWeightDistributionPct';
   if (key === 'brakeForceDistribution') return 'brakeForceFrontPercent';
+  if (key === 'manufacturerServiceIntervalKm') return 'serviceIntervalManufacturerKm';
+  if (key === 'manufacturerServiceIntervalMonths') return 'serviceIntervalManufacturerMonths';
+  if (key === 'oilchangeIntervalKm') return 'oilChangeIntervalKm';
+  if (key === 'oilchangeIntervalMonths') return 'oilChangeIntervalMonths';
   return key;
 }
 
@@ -153,8 +176,18 @@ export function buildVehicleTechnicalSpecificationPrismaPatch(
       patch.idleRpm = next;
     } else if (key === 'maxRpm') {
       patch.maxRpm = next;
-    } else {
+    } else if (key === 'brakeForceFrontPercent') {
       patch.brakeForceFrontPercent = next;
+    } else if (key === 'tankCapacityLiters') {
+      patch.tankCapacityLiters = next;
+    } else if (key === 'serviceIntervalManufacturerKm') {
+      patch.serviceIntervalManufacturerKm = next;
+    } else if (key === 'serviceIntervalManufacturerMonths') {
+      patch.serviceIntervalManufacturerMonths = next;
+    } else if (key === 'oilChangeIntervalKm') {
+      patch.oilChangeIntervalKm = next;
+    } else {
+      patch.oilChangeIntervalMonths = next;
     }
 
     provenanceUpdates.fields[provenanceStorageKey as keyof typeof provenanceUpdates.fields] = {
@@ -174,7 +207,13 @@ export function buildVehicleTechnicalSpecificationPrismaPatch(
     input.idleRpm !== undefined ||
     input.maxRpm !== undefined ||
     input.brakeForceFrontPercent !== undefined ||
-    input.brakeForceDistribution !== undefined
+    input.brakeForceDistribution !== undefined ||
+    input.tankCapacityLiters !== undefined ||
+    input.serviceIntervalManufacturerKm !== undefined ||
+    input.serviceIntervalManufacturerMonths !== undefined ||
+    input.oilChangeIntervalKm !== undefined ||
+    input.oilChangeIntervalMonths !== undefined ||
+    input.drivetrain !== undefined
   ) {
     let nextDisplacement: number | null | undefined;
     if (input.engineDisplacementCc !== undefined) {
@@ -311,6 +350,91 @@ export function buildVehicleTechnicalSpecificationPrismaPatch(
         'brakeForceFrontPercent',
       );
     }
+
+    if (input.tankCapacityLiters !== undefined) {
+      let nextTank: number | null;
+      if (input.tankCapacityLiters === null || input.tankCapacityLiters === '') {
+        nextTank = null;
+      } else {
+        const parsed = parseTankCapacityLiters(input.tankCapacityLiters);
+        if (parsed == null) {
+          throw new BadRequestException({
+            message: 'tankCapacityLiters must be a non-negative number.',
+            code: 'VEHICLE_TECH_SPEC_INVALID_TANK_CAPACITY',
+          });
+        }
+        nextTank = parsed;
+      }
+      considerField('tankCapacityLiters', nextTank, vehicle.tankCapacityLiters, 'tankCapacityLiters');
+    }
+
+    const considerInterval = (
+      key:
+        | 'serviceIntervalManufacturerKm'
+        | 'serviceIntervalManufacturerMonths'
+        | 'oilChangeIntervalKm'
+        | 'oilChangeIntervalMonths',
+      raw: number | string | null | undefined,
+      current: number | null,
+    ) => {
+      if (raw === undefined) return;
+      let next: number | null;
+      if (raw === null || raw === '') {
+        next = null;
+      } else {
+        const parsed = parsePositiveIntegerField(raw);
+        if (parsed == null) {
+          throw new BadRequestException({
+            message: `${key} must be a positive integer.`,
+            code: 'VEHICLE_TECH_SPEC_INVALID_INTERVAL',
+            field: key,
+          });
+        }
+        next = parsed;
+      }
+      considerField(key, next, current, key);
+    };
+
+    considerInterval(
+      'serviceIntervalManufacturerKm',
+      input.serviceIntervalManufacturerKm,
+      vehicle.serviceIntervalManufacturerKm,
+    );
+    considerInterval(
+      'serviceIntervalManufacturerMonths',
+      input.serviceIntervalManufacturerMonths,
+      vehicle.serviceIntervalManufacturerMonths,
+    );
+    considerInterval('oilChangeIntervalKm', input.oilChangeIntervalKm, vehicle.oilChangeIntervalKm);
+    considerInterval(
+      'oilChangeIntervalMonths',
+      input.oilChangeIntervalMonths,
+      vehicle.oilChangeIntervalMonths,
+    );
+
+    if (input.drivetrain !== undefined) {
+      if (!confirmed.has('drivetrain')) {
+        throw new BadRequestException({
+          message: 'Field drivetrain requires explicit user confirmation before save.',
+          code: 'VEHICLE_TECH_SPEC_CONFIRMATION_REQUIRED',
+          field: 'drivetrain',
+        });
+      }
+      let nextDrive: DriveType | null = null;
+      if (input.drivetrain !== null && String(input.drivetrain).trim() !== '') {
+        nextDrive = mapMasterFormDrivetrainToDriveType(input.drivetrain);
+        if (!nextDrive) {
+          throw new BadRequestException({
+            message: 'drivetrain must be a valid drive type (FWD, RWD, AWD, 4WD).',
+            code: 'VEHICLE_TECH_SPEC_INVALID_DRIVETRAIN',
+          });
+        }
+      }
+      const currentDrive = vehicle.driveType;
+      if (nextDrive !== currentDrive) {
+        patch.driveType = nextDrive;
+      }
+    }
   }
 
   if (Object.keys(provenanceUpdates.fields).length > 0) {
@@ -352,6 +476,12 @@ export function extractTechnicalSpecificationPatchInput(
     'maxRpm',
     'brakeForceFrontPercent',
     'brakeForceDistribution',
+    'tankCapacityLiters',
+    'serviceIntervalManufacturerKm',
+    'serviceIntervalManufacturerMonths',
+    'oilChangeIntervalKm',
+    'oilChangeIntervalMonths',
+    'drivetrain',
     'technicalSpecificationSave',
   ];
   const hasAny = keys.some((k) => body[k] !== undefined);
@@ -365,6 +495,20 @@ export function extractTechnicalSpecificationPatchInput(
     maxRpm: body.maxRpm as number | string | null | undefined,
     brakeForceFrontPercent: body.brakeForceFrontPercent as number | string | null | undefined,
     brakeForceDistribution: body.brakeForceDistribution as string | number | null | undefined,
+    tankCapacityLiters: body.tankCapacityLiters as number | string | null | undefined,
+    serviceIntervalManufacturerKm: body.serviceIntervalManufacturerKm as
+      | number
+      | string
+      | null
+      | undefined,
+    serviceIntervalManufacturerMonths: body.serviceIntervalManufacturerMonths as
+      | number
+      | string
+      | null
+      | undefined,
+    oilChangeIntervalKm: body.oilChangeIntervalKm as number | string | null | undefined,
+    oilChangeIntervalMonths: body.oilChangeIntervalMonths as number | string | null | undefined,
+    drivetrain: body.drivetrain as string | null | undefined,
     technicalSpecificationSave: body.technicalSpecificationSave as
       | VehicleTechnicalSpecificationSaveMeta
       | undefined,
@@ -384,6 +528,12 @@ export function stripTechnicalSpecificationKeysFromUpdateBody(
     'maxRpm',
     'brakeForceFrontPercent',
     'brakeForceDistribution',
+    'tankCapacityLiters',
+    'serviceIntervalManufacturerKm',
+    'serviceIntervalManufacturerMonths',
+    'oilChangeIntervalKm',
+    'oilChangeIntervalMonths',
+    'drivetrain',
     'technicalSpecificationSave',
     'aiFieldProvenance',
   ]) {
@@ -518,6 +668,18 @@ export function assertAiTechnicalFieldsConfirmed(
       formKey: 'brakeForceDistribution',
       patchKeys: ['brakeForceDistribution', 'brakeForceFrontPercent'],
     },
+    { formKey: 'tankCapacityLiters', patchKeys: ['tankCapacityLiters'] },
+    {
+      formKey: 'manufacturerServiceIntervalKm',
+      patchKeys: ['serviceIntervalManufacturerKm'],
+    },
+    {
+      formKey: 'manufacturerServiceIntervalMonths',
+      patchKeys: ['serviceIntervalManufacturerMonths'],
+    },
+    { formKey: 'oilchangeIntervalKm', patchKeys: ['oilChangeIntervalKm'] },
+    { formKey: 'oilchangeIntervalMonths', patchKeys: ['oilChangeIntervalMonths'] },
+    { formKey: 'drivetrain', patchKeys: ['drivetrain'] },
   ];
   for (const { formKey, patchKeys } of aiKeys) {
     const meta = aiFieldProvenance[formKey];

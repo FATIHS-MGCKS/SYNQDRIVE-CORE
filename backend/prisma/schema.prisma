@@ -1657,6 +1657,7 @@ model Organization {
   stations                                                  Station[]
   vehicleStationTransfers                                   VehicleStationTransfer[]
   vehicles                                                  Vehicle[]
+  oneAutoProviderJobs                                       OneAutoProviderJob[]
   physicalDevices                                           PhysicalDevice[]
   physicalDeviceAssignments                                 PhysicalDeviceAssignment[]
   vehicleProviderSourceObservations                         VehicleProviderSourceObservation[]
@@ -3180,6 +3181,7 @@ model Vehicle {
   licensePlateAssignments                VehicleLicensePlateAssignment[]
   completedOnboardingCases               VehicleOnboardingCase[]         @relation("OnboardingCaseCompletedVehicle")
   registryLifecycleOutboxEvents          VehicleRegistryLifecycleOutbox[]
+  oneAutoProviderJobs                    OneAutoProviderJob[]
 
   @@unique([vin, organizationId])
   @@index([organizationId])
@@ -3191,6 +3193,70 @@ model Vehicle {
   @@index([registryLifecycle])
   @@unique([organizationId, id])
   @@map("vehicles")
+}
+
+enum OneAutoProviderJobStatus {
+  CREATED
+  QUEUED
+  RUNNING
+  AWAITING_PROVIDER
+  SUCCEEDED
+  FAILED
+  EXPIRED
+}
+
+model OneAutoProviderJob {
+  id                          String                   @id @default(cuid())
+  organizationId              String                   @map("organization_id")
+  vehicleId                   String                   @map("vehicle_id")
+  vinSnapshot                 String                   @map("vin_snapshot")
+  serviceSku                  String                   @map("service_sku")
+  status                      OneAutoProviderJobStatus @default(CREATED)
+  idempotencyKey              String                   @map("idempotency_key")
+  providerRequestId           String?                  @map("provider_request_id")
+  estimatedPriceMinor         Int?                     @map("estimated_price_minor")
+  currency                    String                   @default("GBP")
+  pricingSourceVersion        String?                  @map("pricing_source_version")
+  costConfirmedAt             DateTime?                @map("cost_confirmed_at")
+  costConfirmedByUserId       String?                  @map("cost_confirmed_by_user_id")
+  initiatingMasterAdminUserId String                   @map("initiating_master_admin_user_id")
+  confirmedPriceMinor         Int?                     @map("confirmed_price_minor")
+  budgetReservedMinor         Int?                     @map("budget_reserved_minor")
+  quoteIssuedAt               DateTime?                @map("quote_issued_at")
+  initialProviderDispatchAt   DateTime?                @map("initial_provider_dispatch_at")
+  actualChargeMinor           Int?                     @map("actual_charge_minor")
+  actualChargeKnown           Boolean                  @default(false) @map("actual_charge_known")
+  pollAttemptCount            Int                      @default(0) @map("poll_attempt_count")
+  lastErrorCode               String?                  @map("last_error_code")
+  lastErrorMessageRedacted    String?                  @map("last_error_message_redacted")
+  expiresAt                   DateTime?                @map("expires_at")
+  createdAt                   DateTime                 @default(now()) @map("created_at")
+  updatedAt                   DateTime                 @updatedAt @map("updated_at")
+
+  organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle                   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  responses    OneAutoProviderResponse[]
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, vehicleId])
+  @@index([organizationId, costConfirmedAt])
+  @@index([status])
+  @@map("one_auto_provider_jobs")
+}
+
+model OneAutoProviderResponse {
+  id                   String   @id @default(cuid())
+  jobId                String   @map("job_id")
+  httpStatus           Int?     @map("http_status")
+  providerStatusHeader String?  @map("provider_status_header")
+  responseBodyJson     Json?    @map("response_body_json")
+  responsePhase        String?  @map("response_phase")
+  fetchedAt            DateTime @default(now()) @map("fetched_at")
+
+  job OneAutoProviderJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("one_auto_provider_responses")
 }
 
 enum ComplaintUrgency {
@@ -3615,7 +3681,8 @@ model VehicleTireSetup {
   snapshots            TireHealthSnapshot[]
   wearDataPoints       TireWearDataPoint[]
   tripUsageLedger      TireTripUsageLedger[]
-  wearV3PriorShadowRows TireWearV3PriorShadowV1[]
+  wearV3PriorShadowRows        TireWearV3PriorShadowV1[]
+  wearV3CalibrationSnapshots   TireWearV3CalibrationSnapshotV1[]
   mountPeriods         VehicleTireSetupMountPeriod[]
   rentalHealthReviews  TireRentalHealthReviewOverride[]
   healthAlerts         TireHealthAlert[]
@@ -3996,6 +4063,40 @@ model TireWearV3PriorShadowV1 {
   @@unique([tireSetupId, modelVersion, inputFingerprint], map: "tire_wear_v3_prior_shadow_setup_model_fp_uq")
   @@index([organizationId, vehicleId], map: "tire_wear_v3_prior_shadow_org_vehicle_idx")
   @@map("tire_wear_v3_prior_shadow_v1")
+}
+
+/// Tire Wear V3 calibration shadow — immutable per-wheel predictions (not customer-facing).
+model TireWearV3CalibrationSnapshotV1 {
+  id                    String   @id @default(uuid())
+  organizationId        String   @map("organization_id")
+  vehicleId             String   @map("vehicle_id")
+  tireSetupId           String   @map("tire_setup_id")
+  mountPeriodId         String?  @map("mount_period_id")
+  wheelPosition         String   @map("wheel_position")
+  physicalTireId        String?  @map("physical_tire_id")
+  predictionCreatedAt   DateTime @map("prediction_created_at") @db.Timestamptz(6)
+  sourceComputedAt      DateTime @map("source_computed_at") @db.Timestamptz(6)
+  sourceOdometerKm      Float?   @map("source_odometer_km")
+  modelVersion          String   @map("model_version")
+  modelConfigHash       String   @map("model_config_hash")
+  inputFingerprint      String   @map("input_fingerprint")
+  calibrationEligibilityDigest String @map("calibration_eligibility_digest")
+  snapshotSchemaVersion String   @map("snapshot_schema_version")
+  idempotencyKey        String   @unique @map("idempotency_key")
+  latestSourceMeasurementAt DateTime? @map("latest_source_measurement_at") @db.Timestamptz(6)
+  sourceDataCutoffAt    DateTime @map("source_data_cutoff_at") @db.Timestamptz(6)
+  pairingEligible       Boolean  @default(false) @map("pairing_eligible")
+  measurementIdsUsed    Json     @default("[]") @map("measurement_ids_used")
+  snapshotPayload       Json     @map("snapshot_payload")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tireSetup VehicleTireSetup @relation(fields: [tireSetupId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, vehicleId], map: "tire_wear_v3_cal_snap_org_vehicle_idx")
+  @@index([tireSetupId, predictionCreatedAt], map: "tire_wear_v3_cal_snap_setup_pred_idx")
+  @@index([tireSetupId, inputFingerprint], map: "tire_wear_v3_cal_snap_setup_fp_idx")
+  @@index([tireSetupId, calibrationEligibilityDigest], map: "tire_wear_v3_cal_snap_setup_elig_idx")
+  @@map("tire_wear_v3_calibration_snapshot_v1")
 }
 
 // ------------------------------------------------
@@ -13052,6 +13153,46 @@ model DiV0MotionCoreShadowOutboxV1 {
   @@unique([workItemId, shadowIntentKey], map: "di_v0_motion_core_shadow_outbox_wi_intent_uq")
   @@index([status, nextAttemptAt, createdAt], map: "di_v0_motion_core_shadow_outbox_claim_idx")
   @@map("di_v0_motion_core_shadow_outbox_v1")
+}
+
+/// DS4 RPM HF V1B post-trip temporal quality shadow (flags OFF by default).
+model Ds4RpmHfV1bShadowRunV1 {
+  id               String   @id @map("id")
+  organizationId   String   @map("organization_id")
+  vehicleId        String   @map("vehicle_id")
+  tripId           String   @map("trip_id")
+  engineVersion    String   @map("engine_version")
+  inputFingerprint String   @map("input_fingerprint")
+  shadowStatus     String   @map("shadow_status")
+  summaryJson      Json     @map("summary_json")
+  computedAt       DateTime @map("computed_at") @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([organizationId, tripId], map: "ds4_rpm_hf_v1b_shadow_runs_org_trip_idx")
+  @@map("ds4_rpm_hf_v1b_shadow_runs_v1")
+}
+
+model Ds4RpmHfV1bShadowOutboxV1 {
+  outboxId       String    @id @default(uuid()) @map("outbox_id")
+  organizationId String    @map("organization_id")
+  vehicleId      String    @map("vehicle_id")
+  tripId         String    @map("trip_id")
+  engineVersion  String    @map("engine_version")
+  status         String    @map("status")
+  attemptCount   Int       @default(0) @map("attempt_count")
+  nextAttemptAt  DateTime  @map("next_attempt_at") @db.Timestamptz(6)
+  lastErrorCode  String?   @map("last_error_code")
+  lastErrorAt    DateTime? @map("last_error_at") @db.Timestamptz(6)
+  claimToken                 String?   @map("claim_token")
+  claimExpiresAt             DateTime? @map("claim_expires_at") @db.Timestamptz(6)
+  succeededInputFingerprint  String?   @map("succeeded_input_fingerprint")
+  revisionLastProbedAt       DateTime? @map("revision_last_probed_at") @db.Timestamptz(6)
+  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([organizationId, tripId, engineVersion], map: "ds4_rpm_hf_v1b_shadow_outbox_trip_engine_uq")
+  @@index([status, nextAttemptAt, createdAt], map: "ds4_rpm_hf_v1b_shadow_outbox_claim_idx")
+  @@map("ds4_rpm_hf_v1b_shadow_outbox_v1")
 }
 
 /// DS4 Assessment L2 (PR-A) — persisted trip assessment from motion-core shadow runs; worker OFF by default.

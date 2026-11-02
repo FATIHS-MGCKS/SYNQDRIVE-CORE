@@ -7,6 +7,8 @@ export const masterMotionPhysicsNl = {
   'master.motionPhysics.systemPowerDefinition.option.estimated': 'Geschat systeemvermogen (AI / onzeker)',
   'master.motionPhysics.systemPowerDefinition.hint':
     'Meng motorvermogen en systeemvermogen niet — vooral bij EV en hybride.',
+  'master.motionPhysics.systemPowerDefinition.persistHint':
+    'Het type vermogensaanduiding wordt niet opgeslagen met „Wijzigingen opslaan”. Gebruik „Handmatige waarden bevestigen” om de keuze in de bewegingsfysiek-referentie op te slaan.',
   'master.motionPhysics.systemMotorPowerKw.hintMotor': 'Voer nominaal OEM-motorvermogen in kW in.',
   'master.motionPhysics.systemMotorPowerKw.hintSystem': 'Voer gecombineerd OEM-systeemvermogen in kW in (geen wielvermogen).',
   'master.motionPhysics.accel0To100S': '0–100 km/h (s)',

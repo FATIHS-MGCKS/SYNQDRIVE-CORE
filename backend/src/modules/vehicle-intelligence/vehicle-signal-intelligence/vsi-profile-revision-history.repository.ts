@@ -1,5 +1,6 @@
+import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { PrismaService } from '../../../shared/database/prisma.service';
+import { PrismaService } from '../../../shared/database/prisma.service';
 import {
   selectVsiProfileRevisionAsOf,
   type VsiProfileRevisionAsOfSelectionResult,
@@ -67,6 +68,7 @@ function mapRow(row: {
   };
 }
 
+@Injectable()
 export class VsiProfileRevisionHistoryRepository {
   constructor(private readonly prisma: PrismaService) {}
 

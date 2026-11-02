@@ -13,6 +13,7 @@ import { VsiProfileLifecycleEnqueueService } from './vsi-profile-lifecycle-enque
 import { VsiProfileLifecycleOutboxProcessor } from './vsi-profile-lifecycle.processor';
 import { VsiProfileLifecycleOutboxWorker } from './vsi-profile-lifecycle.worker';
 import { VsiProfileCadenceEvidenceLoader } from './vsi-profile-cadence-evidence.loader';
+import { VsiProfileRevisionHistoryRepository } from './vsi-profile-revision-history.repository';
 
 @Module({
   imports: [PrismaModule],
@@ -26,6 +27,7 @@ import { VsiProfileCadenceEvidenceLoader } from './vsi-profile-cadence-evidence.
     VsiP3aPerLinkCatalogWriterService,
     VsiProfileCadenceEvidenceLoader,
     VsiSignalProfileMaterializationService,
+    VsiProfileRevisionHistoryRepository,
     VsiProfileLifecycleOutboxRepository,
     VsiProfileLifecycleEnqueueService,
     VsiProfileLifecycleOutboxProcessor,
@@ -40,6 +42,7 @@ import { VsiProfileCadenceEvidenceLoader } from './vsi-profile-cadence-evidence.
     VsiProfileLifecycleEnqueueService,
     VsiProfileLifecycleOutboxProcessor,
     VsiProfileLifecycleOutboxWorker,
+    VsiProfileRevisionHistoryRepository,
   ],
 })
 export class VsiReadonlySignalComposerModule {}

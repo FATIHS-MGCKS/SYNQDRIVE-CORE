@@ -88,7 +88,11 @@ describe('TireSpecAiService', () => {
       isConfigured: jest.fn().mockReturnValue(true),
       activeProviderId: 'mistral',
       completeJson: jest.fn().mockResolvedValue({
-        data: { matchedBrand: 'Michelin', matchedModel: 'Pilot Sport', confidenceScore: 0.8 },
+        data: {
+          schemaVersion: 'tire_v3_compact',
+          matchedBrand: 'Michelin',
+          matchedModel: 'Pilot Sport',
+        },
         model: 'json-model',
       }),
     };

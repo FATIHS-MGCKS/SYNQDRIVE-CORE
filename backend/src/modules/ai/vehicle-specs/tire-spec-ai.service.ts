@@ -7,6 +7,7 @@ import {
   parseTireSpecJson,
   type TireSpecContext,
 } from './tire-spec-ai.schema.util';
+import { processAiTireSpecCompactLlmOutput } from '../../vehicle-intelligence/tires/ai-tire-spec-compact-pipeline.util';
 
 const CONFIG_ERROR =
   'AI provider not configured (set MISTRAL_API_KEY and AI_PROVIDER=mistral)';
@@ -59,7 +60,9 @@ export class TireSpecAiService {
       emit('step', { step: 'Reifendaten abfragen', status: 'done', detail: 'Antwort empfangen' });
       emit('step', { step: 'Daten verarbeiten', status: 'working' });
 
-      const specs = parseTireSpecJson(result.data);
+      const parsed = parseTireSpecJson(result.data);
+      const compact = processAiTireSpecCompactLlmOutput(parsed, tireContext);
+      const specs = { ...compact };
       const hasData = Object.values(specs).some((v) => v !== null);
 
       if (hasData) {

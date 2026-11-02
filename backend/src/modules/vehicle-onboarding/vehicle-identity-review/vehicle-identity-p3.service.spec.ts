@@ -251,6 +251,50 @@ describe('VehicleIdentityP3Service', () => {
     expect(prov.fields.make.value).toBe('VW');
   });
 
+  it('blocks identity save when registration certificate FIN mismatches vehicle FIN', async () => {
+    reviewService.getReviewSnapshot = jest.fn().mockResolvedValue({
+      fields: [
+        {
+          fieldCode: 'd1Manufacturer',
+          labelKey: '',
+          value: 'VW',
+          provenance: 'MANUAL_ENTRY',
+          extractionStatus: null,
+          conflict: false,
+          baselineValue: null,
+          baselineProvenance: 'UNAVAILABLE',
+          documentValue: null,
+          manualValue: 'VW',
+          userConfirmed: false,
+          editable: true,
+          displayValue: 'VW',
+          documentFieldCode: 'D.1',
+        },
+      ],
+      vinMismatchBlocked: true,
+      p2PowerSemanticsWarning: 'warn',
+      documentExtractionId: 'ext-1',
+      capabilities: { p2Enabled: true, p3Enabled: true, zb1UploadEnabled: true, documentStoragePolicyAcknowledged: false },
+      suggestedManualDraft: {
+        displacementCc: null,
+        motorPowerKw: null,
+        fuelType: null,
+        displacementProvenance: 'UNAVAILABLE',
+        motorPowerProvenance: 'UNAVAILABLE',
+        fuelProvenance: 'UNAVAILABLE',
+      },
+    });
+    await expect(
+      service.saveIdentity('org-1', 'veh-1', {
+        documentExtractionId: 'ext-1',
+        vinMismatchAcknowledged: true,
+        confirmations: [{ fieldCode: 'd1Manufacturer', confirmed: true }],
+        injectedAiSpecs: {},
+      }),
+    ).rejects.toMatchObject({ response: { code: 'VIN_MISMATCH_IDENTITY_SAVE_BLOCKED' } });
+    expect(prisma.vehicle.updateMany).not.toHaveBeenCalled();
+  });
+
   it('returns conflict when optimistic update loses race', async () => {
     prisma.vehicle.findFirst.mockResolvedValue({
       id: 'veh-1',

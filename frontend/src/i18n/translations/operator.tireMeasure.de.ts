@@ -77,6 +77,37 @@ export const operatorTireMeasureDe = {
   'operator.tireMeasure.v3.odometerUnconfirmed':
     'Kilometerstand noch nicht bestätigt — für V3 wird kein expliziter Odometer-Nachweis gespeichert (Telemetrie wird nicht still übernommen).',
   'operator.tireMeasure.v3.noTread': 'Mindestens ein Radprofil ist für V3-Verifikation erforderlich.',
+  'operator.tireMeasure.v3.registrationBaseline':
+    'Registrierungs-Basisprofil dient nur der Bestandserfassung und verankert keine V3-Verifikation.',
+  'operator.tireMeasure.v3.rateCalibrationTwoPoints':
+    'Empirische Verschleißraten-Kalibrierung braucht mindestens zwei Messpunkte mit explizitem Kilometerstand.',
+  'operator.tireMeasure.v3.verificationOnePoint':
+    'Ein bestätigter Messpunkt kann V3-Verifikation verankern; Ratenkalibrierung braucht weitere Abstände.',
+  'operator.tireMeasure.v3.recordedUnverified':
+    'Profil als unverifizierter V3-Nachweis gespeichert — Kilometerstand bestätigen oder Werkstattprovenienz nutzen.',
+  'operator.tireMeasure.v3.workshopOdometerMissing':
+    'Werkstattbericht braucht expliziten Kilometerstand für V3-Nachweis.',
+  'operator.tireMeasure.v3.workshopProvenanceIncomplete':
+    'Werkstattname angeben für nachvollziehbare Werkstatt-Odometer-Provenienz.',
+
+  'operator.tireMeasure.v3.backend.V3_ODOMETER_NOT_EXPLICIT':
+    'Kein expliziter Kilometerstand für V3 gespeichert (Bestätigung am Messzeitpunkt fehlt).',
+  'operator.tireMeasure.v3.backend.V3_ODOMETER_INFERRED_NOT_USED':
+    'Fahrzeug-Telemetrie-Odometer wurde nicht für V3 übernommen.',
+  'operator.tireMeasure.v3.backend.V3_POSTERIOR_INSUFFICIENT_EVIDENCE':
+    'Ratenkalibrierung weiter gesperrt — mehr Abstand zwischen Messpunkten nötig.',
+  'operator.tireMeasure.v3.backend.V3_REGISTRATION_BASELINE_NOT_VERIFICATION_ANCHOR':
+    'Registrierungs-Basis verankert keine V3-Verifikation.',
+  'operator.tireMeasure.v3.backend.V3_MEASUREMENT_RECORDED_UNVERIFIED':
+    'Messung ohne V3-Verifikationsfähigkeit gespeichert.',
+  'operator.tireMeasure.v3.backend.V3_WORKSHOP_ODOMETER_MISSING':
+    'Werkstatt-Kilometerstand für V3 fehlt.',
+  'operator.tireMeasure.v3.backend.V3_WORKSHOP_PROVENANCE_INCOMPLETE':
+    'Werkstattprovenienz unvollständig.',
+  'operator.tireMeasure.v3.backend.V3_VERIFICATION_ANCHOR_ONE_POINT':
+    'Kann V3-Verifikationskadenz verankern (ein akzeptierter Punkt).',
+  'operator.tireMeasure.v3.backend.V3_RATE_CALIBRATION_REQUIRES_TWO_POINTS':
+    'Ratenkalibrierung braucht zwei oder mehr Abstandsmessungen mit Odometer.',
 
   'operator.tireMeasure.context.aiUploadTitle': 'Reifenbericht per AI Upload auslesen',
   'operator.tireMeasure.context.aiUploadHint':
@@ -100,6 +131,7 @@ export const operatorTireMeasureDe = {
   'operator.tireMeasure.actions.save': 'Messung speichern',
 
   'operator.tireMeasure.toast.success': 'Reifenprofilmessung gespeichert',
+  'operator.tireMeasure.toast.v3EvidenceNotice': 'Gespeichert — Hinweis zum Tire-V3-Nachweis',
   'operator.tireMeasure.toast.saveError': 'Speichern fehlgeschlagen',
   'operator.tireMeasure.errors.loadFailed': 'Laden fehlgeschlagen',
 

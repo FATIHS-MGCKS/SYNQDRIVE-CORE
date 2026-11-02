@@ -110,6 +110,18 @@ export function applyMasterDrilldownUrl(
     return resolved;
   }
 
+  if (resolved === 'vsi-intelligence' || resolved === 'apds-intelligence') {
+    const q = new URLSearchParams(window.location.search);
+    q.set('view', resolved);
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v) q.set(k, v);
+      }
+    }
+    commitSearch(`?${q.toString()}`, replace);
+    return resolved;
+  }
+
   pushMasterNavState({ view: resolved }, replace);
   return resolved;
 }

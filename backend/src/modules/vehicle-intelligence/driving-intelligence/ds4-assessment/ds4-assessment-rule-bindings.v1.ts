@@ -1,0 +1,11 @@
+/** Canonical L2 assessment rule identities bound into input fingerprints (idempotency / recompute). */
+export const DS4_ASSESSMENT_EVENT_INTENSITY_ELIGIBILITY_RULE_VERSION_V1 =
+  'DS4_ASSESSMENT_EVENT_INTENSITY_ELIGIBILITY_V1' as const;
+
+export const DS4_ASSESSMENT_DRIVING_EXPOSURE_RULE_VERSION_V2 =
+  'DS4_ASSESSMENT_DRIVING_EXPOSURE_V2' as const;
+
+export const DS4_ASSESSMENT_L2_RULE_BINDINGS_V1 = {
+  eventIntensityEligibility: DS4_ASSESSMENT_EVENT_INTENSITY_ELIGIBILITY_RULE_VERSION_V1,
+  drivingExposure: DS4_ASSESSMENT_DRIVING_EXPOSURE_RULE_VERSION_V2,
+} as const;

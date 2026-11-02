@@ -47,6 +47,7 @@ export type VsiProfileSignalSnapshotV1 = {
   freshnessClassification: 'FRESH' | 'STALE' | 'UNKNOWN';
   evidenceProvenance: VsiEvidenceOrigin[];
   limitations: string[];
+  powertrainApplicability?: 'APPLICABLE' | 'NOT_APPLICABLE' | 'UNKNOWN';
 };
 
 export type VsiSignalQualityClassification =
@@ -54,6 +55,7 @@ export type VsiSignalQualityClassification =
   | 'OBSERVED_STALE'
   | 'OBSERVED_INTERMITTENT'
   | 'NEVER_OBSERVED'
+  | 'NOT_APPLICABLE'
   | 'INSUFFICIENT_HISTORY'
   | 'UNKNOWN';
 

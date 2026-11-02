@@ -52,4 +52,18 @@ export const masterVehicleIdentityEs = {
   'master.vehicleIdentity.field.electrificationGrade': 'Grado de electrificación',
   'master.vehicleIdentity.extractionStatus': 'Estado OCR: {status}',
   'master.vehicleIdentity.documentLinked': 'Documento: {id}',
+  'master.vehicleIdentity.uploadToolbar': 'Subir permiso de circulación',
+  'master.vehicleIdentity.uploadUseToolbar': 'Use « Subir permiso de circulación » en la barra de especificación arriba.',
+  'master.vehicleIdentity.zb1DialogTitle': 'Permiso de circulación (ZB-I)',
+  'master.vehicleIdentity.zb1DialogDescription':
+    'Suba un PDF o imagen, revise los campos extraídos y aplique los valores confirmados al formulario de especificación.',
+  'master.vehicleIdentity.applyToRegistrationForm': 'Aplicar al formulario de especificación',
+  'master.vehicleIdentity.applyToFormBlockedVin': 'Aplicación bloqueada — confirme primero el conflicto de VIN.',
+  'master.vehicleIdentity.applyToFormConflict': 'No se aplicaron valores — confirme campos o resuelva conflictos.',
+  'master.vehicleIdentity.applyToFormEmpty': 'No hay campos confirmados para aplicar.',
+  'master.vehicleIdentity.applyToFormSuccess': 'Valores confirmados aplicados al formulario (guarde para persistir).',
+  'master.vehicleIdentity.applyToFormVinMismatchDocument':
+    'El VIN del documento no coincide con este vehículo — no se pueden aplicar campos de especificación de este documento.',
+  'master.vehicleIdentity.p2ToolbarDisabledHint':
+    'La subida del permiso de circulación no está activa en este entorno (identidad del vehículo P2).',
 };

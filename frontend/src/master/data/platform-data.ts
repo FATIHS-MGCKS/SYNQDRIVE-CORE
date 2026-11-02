@@ -174,6 +174,7 @@ export interface RegisteredVehicle {
   systemMotorPowerKw?: string;
   accel0To100S?: string;
   motionPhysicsVariantAssumption?: string;
+  systemPowerDefinition?: string;
   serviceIntervals: string;
   // Service Intervals
   serviceIntervalManufacturerKm: string;

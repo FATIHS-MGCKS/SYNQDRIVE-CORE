@@ -7,6 +7,8 @@ export const masterMotionPhysicsFr = {
   'master.motionPhysics.systemPowerDefinition.option.estimated': 'Puissance système estimée (IA / incertaine)',
   'master.motionPhysics.systemPowerDefinition.hint':
     'Ne pas mélanger puissance moteur et puissance système — surtout pour l’électrique et l’hybride.',
+  'master.motionPhysics.systemPowerDefinition.persistHint':
+    'Le type de puissance indiquée n’est pas enregistré avec « Enregistrer les modifications ». Utilisez « Confirmer les valeurs manuelles » pour le persister dans la référence de physique du mouvement.',
   'master.motionPhysics.systemMotorPowerKw.hintMotor': 'Saisir la puissance nominale moteur OEM en kW.',
   'master.motionPhysics.systemMotorPowerKw.hintSystem': 'Saisir la puissance système OEM en kW (pas la puissance roue).',
   'master.motionPhysics.accel0To100S': '0–100 km/h (s)',

@@ -48,6 +48,7 @@ export function rejectMotionFieldsForIdentityMismatch(
     specs.systemMotorPowerKw = null;
     specs.accel0To100S = null;
     specs.variantAssumption = null;
+    specs.systemPowerDefinition = null;
   }
   return rejected;
 }
@@ -70,6 +71,9 @@ export function applyVehicleSpecMotionPlausibility(
     out.systemMotorPowerKw = null;
     rejected.push('systemMotorPowerKw');
   }
+  if (out.systemMotorPowerKw == null && out.systemPowerDefinition != null) {
+    out.systemPowerDefinition = null;
+  }
 
   const accel = num(out.accel0To100S);
   if (accel != null && (accel < ACCEL_MIN_S || accel > ACCEL_MAX_S)) {
@@ -84,6 +88,10 @@ export function applyVehicleSpecMotionPlausibility(
       out.systemMotorPowerKw = null;
       rejected.push('systemMotorPowerKw:power_to_mass');
     }
+  }
+
+  if (out.systemMotorPowerKw == null && out.systemPowerDefinition != null) {
+    out.systemPowerDefinition = null;
   }
 
   return { specs: out, rejectedFields: rejected };

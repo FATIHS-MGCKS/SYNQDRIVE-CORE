@@ -5,6 +5,7 @@ import {
   clipTripWindowsToLinkBounds,
   collectIntraTripIntervalsSeconds,
   computeDistinctBucketCoverageRatio,
+  dedupeCadenceProvenanceTags,
   dedupeLvPointsBySourceAdvance,
   detectCadenceRegimes,
   intervalsFromTimestampsMs,
@@ -334,5 +335,126 @@ describe('vsi-profile-cadence-stats.util', () => {
   it('buildCadenceSemanticFingerprint is stable for identical semantic payload', () => {
     const fp = buildCadenceSemanticFingerprint({ signal: 'lv_voltage', median: 180 });
     expect(fp).toBe(buildCadenceSemanticFingerprint({ signal: 'lv_voltage', median: 180 }));
+  });
+
+  describe('cadence provenance dedup (P1-a)', () => {
+    it('dedupeCadenceProvenanceTags preserves order and distinct tags', () => {
+      expect(
+        dedupeCadenceProvenanceTags([
+          'POSTGRES_BATTERY_MEASUREMENTS',
+          'CLICKHOUSE_TELEMETRY_HF_POINTS',
+          'POSTGRES_BATTERY_MEASUREMENTS',
+        ]),
+      ).toEqual(['POSTGRES_BATTERY_MEASUREMENTS', 'CLICKHOUSE_TELEMETRY_HF_POINTS']);
+    });
+
+    it('dedupeCadenceProvenanceTags is idempotent', () => {
+      const tags = ['A', 'B', 'A', 'C', 'B'];
+      const once = dedupeCadenceProvenanceTags(tags);
+      expect(dedupeCadenceProvenanceTags(once)).toEqual(once);
+    });
+
+    it('engine RPM does not duplicate CLICKHOUSE when loader pre-set tag', () => {
+      const points = [0, 5, 10, 15].map((s) => ({
+        recordedAtMs: msAt(s),
+        value: 900,
+      }));
+      const cadence = analyzeEngineRpmCadence(
+        rpmInput({
+          hfReadStatus: 'SUCCESS',
+          provenance: ['CLICKHOUSE_TELEMETRY_HF_POINTS'],
+          points,
+        }),
+      );
+      expect(cadence.provenance).toEqual(['CLICKHOUSE_TELEMETRY_HF_POINTS']);
+    });
+
+    it('engine RPM adds CLICKHOUSE once when provenance empty and HF succeeds', () => {
+      const cadence = analyzeEngineRpmCadence(
+        rpmInput({
+          hfReadStatus: 'SUCCESS',
+          provenance: [],
+          points: [
+            { recordedAtMs: msAt(0), value: 900 },
+            { recordedAtMs: msAt(5), value: 900 },
+            { recordedAtMs: msAt(10), value: 900 },
+            { recordedAtMs: msAt(15), value: 900 },
+          ],
+        }),
+      );
+      expect(cadence.provenance).toEqual(['CLICKHOUSE_TELEMETRY_HF_POINTS']);
+    });
+
+    it('LV voltage does not duplicate POSTGRES when loader pre-set tag', () => {
+      const cadence = analyzeLvVoltageCadence({
+        points: [
+          { observedAtMs: msAt(0), providerTimestampMs: null },
+          { observedAtMs: msAt(300), providerTimestampMs: null },
+          { observedAtMs: msAt(600), providerTimestampMs: null },
+        ],
+        provenance: ['POSTGRES_BATTERY_MEASUREMENTS'],
+        linkActivatedAtMs: msAt(-3600),
+        linkDeactivatedAtMs: null,
+      });
+      expect(cadence.provenance).toEqual(['POSTGRES_BATTERY_MEASUREMENTS']);
+    });
+
+    it('cadence numeric outputs unchanged when deduping duplicate input tags', () => {
+      const points = [0, 5, 10, 15].map((s) => ({
+        recordedAtMs: msAt(s),
+        value: 900,
+      }));
+      const withDupes = analyzeEngineRpmCadence(
+        rpmInput({
+          hfReadStatus: 'SUCCESS',
+          provenance: [
+            'CLICKHOUSE_TELEMETRY_HF_POINTS',
+            'CLICKHOUSE_TELEMETRY_HF_POINTS',
+          ],
+          points,
+        }),
+      );
+      const clean = analyzeEngineRpmCadence(
+        rpmInput({
+          hfReadStatus: 'SUCCESS',
+          provenance: ['CLICKHOUSE_TELEMETRY_HF_POINTS'],
+          points,
+        }),
+      );
+      expect(withDupes.observedSampleCount).toBe(clean.observedSampleCount);
+      expect(withDupes.intervalMedianSeconds).toBe(clean.intervalMedianSeconds);
+      expect(withDupes.observedDensityLabel).toBe(clean.observedDensityLabel);
+      expect(withDupes.regimes).toEqual(clean.regimes);
+    });
+
+    it('handles empty and missing provenance on LV path', () => {
+      const empty = analyzeLvVoltageCadence({
+        points: [],
+        provenance: [],
+        linkActivatedAtMs: msAt(0),
+        linkDeactivatedAtMs: null,
+      });
+      expect(empty.provenance).toEqual(['POSTGRES_BATTERY_MEASUREMENTS']);
+      expect(empty.observedSampleCount).toBe(0);
+    });
+
+    it('mixed distinct provenance tags remain on RPM path', () => {
+      const cadence = analyzeEngineRpmCadence(
+        rpmInput({
+          hfReadStatus: 'SUCCESS',
+          provenance: ['VEHICLE_LATEST_STATE'],
+          points: [
+            { recordedAtMs: msAt(0), value: 900 },
+            { recordedAtMs: msAt(5), value: 900 },
+            { recordedAtMs: msAt(10), value: 900 },
+            { recordedAtMs: msAt(15), value: 900 },
+          ],
+        }),
+      );
+      expect(cadence.provenance).toEqual([
+        'VEHICLE_LATEST_STATE',
+        'CLICKHOUSE_TELEMETRY_HF_POINTS',
+      ]);
+    });
   });
 });

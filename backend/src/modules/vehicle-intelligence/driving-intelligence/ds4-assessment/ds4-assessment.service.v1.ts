@@ -60,10 +60,12 @@ export class Ds4AssessmentServiceV1 {
     }
 
     const maxAttempts = DI_V0_DS4_ASSESSMENT_TUNING.maxProcessingAttempts;
+    const minMotionRunCreatedAt = this.runtimeConfig.minMotionRunCreatedAt!;
 
     const discovered = await this.outbox.discoverFromSucceededMotionRuns({
       limit: this.runtimeConfig.batchLimit,
       now,
+      minMotionRunCreatedAt,
     });
 
     const leasesRecovered = await this.outbox.releaseExpiredProcessingLeases({

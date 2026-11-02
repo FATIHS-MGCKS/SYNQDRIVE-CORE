@@ -52,4 +52,18 @@ export const masterVehicleIdentityTr = {
   'master.vehicleIdentity.field.electrificationGrade': 'Elektrifikasyon düzeyi',
   'master.vehicleIdentity.extractionStatus': 'OCR durumu: {status}',
   'master.vehicleIdentity.documentLinked': 'Belge: {id}',
+  'master.vehicleIdentity.uploadToolbar': 'Ruhsat yükle',
+  'master.vehicleIdentity.uploadUseToolbar': 'Yukarıdaki spesifikasyon çubuğunda « Ruhsat yükle » düğmesini kullanın.',
+  'master.vehicleIdentity.zb1DialogTitle': 'Ruhsat (ZB-I)',
+  'master.vehicleIdentity.zb1DialogDescription':
+    'PDF veya görsel yükleyin, çıkarılan alanları inceleyin ve onaylanan değerleri spesifikasyon formuna uygulayın.',
+  'master.vehicleIdentity.applyToRegistrationForm': 'Spesifikasyon formuna uygula',
+  'master.vehicleIdentity.applyToFormBlockedVin': 'Uygulama engellendi — önce VIN çakışmasını onaylayın.',
+  'master.vehicleIdentity.applyToFormConflict': 'Değer uygulanmadı — alanları onaylayın veya çakışmaları çözün.',
+  'master.vehicleIdentity.applyToFormEmpty': 'Uygulanacak onaylı alan yok.',
+  'master.vehicleIdentity.applyToFormSuccess': 'Onaylı değerler forma uygulandı (kalıcı kayıt için kaydedin).',
+  'master.vehicleIdentity.applyToFormVinMismatchDocument':
+    'Belgedeki FIN bu araçla eşleşmiyor — bu belgedeki spesifikasyon alanları uygulanamaz.',
+  'master.vehicleIdentity.p2ToolbarDisabledHint':
+    'Ruhsat yükleme bu ortamda etkin değil (araç kimliği P2).',
 };

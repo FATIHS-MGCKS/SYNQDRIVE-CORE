@@ -740,7 +740,7 @@ export function getErrorMessage(err: unknown, fallback = 'An unexpected error oc
   return fallback;
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -3689,6 +3689,178 @@ export const api = {
           body,
         ),
     },
+    masterIntelligenceVsi: {
+      overview: (organizationId: string, vehicleId: string) =>
+        get<import('../master/intelligence/vsi-master-intelligence-api.types').MasterVsiFleetOverviewDto>(
+          `/admin/master-intelligence/vsi/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/overview`,
+        ),
+      profile: (organizationId: string, vehicleId: string, providerSourceLinkId: string) =>
+        get<import('../master/intelligence/vsi-master-intelligence-api.types').MasterVsiProfileDetailDto>(
+          `/admin/master-intelligence/vsi/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/links/${encodeURIComponent(providerSourceLinkId)}/profile`,
+        ),
+      revisions: (
+        organizationId: string,
+        vehicleId: string,
+        providerSourceLinkId: string,
+        params?: { limit?: number; cursor?: string | null },
+      ) => {
+        const q = new URLSearchParams();
+        if (params?.limit != null) q.set('limit', String(params.limit));
+        if (params?.cursor) q.set('cursor', params.cursor);
+        const suffix = q.toString() ? `?${q.toString()}` : '';
+        return get<import('../master/intelligence/vsi-master-intelligence-api.types').MasterVsiRevisionHistoryPageDto>(
+          `/admin/master-intelligence/vsi/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/links/${encodeURIComponent(providerSourceLinkId)}/revisions${suffix}`,
+        );
+      },
+      revisionAsOf: (
+        organizationId: string,
+        vehicleId: string,
+        providerSourceLinkId: string,
+        decisionAt: string,
+        params?: { historicalLinkAttributionProven?: boolean },
+      ) => {
+        const q = new URLSearchParams({ decisionAt });
+        if (params?.historicalLinkAttributionProven) q.set('historicalLinkAttributionProven', 'true');
+        return get<import('../master/intelligence/vsi-master-intelligence-api.types').MasterVsiRevisionAsOfDto>(
+          `/admin/master-intelligence/vsi/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/links/${encodeURIComponent(providerSourceLinkId)}/revisions/as-of?${q.toString()}`,
+        );
+      },
+      signals: (organizationId: string, vehicleId: string, providerSourceLinkId: string) =>
+        get<unknown>(
+          `/admin/master-intelligence/vsi/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/links/${encodeURIComponent(providerSourceLinkId)}/signals`,
+        ),
+      capabilityResolver: (
+        organizationId: string,
+        vehicleId: string,
+        providerSourceLinkId: string,
+        params: { consumerModule: string; featureId: string; evaluationTime?: string },
+      ) => {
+        const q = new URLSearchParams({
+          consumerModule: params.consumerModule,
+          featureId: params.featureId,
+        });
+        if (params.evaluationTime) q.set('evaluationTime', params.evaluationTime);
+        return get<unknown>(
+          `/admin/master-intelligence/vsi/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/links/${encodeURIComponent(providerSourceLinkId)}/capability-resolver?${q.toString()}`,
+        );
+      },
+    },
+    masterIntelligenceApds: {
+      overview: (organizationId: string, vehicleId: string, providerSourceLinkId?: string | null) => {
+        const q = providerSourceLinkId
+          ? `?providerSourceLinkId=${encodeURIComponent(providerSourceLinkId)}`
+          : '';
+        return get<import('../master/intelligence/apds-master-intelligence-api.types').MasterApdsOverviewDto>(
+          `/admin/master-intelligence/apds/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/overview${q}`,
+        );
+      },
+      epochs: (organizationId: string, vehicleId: string, params?: { limit?: number; cursor?: string | null }) => {
+        const q = new URLSearchParams();
+        if (params?.limit != null) q.set('limit', String(params.limit));
+        if (params?.cursor) q.set('cursor', params.cursor);
+        const suffix = q.toString() ? `?${q.toString()}` : '';
+        return get<import('../master/intelligence/apds-master-intelligence-api.types').MasterApdsEpochHistoryPageDto>(
+          `/admin/master-intelligence/apds/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/epochs${suffix}`,
+        );
+      },
+      decisions: (
+        organizationId: string,
+        vehicleId: string,
+        params?: { limit?: number; cursor?: string | null; policyVersion?: string | null },
+      ) => {
+        const q = new URLSearchParams();
+        if (params?.limit != null) q.set('limit', String(params.limit));
+        if (params?.cursor) q.set('cursor', params.cursor);
+        if (params?.policyVersion) q.set('policyVersion', params.policyVersion);
+        const suffix = q.toString() ? `?${q.toString()}` : '';
+        return get<import('../master/intelligence/apds-master-intelligence-api.types').MasterApdsDecisionHistoryPageDto>(
+          `/admin/master-intelligence/apds/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/decisions${suffix}`,
+        );
+      },
+      decisionDetail: (
+        organizationId: string,
+        vehicleId: string,
+        opportunityId: string,
+        policyVersion: string,
+      ) =>
+        get<import('../master/intelligence/apds-master-intelligence-api.types').MasterApdsDecisionDetailDto>(
+          `/admin/master-intelligence/apds/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/decisions/${encodeURIComponent(opportunityId)}?policyVersion=${encodeURIComponent(policyVersion)}`,
+        ),
+      vsiCorrelation: (
+        organizationId: string,
+        vehicleId: string,
+        opportunityId: string,
+        params: {
+          providerSourceLinkId: string;
+          policyVersion: string;
+          decisionAt: string;
+          historicalLinkAttributionProven?: boolean;
+        },
+      ) => {
+        const q = new URLSearchParams({
+          providerSourceLinkId: params.providerSourceLinkId,
+          policyVersion: params.policyVersion,
+          decisionAt: params.decisionAt,
+        });
+        if (params.historicalLinkAttributionProven) q.set('historicalLinkAttributionProven', 'true');
+        return get<import('../master/intelligence/apds-master-intelligence-api.types').MasterApdsVsiCorrelationDto>(
+          `/admin/master-intelligence/apds/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/decisions/${encodeURIComponent(opportunityId)}/vsi-correlation?${q.toString()}`,
+        );
+      },
+    },
+    masterIntelligenceTireCalibration: {
+      summary: () =>
+        get<import('../master/tire-v3-calibration-center/tire-calibration-center-api.types').TireCalibrationGlobalSummaryDto>(
+          '/admin/master-intelligence/tire-wear-v3-calibration-shadow/summary',
+        ),
+      writerHealth: () =>
+        get<import('../master/tire-v3-calibration-center/tire-calibration-center-api.types').TireCalibrationWriterHealthDto>(
+          '/admin/master-intelligence/tire-wear-v3-calibration-shadow/writer-health',
+        ),
+      listSetups: (organizationId: string, vehicleId: string) =>
+        get<import('../master/tire-v3-calibration-center/tire-calibration-center-api.types').TireCalibrationSetupListDto>(
+          `/admin/master-intelligence/tire-wear-v3-calibration-shadow/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/setups`,
+        ),
+      listSnapshots: (
+        organizationId: string,
+        vehicleId: string,
+        tireSetupId: string,
+        params?: { wheelPosition?: string; mountPeriodId?: string; limit?: number; cursor?: string | null },
+      ) => {
+        const q = new URLSearchParams();
+        if (params?.wheelPosition) q.set('wheelPosition', params.wheelPosition);
+        if (params?.mountPeriodId) q.set('mountPeriodId', params.mountPeriodId);
+        if (params?.limit != null) q.set('limit', String(params.limit));
+        if (params?.cursor) q.set('cursor', params.cursor);
+        const suffix = q.toString() ? `?${q.toString()}` : '';
+        return get<import('../master/tire-v3-calibration-center/tire-calibration-center-api.types').TireCalibrationSnapshotListPageDto>(
+          `/admin/master-intelligence/tire-wear-v3-calibration-shadow/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/setups/${encodeURIComponent(tireSetupId)}/snapshots${suffix}`,
+        );
+      },
+      snapshotDetail: (
+        organizationId: string,
+        vehicleId: string,
+        tireSetupId: string,
+        snapshotId: string,
+      ) =>
+        get<import('../master/tire-v3-calibration-center/tire-calibration-center-api.types').TireCalibrationSnapshotDetailDto>(
+          `/admin/master-intelligence/tire-wear-v3-calibration-shadow/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/setups/${encodeURIComponent(tireSetupId)}/snapshots/${encodeURIComponent(snapshotId)}`,
+        ),
+      setupQuality: (organizationId: string, vehicleId: string, tireSetupId: string) =>
+        get<import('../master/tire-v3-calibration-center/tire-calibration-center-api.types').TireCalibrationSetupInspectionDto>(
+          `/admin/master-intelligence/tire-wear-v3-calibration-shadow/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/setups/${encodeURIComponent(tireSetupId)}/quality`,
+        ),
+    },
+    masterIntelligencePdi: {
+      intelligence: (physicalDeviceId: string, organizationId?: string | null) => {
+        const q = organizationId
+          ? `?organizationId=${encodeURIComponent(organizationId)}`
+          : '';
+        return get<import('../master/physical-device-inventory/pdi-master-intelligence-api.types').MasterPdiDeviceIntelligenceDto>(
+          `/admin/master-intelligence/pdi/devices/${encodeURIComponent(physicalDeviceId)}/intelligence${q}`,
+        );
+      },
+    },
     monitoring: {
       summary: (params?: { from?: string; to?: string }) =>
         get<any>('/admin/monitoring/summary' + buildQuery(params)),
@@ -4186,7 +4358,12 @@ export const api = {
         `/admin/vehicles/${vehicleId}/hv-master-specification`,
         body,
       ),
-    operationalOverview: () => get<any>('/admin/vehicles/operational/overview'),
+    operationalOverview: (organizationId?: string) => {
+      const qs = organizationId?.trim()
+        ? `?organizationId=${encodeURIComponent(organizationId.trim())}`
+        : '';
+      return get<any>(`/admin/vehicles/operational/overview${qs}`);
+    },
     operationalAttentionQueue: (limit = 8) =>
       get<any[]>(`/admin/vehicles/operational/attention-queue?limit=${limit}`),
     operationalList: (params?: Record<string, string | number | undefined>) => {
@@ -7427,6 +7604,17 @@ export const api = {
         sourceConfidence?: number;
       },
     ) => post<any>(`/vehicles/${vehicleId}/battery`, data),
+    updateBatterySpec: (
+      vehicleId: string,
+      id: string,
+      data: {
+        batteryType?: string | null;
+        batteryAmpere?: number | null;
+        batteryVolt?: number | null;
+        sourceType?: string;
+        sourceConfidence?: number;
+      },
+    ) => patch<any>(`/vehicles/${vehicleId}/battery/${id}`, data),
     tires: (vehicleId: string) => get<any>(`/vehicles/${vehicleId}/tires`),
     tireWearAnalysis: (vehicleId: string) => get<TireWearAnalysis | null>(`/vehicles/${vehicleId}/tires/wear-analysis`),
     tireHealthSummary: (vehicleId: string) => get<TireHealthSummaryResponse | null>(`/vehicles/${vehicleId}/tires/summary`),
@@ -7440,9 +7628,49 @@ export const api = {
     addTireHealthMeasurement: (vehicleId: string, data: any) =>
       post<any>(`/vehicles/${vehicleId}/tires/measurement`, data),
     recalculateTireHealth: (vehicleId: string) => post<any>(`/vehicles/${vehicleId}/tires/recalculate`, {}),
-    applyAiTireSpec: (vehicleId: string, payload: { jobId?: string; aiTireSpec?: Record<string, unknown> }) =>
-      post<{ success: boolean; setupId?: string; appliedFields?: string[]; message?: string }>(`/vehicles/${vehicleId}/tires/ai-spec/apply`, payload),
-    startAiTireSpecJob: (params: { brand: string; model: string; year: number; tireSize: string; loadIndex: string; speedIndex: string; vehicleId?: string }) =>
+    applyAiTireSpec: (
+      vehicleId: string,
+      payload: {
+        jobId?: string;
+        aiTireSpec?: Record<string, unknown>;
+        generationBinding?: {
+          tireSetupId: string;
+          setupUpdatedAt: string;
+          requestTireSize: string;
+          requestLoadIndex: string;
+          requestSpeedIndex: string;
+        };
+        tireSize?: string;
+        loadIndex?: string;
+        speedIndex?: string;
+        tireSetupId?: string;
+        userConfirmedSpec?: boolean;
+      },
+    ) =>
+      post<{
+        success: boolean;
+        setupId?: string;
+        appliedFields?: string[];
+        message?: string;
+        code?: string;
+        setupSpecWarnings?: Array<{
+          code: string;
+          message: string;
+          setupValue: string | null;
+          specValue: string | null;
+          precedence: 'setup_manual' | 'spec_user_confirmed';
+        }>;
+      }>(`/vehicles/${vehicleId}/tires/ai-spec/apply`, payload),
+    startAiTireSpecJob: (params: {
+      brand: string;
+      model: string;
+      year: number;
+      tireSize: string;
+      loadIndex: string;
+      speedIndex: string;
+      vehicleId?: string;
+      tireSetupId?: string;
+    }) =>
       post<{ jobId: string; status: string }>('/vehicles/register/ai-tire-specs', params),
     getAiTireSpecJobStatus: (jobId: string) =>
       get<{ jobId: string; status: string; createdAt: string; startedAt: string | null; completedAt: string | null; errorMessage: string | null; confidenceScore: number | null; result: Record<string, unknown> | null; resultReady: boolean; input: Record<string, string | number> }>(`/vehicles/register/ai-tire-specs/${jobId}/status`),
@@ -7490,6 +7718,8 @@ export const api = {
     ) => post<BrakeServiceLifecycleResult>(`/vehicles/${vehicleId}/brake-health/service`, data),
     brakeHealthRecalculate: (vehicleId: string) => post<any>(`/vehicles/${vehicleId}/brake-health/recalculate`, {}),
     createBrakeSpec: (vehicleId: string, data: any) => post<any>(`/vehicles/${vehicleId}/brakes`, data),
+    updateBrakeSpec: (vehicleId: string, id: string, data: any) =>
+      patch<any>(`/vehicles/${vehicleId}/brakes/${id}`, data),
     tripProfile: (vehicleId: string) => get<TripProfile>(`/vehicles/${vehicleId}/trip-profile`),
     // ── Trips tab (Vehicle Detail) ─────────────────────────────────────────
     // List/timeline: tripsTimeline (canonical merge) → fallback trips + energyEvents
@@ -9039,6 +9269,13 @@ export interface TireHealthDetailResponse {
   rotationHistory: any[];
   measurements: any[];
   alerts: TireAlert[];
+  setupSpecConflicts?: Array<{
+    code: 'SEASON_MISMATCH' | 'AXLE_IDENTITY_MISMATCH';
+    message: string;
+    setupValue: string | null;
+    specValue: string | null;
+    precedence: 'setup_manual' | 'spec_user_confirmed';
+  }>;
 }
 
 export type SohPublicationState = 'INITIAL_CALIBRATION' | 'STABILIZING' | 'STABLE';

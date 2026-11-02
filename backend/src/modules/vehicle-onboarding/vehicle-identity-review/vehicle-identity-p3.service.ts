@@ -170,6 +170,19 @@ export class VehicleIdentityP3Service {
       });
     }
 
+    const reviewSnapshot = await this.reviewService.getReviewSnapshot(orgId, vehicleId, {
+      documentExtractionId: body.documentExtractionId,
+      manual: body.manual ?? null,
+      vinMismatchAcknowledged: body.vinMismatchAcknowledged,
+    });
+    if (reviewSnapshot.vinMismatchBlocked) {
+      throw new BadRequestException({
+        code: 'VIN_MISMATCH_IDENTITY_SAVE_BLOCKED',
+        message:
+          'Identity save is blocked while the registration certificate FIN mismatches the canonical vehicle FIN.',
+      });
+    }
+
     const explicitlyConfirmed = buildExplicitlyConfirmedCanonicalKeySet(body.confirmations);
     const acceptKeys = new Set(body.acceptSuggestedFieldKeys ?? []);
     const acceptedSuggestions = normalizeAcceptedSuggestions(preview.suggestedFields, acceptKeys);

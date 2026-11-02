@@ -1,4 +1,8 @@
 import {
+  resolveDs4TemporalTripWeight,
+  type TireWearV3Ds4ShadowTemporalDetail,
+} from './tire-wear-v3-ds4-payload.util';
+import {
   TIRE_WEAR_V3_PRIOR_CONFIG,
   type TireWearV3PriorConfig,
 } from './tire-wear-v3-prior.config';
@@ -12,6 +16,11 @@ export type TireWearV3Ds4LedgerShadowRow = {
   m3JPerKgPerKm: number | null;
   validDrivingSeconds: number | null;
   tripDurationSeconds: number | null;
+  /** Populated from adapter temporalCoverageDetail when present. */
+  temporalDetail?: TireWearV3Ds4ShadowTemporalDetail;
+  speedAuthority?: string | null;
+  temporalTripWeight?: number;
+  temporalWeightFlags?: string[];
 };
 
 export type TireWearV3DynamicFactorResult = {
@@ -23,19 +32,28 @@ export type TireWearV3DynamicFactorResult = {
   flags: string[];
 };
 
-function tripTemporalWeight(row: TireWearV3Ds4LedgerShadowRow): number {
-  if (row.ds4ReadStatus !== 'SUCCEEDED') return 0;
-  if (row.m3JPerKgPerKm == null || !Number.isFinite(row.m3JPerKgPerKm)) return 0;
-  if (row.temporalCoverage === 'VERIFIED') return 1;
-  if (row.temporalCoverage === 'PARTIAL') {
-    const valid = row.validDrivingSeconds;
-    const total = row.tripDurationSeconds;
-    if (valid != null && total != null && total > 0 && valid >= 0) {
-      return Math.min(1, valid / total);
-    }
-    return 0.5;
+export function tripTemporalWeight(row: TireWearV3Ds4LedgerShadowRow): number {
+  if (row.temporalTripWeight != null && Number.isFinite(row.temporalTripWeight)) {
+    return Math.min(1, Math.max(0, row.temporalTripWeight));
   }
-  return 0;
+  const detail =
+    row.temporalDetail ??
+    ({
+      validDrivingSeconds: row.validDrivingSeconds,
+      tripDurationSeconds: row.tripDurationSeconds,
+      tripWindowSeconds: null,
+      confirmedStationarySeconds: null,
+      accountableFraction: null,
+      labelledFraction: null,
+      verified: null,
+    } satisfies TireWearV3Ds4ShadowTemporalDetail);
+  return resolveDs4TemporalTripWeight({
+    ds4ReadStatus: row.ds4ReadStatus,
+    temporalCoverage: row.temporalCoverage,
+    m3JPerKgPerKm: row.m3JPerKgPerKm,
+    detail,
+    speedAuthority: row.speedAuthority,
+  }).weight;
 }
 
 /**
@@ -58,6 +76,11 @@ export function computeSetupDs4Severity(
 
   for (const row of rows) {
     const w = tripTemporalWeight(row);
+    if (row.temporalWeightFlags?.length) {
+      for (const f of row.temporalWeightFlags) {
+        if (!flags.includes(f)) flags.push(f);
+      }
+    }
     if (w <= 0 || row.distanceKm <= 0) continue;
     const m3 = row.m3JPerKgPerKm ?? 0;
     coveredKm += row.distanceKm * w;

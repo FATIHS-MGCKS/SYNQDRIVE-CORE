@@ -1,0 +1,136 @@
+{
+  "packageId": "ds4-l3e-api-synthetic-contract-20261029",
+  "contractVersion": "20261029",
+  "generatedAtUtc": "2026-10-29T18:42:22.579Z",
+  "pilotEvidenceRoot": "/opt/cursor/artifacts/ds4-historical-offline-replay-pilot-20261029/evidence",
+  "productionGateUnchanged": true,
+  "trips": [
+    {
+      "tripId": "5b43a2a3-ea98-4cab-8150-c23095591b04",
+      "label": "TESLA_M3",
+      "sourceFamily": "API_SYNTHETIC",
+      "speedAuthority": "C5_1_PREFERRED",
+      "c5_1Effective": true,
+      "sparseChannelOutcome": "NOT_APPLICABLE",
+      "sparseChannelOutcomeMutated": false,
+      "original": {
+        "assessmentEvidenceQuality": "NOT_APPLICABLE",
+        "l2Eligible": false,
+        "l2ReasonCodes": [
+          "EVIDENCE_QUALITY_NOT_PRESENT"
+        ],
+        "exposureSeconds": null,
+        "B_k_accel": null,
+        "B_k_brake": null
+      },
+      "researchContract": {
+        "contractId": "DS4_LONGITUDINAL_EVIDENCE_QUALITY_V1",
+        "contractVersion": "20261029",
+        "sparseChannelOutcomeUnmodified": "NOT_APPLICABLE",
+        "supplementaryReasonCodes": [],
+        "layer2EvidenceQualityInput": "PRESENT"
+      },
+      "proposed": {
+        "l2Eligible": true,
+        "l2ReasonCodes": [],
+        "exposureSeconds": 1501,
+        "B_k_accel": 43.834,
+        "B_k_brake": 68.887,
+        "fullEventCount": {
+          "accel": 4,
+          "brake": 7
+        },
+        "binOnlyEventCount": {
+          "accel": 5,
+          "brake": 5
+        }
+      },
+      "motion": {
+        "eventAcceptedCount": 23,
+        "ratedEventCount": 21,
+        "admissibleTierCounts": {
+          "full": 11,
+          "bin": 10
+        },
+        "drivingExposureDerivable": true
+      }
+    },
+    {
+      "tripId": "212cbcd4-6ac3-45cf-aa29-71280a20806f",
+      "label": "ARTEON",
+      "sourceFamily": "RUPTELA_R1",
+      "speedAuthority": "C4_ONLY",
+      "c5_1Effective": false,
+      "sparseChannelOutcome": "PRESENT",
+      "sparseChannelOutcomeMutated": false,
+      "original": {
+        "assessmentEvidenceQuality": "PRESENT",
+        "l2Eligible": true,
+        "l2ReasonCodes": [],
+        "exposureSeconds": 1276,
+        "B_k_accel": 11.483,
+        "B_k_brake": 52.174
+      },
+      "researchContract": {
+        "contractId": "DS4_LONGITUDINAL_EVIDENCE_QUALITY_V1",
+        "contractVersion": "20261029",
+        "sparseChannelOutcomeUnmodified": "PRESENT",
+        "supplementaryReasonCodes": [],
+        "layer2EvidenceQualityInput": "PRESENT"
+      },
+      "proposed": {
+        "l2Eligible": true,
+        "l2ReasonCodes": [],
+        "exposureSeconds": 1276,
+        "B_k_accel": 11.483,
+        "B_k_brake": 52.174,
+        "fullEventCount": {
+          "accel": 1,
+          "brake": 4
+        },
+        "binOnlyEventCount": {
+          "accel": 2,
+          "brake": 8
+        }
+      },
+      "motion": {
+        "eventAcceptedCount": 15,
+        "ratedEventCount": 15,
+        "admissibleTierCounts": {
+          "full": 5,
+          "bin": 10
+        },
+        "drivingExposureDerivable": true
+      }
+    }
+  ],
+  "safetyRegression": {
+    "r1Parity": true,
+    "teslaProposedPass": true,
+    "teslaOriginalFail": true,
+    "noSyntheticChannelOutcomePresent": true,
+    "degradedApiSyntheticFailClosed": true,
+    "positionOnlyInsufficient": true,
+    "c4C51Separation": true,
+    "allVerified": true
+  },
+  "degradedFixtureEval": {
+    "contractId": "DS4_LONGITUDINAL_EVIDENCE_QUALITY_V1",
+    "contractVersion": "20261029",
+    "sparseChannelOutcomeUnmodified": "NOT_APPLICABLE",
+    "supplementaryReasonCodes": [
+      "LONGITUDINAL_EVIDENCE_API_SYNTHETIC_EXPOSURE_OR_TEMPORAL_FAIL",
+      "LONGITUDINAL_EVIDENCE_API_SYNTHETIC_RATED_EVENTS_ABSENT"
+    ],
+    "layer2EvidenceQualityInput": "NOT_APPLICABLE"
+  },
+  "positionOnlyFixtureEval": {
+    "contractId": "DS4_LONGITUDINAL_EVIDENCE_QUALITY_V1",
+    "contractVersion": "20261029",
+    "sparseChannelOutcomeUnmodified": "NOT_APPLICABLE",
+    "supplementaryReasonCodes": [
+      "LONGITUDINAL_EVIDENCE_API_SYNTHETIC_RATED_EVENTS_ABSENT"
+    ],
+    "layer2EvidenceQualityInput": "NOT_APPLICABLE"
+  }
+}

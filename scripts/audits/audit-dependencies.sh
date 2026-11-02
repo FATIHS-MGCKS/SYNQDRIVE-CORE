@@ -20,10 +20,62 @@ is_valid_commit_sha() {
   git -C "$ROOT" cat-file -e "${sha}^{commit}" 2>/dev/null
 }
 
+# GitHub sets github.event.before to 40× "0" when a ref has no prior commit in the
+# webhook payload (typical: first push to a new branch). That is not a trustworthy
+# dependency baseline; resolve merge-base with the protected integration branch instead.
+is_trusted_protected_baseline_ref() {
+  local ref="${1:-}"
+  [[ "$ref" == "origin/main" ]]
+}
+
+resolve_audit_baseline_from_protected_merge_base() {
+  local head_sha="$1"
+  local protected_ref="${AUDIT_PROTECTED_BASELINE_REF:-origin/main}"
+
+  if is_zero_or_empty_sha "$head_sha"; then
+    echo "FAIL_CLOSED: push zero-before fallback requires audit head SHA" >&2
+    return 2
+  fi
+  if ! is_valid_commit_sha "$head_sha"; then
+    echo "FAIL_CLOSED: push zero-before fallback head SHA not available locally: ${head_sha}" >&2
+    return 2
+  fi
+  if ! is_trusted_protected_baseline_ref "$protected_ref"; then
+    echo "FAIL_CLOSED: untrusted protected baseline ref (${protected_ref}); only origin/main is approved" >&2
+    return 2
+  fi
+
+  local protected_sha=""
+  if ! protected_sha="$(git -C "$ROOT" rev-parse --verify "${protected_ref}^{commit}" 2>/dev/null)"; then
+    echo "FAIL_CLOSED: protected baseline ref not available locally: ${protected_ref}" >&2
+    return 2
+  fi
+
+  local merge_base=""
+  if ! merge_base="$(git -C "$ROOT" merge-base "$protected_sha" "$head_sha" 2>/dev/null)"; then
+    echo "FAIL_CLOSED: could not compute merge-base between ${protected_ref} and audit head" >&2
+    return 2
+  fi
+  if is_zero_or_empty_sha "$merge_base" || ! is_valid_commit_sha "$merge_base"; then
+    echo "FAIL_CLOSED: merge-base with ${protected_ref} is missing or not a commit" >&2
+    return 2
+  fi
+  if ! git -C "$ROOT" merge-base --is-ancestor "$merge_base" "$head_sha"; then
+    echo "FAIL_CLOSED: merge-base is not an ancestor of audit head SHA" >&2
+    return 2
+  fi
+
+  RESOLVED_AUDIT_BASELINE_SHA="$merge_base"
+  RESOLVED_AUDIT_BASELINE_SOURCE=protected_merge_base
+  printf '%s\n' "$merge_base"
+  return 0
+}
+
 resolve_audit_baseline_sha() {
   local event_name="${GITHUB_EVENT_NAME:-}"
   local pr_base="${PR_BASE_SHA:-${GITHUB_EVENT_PULL_REQUEST_BASE_SHA:-}}"
   local push_before="${PUSH_BEFORE_SHA:-${GITHUB_EVENT_BEFORE:-}}"
+  local head_sha="${PR_HEAD_SHA:-${GITHUB_SHA:-}}"
 
   if [[ "$event_name" == "pull_request" ]]; then
     if is_zero_or_empty_sha "$pr_base"; then
@@ -34,25 +86,31 @@ resolve_audit_baseline_sha() {
       echo "FAIL_CLOSED: pull_request PR base SHA not available locally: ${pr_base}" >&2
       return 2
     fi
+    RESOLVED_AUDIT_BASELINE_SHA="$pr_base"
+    RESOLVED_AUDIT_BASELINE_SOURCE=pull_request_base
     printf '%s\n' "$pr_base"
     return 0
   fi
 
   if [[ "$event_name" == "push" ]]; then
-    if is_zero_or_empty_sha "$push_before"; then
-      echo "FAIL_CLOSED: push event missing valid github.event.before baseline SHA" >&2
-      return 2
+    if ! is_zero_or_empty_sha "$push_before"; then
+      if ! is_valid_commit_sha "$push_before"; then
+        echo "FAIL_CLOSED: push before SHA not available locally: ${push_before}" >&2
+        return 2
+      fi
+      RESOLVED_AUDIT_BASELINE_SHA="$push_before"
+      RESOLVED_AUDIT_BASELINE_SOURCE=push_before
+      printf '%s\n' "$push_before"
+      return 0
     fi
-    if ! is_valid_commit_sha "$push_before"; then
-      echo "FAIL_CLOSED: push before SHA not available locally: ${push_before}" >&2
-      return 2
-    fi
-    printf '%s\n' "$push_before"
+    resolve_audit_baseline_from_protected_merge_base "$head_sha" || return $?
     return 0
   fi
 
   # Backward-compatible direct env override (local/CI harness) only when event name is unset.
   if [[ -z "$event_name" ]] && ! is_zero_or_empty_sha "$pr_base" && is_valid_commit_sha "$pr_base"; then
+    RESOLVED_AUDIT_BASELINE_SHA="$pr_base"
+    RESOLVED_AUDIT_BASELINE_SOURCE=explicit_env
     printf '%s\n' "$pr_base"
     return 0
   fi
@@ -110,9 +168,14 @@ run_surface_npm_ci() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  RESOLVED_AUDIT_BASELINE_SHA=""
+  RESOLVED_AUDIT_BASELINE_SOURCE=""
   PR_HEAD_SHA="${PR_HEAD_SHA:-${GITHUB_SHA:-$(git -C "$ROOT" rev-parse HEAD)}}"
 
-  AUDIT_BASE_SHA="$(resolve_audit_baseline_sha)" || exit $?
+  if ! resolve_audit_baseline_sha >/dev/null; then
+    exit $?
+  fi
+  AUDIT_BASE_SHA="$RESOLVED_AUDIT_BASELINE_SHA"
 
   if is_zero_or_empty_sha "$PR_HEAD_SHA"; then
     echo "FAIL_CLOSED: audit head SHA missing" >&2
@@ -126,6 +189,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 
   echo "SECURITY_GATE_MODE=BASELINE_REGRESSION_FAIL_CLOSED"
   echo "AUDIT_BASE_SHA=${AUDIT_BASE_SHA}"
+  echo "AUDIT_BASELINE_SOURCE=${RESOLVED_AUDIT_BASELINE_SOURCE:-unknown}"
   echo "AUDIT_HEAD_SHA=${PR_HEAD_SHA}"
   echo "GITHUB_EVENT_NAME=${GITHUB_EVENT_NAME:-unset}"
 

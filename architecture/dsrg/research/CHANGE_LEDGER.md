@@ -35,5 +35,6 @@
 | 2026-10-12 | **DSRG-05-HARDEN** | Remove `CLOUD_AGENT_SKIP_CI_GATE`; paginate GitHub check-runs; evaluate latest critical gate per name (stale success cannot mask newer failure) | None (repo-only) |
 | 2026-10-12 | **DSRG-05-PR2000** | `synqdrive-admin` remote invoke: `sudo -n -H env SYNQDRIVE_REQUESTED_DEPLOY_SHA=… bash <validated vps-deploy-release.sh>` (no `-lc`); CI gate GET pagination selftests; runbook B.2/B.3 VO5C bootstrap optional; EXP021-S4P10 production deploy evidence | Production deploy S4P10 at `09fd5d72` (authorized); repo hotfix PR #2000 |
 | 2026-10-27 | **DSRG-CI-GATE-IDENTITY** | Legal Documents `workflow_dispatch` supplies validated `audit_baseline_sha` via existing `audit-dependencies.sh` harness; `deploy-ci-gate.mjs` selects canonical Vehicle Detail workflow gate (ignore homonymous Legal checks); regression selftests | None (repo-only; no deploy) |
+| 2026-10-31 | **DSRG-CI-ZERO-BEFORE-BASELINE** | Legal Documents push events with GitHub all-zero `before` resolve dependency audit baseline via verified `merge-base` with `origin/main` (fail-closed otherwise); regression harness extended | None (repo-only; CI) |
 
 Historical VO5C deploy-governance entries remain in [`../../vehicle-onboarding/research/CHANGE_LEDGER.md`](../../vehicle-onboarding/research/CHANGE_LEDGER.md) — reference only.

@@ -20,6 +20,9 @@ import { ChangesView } from './components/ChangesView';
 import VehicleLogbookView from './components/VehicleLogbookView';
 import BatteryV2ShadowInspectionView from './battery-v2-shadow-inspection/BatteryV2ShadowInspectionView';
 import HvBatteryInspectionView from './battery-v2-hv-inspection/HvBatteryInspectionView';
+import { VsiMasterIntelligenceView } from './intelligence/VsiMasterIntelligenceView';
+import { ApdsMasterIntelligenceView } from './intelligence/ApdsMasterIntelligenceView';
+import TireCalibrationCenterView from './tire-v3-calibration-center/TireCalibrationCenterView';
 import { HighMobilityDataView } from './components/HighMobilityDataView';
 import { PlatformOpsHub } from './platform-ops/PlatformOpsHub';
 import { migratePlatformHealthParams, syncPlatformOpsUrl } from './platform-ops/platform-ops-url';
@@ -32,6 +35,7 @@ import {
 } from './navigation/master-nav-url';
 import { isBillingOnlyMasterUser } from './navigation/master-nav-permissions';
 import { applyMasterDrilldownUrl } from './navigation/master-drilldown';
+import { pushMasterIntelligenceUrl, emptyIntelligenceContext } from './intelligence/master-intelligence-url';
 import type { MasterNavLocationState } from './navigation/master-nav.types';
 import { Toaster, toast } from 'sonner';
 import type { Organization, PlatformUser } from './data/platform-data';
@@ -157,6 +161,11 @@ export default function App() {
 
   const navigateMaster = useCallback(
     (view: MasterView, opts?: { settingsTab?: string; orgId?: string | null; replace?: boolean; keepOrg?: boolean }) => {
+      if (view === 'vsi-intelligence' || view === 'apds-intelligence') {
+        setCurrentView(view);
+        pushMasterIntelligenceUrl(view, emptyIntelligenceContext(), { replace: opts?.replace });
+        return;
+      }
       const next: MasterNavLocationState = {
         view,
         settingsTab: opts?.settingsTab ?? (view === 'settings' ? settingsTab : undefined),
@@ -571,6 +580,26 @@ export default function App() {
         {currentView === 'battery-v2-hv-inspection' && (
           <PageContainer variant="wide">
             <HvBatteryInspectionView
+              organizations={organizations.map((o) => ({ id: o.id, companyName: o.company_name }))}
+            />
+          </PageContainer>
+        )}
+
+        {currentView === 'vsi-intelligence' && (
+          <PageContainer variant="wide">
+            <VsiMasterIntelligenceView />
+          </PageContainer>
+        )}
+
+        {currentView === 'apds-intelligence' && (
+          <PageContainer variant="wide">
+            <ApdsMasterIntelligenceView />
+          </PageContainer>
+        )}
+
+        {currentView === 'tire-v3-calibration-center' && (
+          <PageContainer variant="wide">
+            <TireCalibrationCenterView
               organizations={organizations.map((o) => ({ id: o.id, companyName: o.company_name }))}
             />
           </PageContainer>

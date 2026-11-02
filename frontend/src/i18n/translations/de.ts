@@ -63,8 +63,10 @@ import { masterPlatformOpsDiS4De } from './master.platformOps.diS4.de';
 import { batteryV2HvInspectionDE } from './battery-v2-hv-inspection.de';
 import { tireWearV3De } from './tire.wearV3.de';
 import { masterPhysicalDeviceInventoryDe } from './master.physicalDeviceInventory.de';
+import { masterIntelligenceDe } from './master.intelligence.de';
 import { masterMotionPhysicsDe } from './master.motionPhysics.de';
 import { masterVehicleIdentityDe } from './master.vehicleIdentity.de';
+import { masterOneAutoDe } from './master.oneAuto.de';
 import { masterRegistrationBrakeDe } from './master.registration.brake.de';
 import { masterCvTechnicalSpecsDe } from './master.cv.technicalSpecs.de';
 
@@ -3402,6 +3404,16 @@ export const de: Record<TranslationKey, string> = {
   'settings.dataSync': 'Datensynchronisation',
 
   // ─── Master — Connected Vehicles offboard (VO5C-P2A) ───
+  // ─── Master — Vehicle registration spec contract (V3) ───
+  'master.registration.lvBatteryConstructionType.label': 'LV-Bauart',
+  'master.registration.lvBatteryConstructionType.leadAcid': 'Bleisäure (nass)',
+  'master.registration.lvBatteryChemistryHint.label': 'Chemie (nur KI-Hinweis)',
+  'master.registration.lvBatteryChemistryHint.placeholder': 'Wird nicht gespeichert — LV-Bauart verwenden',
+  'master.registration.lvBatteryChemistryHint.title': 'Materialchemie wird nicht gespeichert; Battery Health nutzt die LV-Bauart.',
+  'master.registration.lvBatteryType.legacyLabel': 'Gespeicherter Legacy-Wert (Typ wählen zum Aktualisieren)',
+  'master.registration.lvBatteryType.lvBatteryTypeRequiredForNumbers': 'Bitte zuerst eine unterstützte LV-Bauart wählen, bevor Kapazität oder Spannung eingegeben wird.',
+  'master.registration.lvBatteryType.lvBatteryTypeInvalid': 'Nicht unterstützte LV-Bauart. Bitte AGM, EFB, Bleisäure oder Lithium wählen.',
+
   'master.cv.registryLifecycle.active': 'Aktiv',
   'master.cv.registryLifecycle.offboarded': 'Aus dem Bestand',
   'master.cv.registryLifecycle.archived': 'Archiviert',
@@ -3411,6 +3423,23 @@ export const de: Record<TranslationKey, string> = {
   'master.cv.registryLifecycle.filter.archived': 'Archiviert',
   'master.cv.registryLifecycle.filter.all': 'Alle Lebenszyklen',
   'master.cv.registryLifecycle.filter.ariaLabel': 'Registry-Lebenszyklus filtern',
+  'master.cv.overview.registeredActive': 'Aktive Flotte',
+  'master.cv.overview.registeredAllHint':
+    'Gesamtbestand: {total} (abgemeldet {offboarded}, archiviert {archived})',
+  'master.cv.overview.unregistered': 'Nicht zugeordnet',
+  'master.cv.overview.withAttention': 'Mit Aufmerksamkeit',
+  'master.cv.overview.dimoLinked': 'DIMO verknüpft (aktiv)',
+  'master.cv.overview.telemetryDistribution': 'Telemetrie-Verteilung',
+  'master.cv.overview.attentionQueue': 'Attention Queue',
+  'master.cv.overview.showAll': 'Alle anzeigen',
+  'master.cv.overview.noAttention': 'Keine offenen Governance-Themen.',
+  'master.cv.overview.unavailableTitle': 'Übersicht nicht verfügbar',
+  'master.cv.overview.platformDimoDegradedTitle': 'DIMO-Plattform eingeschränkt',
+  'master.cv.overview.platformDimoDegradedBody':
+    'Globale DIMO-Störung — Fahrzeugtelemetrie kann veraltet sein. Keine per-Fahrzeug-Duplikatwarnung.',
+  'master.cv.overview.openPlatformHealth': 'Plattformstatus öffnen',
+  'master.cv.overview.telemetrySignalDelayed': 'Signal verzögert',
+  'master.cv.overview.telemetryNoSignal': 'Kein Signal',
   'master.cv.mapping.mirrorProvider': 'DIMO-Spiegel (Provider)',
   'master.cv.mapping.effectiveSynqDriveAccess': 'SynqDrive-Zugriff (effektiv)',
   'master.cv.offboard.action': 'Aus aktivem Bestand entfernen',
@@ -3710,6 +3739,16 @@ export const de: Record<TranslationKey, string> = {
 
   // ─── Health & Errors ───
   'health.aiHealthCare': 'KI-Gesundheitscheck',
+  'health.aiTireSpec.applyFailed': 'KI-Reifenspezifikation konnte nicht übernommen werden.',
+  'health.aiTireSpec.applySuccess': 'KI-Reifenspezifikation übernommen.',
+  'health.aiTireSpec.seasonMismatchWarning':
+    'KI-Reifenspezifikation gespeichert. Die Setup-Saison wurde nicht geändert und weicht vom KI-Vorschlag ab.',
+  'health.aiTireSpec.staleBinding':
+    'Reifen-Setup wurde nach dem KI-Abruf geändert. Bitte KI-Reifenspec erneut abrufen.',
+  'health.aiTireSpec.missingGenerationBinding': 'Apply ohne Generierungsbindung. Bitte KI-Reifenspec erneut abrufen.',
+  'health.aiTireSpec.missingActiveSetup': 'Kein aktives Reifen-Setup gefunden.',
+  'health.aiTireSpec.identityMismatch':
+    'Identität der KI-Reifenspec passt nicht zum Setup oder zur Abruf-Anfrage.',
   'health.poweredByAi': 'KI-gestuetzt',
   'health.errorCodes': 'Fehlercodes',
   'health.noActiveErrors': 'Keine aktiven Fehlercodes',
@@ -5978,8 +6017,10 @@ export const de: Record<TranslationKey, string> = {
   ...tripsM7aMapDE,
   ...masterPlatformOpsDiS4De,
   ...masterPhysicalDeviceInventoryDe,
+  ...masterIntelligenceDe,
   ...masterMotionPhysicsDe,
 ...masterVehicleIdentityDe,
+  ...masterOneAutoDe,
   ...masterRegistrationBrakeDe,
   ...masterCvTechnicalSpecsDe,
   ...batteryV2HvInspectionDE,

@@ -1,12 +1,12 @@
 import type { DiV0MotionCoreShadowPayloadV1 } from '../motion-core-shadow-worker/di-v0-motion-core-shadow.types';
-import {
-  DI_V0_MOTION_CORE_SHADOW_EVENT_ROW_CONTRACT_V1_LEGACY,
-  DI_V0_MOTION_CORE_SHADOW_EVENT_ROW_CONTRACT_V2_INTENSITY,
-  isMotionCoreShadowIntensityConsumptionAllowed,
-  readPersistedMotionEventIntensityForPayload,
-  resolveMotionCoreShadowEventRowContract,
-} from '../motion-core-shadow-worker/di-v0-motion-core-shadow-event-row.contract';
+import { resolveMotionCoreShadowEventRowContract } from '../motion-core-shadow-worker/di-v0-motion-core-shadow-event-row.contract';
+import { deriveDs4DrivingExposureV1, emptyDs4DrivingExposureV1, type Ds4DrivingExposureV1 } from './ds4-assessment-driving-exposure.v1';
 import { evaluateDs4AssessmentScopeEligibilityV1 } from './ds4-assessment-eligibility-policy.v1';
+import {
+  aggregateDs4EventIntensityEligibilityV1,
+  type Ds4EventIntensityEligibilityRecordV1,
+  type Ds4ManoeuvreKindIntensityCountsV1,
+} from './ds4-assessment-event-intensity-eligibility.v1';
 import {
   DS4_TRIP_ASSESSMENT_VERSION_V1,
   type Ds4SpeedAuthorityPartitionV1,
@@ -14,7 +14,7 @@ import {
   type Ds4TripAssessmentStatusV1,
 } from './ds4-trip-assessment-v1.contract';
 import {
-  DS4_ASSESSMENT_QUALITY_POLICY_V1_DEFAULT,
+  DS4_ASSESSMENT_QUALITY_POLICY_V2_DEFAULT,
   evaluateDs4AssessmentQualityFromMotionPayload,
   type Ds4AssessmentQualityPolicyV1,
 } from './ds4-assessment-quality-policy.v1';
@@ -41,10 +41,15 @@ export type Ds4TripAssessmentEventSummariesV1 = {
   acceptedAccelerationCount: number;
   acceptedDecelerationCount: number;
   artefactSuspectCount: number;
+  /** Admissible events passing PR-A2 intensity quality gate (FULL + BIN_ONLY). */
   ratedEventCount: number;
   unratedEventCount: number;
   accelerationOrdinalValues: number[];
   decelerationOrdinalValues: number[];
+  intensityAcceleration: Ds4ManoeuvreKindIntensityCountsV1;
+  intensityDeceleration: Ds4ManoeuvreKindIntensityCountsV1;
+  drivingExposure: Ds4DrivingExposureV1;
+  eventIntensityRecords: Ds4EventIntensityEligibilityRecordV1[];
   usableTemporalCoverage: {
     labelCount: number;
     directFsmLabelCount: number;
@@ -75,6 +80,21 @@ export type Ds4TripAssessmentComputeResultV1 = {
   processingError: { code: string; message: string } | null;
 };
 
+function emptyKindIntensityCounts(): Ds4ManoeuvreKindIntensityCountsV1 {
+  return {
+    totalEvents: 0,
+    acceptedEvents: 0,
+    excludedArtefacts: 0,
+    unratedEvents: 0,
+    admissibleEvents: 0,
+    fullEligibleEvents: 0,
+    binOnlyEvents: 0,
+    admissibleShareOfAccepted: null,
+    admissibleDurationSeconds: [],
+    admissibleMeanAccelMps2: [],
+  };
+}
+
 function emptySummaries(): Ds4TripAssessmentEventSummariesV1 {
   return {
     acceptedAccelerationCount: 0,
@@ -84,15 +104,12 @@ function emptySummaries(): Ds4TripAssessmentEventSummariesV1 {
     unratedEventCount: 0,
     accelerationOrdinalValues: [],
     decelerationOrdinalValues: [],
+    intensityAcceleration: emptyKindIntensityCounts(),
+    intensityDeceleration: emptyKindIntensityCounts(),
+    drivingExposure: emptyDs4DrivingExposureV1(),
+    eventIntensityRecords: [],
     usableTemporalCoverage: { labelCount: 0, directFsmLabelCount: 0, speedNumericCount: 0 },
   };
-}
-
-function classifyEventKind(kind: string): 'ACCELERATION' | 'DECELERATION' | 'OTHER' {
-  const k = kind.toUpperCase();
-  if (k.includes('DECEL') || k === 'BRAKING') return 'DECELERATION';
-  if (k.includes('ACCEL')) return 'ACCELERATION';
-  return 'OTHER';
 }
 
 export function computeDs4TripAssessmentV1(input: {
@@ -102,7 +119,7 @@ export function computeDs4TripAssessmentV1(input: {
   qualityPolicy?: Ds4AssessmentQualityPolicyV1;
   now?: Date;
 }): Ds4TripAssessmentComputeResultV1 {
-  const qualityPolicy = input.qualityPolicy ?? DS4_ASSESSMENT_QUALITY_POLICY_V1_DEFAULT;
+  const qualityPolicy = input.qualityPolicy ?? DS4_ASSESSMENT_QUALITY_POLICY_V2_DEFAULT;
   const qualityPolicyVersion = qualityPolicy.policyVersion;
   const scopeEligibility = evaluateDs4AssessmentScopeEligibilityV1(input.scope, {
     motionRunOrganizationId: input.motionRun?.organizationId ?? null,
@@ -275,28 +292,31 @@ export function computeDs4TripAssessmentV1(input: {
     speedNumericCount: input.payload.summary?.speedNumericCount ?? input.payload.speeds?.filter((s) => s.speedKmh != null).length ?? 0,
   };
 
-  for (const ev of input.payload.events ?? []) {
-    if (ev.quality === 'ARTEFACT_SUSPECT') {
-      summaries.artefactSuspectCount += 1;
-      continue;
-    }
-    const kindClass = classifyEventKind(ev.kind);
-    if (kindClass === 'ACCELERATION') summaries.acceptedAccelerationCount += 1;
-    if (kindClass === 'DECELERATION') summaries.acceptedDecelerationCount += 1;
+  const intensityAgg = aggregateDs4EventIntensityEligibilityV1({
+    payload: input.payload,
+    speedAuthority,
+  });
+  summaries.intensityAcceleration = intensityAgg.acceleration;
+  summaries.intensityDeceleration = intensityAgg.deceleration;
+  summaries.eventIntensityRecords = intensityAgg.records;
+  summaries.acceptedAccelerationCount = intensityAgg.acceleration.acceptedEvents;
+  summaries.acceptedDecelerationCount = intensityAgg.deceleration.acceptedEvents;
+  summaries.artefactSuspectCount =
+    intensityAgg.acceleration.excludedArtefacts + intensityAgg.deceleration.excludedArtefacts;
+  summaries.ratedEventCount = intensityAgg.ratedEventCount;
+  summaries.unratedEventCount = intensityAgg.unratedEventCount;
+  summaries.accelerationOrdinalValues = intensityAgg.admissibleOrdinalValues.acceleration;
+  summaries.decelerationOrdinalValues = intensityAgg.admissibleOrdinalValues.deceleration;
 
-    const intensity = readPersistedMotionEventIntensityForPayload(input.payload, ev);
-    if (intensity && isMotionCoreShadowIntensityConsumptionAllowed(contractResolution)) {
-      summaries.ratedEventCount += 1;
-      const magnitude = intensity.meanAccelMps2;
-      if (kindClass === 'ACCELERATION') summaries.accelerationOrdinalValues.push(magnitude);
-      if (kindClass === 'DECELERATION') summaries.decelerationOrdinalValues.push(magnitude);
-    } else {
-      summaries.unratedEventCount += 1;
+  summaries.drivingExposure = deriveDs4DrivingExposureV1({
+    payload: input.payload,
+    speedAuthority,
+  });
+  if (!summaries.drivingExposure.derivable || summaries.drivingExposure.exposureSeconds <= 0) {
+    if (!reasonCodes.includes('NO_VALID_DRIVING_EXPOSURE')) {
+      reasonCodes.push('NO_VALID_DRIVING_EXPOSURE');
     }
   }
-
-  summaries.accelerationOrdinalValues.sort((a, b) => a - b);
-  summaries.decelerationOrdinalValues.sort((a, b) => a - b);
 
   const inputFingerprint = canonicalFingerprint.ok
     ? canonicalFingerprint.inputFingerprint
@@ -383,6 +403,22 @@ export function computeDs4TripAssessmentV1(input: {
   }
 
   const acceptedTotal = summaries.acceptedAccelerationCount + summaries.acceptedDecelerationCount;
+  if (reasonCodes.includes('NO_VALID_DRIVING_EXPOSURE')) {
+    return {
+      assessmentVersion: DS4_TRIP_ASSESSMENT_VERSION_V1,
+      assessmentStatus: 'INSUFFICIENT_EVIDENCE',
+      evidenceQuality: input.payload.contract?.sparse?.channelOutcome ?? null,
+      reasonCodes,
+      completeness,
+      eventSummaries: summaries,
+      speedAuthority,
+      eventRowContract,
+      inputFingerprint,
+      sourceMotionRunId: input.motionRun.id,
+      processingError: null,
+    };
+  }
+
   if (acceptedTotal === 0) {
     reasonCodes.push('NO_ACCEPTED_MANOEUVRES_UNDER_OBSERVATION');
     return {

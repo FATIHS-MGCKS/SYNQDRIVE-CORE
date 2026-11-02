@@ -2,6 +2,7 @@ import { AlertTriangle } from 'lucide-react';
 import { MetricCard, StatusChip } from '../../components/patterns';
 import { Button } from '../../components/ui/button';
 import { ErrorState, SkeletonCard } from '../../components/patterns/states';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { attentionSeverityTone } from './cv.utils';
 import { CvTelemetryChip } from './ConnectedVehicleStatusChips';
 import type { VehiclesOperationalOverviewDto } from './types';
@@ -17,13 +18,6 @@ interface ConnectedVehiclesOverviewViewProps {
 }
 
 const TELEMETRY_ORDER = ['live', 'standby', 'signal_delayed', 'offline', 'no_signal'] as const;
-const TELEMETRY_LABELS: Record<string, string> = {
-  live: 'Live',
-  standby: 'Standby',
-  signal_delayed: 'Signal verzögert',
-  offline: 'Offline',
-  no_signal: 'Kein Signal',
-};
 
 export function ConnectedVehiclesOverviewView({
   overview,
@@ -34,6 +28,16 @@ export function ConnectedVehiclesOverviewView({
   onOpenVehicle,
   onGoPlatformHealth,
 }: ConnectedVehiclesOverviewViewProps) {
+  const { t } = useLanguage();
+
+  const TELEMETRY_LABELS: Record<string, string> = {
+    live: 'Live',
+    standby: 'Standby',
+    signal_delayed: t('master.cv.overview.telemetrySignalDelayed'),
+    offline: 'Offline',
+    no_signal: t('master.cv.overview.telemetryNoSignal'),
+  };
+
   if (loading) {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-testid="cv-overview-loading">
@@ -47,12 +51,21 @@ export function ConnectedVehiclesOverviewView({
   if (error || !overview) {
     return (
       <ErrorState
-        title="Übersicht nicht verfügbar"
+        title={t('master.cv.overview.unavailableTitle')}
         description={error ?? undefined}
         onRetry={onRetry}
       />
     );
   }
+
+  const lifecycleHint =
+    overview.counts.registeredAll > overview.counts.registered
+      ? t('master.cv.overview.registeredAllHint', {
+          total: overview.counts.registeredAll,
+          offboarded: overview.counts.registeredOffboarded,
+          archived: overview.counts.registeredArchived,
+        })
+      : null;
 
   return (
     <div className="space-y-5" data-testid="cv-overview">
@@ -64,39 +77,59 @@ export function ConnectedVehiclesOverviewView({
           <div className="flex items-start gap-3 min-w-0">
             <AlertTriangle className="h-5 w-5 text-[color:var(--status-critical)] shrink-0 mt-0.5" aria-hidden />
             <div>
-              <p className="font-semibold text-foreground">DIMO-Plattform eingeschränkt</p>
+              <p className="font-semibold text-foreground">
+                {t('master.cv.overview.platformDimoDegradedTitle')}
+              </p>
               <p className="text-sm text-muted-foreground mt-1">
-                {overview.platformDimoMessage ??
-                  'Globale DIMO-Störung — Fahrzeugtelemetrie kann veraltet sein. Keine per-Fahrzeug-Duplikatwarnung.'}
+                {overview.platformDimoMessage ?? t('master.cv.overview.platformDimoDegradedBody')}
               </p>
             </div>
           </div>
           <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onGoPlatformHealth}>
-            Plattformstatus öffnen
+            {t('master.cv.overview.openPlatformHealth')}
           </Button>
         </div>
       ) : null}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <button type="button" className="text-left" onClick={() => onGoVehicles({ cvRegistrationState: 'registered' })}>
-          <MetricCard label="Registriert" value={String(overview.counts.registered)} valueSize="compact" />
+        <button
+          type="button"
+          className="text-left"
+          onClick={() => onGoVehicles({ cvRegistrationState: 'registered', cvRegistryLifecycle: 'ACTIVE' })}
+        >
+          <MetricCard
+            label={t('master.cv.overview.registeredActive')}
+            value={String(overview.counts.registered)}
+            valueSize="compact"
+            hint={lifecycleHint ?? undefined}
+          />
         </button>
         <button type="button" className="text-left" onClick={() => onGoVehicles({ cvRegistrationState: 'unregistered' })}>
-          <MetricCard label="Nicht zugeordnet" value={String(overview.counts.unregistered)} valueSize="compact" />
+          <MetricCard
+            label={t('master.cv.overview.unregistered')}
+            value={String(overview.counts.unregistered)}
+            valueSize="compact"
+          />
         </button>
         <button type="button" className="text-left" onClick={() => onGoVehicles({ cvAttention: 'true' })}>
           <MetricCard
-            label="Mit Aufmerksamkeit"
+            label={t('master.cv.overview.withAttention')}
             value={String(overview.counts.withAttention)}
             status={overview.counts.withAttention > 0 ? 'warning' : undefined}
             valueSize="compact"
           />
         </button>
-        <MetricCard label="DIMO verknüpft" value={String(overview.counts.dimoLinked)} valueSize="compact" />
+        <MetricCard
+          label={t('master.cv.overview.dimoLinked')}
+          value={String(overview.counts.dimoLinked)}
+          valueSize="compact"
+        />
       </div>
 
       <div className="surface-premium p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-foreground">Telemetrie-Verteilung</h3>
+        <h3 className="text-sm font-semibold text-foreground">
+          {t('master.cv.overview.telemetryDistribution')}
+        </h3>
         <div className="flex flex-wrap gap-2">
           {TELEMETRY_ORDER.map((key) => (
             <button
@@ -116,13 +149,13 @@ export function ConnectedVehiclesOverviewView({
 
       <div className="surface-premium p-5 space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-foreground">Attention Queue</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t('master.cv.overview.attentionQueue')}</h3>
           <Button type="button" variant="ghost" size="sm" onClick={() => onGoVehicles({ cvAttention: 'true' })}>
-            Alle anzeigen
+            {t('master.cv.overview.showAll')}
           </Button>
         </div>
         {overview.attentionQueue.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Keine offenen Governance-Themen.</p>
+          <p className="text-sm text-muted-foreground">{t('master.cv.overview.noAttention')}</p>
         ) : (
           <ul className="space-y-2">
             {overview.attentionQueue.map((item) => (
@@ -142,7 +175,7 @@ export function ConnectedVehiclesOverviewView({
                     <StatusChip tone={attentionSeverityTone(item.severity)} dot>
                       {item.reason}
                     </StatusChip>
-                    <span className="text-xs text-muted-foreground">{item.vehicleCount} Fahrzeuge</span>
+                    <span className="text-xs text-muted-foreground">{item.vehicleCount}</span>
                   </div>
                   {item.sampleOrganizationName ? (
                     <p className="text-xs text-muted-foreground mt-1">{item.sampleOrganizationName}</p>

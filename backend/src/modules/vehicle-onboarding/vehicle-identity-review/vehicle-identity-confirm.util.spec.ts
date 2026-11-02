@@ -40,6 +40,58 @@ describe('vehicle-identity-confirm.util', () => {
     expect(result.errors.some((e) => e.code === 'VIN_MISMATCH_UNACKNOWLEDGED')).toBe(true);
   });
 
+  it('blocks document field confirmation when FIN mismatch is acknowledged but document FIN differs', () => {
+    const snapshot = buildVehicleIdentityReviewSnapshot({
+      system: emptySystem,
+      zb1: null,
+      manual: null,
+      documentExtractionId: 'ext-1',
+      capabilities,
+      vinMismatchAcknowledged: true,
+    });
+    snapshot.vinMismatchBlocked = true;
+    const field = snapshot.fields.find((f) => f.fieldCode === 'p1DisplacementCc');
+    if (field) {
+      field.documentValue = 1998;
+      field.extractionStatus = 'EXTRACTED';
+    }
+
+    const result = validateVehicleIdentityFieldConfirmations({
+      snapshot,
+      confirmations: [{ fieldCode: 'p1DisplacementCc', confirmed: true }],
+      vinMismatchAcknowledged: true,
+      acceptP2AsSystemPower: false,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.code === 'VIN_MISMATCH_DOCUMENT_FIELD_BLOCKED')).toBe(true);
+  });
+
+  it('blocks confirming document FIN that differs from vehicle FIN even when acknowledged', () => {
+    const snapshot = buildVehicleIdentityReviewSnapshot({
+      system: emptySystem,
+      zb1: null,
+      manual: null,
+      documentExtractionId: 'ext-1',
+      capabilities,
+      vinMismatchAcknowledged: true,
+    });
+    snapshot.vinMismatchBlocked = true;
+    const eVin = snapshot.fields.find((f) => f.fieldCode === 'eVin');
+    if (eVin) {
+      eVin.documentValue = 'OTHERVIN123456789';
+      eVin.extractionStatus = 'EXTRACTED';
+      eVin.baselineValue = '1HGCM82633A004352';
+    }
+
+    const result = validateVehicleIdentityFieldConfirmations({
+      snapshot,
+      confirmations: [{ fieldCode: 'eVin', confirmed: true }],
+      vinMismatchAcknowledged: true,
+      acceptP2AsSystemPower: false,
+    });
+    expect(result.errors.some((e) => e.code === 'VIN_MISMATCH_DOCUMENT_VIN_NOT_CANONICAL')).toBe(true);
+  });
+
   it('rejects correctedValue without confirmed: true', () => {
     const snapshot = buildVehicleIdentityReviewSnapshot({
       system: emptySystem,

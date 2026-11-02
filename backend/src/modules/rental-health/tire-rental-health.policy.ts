@@ -305,6 +305,17 @@ export function buildTireRentalHealthReadModel(
       primaryReason = 'Reifen-V3: Verifikation überfällig — Messung vor Vermietung';
     }
 
+    if (summary.wearReadModel === 'v3' && !summary.wearV3) {
+      reasonCodes.push('V3_READ_UNAVAILABLE');
+      wearState = 'unknown';
+      reviewRequirement = mergeReviewRequirement(
+        reviewRequirement,
+        'MEASUREMENT_REQUIRED',
+      );
+      primaryReason =
+        'Reifen-V3: Verschleißberechnung nicht verfügbar — Profiltiefenmessung erforderlich';
+    }
+
     // ── Wear path ─────────────────────────────────────────────────────────
     if (summary.isDefaultAssumption) {
       reasonCodes.push('TREAD_DEFAULT_ASSUMPTION');
@@ -389,8 +400,15 @@ export function buildTireRentalHealthReadModel(
           ? 'Reifenverschleiß Warnung'
           : 'Reifen beobachten';
     } else if (summary.overallStatus === 'GOOD') {
-      wearState = 'good';
-      primaryReason = 'Reifen in Ordnung';
+      const v3BlocksLegacyGoodClearance =
+        summary.wearReadModel === 'v3' &&
+        (!summary.wearV3 ||
+          summary.wearV3.insufficientEvidence ||
+          summary.wearV3.verificationStatus === 'INSUFFICIENT_EVIDENCE');
+      if (!v3BlocksLegacyGoodClearance) {
+        wearState = 'good';
+        primaryReason = 'Reifen in Ordnung';
+      }
     } else {
       wearState = 'unknown';
       reasonCodes.push('TREAD_UNKNOWN');

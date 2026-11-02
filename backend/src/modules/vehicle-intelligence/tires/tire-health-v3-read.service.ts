@@ -7,13 +7,20 @@ import {
 } from '@config/tire-wear-v3-cutover.policy';
 import type { TireHealthSummary, TireHealthDetail, TireAlert } from './tire-health.service';
 import {
+  buildAuthoritativeV3UnavailableRead,
   buildV3VerificationAlerts,
   mapV3SetupToCustomerRead,
   resolveV3OverallTreadStatus,
+  type TireHealthV3ReadUnavailableReason,
 } from './tire-health-v3-read.adapter';
 import type { TireHealthV3CustomerReadModel } from './tire-health-v3-read.types';
 import { TireWearV3PriorService } from './wear-v3-prior/tire-wear-v3-prior.service';
 import { buildTireEvidencePresentation } from './tire-health-presentation';
+
+type V3CustomerReadResolution =
+  | { kind: 'ok'; read: TireHealthV3CustomerReadModel }
+  | { kind: 'unavailable'; reason: TireHealthV3ReadUnavailableReason }
+  | { kind: 'inactive' };
 
 @Injectable()
 export class TireHealthV3ReadService {
@@ -42,24 +49,56 @@ export class TireHealthV3ReadService {
   }
 
   /**
-   * Single authoritative V3 computation path for customer reads (no shadow persist).
+   * Resolves customer V3 read for API enrichment (handles authoritative fail-closed).
    */
-  async computeCustomerRead(setupId: string): Promise<TireHealthV3CustomerReadModel | null> {
-    if (!this.isCustomerReadEnabled() || !this.wearV3Prior) {
-      return null;
+  async resolveCustomerReadForApi(setupId: string): Promise<V3CustomerReadResolution> {
+    if (!this.isCustomerReadEnabled()) {
+      return { kind: 'inactive' };
+    }
+    if (!this.wearV3Prior) {
+      if (this.isCustomerReadAuthoritative()) {
+        return { kind: 'unavailable', reason: 'dependency_unavailable' };
+      }
+      return { kind: 'unavailable', reason: 'dependency_unavailable' };
     }
     try {
       const result = await this.wearV3Prior.computeForSetup(setupId, {
         persistShadow: false,
       });
-      if (!result) return null;
-      return mapV3SetupToCustomerRead(result);
+      if (!result) {
+        if (this.isCustomerReadAuthoritative()) {
+          return { kind: 'unavailable', reason: 'no_result' };
+        }
+        return { kind: 'unavailable', reason: 'no_result' };
+      }
+      return { kind: 'ok', read: mapV3SetupToCustomerRead(result) };
     } catch (err) {
       this.logger.warn(
         `V3 customer read compute failed for setup ${setupId}: ${err instanceof Error ? err.message : String(err)}`,
       );
+      if (this.isCustomerReadAuthoritative()) {
+        return { kind: 'unavailable', reason: 'compute_failed' };
+      }
+      return { kind: 'unavailable', reason: 'compute_failed' };
+    }
+  }
+
+  /**
+   * Single authoritative V3 computation path for customer reads (no shadow persist).
+   * Returns null when V3 read is inactive or non-authoritative compute failed (legacy passthrough).
+   */
+  async computeCustomerRead(setupId: string): Promise<TireHealthV3CustomerReadModel | null> {
+    const resolution = await this.resolveCustomerReadForApi(setupId);
+    if (resolution.kind === 'inactive') {
       return null;
     }
+    if (resolution.kind === 'ok') {
+      return resolution.read;
+    }
+    if (this.isCustomerReadAuthoritative()) {
+      return buildAuthoritativeV3UnavailableRead(resolution.reason);
+    }
+    return null;
   }
 
   async enrichSummary(
@@ -68,8 +107,18 @@ export class TireHealthV3ReadService {
     tireSeason: string | null,
     wheelsForPresentation: { position: string; treadMm: number; lastMeasuredMm: number | null; lastMeasuredAt: string | null }[],
   ): Promise<TireHealthSummary> {
-    const wearV3 = await this.computeCustomerRead(setupId);
-    if (!wearV3) return summary;
+    const resolution = await this.resolveCustomerReadForApi(setupId);
+    if (resolution.kind === 'inactive') {
+      return summary;
+    }
+    if (resolution.kind === 'unavailable' && !this.isCustomerReadAuthoritative()) {
+      return summary;
+    }
+
+    const wearV3 =
+      resolution.kind === 'ok'
+        ? resolution.read
+        : buildAuthoritativeV3UnavailableRead(resolution.reason);
 
     let next: TireHealthSummary = {
       ...summary,

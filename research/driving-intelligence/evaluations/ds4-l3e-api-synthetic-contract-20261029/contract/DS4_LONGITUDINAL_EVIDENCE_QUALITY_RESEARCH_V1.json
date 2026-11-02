@@ -1,0 +1,64 @@
+{
+  "contractId": "DS4_LONGITUDINAL_EVIDENCE_QUALITY_RESEARCH_V1",
+  "contractVersion": "20261029",
+  "purpose": "Research-only longitudinal evidence gate input for Layer 2 observables. Does not modify production assessment or sparse.channelOutcome.",
+  "productionMappingRootCause": "ds4-trip-assessment-v1.engine sets assessment.evidenceQuality := payload.contract.sparse.channelOutcome; sparse.channelOutcome is R1_OBD manifest outcome only (NOT_APPLICABLE for API_SYNTHETIC).",
+  "consumersTraced": [
+    "ds4-trip-assessment-v1.engine (writer: evidenceQuality from sparse.channelOutcome)",
+    "ds4-longitudinal-load-observables.v1 (gate: evidenceQuality !== 'PRESENT' => EVIDENCE_QUALITY_NOT_PRESENT)",
+    "ds4-assessment-read.service.v1 (read/publish assessment.evidenceQuality)",
+    "ds4-trip-assessment.repository.v1 (persist assessment.evidenceQuality)",
+    "ds4-assessment-driving-exposure.v1 (FSM label evidenceQuality DIRECT — separate axis, not L2 gate)",
+    "motion-core-shadow-processor (contract.sparse.channelOutcome from sparseChannelOutcome adapter)"
+  ],
+  "axes": {
+    "r1ObdApplicability": "S4 channel policy: R1_OBD applicable only for RUPTELA_R1; API_SYNTHETIC => NOT_APPLICABLE (informational, not longitudinal pass for synthetic family)",
+    "positionAvailability": "POSITION channel outcome from pinned manifest; required for API_SYNTHETIC pass but never sufficient alone",
+    "speedAuthorityValidity": "Motion payload contract.speedAuthority must be C4_ONLY or C5_1_PREFERRED (not AMBIGUOUS); recorded separately — no cross-source substitution",
+    "temporalContinuity": "Assessment drivingExposure.derivable with qualifyingIntervalCount > 0 and canonicalSpeedSeriesMissing false; motion FSM DIRECT label count > 0",
+    "motionEventQuality": "At least one rated intensity event (ratedEventCount >= 1) on assessment summaries",
+    "sparseComparability": "Observed from motion adaptation; informational for API_SYNTHETIC — not required for pass (C4/C5.1 speed series is authoritative for synthetic longitudinal path)",
+    "missingDegraded": "Fail-closed on missing exposure, missing position PRESENT, ambiguous speed authority, or zero temporal/event signal"
+  },
+  "semantics": {
+    "PASS": "longitudinalL2InputEvidenceQuality = PRESENT with documented reasonCodes; sparse.channelOutcome unchanged",
+    "FAIL": "longitudinalL2InputEvidenceQuality != PRESENT; reasonCodes list failing predicates",
+    "NOT_EVALUABLE": "Required assessment summary fields absent (null/ malformed drivingExposure or eventSummaries)"
+  },
+  "familyRules": {
+    "RUPTELA_R1": {
+      "preserveProductionEligibility": true,
+      "longitudinalL2InputEvidenceQuality": "sparse.channelOutcome unchanged (must be literal PRESENT for L2 pass)",
+      "mustNotUseApiSyntheticPath": true
+    },
+    "API_SYNTHETIC": {
+      "ignoreR1ChannelOutcomeForLongitudinalPass": true,
+      "passRequiresAll": [
+        "POSITION_OUTCOME_PRESENT",
+        "DRIVING_EXPOSURE_DERIVABLE",
+        "EXPOSURE_SECONDS_POSITIVE",
+        "CANONICAL_SPEED_SERIES_PRESENT",
+        "QUALIFYING_INTERVALS_PRESENT",
+        "FSM_DIRECT_LABELS_PRESENT",
+        "RATED_EVENTS_PRESENT",
+        "SPEED_AUTHORITY_UNAMBIGUOUS"
+      ],
+      "mustNotSetSparseChannelOutcomePresent": true,
+      "longitudinalL2InputEvidenceQualityOnPass": "PRESENT"
+    }
+  },
+  "reasonCodes": [
+    "SOURCE_FAMILY_R1_LEGACY_PATH",
+    "SOURCE_FAMILY_API_SYNTHETIC_PATH",
+    "R1_CHANNEL_OUTCOME_NOT_PRESENT",
+    "POSITION_OUTCOME_NOT_PRESENT",
+    "DRIVING_EXPOSURE_NOT_DERIVABLE",
+    "EXPOSURE_SECONDS_INVALID",
+    "CANONICAL_SPEED_SERIES_MISSING",
+    "QUALIFYING_INTERVALS_ABSENT",
+    "FSM_DIRECT_LABELS_ABSENT",
+    "RATED_EVENTS_ABSENT",
+    "SPEED_AUTHORITY_AMBIGUOUS",
+    "ASSESSMENT_SUMMARIES_INCOMPLETE"
+  ]
+}

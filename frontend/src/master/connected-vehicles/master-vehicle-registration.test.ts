@@ -28,7 +28,13 @@ vi.mock('../../lib/api', () => ({
     },
     vehicleIntelligence: {
       createBatterySpec: vi.fn().mockResolvedValue({}),
+      updateBatterySpec: vi.fn().mockResolvedValue({}),
+      createBrakeSpec: vi.fn().mockResolvedValue({}),
+      updateBrakeSpec: vi.fn().mockResolvedValue({}),
+      battery: vi.fn().mockResolvedValue([]),
+      brakes: vi.fn().mockResolvedValue([]),
       brakeHealthInitialize: vi.fn().mockResolvedValue({}),
+      recordBrakeService: vi.fn().mockResolvedValue({}),
     },
   },
 }));
@@ -139,6 +145,31 @@ describe('master-vehicle-registration payloads', () => {
     });
   });
 
+  it('does not persist non-durable electrificationLevel or chemistry in register extraData', () => {
+    const extra = buildVehicleExtraData(
+      minimalRv({
+        electrificationLevel: 'BEV',
+        lvBatteryChemistry: 'Lead-Acid prose',
+        drivetrain: '4WD',
+      }),
+    );
+    expect(extra.electrificationLevel).toBeUndefined();
+    expect(extra.lvBatteryChemistry).toBeUndefined();
+    expect(extra.drivetrain).toBe('FOUR_WD');
+  });
+
+  it('omits manual battery baseline when type is legacy-unknown', () => {
+    const specs = buildVehicleManualSpecs(
+      minimalRv({ batteryType: 'legacy-custom-label', batteryAmpere: '70', batteryVolt: '12' }),
+    );
+    expect(specs?.battery).toBeUndefined();
+  });
+
+  it('includes manual battery baseline only for canonical normalized type', () => {
+    const specs = buildVehicleManualSpecs(minimalRv({ batteryType: 'AGM', batteryAmpere: '70' }));
+    expect(specs?.battery).toMatchObject({ batteryType: 'AGM', batteryAmpere: 70 });
+  });
+
   it('merges aiFieldProvenance into extraData when provided on registered vehicle', () => {
     const extra = buildVehicleExtraData(
       minimalRv({
@@ -192,6 +223,23 @@ describe('master-vehicle-registration payloads', () => {
     );
     expect(extra.hvBatteryUsableCapacityKwh).toBeUndefined();
     expect(extra.hvBatteryGrossCapacityKwh).toBe(60);
+  });
+
+  it('includes technicalSpecificationSave on register extraData when spec fields are set', () => {
+    const extra = buildVehicleExtraData(
+      minimalRv({
+        tankCapacityLiters: '55',
+        drivetrain: 'AWD',
+        idleRpm: '750',
+      }),
+    );
+    expect(extra.technicalSpecificationSave).toEqual({
+      confirmedFieldKeys: expect.arrayContaining([
+        'tankCapacityLiters',
+        'drivetrain',
+        'idleRpm',
+      ]),
+    });
   });
 
   it('applyManualBaselinesAfterCreate calls tire and battery APIs without unconfirmed brake init', async () => {
@@ -428,18 +476,63 @@ describe('master-vehicle-registration payloads', () => {
     expect(rv.motionPhysicsVariantAssumption).toBe('M50');
   });
 
-  it('updateMasterRegisteredVehicle PATCHes only physics diff and skips tire/battery/brake APIs', async () => {
+  it('updateMasterRegisteredVehicle PATCHes physics diff and applies manual baseline APIs when specs change', async () => {
     updateMock.mockResolvedValueOnce({});
-    const baseline = minimalRv({ curbWeight: '1400', systemMotorPowerKw: '110' });
-    const current = minimalRv({ curbWeight: '1450', systemMotorPowerKw: '150' });
+    const baseline = minimalRv({
+      curbWeight: '1400',
+      systemMotorPowerKw: '110',
+      tireFrontDimension: '225/45 R17',
+    });
+    const current = minimalRv({
+      curbWeight: '1450',
+      systemMotorPowerKw: '150',
+      tireFrontDimension: '235/45 R18',
+      batteryType: 'AGM',
+      batteryAmpere: '70',
+      batteryVolt: '12',
+      brakeFrontPadThickness: '12',
+    });
 
     await updateMasterRegisteredVehicle(current, { baseline });
 
     expect(updateMock).toHaveBeenCalledTimes(1);
     expect(updateMock).toHaveBeenCalledWith('org-1', 'rv-1', { curbWeightKg: 1450 });
-    expect(upsertTiresMock).not.toHaveBeenCalled();
+    expect(upsertTiresMock).toHaveBeenCalled();
+    expect(api.vehicleIntelligence.createBatterySpec).toHaveBeenCalled();
+    expect(api.vehicleIntelligence.createBrakeSpec).toHaveBeenCalled();
+  });
+
+  it('updateMasterRegisteredVehicle updates existing LV/brake rows when present', async () => {
+    updateMock.mockResolvedValueOnce({});
+    vi.mocked(api.vehicleIntelligence.battery).mockResolvedValueOnce([
+      { id: 'bat-existing', sourceType: 'MANUAL', createdAt: '2026-01-01' },
+    ]);
+    vi.mocked(api.vehicleIntelligence.brakes).mockResolvedValueOnce([
+      { id: 'brk-existing', userConfirmedAt: '2026-01-01T00:00:00.000Z', createdAt: '2026-01-01' },
+    ]);
+
+    const baseline = minimalRv({ brakeFrontPadThickness: '10' });
+    const current = minimalRv({
+      batteryType: 'AGM',
+      batteryAmpere: '70',
+      batteryVolt: '12',
+      brakeFrontPadThickness: '11',
+    });
+
+    await updateMasterRegisteredVehicle(current, { baseline });
+
+    expect(api.vehicleIntelligence.updateBatterySpec).toHaveBeenCalledWith(
+      'rv-1',
+      'bat-existing',
+      expect.any(Object),
+    );
+    expect(api.vehicleIntelligence.updateBrakeSpec).toHaveBeenCalledWith(
+      'rv-1',
+      'brk-existing',
+      expect.objectContaining({ frontPadThickness: 11 }),
+    );
     expect(api.vehicleIntelligence.createBatterySpec).not.toHaveBeenCalled();
-    expect(api.vehicleIntelligence.brakeHealthInitialize).not.toHaveBeenCalled();
+    expect(api.vehicleIntelligence.createBrakeSpec).not.toHaveBeenCalled();
   });
 
   it('updateMasterRegisteredVehicle skips vehicle PATCH when only motor power form field changes', async () => {

@@ -1,0 +1,23 @@
+{
+  "p2OfflineSchemaVersion": "DS4_LAYER2_P2_OFFLINE_RECONSTRUCTION_V1",
+  "organizationId": "faa710c9-6d91-4079-a7d5-91fdccdec14a",
+  "reconstructionMode": "NEWLY_COMPUTED_OFFLINE",
+  "p1Isolation": {
+    "persistedAssessmentTable": "di_v0_ds4_trip_assessment_v1",
+    "note": "P2 rows are NEWLY_COMPUTED_OFFLINE only; never merged into P1 canonical export"
+  },
+  "counts": {
+    "reconstructedTrips": 11,
+    "longitudinalEventRows": 129,
+    "exclusionRows": 16,
+    "revisionSelectionRows": 13
+  },
+  "bySourceFamily": {
+    "RUPTELA_R1": 9,
+    "API_SYNTHETIC": 2
+  },
+  "bySpeedAuthority": {
+    "C4_ONLY": 4,
+    "C5_1_PREFERRED": 7
+  }
+}

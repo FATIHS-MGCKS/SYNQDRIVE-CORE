@@ -31,6 +31,13 @@ Owner decision: DS4 replaces legacy HF/native driving assessment completely — 
 - Decision: [`decisions/DECISION_REGISTER.md`](decisions/DECISION_REGISTER.md) → `DI-DEC-DS4-AUTHORITY-001`
 - Consumer audit traceability: [`evidence/CONSUMER_AUDIT_V1_FINDINGS_REGISTER.md`](evidence/CONSUMER_AUDIT_V1_FINDINGS_REGISTER.md)
 
+## RPM Reference Intelligence boundaries (Phase 5 ADR, docs only)
+
+Owner-approved architecture for VSI ↔ RPM HF V1A/V1B ↔ Vehicle Specifications reference metadata ↔ future **RPM Reference Intelligence** ↔ DS4 — **documentation only**; no runtime module yet.
+
+- ADR: [`design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md`](design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md)
+- Decision: [`decisions/DECISION_REGISTER.md`](decisions/DECISION_REGISTER.md) → `DI-DEC-RPM-REF-INTEL-001`
+
 ## Critical system boundary
 
 **Driving Intelligence does NOT own canonical trip boundaries.**
@@ -114,7 +121,7 @@ ReferenceCapture runner (5s) → HF recovery V2 / block polling testbed
 | [COVERAGE_MATRIX.md](./COVERAGE_MATRIX.md) | Topic completion matrix |
 | [KNOWLEDGE_GRAPH.md](./KNOWLEDGE_GRAPH.md) | Human-readable graph + evolution diagram |
 | [AGENT_CONTRACT.md](./AGENT_CONTRACT.md) | **Mandatory rules for future agents** |
-| [decisions/DECISION_REGISTER.md](./decisions/DECISION_REGISTER.md) | Decision register (19 decisions) |
+| [decisions/DECISION_REGISTER.md](./decisions/DECISION_REGISTER.md) | Decision register (20 decisions) |
 | [research/CHANGE_LEDGER.md](./research/CHANGE_LEDGER.md) | Granular evolution ledger |
 | [research/DI_EV_CHRONOLOGY.md](./research/DI_EV_CHRONOLOGY.md) | Complete DI-EV sequence |
 | [research/HYPOTHESIS_REGISTER.md](./research/HYPOTHESIS_REGISTER.md) | Hypotheses tested/rejected |

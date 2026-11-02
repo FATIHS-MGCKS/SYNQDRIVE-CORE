@@ -1,18 +1,24 @@
 import type { VehicleSpecContext } from './vehicle-spec-ai.types';
+import {
+  normalizeMotionSystemPowerDefinition,
+} from '@modules/vehicle-intelligence/motion-physics-reference/motion-physics-reference.domain';
+import {
+  normalizeCanonicalDrivetrain,
+  normalizeElectrificationLevel,
+  normalizeLvBatteryTypeInput,
+  type CanonicalDrivetrain,
+  type ElectrificationLevel,
+} from '@modules/vehicles/vehicle-specification-canonical.contract';
 
-export const DRIVETRAIN_VALUES = ['FWD', 'RWD', 'AWD', 'FOUR_WD'] as const;
-export type CanonicalDrivetrain = (typeof DRIVETRAIN_VALUES)[number];
+export {
+  DRIVETRAIN_VALUES,
+  ELECTRIFICATION_LEVEL_VALUES,
+  type CanonicalDrivetrain,
+  type ElectrificationLevel,
+} from '@modules/vehicles/vehicle-specification-canonical.contract';
 
-export const ELECTRIFICATION_LEVEL_VALUES = [
-  'NONE',
-  'MHEV_12V',
-  'MHEV_48V',
-  'FULL_HYBRID',
-  'PHEV',
-  'BEV',
-  'FCEV',
-] as const;
-export type ElectrificationLevel = (typeof ELECTRIFICATION_LEVEL_VALUES)[number];
+export const normalizeDrivetrain = normalizeCanonicalDrivetrain;
+export { normalizeElectrificationLevel };
 
 const MHEV_LEVELS = new Set<ElectrificationLevel>(['MHEV_12V', 'MHEV_48V']);
 
@@ -30,6 +36,7 @@ const VARIANT_DEPENDENT_NUMERIC_KEYS = [
   'maxRpm',
   'curbWeightKg',
   'systemMotorPowerKw',
+  'systemPowerDefinition',
   'accel0To100S',
   'hvBatteryGrossCapacityKwh',
   'hvBatteryUsableCapacityKwh',
@@ -67,25 +74,6 @@ export function normalizeNonNegativeInteger(value: unknown): number | null {
   const n = num(value);
   if (n == null || !Number.isInteger(n) || n < 0) return null;
   return n;
-}
-
-export function normalizeDrivetrain(value: unknown): CanonicalDrivetrain | null {
-  if (value == null) return null;
-  const raw = String(value).trim().toUpperCase().replace(/\s+/g, '_');
-  if (raw === '4WD' || raw === '4X4' || raw === 'FOURWD') return 'FOUR_WD';
-  if ((DRIVETRAIN_VALUES as readonly string[]).includes(raw)) {
-    return raw as CanonicalDrivetrain;
-  }
-  return null;
-}
-
-export function normalizeElectrificationLevel(value: unknown): ElectrificationLevel | null {
-  if (value == null) return null;
-  const raw = String(value).trim().toUpperCase().replace(/\s+/g, '_');
-  if ((ELECTRIFICATION_LEVEL_VALUES as readonly string[]).includes(raw)) {
-    return raw as ElectrificationLevel;
-  }
-  return null;
 }
 
 function parseAmbiguousVariants(value: unknown): string[] {
@@ -162,11 +150,22 @@ export function normalizeVehicleSpecValues(
     out.manufacturerServiceIntervalMonths,
   );
   out.oilchangeIntervalMonths = normalizeNonNegativeInteger(out.oilchangeIntervalMonths);
-  const drivetrain = normalizeDrivetrain(out.drivetrain);
+  const drivetrain = normalizeCanonicalDrivetrain(out.drivetrain);
   out.drivetrain = drivetrain;
   const electrificationLevel = normalizeElectrificationLevel(out.electrificationLevel);
   out.electrificationLevel = electrificationLevel;
+  const lvBattery = normalizeLvBatteryTypeInput(out.lvBatteryType ?? out.batteryType);
+  out.lvBatteryType = lvBattery;
+  if (lvBattery != null) {
+    out.batteryType = lvBattery;
+  } else if (out.lvBatteryType != null || out.batteryType != null) {
+    out.batteryType = null;
+  }
   applyElectrificationHvSafety(out);
+  out.systemPowerDefinition = normalizeMotionSystemPowerDefinition(out.systemPowerDefinition);
+  if (num(out.systemMotorPowerKw) == null && out.systemPowerDefinition != null) {
+    out.systemPowerDefinition = null;
+  }
   return out;
 }
 

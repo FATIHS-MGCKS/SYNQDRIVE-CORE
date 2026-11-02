@@ -5,11 +5,17 @@ import { AuthApiModule } from '@modules/auth/auth.module';
 import { PhysicalDeviceInventoryController } from './physical-device-inventory.controller';
 import { PhysicalDeviceInventoryService } from './physical-device-inventory.service';
 import { PdiIdentityMonitoringService } from './pdi-identity-monitoring.service';
+import { PdiMasterIntelligenceReadController } from './pdi-master-intelligence-read.controller';
+import { PdiMasterIntelligenceReadService } from './pdi-master-intelligence-read.service';
 
 @Module({
   imports: [ActivityLogModule, IamMfaModule, AuthApiModule],
-  controllers: [PhysicalDeviceInventoryController],
-  providers: [PhysicalDeviceInventoryService, PdiIdentityMonitoringService],
+  controllers: [PhysicalDeviceInventoryController, PdiMasterIntelligenceReadController],
+  providers: [
+    PhysicalDeviceInventoryService,
+    PdiIdentityMonitoringService,
+    PdiMasterIntelligenceReadService,
+  ],
   exports: [PhysicalDeviceInventoryService, PdiIdentityMonitoringService],
 })
 export class PhysicalDeviceInventoryModule {}

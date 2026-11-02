@@ -27,6 +27,7 @@ import {
 import { Checkbox } from '../../components/ui/checkbox';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
+import { PhysicalDeviceIntelligencePanel } from './PhysicalDeviceIntelligencePanel';
 
 type VehicleOption = { id: string; label: string; registryLifecycle?: string };
 
@@ -484,6 +485,10 @@ export function PhysicalDeviceDetailDialog({
                 </Button>
               </div>
             )}
+            <PhysicalDeviceIntelligencePanel
+              physicalDeviceId={detail.id}
+              organizationId={detail.ownerOrganizationId ?? undefined}
+            />
             <div>
               <p className="font-medium text-sm mb-2">{t('master.physicalDeviceInventory.historyTitle')}</p>
               <ul className="text-xs text-muted-foreground space-y-1 max-h-32 overflow-y-auto">

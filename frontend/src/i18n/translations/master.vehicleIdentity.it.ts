@@ -52,4 +52,18 @@ export const masterVehicleIdentityIt = {
   'master.vehicleIdentity.field.electrificationGrade': 'Livello di elettrificazione',
   'master.vehicleIdentity.extractionStatus': 'Stato OCR: {status}',
   'master.vehicleIdentity.documentLinked': 'Documento: {id}',
+  'master.vehicleIdentity.uploadToolbar': 'Carica libretto di circolazione',
+  'master.vehicleIdentity.uploadUseToolbar': 'Usa « Carica libretto di circolazione » nella barra specifiche sopra.',
+  'master.vehicleIdentity.zb1DialogTitle': 'Libretto di circolazione (ZB-I)',
+  'master.vehicleIdentity.zb1DialogDescription':
+    'Carica un PDF o un’immagine, rivedi i campi estratti e applica i valori confermati al modulo specifiche.',
+  'master.vehicleIdentity.applyToRegistrationForm': 'Applica al modulo specifiche',
+  'master.vehicleIdentity.applyToFormBlockedVin': 'Applicazione bloccata — conferma prima il conflitto VIN.',
+  'master.vehicleIdentity.applyToFormConflict': 'Nessun valore applicato — conferma i campi o risolvi i conflitti.',
+  'master.vehicleIdentity.applyToFormEmpty': 'Nessun campo confermato da applicare.',
+  'master.vehicleIdentity.applyToFormSuccess': 'Valori confermati applicati al modulo (salva per persistere).',
+  'master.vehicleIdentity.applyToFormVinMismatchDocument':
+    'Il FIN del documento non corrisponde a questo veicolo — i campi specifiche da questo documento non possono essere applicati.',
+  'master.vehicleIdentity.p2ToolbarDisabledHint':
+    'Il caricamento del libretto di circolazione non è attivo in questo ambiente (identità veicolo P2).',
 };

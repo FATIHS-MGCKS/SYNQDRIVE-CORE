@@ -30,7 +30,7 @@ function buildHarness(v3Prior?: Partial<TireWearV3PriorService>) {
     vehicle: {
       findUnique: jest.fn().mockImplementation(async ({ where, select }: { where: { id: string }; select?: Record<string, boolean> }) => {
         if (where.id === VEHICLE_A) {
-          return select?.mileageKm ? { mileageKm: 14000 } : { organizationId: 'org-a' };
+          return select?.mileageKm ? { mileageKm: 10000 } : { organizationId: 'org-a' };
         }
         if (where.id === VEHICLE_B) {
           return select?.mileageKm ? { mileageKm: 1 } : { organizationId: 'org-b' };
@@ -82,7 +82,7 @@ function buildHarness(v3Prior?: Partial<TireWearV3PriorService>) {
     },
     vehicleLatestState: {
       findUnique: jest.fn().mockResolvedValue({
-        odometerKm: 15000,
+        odometerKm: 11000,
         odometerCapturedAt: new Date(),
       }),
     },
@@ -221,6 +221,59 @@ describe('TireLifecycleService.recordMeasurement — V3 ingestion P1', () => {
     expect(result.v3Recompute?.code).toBe('V3_RECOMPUTE_FAILED');
     expect(result.v3Ingestion?.verificationEligible).toBe(false);
     expect(result.v3Ingestion?.warnings.map((w) => w.code)).toContain('V3_RECOMPUTE_FAILED');
+  });
+
+  it('rejects implausible confirmed odometer rollback', async () => {
+    const { svc } = buildHarness();
+    await expect(
+      svc.recordMeasurement({
+        vehicleId: VEHICLE_A,
+        tireSetupId: SETUP_A,
+        frontLeftMm: 5,
+        odometerKm: 100,
+        manualConfirmOdometer: true,
+        source: 'manual',
+      }),
+    ).rejects.toThrow(/not plausible/i);
+  });
+
+  it('persists registration baseline without V3 verification eligibility', async () => {
+    const { svc, measurementCreate } = buildHarness();
+    const result = await svc.recordMeasurement({
+      vehicleId: VEHICLE_A,
+      tireSetupId: SETUP_A,
+      frontLeftMm: 8,
+      frontRightMm: 8,
+      source: 'manual_registration',
+    });
+    expect(measurementCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          source: 'manual_registration',
+          odometerAtMeasurement: null,
+        }),
+      }),
+    );
+    expect(result.v3Ingestion?.verificationEligible).toBe(false);
+    expect(result.v3Ingestion?.evidenceClass).toBe('EXCLUDED_SOURCE');
+  });
+
+  it('flags workshop measurement without explicit odometer as unverified', async () => {
+    const { svc, measurementCreate } = buildHarness();
+    const result = await svc.recordMeasurement({
+      vehicleId: VEHICLE_A,
+      tireSetupId: SETUP_A,
+      frontLeftMm: 5,
+      source: 'workshop',
+      workshopName: 'ACME Tyres',
+    });
+    expect(measurementCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ odometerAtMeasurement: null }),
+      }),
+    );
+    expect(result.v3Ingestion?.evidenceClass).toBe('UNVERIFIED_GROUND_TRUTH');
+    expect(result.v3Ingestion?.warnings.map((w) => w.code)).toContain('V3_WORKSHOP_ODOMETER_MISSING');
   });
 
   it('rejects wrong-vehicle setup (tenant isolation)', async () => {

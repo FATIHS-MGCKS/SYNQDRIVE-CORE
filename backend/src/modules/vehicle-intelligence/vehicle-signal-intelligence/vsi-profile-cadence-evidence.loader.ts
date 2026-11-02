@@ -13,10 +13,13 @@ import type {
   VsiLvCadenceEvidencePoint,
   VsiLvStandbyTransmissionEvidenceInput,
   VsiRpmCadenceEvidenceInput,
-  VsiRpmCadenceSamplePoint,
   VsiRpmCadenceTripWindow,
 } from './vsi-profile-cadence.types';
 import { loadLvStandbyTransmissionEvidenceFromDb } from './vsi-lv-standby-transmission-evidence.loader';
+import {
+  loadLinkScopedRpmHfCadencePointsV1,
+  type VsiSourceLinkIntervalV1,
+} from './vsi-rpm-hf-link-scoped-cadence-evidence.util';
 
 const RPM_HISTORY_DAYS = 14;
 const MAX_FINALIZED_TRIPS = 20;
@@ -77,6 +80,7 @@ export class VsiProfileCadenceEvidenceLoader implements VsiProfileCadenceEvidenc
     const trips = await this.prisma.vehicleTrip.findMany({
       where: {
         vehicleId: ctx.vehicleId,
+        vehicle: { organizationId: ctx.organizationId },
         tripStatus: TripStatus.COMPLETED,
         endTime: { not: null, gte: windowStart, lte: ctx.projectionAsOf },
         startTime: { lte: ctx.projectionAsOf },
@@ -99,7 +103,8 @@ export class VsiProfileCadenceEvidenceLoader implements VsiProfileCadenceEvidenc
     );
 
     let hfReadStatus: VsiHfCadenceReadStatus = 'SKIPPED';
-    let points: VsiRpmCadenceSamplePoint[] = [];
+    let points: VsiRpmCadenceEvidenceInput['points'] = [];
+    let attributionLimitations: string[] = [];
 
     if (iceRpmApplicability === 'APPLICABLE' && tripWindows.length > 0) {
       if (!this.clickHouseHf) {
@@ -117,20 +122,57 @@ export class VsiProfileCadenceEvidenceLoader implements VsiProfileCadenceEvidenc
               points: [],
               provenance: [],
               hfReadStatus: 'EMPTY',
+              attributionLimitations: [],
             };
           }
         }
-        const earliest = Math.min(...tripWindows.map((t) => t.startMs));
-        const latest = Math.max(...tripWindows.map((t) => t.endMs));
-        const read = await this.clickHouseHf.getBoundedSignalValuePoints({
+
+        const [linkRow, linkHistory] = await Promise.all([
+          this.prisma.vehicleDataSourceLink.findFirst({
+            where: { id: ctx.providerSourceLinkId, vehicleId: ctx.vehicleId },
+            select: {
+              id: true,
+              provider: true,
+              dimoVehicle: { select: { tokenId: true } },
+            },
+          }),
+          this.prisma.vehicleDataSourceLink.findMany({
+            where: { vehicleId: ctx.vehicleId },
+            select: { id: true, activatedAt: true, deactivatedAt: true },
+          }),
+        ]);
+
+        const linkIntervals: VsiSourceLinkIntervalV1[] = linkHistory.map((row) => ({
+          id: row.id,
+          activatedAtMs: row.activatedAt.getTime(),
+          deactivatedAtMs: row.deactivatedAt?.getTime() ?? null,
+        }));
+
+        const provider = linkRow?.provider?.trim().toUpperCase() ?? '';
+        const requireDimoToken = provider === 'DIMO';
+        const expectedDimoTokenId = linkRow?.dimoVehicle?.tokenId ?? null;
+
+        const loaded = await loadLinkScopedRpmHfCadencePointsV1({
+          organizationId: ctx.organizationId,
           vehicleId: ctx.vehicleId,
-          signalName: ENGINE_RPM_SIGNAL,
-          from: new Date(earliest),
-          to: new Date(latest),
-          limit: MAX_RPM_POINTS,
+          targetLinkId: ctx.providerSourceLinkId,
+          linkIntervals,
+          tripWindows,
+          expectedDimoTokenId,
+          requireDimoToken,
+          maxPoints: MAX_RPM_POINTS,
+          hf: {
+            getTripRpmHfPoints: (input) =>
+              this.clickHouseHf!.getTripRpmHfPoints({
+                ...input,
+                signalName: ENGINE_RPM_SIGNAL,
+              }),
+          },
         });
-        hfReadStatus = read.status;
-        points = read.points;
+
+        hfReadStatus = loaded.hfReadStatus;
+        points = loaded.points;
+        attributionLimitations = loaded.attributionLimitations;
       }
     }
 
@@ -141,6 +183,7 @@ export class VsiProfileCadenceEvidenceLoader implements VsiProfileCadenceEvidenc
       provenance:
         hfReadStatus === 'SUCCESS' ? ['CLICKHOUSE_TELEMETRY_HF_POINTS'] : [],
       hfReadStatus,
+      attributionLimitations,
     };
   }
 

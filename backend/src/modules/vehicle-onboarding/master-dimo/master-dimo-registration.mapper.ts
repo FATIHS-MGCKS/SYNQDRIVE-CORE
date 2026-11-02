@@ -9,6 +9,7 @@ import {
   BatteryReferenceCapacityType,
 } from '@modules/vehicle-intelligence/battery-health/battery-v2-domain';
 import { parseFrontWeightDistributionPct } from '@modules/vehicles/vehicle-technical-spec.util';
+import { normalizeCanonicalDrivetrain } from '@modules/vehicles/vehicle-specification-canonical.contract';
 
 function readStringField(extra: MasterDimoRegistrationInput['extraData'], key: string): string | null {
   if (!extra || typeof extra !== 'object') return null;
@@ -177,15 +178,9 @@ export function buildPostActivationVehiclePatch(
 
 /** Maps Master form `drivetrain` strings to Prisma `DriveType` (vehicles.drive_type). */
 export function mapMasterFormDrivetrainToDriveType(raw: unknown): DriveType | null {
-  if (raw == null || String(raw).trim() === '') return null;
-  const normalized = String(raw).trim().toUpperCase().replace(/\s+/g, '_').replace(/-/g, '_');
-  if (normalized === '4WD' || normalized === '4X4' || normalized === 'FOUR_WD') {
-    return DriveType.FOUR_WD;
-  }
-  if (normalized === 'FWD') return DriveType.FWD;
-  if (normalized === 'RWD') return DriveType.RWD;
-  if (normalized === 'AWD') return DriveType.AWD;
-  return null;
+  const normalized = normalizeCanonicalDrivetrain(raw);
+  if (!normalized) return null;
+  return DriveType[normalized];
 }
 
 export function masterManualSpecsNeedLegacyTireTreadPass(input: MasterDimoRegistrationInput): boolean {

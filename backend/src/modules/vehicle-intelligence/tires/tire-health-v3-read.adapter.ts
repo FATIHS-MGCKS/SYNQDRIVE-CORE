@@ -8,6 +8,32 @@ import type {
 import type { TireWearV3PriorSetupResult } from './wear-v3-prior/tire-wear-v3-prior.types';
 import { roundDisplayTreadInterval } from './wear-v3-prior/tire-wear-v3-prior.display';
 
+/** Sentinel model version when authoritative V3 compute did not produce a prior result. */
+export const TIRE_WEAR_V3_UNAVAILABLE_MODEL_VERSION = 'tire-wear-v3-read-unavailable';
+
+export type TireHealthV3ReadUnavailableReason =
+  | 'dependency_unavailable'
+  | 'no_result'
+  | 'compute_failed';
+
+export function buildAuthoritativeV3UnavailableRead(
+  reason: TireHealthV3ReadUnavailableReason,
+): TireHealthV3CustomerReadModel {
+  return {
+    modelVersion: TIRE_WEAR_V3_UNAVAILABLE_MODEL_VERSION,
+    computedAt: new Date().toISOString(),
+    inputFingerprint: `unavailable:${reason}`,
+    rated: false,
+    setupFlags: [],
+    verificationStatus: 'INSUFFICIENT_EVIDENCE',
+    verificationQualityFlags: [`V3_READ_${reason.toUpperCase()}`],
+    wheels: [],
+    lowestTreadPosition: null,
+    lowestTreadMm: null,
+    insufficientEvidence: true,
+  };
+}
+
 export function mapV3SetupToCustomerRead(
   result: TireWearV3PriorSetupResult,
 ): TireHealthV3CustomerReadModel {

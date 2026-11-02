@@ -129,4 +129,14 @@ describe('motion-physics-reference.policy', () => {
     });
     expect(result.ok).toBe(true);
   });
+
+  it('allows create payload with systemPowerDefinition only', () => {
+    const result = evaluateMotionPhysicsReferenceCreate({
+      payload: { systemPowerDefinition: 'OEM_RATED_MOTOR_KW' },
+      proposedTier: MotionPhysicsEvidenceTier.CONFIRMED,
+      proposedSource: MotionPhysicsReferenceSource.MANUAL_ENTRY,
+      manualOperatorConfirm: true,
+    });
+    expect(result.ok).toBe(true);
+  });
 });

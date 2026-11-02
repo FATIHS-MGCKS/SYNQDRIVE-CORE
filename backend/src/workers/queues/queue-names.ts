@@ -44,4 +44,6 @@ export const QUEUE_NAMES = {
   REFERENCE_CAPTURE_SETTLEMENT_SHADOW: 'reference.capture.settlement-shadow',
   /** EXP-021 live maturation shadow — isolated delayed age observations (PR-M2). */
   REFERENCE_CAPTURE_EXP021_MATURATION_SHADOW: 'reference.capture.exp021-maturation-shadow',
+  /** One Auto API — Master Admin external lookups (P1, OFF by default). */
+  ONEAUTO_PROVIDER: 'oneauto.provider',
 } as const;

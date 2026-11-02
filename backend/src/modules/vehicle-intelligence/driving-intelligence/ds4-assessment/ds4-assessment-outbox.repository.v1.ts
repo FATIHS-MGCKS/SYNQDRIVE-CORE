@@ -4,6 +4,11 @@ import { gunzipSync } from 'zlib';
 import type { DiV0MotionCoreShadowPayloadV1 } from '../motion-core-shadow-worker/di-v0-motion-core-shadow.types';
 import { evaluateDs4AssessmentScopeEligibilityV1 } from './ds4-assessment-eligibility-policy.v1';
 import {
+  DS4_ASSESSMENT_COLLECTION_EVENT_ROW_CONTRACT_V2,
+  evaluateDs4MotionRunCollectionEligibilityV1,
+  type Ds4AssessmentDiscoveryTerminalReasonCode,
+} from './ds4-assessment-motion-discovery-eligibility.v1';
+import {
   computeDs4AssessmentInputFingerprintFromMotionSource,
   computeDs4DiscoveryTerminalInputFingerprint,
 } from './ds4-assessment-input-fingerprint';
@@ -35,7 +40,7 @@ export class Ds4AssessmentOutboxRepositoryV1 {
     organizationId: string;
     tripId: string;
     vehicleId: string;
-    reasonCode: 'DISCOVERY_PAYLOAD_REQUIRED' | 'DISCOVERY_SOURCE_IDENTITY_MISMATCH';
+    reasonCode: Ds4AssessmentDiscoveryTerminalReasonCode;
     now: Date;
     assessmentVersion?: string;
   }): Promise<'inserted' | 'duplicate'> {
@@ -67,7 +72,11 @@ export class Ds4AssessmentOutboxRepositoryV1 {
     }
   }
 
-  async discoverFromSucceededMotionRuns(input: { limit: number; now: Date }): Promise<number> {
+  async discoverFromSucceededMotionRuns(input: {
+    limit: number;
+    now: Date;
+    minMotionRunCreatedAt: Date;
+  }): Promise<number> {
     if (input.limit <= 0) return 0;
     const rows = await this.prisma.$queryRaw<
       Array<{
@@ -87,6 +96,8 @@ export class Ds4AssessmentOutboxRepositoryV1 {
         r.combined_input_identity, r.content_fingerprint, r.summary_json, r.payload_gzip, r.created_at
       FROM di_v0_motion_core_shadow_runs_v1 r
       WHERE r.shadow_status = 'SUCCEEDED'
+        AND r.created_at >= ${input.minMotionRunCreatedAt}
+        AND r.summary_json->>'eventRowContract' = ${DS4_ASSESSMENT_COLLECTION_EVENT_ROW_CONTRACT_V2}
         AND NOT EXISTS (
           SELECT 1 FROM di_v0_ds4_trip_assessment_v1 a
           WHERE a.trip_id = r.trip_id
@@ -127,6 +138,36 @@ export class Ds4AssessmentOutboxRepositoryV1 {
         continue;
       }
       const payload = decodeMotionPayloadGzip(Buffer.from(row.payload_gzip));
+      if (payload == null) {
+        const terminal = await this.persistDiscoveryTerminalOutbox({
+          sourceMotionRunId: row.id,
+          organizationId: row.organization_id,
+          tripId: row.trip_id,
+          vehicleId: row.vehicle_id,
+          reasonCode: 'DISCOVERY_PAYLOAD_REQUIRED',
+          now: input.now,
+        });
+        if (terminal === 'inserted') inserted += 1;
+        continue;
+      }
+
+      const collectionEligibility = evaluateDs4MotionRunCollectionEligibilityV1({
+        summaryJson: row.summary_json,
+        payload,
+      });
+      if (!collectionEligibility.eligible) {
+        const terminal = await this.persistDiscoveryTerminalOutbox({
+          sourceMotionRunId: row.id,
+          organizationId: row.organization_id,
+          tripId: row.trip_id,
+          vehicleId: row.vehicle_id,
+          reasonCode: collectionEligibility.reasonCode,
+          now: input.now,
+        });
+        if (terminal === 'inserted') inserted += 1;
+        continue;
+      }
+
       const fingerprintResult = computeDs4AssessmentInputFingerprintFromMotionSource({
         sourceMotionRunId: row.id,
         pinnedSnapshotHash: row.pinned_snapshot_hash,

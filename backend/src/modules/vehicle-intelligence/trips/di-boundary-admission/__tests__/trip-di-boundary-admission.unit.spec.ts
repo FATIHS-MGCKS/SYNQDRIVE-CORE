@@ -1,4 +1,10 @@
 import {
+  PARTIAL_TRIP_BOUNDARY_EXTENSION_REPAIR_TYPE,
+  buildBoundaryRepairGeneration,
+  hasCommittedPartialTripBoundaryExtension,
+  partialExtensionAllowsAdmissionDuringRetryableRefresh,
+} from '../../boundary-repair.state.util';
+import {
   buildTripDiBoundaryAdmissionPatch,
   buildTripDiBoundaryRevisionKey,
   canReleaseTripDiBoundaryAdmission,
@@ -34,6 +40,14 @@ describe('trip-di-boundary-admission', () => {
     );
   });
 
+  it('blocks release when trip is CANCELLED (suffix must not be independently admitted)', () => {
+    expect(
+      canReleaseTripDiBoundaryAdmission(
+        baseScope({ tripStatus: 'CANCELLED', endTime: new Date('2026-10-14T14:00:00.000Z') }),
+      ),
+    ).toBe('TRIP_NOT_COMPLETED');
+  });
+
   it('blocks release when FSM still active on trip', () => {
     expect(canReleaseTripDiBoundaryAdmission(baseScope({ detectionState: 'DRIVING' }))).toBe('FSM_STILL_ACTIVE_ON_TRIP');
     expect(canReleaseTripDiBoundaryAdmission(baseScope({ activeTripId: 'trip-1' }))).toBe('FSM_STILL_ACTIVE_ON_TRIP');
@@ -43,6 +57,129 @@ describe('trip-di-boundary-admission', () => {
     expect(canReleaseTripDiBoundaryAdmission(baseScope({ proposedBoundaryRepairCount: 1 }))).toBe(
       'PROPOSED_BOUNDARY_REPAIR_OPEN',
     );
+  });
+
+  const pendingBoundaryRefreshMeta = {
+    boundaryRefresh: {
+      state: 'PENDING',
+      generation: 'gen-test-1',
+      requestedAt: '2026-10-31T10:00:00.000Z',
+      attempts: 1,
+      stages: { route: 'pending', behavior: 'pending', drivingImpact: 'pending' },
+    },
+  };
+
+  it('blocks release when boundary refresh is retryable without committed partial extension', () => {
+    expect(
+      canReleaseTripDiBoundaryAdmission(
+        baseScope({ rawDetectionMeta: pendingBoundaryRefreshMeta }),
+      ),
+    ).toBe('BOUNDARY_REFRESH_IN_FLIGHT');
+  });
+
+  it('allows release when partial extension refresh generation matches committed repair', () => {
+    const start = new Date('2026-10-14T12:00:00.000Z');
+    const end = new Date('2026-10-14T14:00:00.000Z');
+    const generation = buildBoundaryRepairGeneration({
+      auditId: 'audit-partial-1',
+      providerSegmentId: 'seg-1',
+      newStartTime: start,
+      newEndTime: end,
+    });
+    expect(
+      canReleaseTripDiBoundaryAdmission(
+        baseScope({
+          rawDetectionMeta: {
+            boundaryRefresh: {
+              state: 'PENDING',
+              generation,
+              requestedAt: '2026-10-31T10:00:00.000Z',
+              attempts: 1,
+              stages: { route: 'pending', behavior: 'pending', drivingImpact: 'pending' },
+            },
+            boundaryRepair: {
+              repairType: PARTIAL_TRIP_BOUNDARY_EXTENSION_REPAIR_TYPE,
+              auditId: 'audit-partial-1',
+              providerSegmentId: 'seg-1',
+              newStartTime: start.toISOString(),
+              newEndTime: end.toISOString(),
+            },
+          },
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      partialExtensionAllowsAdmissionDuringRetryableRefresh({
+        boundaryRefresh: {
+          state: 'PENDING',
+          generation,
+          requestedAt: '2026-10-31T10:00:00.000Z',
+          attempts: 1,
+          stages: { route: 'pending', behavior: 'pending', drivingImpact: 'pending' },
+        },
+        boundaryRepair: {
+          repairType: PARTIAL_TRIP_BOUNDARY_EXTENSION_REPAIR_TYPE,
+          auditId: 'audit-partial-1',
+          providerSegmentId: 'seg-1',
+          newStartTime: start.toISOString(),
+          newEndTime: end.toISOString(),
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it('blocks release when refresh generation is stale vs committed repair', () => {
+    const start = new Date('2026-10-14T12:00:00.000Z');
+    const end = new Date('2026-10-14T14:00:00.000Z');
+    expect(
+      canReleaseTripDiBoundaryAdmission(
+        baseScope({
+          rawDetectionMeta: {
+            boundaryRefresh: {
+              state: 'PENDING',
+              generation: 'stale|seg-1|old|old',
+              requestedAt: '2026-10-31T10:00:00.000Z',
+              attempts: 1,
+              stages: { route: 'pending', behavior: 'pending', drivingImpact: 'pending' },
+            },
+            boundaryRepair: {
+              repairType: PARTIAL_TRIP_BOUNDARY_EXTENSION_REPAIR_TYPE,
+              auditId: 'audit-partial-1',
+              providerSegmentId: 'seg-1',
+              newStartTime: start.toISOString(),
+              newEndTime: end.toISOString(),
+            },
+          },
+        }),
+      ),
+    ).toBe('BOUNDARY_REFRESH_IN_FLIGHT');
+  });
+
+  it('blocks release when repairType set but repair generation metadata is incomplete', () => {
+    expect(
+      canReleaseTripDiBoundaryAdmission(
+        baseScope({
+          rawDetectionMeta: {
+            ...pendingBoundaryRefreshMeta,
+            boundaryRepair: { repairType: PARTIAL_TRIP_BOUNDARY_EXTENSION_REPAIR_TYPE },
+          },
+        }),
+      ),
+    ).toBe('BOUNDARY_REFRESH_IN_FLIGHT');
+  });
+
+  it('hasCommittedPartialTripBoundaryExtension requires repairType on boundaryRepair', () => {
+    expect(hasCommittedPartialTripBoundaryExtension({})).toBe(false);
+    expect(
+      hasCommittedPartialTripBoundaryExtension({
+        boundaryRepair: { repairType: 'OTHER' },
+      }),
+    ).toBe(false);
+    expect(
+      hasCommittedPartialTripBoundaryExtension({
+        boundaryRepair: { repairType: PARTIAL_TRIP_BOUNDARY_EXTENSION_REPAIR_TYPE },
+      }),
+    ).toBe(true);
   });
 
   it('requires admission record matching current revision for S4 admission', () => {

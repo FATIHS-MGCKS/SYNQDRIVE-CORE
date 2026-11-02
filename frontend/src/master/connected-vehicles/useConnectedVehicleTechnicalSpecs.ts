@@ -36,10 +36,14 @@ export function useConnectedVehicleTechnicalSpecs(
       setEvidenceTier(tier);
       setSpecs(
         buildTechnicalSpecsView({
+          vin: vehicleDto?.vin,
+          licensePlate: vehicleDto?.licensePlate,
           make: vehicleDto?.make,
           model: vehicleDto?.model,
           year: vehicleDto?.year,
           fuelType: vehicleDto?.fuelType,
+          drivetrain: vehicleDto?.drivetrain,
+          driveType: vehicleDto?.drivetrain,
           curbWeight: vehicleDto?.curbWeight,
           engineDisplacementCc: vehicleDto?.engineDisplacementCc,
           cylinderCount: vehicleDto?.cylinderCount,
@@ -52,7 +56,35 @@ export function useConnectedVehicleTechnicalSpecs(
           systemMotorPowerKw: vehicleDto?.systemMotorPowerKw,
           accel0To100S: vehicleDto?.accel0To100S,
           variantAssumption: vehicleDto?.motionPhysicsVariantAssumption,
+          tankCapacityLiters: vehicleDto?.tankCapacityLiters,
+          serviceIntervalManufacturerKm: vehicleDto?.serviceIntervalManufacturerKm,
+          serviceIntervalManufacturerMonths: vehicleDto?.serviceIntervalManufacturerMonths,
+          oilChangeIntervalKm: vehicleDto?.oilChangeIntervalKm,
+          oilChangeIntervalMonths: vehicleDto?.oilChangeIntervalMonths,
+          tireFrontDimension: vehicleDto?.tireFrontDimension,
+          tireRearDimension: vehicleDto?.tireBackDimension,
+          brakeFrontRotorDiameter: vehicleDto?.brakeFrontRotorDiameter,
+          brakeFrontRotorWidth: vehicleDto?.brakeFrontRotorWidth,
+          brakeFrontPadThickness: vehicleDto?.brakeFrontPadThickness,
+          brakeBackRotorDiameter: vehicleDto?.brakeBackRotorDiameter,
+          brakeBackRotorWidth: vehicleDto?.brakeBackRotorWidth,
+          brakeBackPadThickness: vehicleDto?.brakeBackPadThickness,
+          batteryType: vehicleDto?.batteryType,
+          batteryAmpere: vehicleDto?.batteryAmpere,
+          batteryVolt: vehicleDto?.batteryVolt,
+          hvBatteryUsableCapacityKwh: vehicleDto?.hvBatteryUsableCapacityKwh,
+          hvBatteryGrossCapacityKwh: vehicleDto?.hvBatteryGrossCapacityKwh,
+          hvBatteryChemistry: vehicleDto?.hvBatteryChemistry,
+          hvBatteryNominalVoltage: vehicleDto?.hvBatteryNominalVoltage,
+          acOnboardChargerKw: vehicleDto?.acOnboardChargerKw,
+          dcFastChargeMaxKw: vehicleDto?.dcFastChargeMaxKw,
+          registrationIdentityProvenance: vehicleDto?.registrationIdentityProvenance,
+          hvMasterSpecificationProvenance:
+            typeof vehicleDto?.hvMasterSpecificationProvenance === 'string'
+              ? vehicleDto.hvMasterSpecificationProvenance
+              : null,
           motionReference: motionRef,
+          motionEvidenceTier: tier,
         }),
       );
     } catch (e) {

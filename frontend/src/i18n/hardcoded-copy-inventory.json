@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "generatedAt": "2026-09-07",
+  "generatedAt": "2026-10-31",
   "phases": {
     "P21": {
       "enforceCleanExact": [
@@ -110,22 +110,21 @@
     }
   },
   "summary": {
-    "total": 3091,
+    "total": 3069,
     "bySurface": {
       "SHELL": 41,
       "SHARED": 36,
-      "MASTER": 1071,
+      "MASTER": 1053,
       "OPERATOR": 179,
-      "LOGIN": 2,
-      "RENTAL": 1762
+      "RENTAL": 1760
     },
     "byCategory": {
-      "PLACEHOLDER": 196,
-      "TEXT": 2140,
-      "LABEL": 186,
-      "ARIA": 135,
-      "FORMAT_LOCALE": 9,
-      "TITLE": 425
+      "PLACEHOLDER": 194,
+      "TEXT": 2129,
+      "LABEL": 181,
+      "ARIA": 133,
+      "FORMAT_LOCALE": 10,
+      "TITLE": 422
     },
     "byRentalModule": {
       "App / routing shell": 1,
@@ -135,7 +134,7 @@
       "Bookings": 146,
       "Tasks": 87,
       "Dashboard": 3,
-      "Vehicle Health": 215,
+      "Vehicle Health": 214,
       "Documents": 8,
       "Fleet Shell": 71,
       "Vehicle Maintenance": 59,
@@ -143,7 +142,7 @@
       "Sidebar / navigation": 1,
       "Stations": 7,
       "Support": 19,
-      "TopBar": 3,
+      "TopBar": 2,
       "Vehicle Trips": 22,
       "Vehicle Detail": 21,
       "Vehicle Overview": 14,
@@ -151,7 +150,7 @@
       "WhatsApp": 31,
       "Workflow Automation": 106
     },
-    "enforceCleanRemaining": 1661
+    "enforceCleanRemaining": 1657
   },
   "findings": [
     {
@@ -1321,12 +1320,11 @@
       "severity": "debt",
       "migrationPhase": "P2.3",
       "structuralContext": "BillingOverviewView",
-      "occurrences": 5,
+      "occurrences": 4,
       "files": [
         "master/billing/BillingOverviewView.tsx",
         "master/components/MasterDashboardView.tsx",
         "master/components/billing/BillingOverviewTab.tsx",
-        "master/connected-vehicles/ConnectedVehiclesOverviewView.tsx",
         "master/platform-integrations/tabs/PlatformIntegrationsOverviewTab.tsx"
       ]
     },
@@ -1664,7 +1662,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 961,
+      "line": 1061,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1679,7 +1677,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 978,
+      "line": 1078,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1694,7 +1692,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1010,
+      "line": 1110,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1709,7 +1707,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1541,
+      "line": 1684,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1724,7 +1722,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1688,
+      "line": 1831,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1739,7 +1737,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1712,
+      "line": 1855,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1754,7 +1752,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1741,
+      "line": 1884,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1769,7 +1767,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1745,
+      "line": 1888,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1784,7 +1782,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1745,
+      "line": 1888,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1799,7 +1797,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1746,
+      "line": 1889,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1814,7 +1812,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1767,
+      "line": 1910,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1829,7 +1827,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1782,
+      "line": 1925,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1844,7 +1842,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1787,
+      "line": 1930,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1859,7 +1857,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1789,
+      "line": 1932,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1874,7 +1872,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1811,
+      "line": 1954,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1889,7 +1887,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1823,
+      "line": 1966,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1904,7 +1902,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1830,
+      "line": 1973,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1920,7 +1918,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1836,
+      "line": 1979,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1935,7 +1933,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1844,
+      "line": 1987,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1950,7 +1948,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1846,
+      "line": 1989,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1965,7 +1963,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1871,
+      "line": 2014,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1980,7 +1978,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1872,
+      "line": 2015,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1995,7 +1993,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1874,
+      "line": 2017,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2010,7 +2008,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1883,
+      "line": 2026,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2025,7 +2023,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1884,
+      "line": 2027,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2040,7 +2038,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1911,
+      "line": 2054,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2055,7 +2053,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1940,
+      "line": 2083,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2071,7 +2069,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1941,
+      "line": 2084,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2086,7 +2084,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1943,
+      "line": 2086,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2102,7 +2100,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1944,
+      "line": 2087,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2117,7 +2115,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1947,
+      "line": 2090,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2132,7 +2130,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1991,
+      "line": 2134,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2147,7 +2145,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1993,
+      "line": 2136,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2162,7 +2160,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1994,
+      "line": 2137,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2177,7 +2175,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1994,
+      "line": 2137,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3697,7 +3695,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 26264,
+      "line": 30761,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3712,7 +3710,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 27565,
+      "line": 32062,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3727,7 +3725,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 27631,
+      "line": 32128,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3742,7 +3740,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 27651,
+      "line": 32148,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3757,7 +3755,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 27651,
+      "line": 32148,
       "surface": "MASTER",
       "module": null,
       "category": "TITLE",
@@ -3772,7 +3770,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 27691,
+      "line": 32188,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3787,7 +3785,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 27955,
+      "line": 32452,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3802,7 +3800,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 28923,
+      "line": 33420,
       "surface": "MASTER",
       "module": null,
       "category": "FORMAT_LOCALE",
@@ -3818,7 +3816,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 28925,
+      "line": 33422,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3833,7 +3831,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 31187,
+      "line": 35684,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3848,7 +3846,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 31460,
+      "line": 35957,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3863,7 +3861,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 31471,
+      "line": 35968,
       "surface": "MASTER",
       "module": null,
       "category": "ARIA",
@@ -3878,7 +3876,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 31481,
+      "line": 35978,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3893,7 +3891,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 31493,
+      "line": 35990,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3908,7 +3906,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 31506,
+      "line": 36003,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3923,7 +3921,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 31510,
+      "line": 36007,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3938,7 +3936,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 31536,
+      "line": 36033,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -8550,10 +8548,9 @@
       "severity": "debt",
       "migrationPhase": "P2.3",
       "structuralContext": "close",
-      "occurrences": 2,
+      "occurrences": 1,
       "files": [
-        "master/components/OrganizationCreateWizard.tsx",
-        "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
+        "master/components/OrganizationCreateWizard.tsx"
       ]
     },
     {
@@ -12254,10 +12251,9 @@
       "severity": "debt",
       "migrationPhase": "P2.3",
       "structuralContext": "TripDetectionLogicView",
-      "occurrences": 2,
+      "occurrences": 1,
       "files": [
-        "master/components/TripDetectionLogicView.tsx",
-        "master/components/VehicleRegistrationModal.tsx"
+        "master/components/TripDetectionLogicView.tsx"
       ]
     },
     {
@@ -13058,7 +13054,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 662,
+      "line": 1306,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13073,7 +13069,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 752,
+      "line": 1398,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13088,7 +13084,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 802,
+      "line": 1520,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13103,7 +13099,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 802,
+      "line": 1520,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13118,7 +13114,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 804,
+      "line": 1522,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13133,7 +13129,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 808,
+      "line": 1526,
       "surface": "MASTER",
       "module": null,
       "category": "PLACEHOLDER",
@@ -13148,7 +13144,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 809,
+      "line": 1527,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13163,7 +13159,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 809,
+      "line": 1527,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13178,7 +13174,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 811,
+      "line": 1529,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13193,7 +13189,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 811,
+      "line": 1529,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13208,7 +13204,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 814,
+      "line": 1532,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13223,7 +13219,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 818,
+      "line": 1536,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13238,7 +13234,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 818,
+      "line": 1536,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13253,7 +13249,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 822,
+      "line": 1540,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13268,7 +13264,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 826,
+      "line": 1544,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13283,7 +13279,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 826,
+      "line": 1544,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13298,7 +13294,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 828,
+      "line": 1546,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13313,7 +13309,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 831,
+      "line": 1549,
       "surface": "MASTER",
       "module": null,
       "category": "PLACEHOLDER",
@@ -13328,7 +13324,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 842,
+      "line": 1560,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13343,7 +13339,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 847,
+      "line": 1565,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13358,7 +13354,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 848,
+      "line": 1697,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13373,7 +13369,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 848,
+      "line": 1697,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13388,7 +13384,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 849,
+      "line": 1698,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13403,7 +13399,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 850,
+      "line": 1699,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13418,7 +13414,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 851,
+      "line": 1700,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13433,7 +13429,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 852,
+      "line": 1701,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13448,7 +13444,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 853,
+      "line": 1702,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13463,7 +13459,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 854,
+      "line": 1703,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13478,7 +13474,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 868,
+      "line": 1717,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -13493,67 +13489,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 872,
-      "surface": "MASTER",
-      "module": null,
-      "category": "LABEL",
-      "sample": "Type {aiTag}",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
-      "occurrences": 1,
-      "files": [
-        "master/components/VehicleRegistrationModal.tsx"
-      ]
-    },
-    {
-      "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 872,
-      "surface": "MASTER",
-      "module": null,
-      "category": "PLACEHOLDER",
-      "sample": "e.g. AGM, EFB",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
-      "occurrences": 1,
-      "files": [
-        "master/components/VehicleRegistrationModal.tsx"
-      ]
-    },
-    {
-      "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 873,
-      "surface": "MASTER",
-      "module": null,
-      "category": "LABEL",
-      "sample": "Chemistry {aiTag}",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
-      "occurrences": 2,
-      "files": [
-        "master/components/VehicleRegistrationModal.tsx"
-      ]
-    },
-    {
-      "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 873,
-      "surface": "MASTER",
-      "module": null,
-      "category": "PLACEHOLDER",
-      "sample": "e.g. Lead-Acid",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
-      "occurrences": 1,
-      "files": [
-        "master/components/VehicleRegistrationModal.tsx"
-      ]
-    },
-    {
-      "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 874,
+      "line": 1763,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13568,7 +13504,7 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 875,
+      "line": 1764,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
@@ -13583,14 +13519,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 899,
+      "line": 1822,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Usable Capacity (kWh) {aiTag}",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13598,14 +13534,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 899,
+      "line": 1832,
       "surface": "MASTER",
       "module": null,
       "category": "PLACEHOLDER",
       "sample": "isEv ?",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 11,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13613,14 +13549,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 900,
+      "line": 1837,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Gross Capacity (kWh) {aiTag}",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13628,14 +13564,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 901,
+      "line": 1838,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Nominal Voltage (V) {aiTag}",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13643,14 +13579,29 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 903,
+      "line": 1839,
+      "surface": "MASTER",
+      "module": null,
+      "category": "LABEL",
+      "sample": "Chemistry {aiTag}",
+      "severity": "debt",
+      "migrationPhase": "P2.3",
+      "structuralContext": "cls",
+      "occurrences": 1,
+      "files": [
+        "master/components/VehicleRegistrationModal.tsx"
+      ]
+    },
+    {
+      "file": "master/components/VehicleRegistrationModal.tsx",
+      "line": 1840,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Cell Format {aiTag}",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13658,14 +13609,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 904,
+      "line": 1841,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Architecture {aiTag}",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13673,14 +13624,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 905,
+      "line": 1842,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Thermal Management {aiTag}",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13688,14 +13639,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 906,
+      "line": 1843,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "AC Charger (kW) {aiTag}",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13703,14 +13654,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 907,
+      "line": 1844,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "DC Fast Charge (kW) {aiTag}",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13718,14 +13669,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 908,
+      "line": 1845,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Warranty (years) {aiTag}",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13733,14 +13684,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 909,
+      "line": 1846,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Warranty (km) {aiTag}",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13748,14 +13699,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 923,
+      "line": 1861,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Front Axle",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 2,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13763,59 +13714,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 925,
-      "surface": "MASTER",
-      "module": null,
-      "category": "LABEL",
-      "sample": "Rotor Ø (mm) {aiTag}",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
-      "occurrences": 2,
-      "files": [
-        "master/components/VehicleRegistrationModal.tsx"
-      ]
-    },
-    {
-      "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 926,
-      "surface": "MASTER",
-      "module": null,
-      "category": "LABEL",
-      "sample": "Rotor Width (mm) {aiTag}",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
-      "occurrences": 2,
-      "files": [
-        "master/components/VehicleRegistrationModal.tsx"
-      ]
-    },
-    {
-      "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 927,
-      "surface": "MASTER",
-      "module": null,
-      "category": "LABEL",
-      "sample": "Pad Thickness (mm) {aiTag}",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
-      "occurrences": 2,
-      "files": [
-        "master/components/VehicleRegistrationModal.tsx"
-      ]
-    },
-    {
-      "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 929,
+      "line": 1868,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Rear Axle",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 2,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13823,14 +13729,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 947,
+      "line": 1886,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Brand & Model",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 2,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13838,14 +13744,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 947,
+      "line": 1886,
       "surface": "MASTER",
       "module": null,
       "category": "PLACEHOLDER",
       "sample": "Pirelli P Zero",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 2,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13853,14 +13759,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 947,
+      "line": 1886,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Brand & Model",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 2,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13868,14 +13774,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 950,
+      "line": 1889,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "All Season",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 2,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13883,14 +13789,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 953,
+      "line": 1892,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Load Index",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 2,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13898,14 +13804,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 953,
+      "line": 1892,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Load Index",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 2,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13913,14 +13819,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 954,
+      "line": 1893,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Speed Index",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 2,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13928,14 +13834,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 954,
+      "line": 1893,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Speed Index",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 2,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13943,14 +13849,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 982,
+      "line": 1921,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "AI Tire Spec Agent",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13958,14 +13864,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 987,
+      "line": 1926,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Arbeitet…",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13973,14 +13879,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1005,
+      "line": 1944,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Bitte Brand & Model, Dimension, Load Index, Speed Index und Year ausfüllen.",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -13988,14 +13894,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1090,
+      "line": 2029,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Ruft Reifenspezifikationen per KI ab: Profiltiefe, Sensitivitäten, EU-Label, Verschleißparameter u.v.m.",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14003,14 +13909,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1096,
+      "line": 2035,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Tire Condition",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14018,14 +13924,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1098,
+      "line": 2037,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Newly Installed",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14033,14 +13939,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1099,
+      "line": 2038,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Already Mounted (Used)",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14048,14 +13954,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1102,
+      "line": 2041,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "For used tires, please enter current per-wheel tread depths below for accurate wear tracking.",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14063,14 +13969,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1120,
+      "line": 2059,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Manufacturer Service Interval",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14078,14 +13984,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1122,
+      "line": 2061,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Interval (km) {aiTag}",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 2,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14093,14 +13999,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1123,
+      "line": 2062,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Interval (months) {aiTag}",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 2,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14108,14 +14014,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1125,
+      "line": 2064,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Oil Change Interval",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14123,14 +14029,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1144,
+      "line": 2083,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Last TÜV",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14138,14 +14044,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1144,
+      "line": 2083,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Last TÜV",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14153,14 +14059,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1145,
+      "line": 2084,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Last BOKraft",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14168,14 +14074,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1145,
+      "line": 2084,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Last BOKraft",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14183,14 +14089,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1146,
+      "line": 2085,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Last Inspection",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14198,14 +14104,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1146,
+      "line": 2085,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Last Inspection",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14213,14 +14119,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1147,
+      "line": 2086,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Last Oil Change",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14228,14 +14134,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1147,
+      "line": 2086,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Last Oil Change",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14243,14 +14149,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1148,
+      "line": 2087,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Last Brake Pad Change",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14258,14 +14164,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1148,
+      "line": 2087,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Last Brake Pad Change",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14273,14 +14179,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1149,
+      "line": 2088,
       "surface": "MASTER",
       "module": null,
       "category": "LABEL",
       "sample": "Last Brake Rotor Change",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14288,14 +14194,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1149,
+      "line": 2088,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Last Brake Rotor Change",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14303,14 +14209,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1164,
+      "line": 2103,
       "surface": "MASTER",
       "module": null,
       "category": "TITLE",
       "sample": "Five canonical views",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14318,14 +14224,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1165,
+      "line": 2104,
       "surface": "MASTER",
       "module": null,
       "category": "TITLE",
       "sample": "Upload one photo per view (front, left, right, rear, roof). They drive the Rental damage map carousel.",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14333,14 +14239,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1180,
+      "line": 2119,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Checking HM Health availability for this VIN…",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14348,14 +14254,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1187,
+      "line": 2126,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "VIN required to check High Mobility Health availability.",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14363,14 +14269,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1197,
+      "line": 2136,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "High Mobility Health not available",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14378,14 +14284,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1212,
+      "line": 2151,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "High Mobility Health — Active",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14393,14 +14299,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1228,
+      "line": 2167,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "High Mobility Health available — Approved",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14408,14 +14314,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1262,
+      "line": 2201,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Activation available after vehicle is registered — use Master Admin → High Mobility.",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14423,59 +14329,14 @@
     },
     {
       "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1272,
+      "line": 2211,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Could not check HM availability (backend unreachable or not configured).",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
-      "occurrences": 1,
-      "files": [
-        "master/components/VehicleRegistrationModal.tsx"
-      ]
-    },
-    {
-      "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1284,
-      "surface": "MASTER",
-      "module": null,
-      "category": "TEXT",
-      "sample": "Determines how Driving Events are sourced for this vehicle.",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
-      "occurrences": 1,
-      "files": [
-        "master/components/VehicleRegistrationModal.tsx"
-      ]
-    },
-    {
-      "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1287,
-      "surface": "MASTER",
-      "module": null,
-      "category": "TEXT",
-      "sample": "SMART5",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
-      "occurrences": 1,
-      "files": [
-        "master/components/VehicleRegistrationModal.tsx"
-      ]
-    },
-    {
-      "file": "master/components/VehicleRegistrationModal.tsx",
-      "line": 1311,
-      "surface": "MASTER",
-      "module": null,
-      "category": "TEXT",
-      "sample": "LTE_R1 selected: Driving Events (harsh braking, acceleration, cornering) will be sourced from DIMO Telemetry API Events.",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "toggleAllHmSignals",
+      "structuralContext": "cls",
       "occurrences": 1,
       "files": [
         "master/components/VehicleRegistrationModal.tsx"
@@ -14906,14 +14767,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 81,
+      "line": 162,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Details werden geladen…",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -14921,14 +14782,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 87,
+      "line": 168,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Basisdaten konnten nicht vollständig geladen werden.",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -14936,14 +14797,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 91,
+      "line": 172,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Erneut versuchen",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 2,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
@@ -14952,14 +14813,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 112,
+      "line": 193,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Nicht zugeordnet",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 2,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
@@ -14968,14 +14829,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 116,
+      "line": 197,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Integrität",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -14983,14 +14844,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 138,
+      "line": 240,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Aktive Themen",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -14998,14 +14859,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 156,
+      "line": 270,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Letztes Signal (beobachtet)",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -15013,14 +14874,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 161,
+      "line": 275,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Letzte Verarbeitung",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -15028,14 +14889,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 165,
+      "line": 279,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Letzte erfolgreiche Ingestion",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -15043,14 +14904,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 193,
+      "line": 307,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Token (maskiert)",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -15058,14 +14919,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 225,
+      "line": 356,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Technische Diagnostik",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -15073,14 +14934,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 245,
+      "line": 376,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Diagnostik wird geladen…",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -15088,14 +14949,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 260,
+      "line": 391,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Rohdaten anzeigen",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -15103,14 +14964,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 269,
+      "line": 400,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Keine Diagnostikdaten.",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -15118,74 +14979,14 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 272,
+      "line": 403,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
       "sample": "Technische Rohdaten werden nur auf Anfrage geladen.",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
-      "occurrences": 1,
-      "files": [
-        "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
-      ]
-    },
-    {
-      "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 286,
-      "surface": "MASTER",
-      "module": null,
-      "category": "TEXT",
-      "sample": "Registrierung aufheben",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
-      "occurrences": 1,
-      "files": [
-        "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
-      ]
-    },
-    {
-      "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 298,
-      "surface": "MASTER",
-      "module": null,
-      "category": "TITLE",
-      "sample": "Registrierung aufheben",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
-      "occurrences": 1,
-      "files": [
-        "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
-      ]
-    },
-    {
-      "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 311,
-      "surface": "MASTER",
-      "module": null,
-      "category": "LABEL",
-      "sample": "Begründung (min. 5 Zeichen)",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
-      "occurrences": 1,
-      "files": [
-        "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
-      ]
-    },
-    {
-      "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 311,
-      "surface": "MASTER",
-      "module": null,
-      "category": "TEXT",
-      "sample": "Begründung (min. 5 Zeichen)",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehicleDetailDrawer",
+      "structuralContext": "onChange",
       "occurrences": 1,
       "files": [
         "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx"
@@ -15193,7 +14994,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleImportWizard.tsx",
-      "line": 103,
+      "line": 107,
       "surface": "MASTER",
       "module": null,
       "category": "ARIA",
@@ -15208,7 +15009,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleImportWizard.tsx",
-      "line": 118,
+      "line": 122,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15223,7 +15024,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleImportWizard.tsx",
-      "line": 126,
+      "line": 130,
       "surface": "MASTER",
       "module": null,
       "category": "ARIA",
@@ -15238,7 +15039,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleImportWizard.tsx",
-      "line": 128,
+      "line": 132,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15253,7 +15054,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleImportWizard.tsx",
-      "line": 143,
+      "line": 147,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15268,7 +15069,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleImportWizard.tsx",
-      "line": 163,
+      "line": 167,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15283,7 +15084,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleImportWizard.tsx",
-      "line": 192,
+      "line": 218,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15298,7 +15099,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleImportWizard.tsx",
-      "line": 193,
+      "line": 219,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15312,23 +15113,8 @@
       ]
     },
     {
-      "file": "master/connected-vehicles/ConnectedVehiclesHub.tsx",
-      "line": 98,
-      "surface": "MASTER",
-      "module": null,
-      "category": "TITLE",
-      "sample": "Verbundene Fahrzeuge",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "onPop",
-      "occurrences": 1,
-      "files": [
-        "master/connected-vehicles/ConnectedVehiclesHub.tsx"
-      ]
-    },
-    {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 147,
+      "line": 159,
       "surface": "MASTER",
       "module": null,
       "category": "PLACEHOLDER",
@@ -15343,7 +15129,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 151,
+      "line": 163,
       "surface": "MASTER",
       "module": null,
       "category": "ARIA",
@@ -15358,7 +15144,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 159,
+      "line": 171,
       "surface": "MASTER",
       "module": null,
       "category": "ARIA",
@@ -15373,7 +15159,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 162,
+      "line": 174,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15388,7 +15174,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 168,
+      "line": 195,
       "surface": "MASTER",
       "module": null,
       "category": "ARIA",
@@ -15403,7 +15189,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 170,
+      "line": 197,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15418,7 +15204,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 174,
+      "line": 201,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15433,7 +15219,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 180,
+      "line": 207,
       "surface": "MASTER",
       "module": null,
       "category": "ARIA",
@@ -15448,7 +15234,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 182,
+      "line": 209,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15463,7 +15249,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 185,
+      "line": 212,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15478,7 +15264,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 187,
+      "line": 214,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15493,7 +15279,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 193,
+      "line": 220,
       "surface": "MASTER",
       "module": null,
       "category": "ARIA",
@@ -15508,7 +15294,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 197,
+      "line": 224,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15523,7 +15309,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 199,
+      "line": 226,
       "surface": "MASTER",
       "module": null,
       "category": "ARIA",
@@ -15538,7 +15324,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 218,
+      "line": 245,
       "surface": "MASTER",
       "module": null,
       "category": "ARIA",
@@ -15553,7 +15339,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 228,
+      "line": 255,
       "surface": "MASTER",
       "module": null,
       "category": "ARIA",
@@ -15568,7 +15354,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 240,
+      "line": 267,
       "surface": "MASTER",
       "module": null,
       "category": "TITLE",
@@ -15583,7 +15369,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehiclesListView.tsx",
-      "line": 261,
+      "line": 288,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -15597,78 +15383,18 @@
       ]
     },
     {
-      "file": "master/connected-vehicles/ConnectedVehiclesOverviewView.tsx",
-      "line": 50,
+      "file": "master/intelligence/ledger/EvidenceTimestamp.tsx",
+      "line": 42,
       "surface": "MASTER",
       "module": null,
-      "category": "TITLE",
-      "sample": "Übersicht nicht verfügbar",
+      "category": "FORMAT_LOCALE",
+      "sample": "en-GB",
       "severity": "debt",
       "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehiclesOverviewView",
+      "structuralContext": "EvidenceTimestamp",
       "occurrences": 1,
       "files": [
-        "master/connected-vehicles/ConnectedVehiclesOverviewView.tsx"
-      ]
-    },
-    {
-      "file": "master/connected-vehicles/ConnectedVehiclesOverviewView.tsx",
-      "line": 67,
-      "surface": "MASTER",
-      "module": null,
-      "category": "TEXT",
-      "sample": "DIMO-Plattform eingeschränkt",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehiclesOverviewView",
-      "occurrences": 1,
-      "files": [
-        "master/connected-vehicles/ConnectedVehiclesOverviewView.tsx"
-      ]
-    },
-    {
-      "file": "master/connected-vehicles/ConnectedVehiclesOverviewView.tsx",
-      "line": 74,
-      "surface": "MASTER",
-      "module": null,
-      "category": "TEXT",
-      "sample": "Plattformstatus öffnen",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehiclesOverviewView",
-      "occurrences": 1,
-      "files": [
-        "master/connected-vehicles/ConnectedVehiclesOverviewView.tsx"
-      ]
-    },
-    {
-      "file": "master/connected-vehicles/ConnectedVehiclesOverviewView.tsx",
-      "line": 119,
-      "surface": "MASTER",
-      "module": null,
-      "category": "TEXT",
-      "sample": "Attention Queue",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehiclesOverviewView",
-      "occurrences": 1,
-      "files": [
-        "master/connected-vehicles/ConnectedVehiclesOverviewView.tsx"
-      ]
-    },
-    {
-      "file": "master/connected-vehicles/ConnectedVehiclesOverviewView.tsx",
-      "line": 125,
-      "surface": "MASTER",
-      "module": null,
-      "category": "TEXT",
-      "sample": "Keine offenen Governance-Themen.",
-      "severity": "debt",
-      "migrationPhase": "P2.3",
-      "structuralContext": "ConnectedVehiclesOverviewView",
-      "occurrences": 1,
-      "files": [
-        "master/connected-vehicles/ConnectedVehiclesOverviewView.tsx"
+        "master/intelligence/ledger/EvidenceTimestamp.tsx"
       ]
     },
     {
@@ -16337,7 +16063,7 @@
     },
     {
       "file": "master/platform-ops/tabs/PlatformOpsDiagnosticsTab.tsx",
-      "line": 120,
+      "line": 138,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -16352,7 +16078,7 @@
     },
     {
       "file": "master/platform-ops/tabs/PlatformOpsDiagnosticsTab.tsx",
-      "line": 137,
+      "line": 155,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -16367,7 +16093,7 @@
     },
     {
       "file": "master/platform-ops/tabs/PlatformOpsDiagnosticsTab.tsx",
-      "line": 165,
+      "line": 183,
       "surface": "MASTER",
       "module": null,
       "category": "TITLE",
@@ -16382,7 +16108,7 @@
     },
     {
       "file": "master/platform-ops/tabs/PlatformOpsDiagnosticsTab.tsx",
-      "line": 172,
+      "line": 190,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -16397,7 +16123,7 @@
     },
     {
       "file": "master/platform-ops/tabs/PlatformOpsDiagnosticsTab.tsx",
-      "line": 178,
+      "line": 196,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -16412,7 +16138,7 @@
     },
     {
       "file": "master/platform-ops/tabs/PlatformOpsDiagnosticsTab.tsx",
-      "line": 192,
+      "line": 210,
       "surface": "MASTER",
       "module": null,
       "category": "TITLE",
@@ -16427,7 +16153,7 @@
     },
     {
       "file": "master/platform-ops/tabs/PlatformOpsDiagnosticsTab.tsx",
-      "line": 225,
+      "line": 243,
       "surface": "MASTER",
       "module": null,
       "category": "TITLE",
@@ -19397,7 +19123,7 @@
     },
     {
       "file": "operator/tire-measure/OperatorTireMeasureFlow.tsx",
-      "line": 307,
+      "line": 350,
       "surface": "OPERATOR",
       "module": null,
       "category": "TEXT",
@@ -19412,7 +19138,7 @@
     },
     {
       "file": "operator/tire-measure/OperatorTireMeasureFlow.tsx",
-      "line": 391,
+      "line": 469,
       "surface": "OPERATOR",
       "module": null,
       "category": "PLACEHOLDER",
@@ -19427,7 +19153,7 @@
     },
     {
       "file": "operator/tire-measure/OperatorTireMeasureFlow.tsx",
-      "line": 401,
+      "line": 479,
       "surface": "OPERATOR",
       "module": null,
       "category": "PLACEHOLDER",
@@ -19442,7 +19168,7 @@
     },
     {
       "file": "operator/tire-measure/OperatorTireMeasureFlow.tsx",
-      "line": 411,
+      "line": 489,
       "surface": "OPERATOR",
       "module": null,
       "category": "TEXT",
@@ -19457,7 +19183,7 @@
     },
     {
       "file": "operator/tire-measure/OperatorTireMeasureFlow.tsx",
-      "line": 412,
+      "line": 490,
       "surface": "OPERATOR",
       "module": null,
       "category": "TEXT",
@@ -19472,7 +19198,7 @@
     },
     {
       "file": "operator/tire-measure/OperatorTireMeasureFlow.tsx",
-      "line": 428,
+      "line": 506,
       "surface": "OPERATOR",
       "module": null,
       "category": "TEXT",
@@ -19487,7 +19213,7 @@
     },
     {
       "file": "operator/tire-measure/OperatorTireMeasureFlow.tsx",
-      "line": 443,
+      "line": 521,
       "surface": "OPERATOR",
       "module": null,
       "category": "TEXT",
@@ -19502,7 +19228,7 @@
     },
     {
       "file": "operator/tire-measure/OperatorTireMeasureFlow.tsx",
-      "line": 451,
+      "line": 532,
       "surface": "OPERATOR",
       "module": null,
       "category": "TEXT",
@@ -19517,7 +19243,7 @@
     },
     {
       "file": "operator/tire-measure/OperatorTireMeasureFlow.tsx",
-      "line": 458,
+      "line": 539,
       "surface": "OPERATOR",
       "module": null,
       "category": "TEXT",
@@ -19532,7 +19258,7 @@
     },
     {
       "file": "operator/tire-measure/OperatorTireMeasureFlow.tsx",
-      "line": 464,
+      "line": 557,
       "surface": "OPERATOR",
       "module": null,
       "category": "TEXT",
@@ -20118,36 +19844,6 @@
       ]
     },
     {
-      "file": "pages/LoginPage.tsx",
-      "line": 287,
-      "surface": "LOGIN",
-      "module": null,
-      "category": "ARIA",
-      "sample": "showPassword ?",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.1",
-      "structuralContext": "completeLogin",
-      "occurrences": 1,
-      "files": [
-        "pages/LoginPage.tsx"
-      ]
-    },
-    {
-      "file": "pages/LoginPage.tsx",
-      "line": 301,
-      "surface": "LOGIN",
-      "module": null,
-      "category": "TEXT",
-      "sample": "Geben Sie den Code aus Ihrer Authenticator-App ein.",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.1",
-      "structuralContext": "completeLogin",
-      "occurrences": 1,
-      "files": [
-        "pages/LoginPage.tsx"
-      ]
-    },
-    {
       "file": "pages/VerificationDonePage.tsx",
       "line": 15,
       "surface": "SHELL",
@@ -20194,7 +19890,7 @@
     },
     {
       "file": "rental/App.tsx",
-      "line": 1430,
+      "line": 1428,
       "surface": "RENTAL",
       "module": "App / routing shell",
       "category": "TITLE",
@@ -21884,7 +21580,7 @@
       "severity": "enforce-clean",
       "migrationPhase": "P2.2.3",
       "structuralContext": "fmtDate",
-      "occurrences": 241,
+      "occurrences": 242,
       "files": [
         "rental/components/BookingDocumentsSection.tsx",
         "rental/components/BookingsView.tsx",
@@ -21957,6 +21653,7 @@
         "rental/components/settings/data-authorization/data-authorization.utils.ts",
         "rental/components/support/support-center.utils.ts",
         "rental/components/trips/TripsMapCard.tsx",
+        "rental/components/trips/motion-map.utils.ts",
         "rental/components/trips/useTripsRouteMap.ts",
         "rental/components/trips/utils/tripFormatters.ts",
         "rental/components/trips/utils/tripSummary.ts",
@@ -27780,7 +27477,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 143,
+      "line": 149,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "ARIA",
@@ -27795,7 +27492,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 160,
+      "line": 166,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27810,7 +27507,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 182,
+      "line": 188,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27825,7 +27522,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 183,
+      "line": 189,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27840,7 +27537,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 199,
+      "line": 205,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27855,7 +27552,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 221,
+      "line": 227,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27870,7 +27567,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 239,
+      "line": 245,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27885,7 +27582,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 263,
+      "line": 269,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27900,7 +27597,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 277,
+      "line": 283,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27915,7 +27612,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 354,
+      "line": 364,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27930,7 +27627,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 357,
+      "line": 367,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27945,7 +27642,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 407,
+      "line": 424,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27961,7 +27658,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 451,
+      "line": 468,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27976,7 +27673,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 471,
+      "line": 488,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -27991,7 +27688,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 492,
+      "line": 509,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28006,7 +27703,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 493,
+      "line": 510,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28021,7 +27718,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 514,
+      "line": 531,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28036,7 +27733,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 611,
+      "line": 628,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28051,7 +27748,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 617,
+      "line": 634,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28066,7 +27763,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 649,
+      "line": 666,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28081,7 +27778,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 660,
+      "line": 677,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28096,7 +27793,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 668,
+      "line": 685,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28111,7 +27808,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 742,
+      "line": 759,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28126,7 +27823,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 873,
+      "line": 890,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28141,7 +27838,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 971,
+      "line": 988,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28157,7 +27854,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 987,
+      "line": 1004,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28172,7 +27869,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 1014,
+      "line": 1031,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28188,7 +27885,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 1051,
+      "line": 1068,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28203,7 +27900,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 1052,
+      "line": 1069,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28218,7 +27915,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 1106,
+      "line": 1123,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28233,7 +27930,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 1126,
+      "line": 1143,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -28248,7 +27945,7 @@
     },
     {
       "file": "rental/components/FleetConditionDetailView.tsx",
-      "line": 1127,
+      "line": 1144,
       "surface": "RENTAL",
       "module": "Fleet Shell",
       "category": "TEXT",
@@ -29538,7 +29235,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 591,
+      "line": 598,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29553,7 +29250,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 603,
+      "line": 610,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29568,7 +29265,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 604,
+      "line": 611,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29583,7 +29280,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 615,
+      "line": 622,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29598,7 +29295,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 632,
+      "line": 639,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29613,7 +29310,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 644,
+      "line": 651,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29628,7 +29325,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 649,
+      "line": 656,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29643,7 +29340,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1394,
+      "line": 1459,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29658,7 +29355,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1402,
+      "line": 1467,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29673,7 +29370,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1410,
+      "line": 1475,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29688,7 +29385,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1418,
+      "line": 1483,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29703,7 +29400,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1456,
+      "line": 1521,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TITLE",
@@ -29718,7 +29415,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1529,
+      "line": 1594,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29733,7 +29430,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1542,
+      "line": 1607,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29748,7 +29445,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1556,
+      "line": 1621,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29763,7 +29460,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1563,
+      "line": 1628,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29779,7 +29476,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1571,
+      "line": 1636,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29794,7 +29491,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1625,
+      "line": 1690,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29809,7 +29506,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1649,
+      "line": 1714,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29824,7 +29521,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1655,
+      "line": 1720,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29839,7 +29536,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1730,
+      "line": 1794,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29854,7 +29551,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1737,
+      "line": 1801,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29869,7 +29566,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1764,
+      "line": 1828,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29884,7 +29581,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1765,
+      "line": 1829,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29899,7 +29596,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1860,
+      "line": 1924,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29914,7 +29611,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1868,
+      "line": 1932,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TITLE",
@@ -29929,7 +29626,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1878,
+      "line": 1942,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29944,7 +29641,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1881,
+      "line": 1945,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29959,7 +29656,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1892,
+      "line": 1956,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29974,7 +29671,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1895,
+      "line": 1959,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29989,7 +29686,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1918,
+      "line": 1982,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TITLE",
@@ -30004,7 +29701,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1921,
+      "line": 1985,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TITLE",
@@ -30019,7 +29716,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1931,
+      "line": 1995,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30034,7 +29731,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1935,
+      "line": 1999,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30049,7 +29746,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1950,
+      "line": 2014,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30064,7 +29761,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1955,
+      "line": 2019,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30079,7 +29776,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1993,
+      "line": 2057,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30094,7 +29791,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2028,
+      "line": 2092,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30109,7 +29806,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2037,
+      "line": 2101,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30124,7 +29821,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2041,
+      "line": 2105,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30139,7 +29836,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2112,
+      "line": 2176,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30154,7 +29851,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2117,
+      "line": 2181,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30169,7 +29866,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2175,
+      "line": 2239,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30184,7 +29881,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2243,
+      "line": 2307,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30199,7 +29896,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2269,
+      "line": 2333,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30214,7 +29911,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2295,
+      "line": 2359,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30229,7 +29926,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2321,
+      "line": 2385,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30244,7 +29941,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2378,
+      "line": 2442,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30259,7 +29956,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2462,
+      "line": 2526,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30274,7 +29971,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2463,
+      "line": 2527,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30289,7 +29986,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2474,
+      "line": 2538,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30304,7 +30001,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2475,
+      "line": 2539,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30319,7 +30016,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2478,
+      "line": 2542,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30334,7 +30031,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2505,
+      "line": 2569,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30349,7 +30046,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2508,
+      "line": 2572,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30364,7 +30061,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2523,
+      "line": 2587,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30379,7 +30076,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2541,
+      "line": 2605,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30394,7 +30091,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2552,
+      "line": 2616,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30409,7 +30106,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2572,
+      "line": 2636,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30424,7 +30121,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2590,
+      "line": 2654,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30439,7 +30136,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2590,
+      "line": 2654,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30454,7 +30151,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2630,
+      "line": 2694,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30469,7 +30166,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2630,
+      "line": 2694,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30484,7 +30181,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2631,
+      "line": 2695,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30499,7 +30196,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2631,
+      "line": 2695,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -30514,7 +30211,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2631,
+      "line": 2695,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30529,7 +30226,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2633,
+      "line": 2697,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -30544,7 +30241,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2642,
+      "line": 2706,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30559,7 +30256,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2642,
+      "line": 2706,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30574,7 +30271,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2643,
+      "line": 2707,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30589,7 +30286,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2643,
+      "line": 2707,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30604,7 +30301,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2644,
+      "line": 2708,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30619,7 +30316,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2644,
+      "line": 2708,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30634,7 +30331,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2645,
+      "line": 2709,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30649,7 +30346,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2645,
+      "line": 2709,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30664,7 +30361,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2657,
+      "line": 2721,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30679,7 +30376,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2658,
+      "line": 2722,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30694,7 +30391,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2667,
+      "line": 2731,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30709,7 +30406,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2675,
+      "line": 2739,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30724,7 +30421,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2680,
+      "line": 2744,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30739,7 +30436,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2718,
+      "line": 2782,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30754,7 +30451,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2802,
+      "line": 2868,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30769,7 +30466,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2899,
+      "line": 2965,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30784,7 +30481,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2901,
+      "line": 2967,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30799,7 +30496,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2912,
+      "line": 2978,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30814,7 +30511,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2933,
+      "line": 2999,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30829,7 +30526,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2933,
+      "line": 2999,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30844,7 +30541,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2934,
+      "line": 3000,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -30859,7 +30556,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2937,
+      "line": 3003,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30874,7 +30571,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2937,
+      "line": 3003,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30889,7 +30586,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2938,
+      "line": 3004,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -30904,7 +30601,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2943,
+      "line": 3009,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30919,7 +30616,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2943,
+      "line": 3009,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30934,146 +30631,11 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2947,
+      "line": 3013,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
       "sample": "Rear Dimension",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2947,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Rear Dimension",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2953,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "LABEL",
-      "sample": "Load Index",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2953,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Load Index",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2957,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "LABEL",
-      "sample": "Speed Index",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2957,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Speed Index",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2972,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "LABEL",
-      "sample": "Tire Condition",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2972,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Tire Condition",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2981,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Used tires: please enter current per-wheel tread depths below for accurate estimates.",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3000,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "AI Tire Intelligence",
       "severity": "enforce-clean",
       "migrationPhase": "P2.2.2",
       "structuralContext": "pollStatusLabel",
@@ -31088,6 +30650,141 @@
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
+      "sample": "Rear Dimension",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3019,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "LABEL",
+      "sample": "Load Index",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3019,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Load Index",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3023,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "LABEL",
+      "sample": "Speed Index",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3023,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Speed Index",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3038,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "LABEL",
+      "sample": "Tire Condition",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3038,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Tire Condition",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3047,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Used tires: please enter current per-wheel tread depths below for accurate estimates.",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3066,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "AI Tire Intelligence",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3079,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
       "sample": "Fetch AI Tire Spec",
       "severity": "enforce-clean",
       "migrationPhase": "P2.2.2",
@@ -31099,7 +30796,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3016,
+      "line": 3082,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31114,7 +30811,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3037,
+      "line": 3103,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31129,7 +30826,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3061,
+      "line": 3127,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31144,7 +30841,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3077,
+      "line": 3143,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31159,7 +30856,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3091,
+      "line": 3157,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31174,7 +30871,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3094,
+      "line": 3160,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31189,7 +30886,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3122,
+      "line": 3188,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31204,7 +30901,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3123,
+      "line": 3189,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31219,7 +30916,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3140,
+      "line": 3206,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31234,22 +30931,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3171,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Estimated remaining tread life",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3180,
+      "line": 3262,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31264,7 +30946,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3192,
+      "line": 3277,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31279,7 +30961,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3226,
+      "line": 3311,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31294,7 +30976,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3254,
+      "line": 3339,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31309,7 +30991,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3256,
+      "line": 3341,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31324,7 +31006,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3285,
+      "line": 3377,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31339,7 +31021,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3291,
+      "line": 3383,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31354,7 +31036,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3291,
+      "line": 3383,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31369,7 +31051,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3294,
+      "line": 3386,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31384,7 +31066,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3294,
+      "line": 3386,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31399,7 +31081,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3306,
+      "line": 3398,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -31414,7 +31096,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3307,
+      "line": 3399,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -31429,7 +31111,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3318,
+      "line": 3410,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31444,7 +31126,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3319,
+      "line": 3411,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31459,7 +31141,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3322,
+      "line": 3414,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31474,7 +31156,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3332,
+      "line": 3424,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31489,7 +31171,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3348,
+      "line": 3440,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -31504,7 +31186,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3360,
+      "line": 3452,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31519,7 +31201,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3415,
+      "line": 3507,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31534,7 +31216,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3425,
+      "line": 3517,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31549,7 +31231,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3438,
+      "line": 3530,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -31564,7 +31246,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3464,
+      "line": 3556,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31579,7 +31261,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3487,
+      "line": 3579,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -31594,7 +31276,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3508,
+      "line": 3600,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31609,7 +31291,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3533,
+      "line": 3625,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31624,7 +31306,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3534,
+      "line": 3626,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31639,7 +31321,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3541,
+      "line": 3633,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31654,7 +31336,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3568,
+      "line": 3660,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31669,7 +31351,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3600,
+      "line": 3692,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31684,7 +31366,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3602,
+      "line": 3694,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31699,7 +31381,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3603,
+      "line": 3695,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31714,7 +31396,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3609,
+      "line": 3701,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31729,7 +31411,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3610,
+      "line": 3702,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31744,7 +31426,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3611,
+      "line": 3703,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31759,7 +31441,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3634,
+      "line": 3726,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31774,7 +31456,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3643,
+      "line": 3735,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31789,7 +31471,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3645,
+      "line": 3737,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31804,7 +31486,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3646,
+      "line": 3738,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31819,7 +31501,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3647,
+      "line": 3739,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31834,7 +31516,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3650,
+      "line": 3742,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31849,7 +31531,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3668,
+      "line": 3760,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31864,7 +31546,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3672,
+      "line": 3764,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31879,7 +31561,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3681,
+      "line": 3773,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31894,7 +31576,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3734,
+      "line": 3826,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31909,7 +31591,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3735,
+      "line": 3827,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31924,7 +31606,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3748,
+      "line": 3840,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -39988,7 +39670,7 @@
     },
     {
       "file": "rental/components/TopBar.tsx",
-      "line": 376,
+      "line": 363,
       "surface": "RENTAL",
       "module": "TopBar",
       "category": "TEXT",
@@ -40003,22 +39685,7 @@
     },
     {
       "file": "rental/components/TopBar.tsx",
-      "line": 458,
-      "surface": "RENTAL",
-      "module": "TopBar",
-      "category": "ARIA",
-      "sample": "`Language: $",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.1",
-      "structuralContext": "getTypeColor",
-      "occurrences": 1,
-      "files": [
-        "rental/components/TopBar.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/TopBar.tsx",
-      "line": 499,
+      "line": 450,
       "surface": "RENTAL",
       "module": "TopBar",
       "category": "ARIA",
@@ -40213,7 +39880,7 @@
     },
     {
       "file": "rental/components/trips/TripsMapCard.tsx",
-      "line": 232,
+      "line": 331,
       "surface": "RENTAL",
       "module": "Vehicle Trips",
       "category": "TEXT",
@@ -40228,7 +39895,7 @@
     },
     {
       "file": "rental/components/trips/TripTimelineExpanded.tsx",
-      "line": 138,
+      "line": 139,
       "surface": "RENTAL",
       "module": "Vehicle Trips",
       "category": "TEXT",
@@ -40243,7 +39910,7 @@
     },
     {
       "file": "rental/components/trips/TripTimelineExpanded.tsx",
-      "line": 144,
+      "line": 145,
       "surface": "RENTAL",
       "module": "Vehicle Trips",
       "category": "TEXT",
@@ -40258,7 +39925,7 @@
     },
     {
       "file": "rental/components/trips/TripTimelineExpanded.tsx",
-      "line": 164,
+      "line": 165,
       "surface": "RENTAL",
       "module": "Vehicle Trips",
       "category": "TEXT",
@@ -42573,7 +42240,7 @@
     },
     {
       "file": "rental/components/VehicleStressPanel.tsx",
-      "line": 230,
+      "line": 268,
       "surface": "RENTAL",
       "module": "other Rental areas",
       "category": "TITLE",

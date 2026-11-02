@@ -8,8 +8,10 @@ import { masterPlatformOpsDiS4Cs } from './master.platformOps.diS4.cs';
 import { batteryV2HvInspectionCS } from './battery-v2-hv-inspection.cs';
 import { tireWearV3Cs } from './tire.wearV3.cs';
 import { masterPhysicalDeviceInventoryCs } from './master.physicalDeviceInventory.cs';
+import { masterIntelligenceCs } from './master.intelligence.cs';
 import { masterMotionPhysicsCs } from './master.motionPhysics.cs';
 import { masterVehicleIdentityCs } from './master.vehicleIdentity.cs';
+import { masterOneAutoCs } from './master.oneAuto.cs';
 import { masterCvTechnicalSpecsCs } from './master.cv.technicalSpecs.cs';
 
 export const cs = {
@@ -59,6 +61,16 @@ export const cs = {
   'settings.accountInfo': 'Informace o uctu', 'settings.companyProfile': 'Profil firmy', 'settings.stationsBranches': 'Stanice a pobocky', 'settings.usersRoles': 'Uzivatele a role', 'settings.billingSubscription': 'Fakturace a predplatne', 'settings.firmLogo': 'Logo firmy', 'settings.documents': 'Dokumenty', 'settings.createNewLocation': 'Vytvorit novou lokaci', 'settings.inviteUser': 'Pozvat uzivatele', 'settings.paymentMethod': 'Zpusob platby', 'settings.subscriptionSummary': 'Souhrn predplatneho', 'settings.invoiceHistory': 'Historie faktur', 'settings.vehicles': 'Vozidla', 'settings.connectedVehicles': 'Pripojena vozidla', 'settings.dataSync': 'Synchronizace dat',
 
   // ─── Master — Connected Vehicles offboard (VO5C-P2A) ───
+  // ─── Master — Vehicle registration spec contract (V3) ───
+  'master.registration.lvBatteryConstructionType.label': 'Typ LV baterie',
+  'master.registration.lvBatteryConstructionType.leadAcid': 'Olověná (zalitá)',
+  'master.registration.lvBatteryChemistryHint.label': 'Chemie (pouze nápověda AI)',
+  'master.registration.lvBatteryChemistryHint.placeholder': 'Neukládá se — použijte typ LV',
+  'master.registration.lvBatteryChemistryHint.title': 'Chemie materiálu se neukládá; Battery Health používá typ konstrukce LV.',
+  'master.registration.lvBatteryType.legacyLabel': 'Uložená legacy hodnota (vyberte typ pro aktualizaci)',
+  'master.registration.lvBatteryType.lvBatteryTypeRequiredForNumbers': 'Před kapacitou nebo napětím vyberte podporovaný typ LV.',
+  'master.registration.lvBatteryType.lvBatteryTypeInvalid': 'Nepodporovaný typ LV. Zvolte AGM, EFB, olověnou nebo lithiovou.',
+
   'master.cv.registryLifecycle.active': 'Aktivni',
   'master.cv.registryLifecycle.offboarded': 'Vyrazeno z provozu',
   'master.cv.registryLifecycle.archived': 'Archivovano',
@@ -68,6 +80,22 @@ export const cs = {
   'master.cv.registryLifecycle.filter.archived': 'Archivovane',
   'master.cv.registryLifecycle.filter.all': 'Vsechny cykly',
   'master.cv.registryLifecycle.filter.ariaLabel': 'Filtrovat podle zivotniho cyklu registru',
+  'master.cv.overview.telemetryNoSignal': 'Bez signálu',
+  'master.cv.overview.telemetrySignalDelayed': 'Signál zpožděn',
+  'master.cv.overview.openPlatformHealth': 'Otevřít stav platformy',
+  'master.cv.overview.platformDimoDegradedBody':
+    'Globální výpadek DIMO — telemetrie vozidel může být zastaralá. Bez duplicitního varování na vozidlo.',
+  'master.cv.overview.platformDimoDegradedTitle': 'Platforma DIMO omezena',
+  'master.cv.overview.unavailableTitle': 'Přehled není k dispozici',
+  'master.cv.overview.noAttention': 'Žádné otevřené položky governance.',
+  'master.cv.overview.showAll': 'Zobrazit vše',
+  'master.cv.overview.attentionQueue': 'Fronta pozornosti',
+  'master.cv.overview.telemetryDistribution': 'Rozložení telemetrie',
+  'master.cv.overview.dimoLinked': 'Propojeno s DIMO (aktivní)',
+  'master.cv.overview.withAttention': 'Vyžaduje pozornost',
+  'master.cv.overview.unregistered': 'Nepřiřazeno',
+  'master.cv.overview.registeredActive': 'Aktivní flotila',
+  'master.cv.overview.registeredAllHint': 'Všechny záznamy: {total} (vyřazeno {offboarded}, archivováno {archived})',
   'master.cv.mapping.mirrorProvider': 'DIMO zrcadlo (poskytovatel)',
   'master.cv.mapping.effectiveSynqDriveAccess': 'Pristup SynqDrive (efektivni)',
   'master.cv.offboard.action': 'Odebrat z aktivni flotily',
@@ -157,7 +185,7 @@ export const cs = {
   'newBooking.title': 'Nova rezervace', 'newBooking.selectCustomer': 'Vybrat zakaznika', 'newBooking.selectVehicle': 'Vybrat vozidlo', 'newBooking.timePeriod': 'Obdobi a vyzvednuti', 'newBooking.mileagePackages': 'Kilometrove balicky', 'newBooking.insurancePackages': 'Pojistne balicky', 'newBooking.extras': 'Doplnky', 'newBooking.invoice': 'Faktura', 'newBooking.rentalContract': 'Najemni smlouva', 'newBooking.createCustomer': 'Vytvorit noveho zakaznika', 'newBooking.bookingCreated': 'Rezervace vytvorena!',
   'newTaskModal.title': 'Novy ukol', 'newTaskModal.basicInfo': 'Zakladni informace', 'newTaskModal.vehicleAssignment': 'Vozidlo a prirazeni', 'newTaskModal.scheduling': 'Planovani',
   'trips.tripHistory': 'Historie cest', 'trips.noTrips': 'Zadne cesty nenalezeny', 'trips.tryAdjusting': 'Zkuste upravit filtry', 'trips.frequency': 'Frekvence', 'trips.low': 'Nizka', 'trips.medium': 'Stredni', 'trips.high': 'Vysoka', 'trips.distance': 'Vzdalenost', 'trips.duration': 'Doba', 'trips.alerts': 'Upozorneni', 'trips.drivingScore': 'Skore jizdy', 'trips.start': 'Start', 'trips.destination': 'Cil',
-  'health.aiHealthCare': 'AI zdravi', 'health.poweredByAi': 'Pohaneno AI', 'health.errorCodes': 'Chybove kody', 'health.noActiveErrors': 'Zadne aktivni chybove kody', 'health.timeline': 'Casova osa', 'health.battery': 'Baterie', 'health.voltage': 'Napeti', 'health.lastCheck': 'Posledni kontrola', 'health.temperature': 'Teplota', 'health.estimatedCapacity': 'Odhadovana kapacita', 'health.serviceInfo': 'Info o servisu', 'health.nextService': 'Dalsi servis', 'health.serviceHistory': 'Historie servisu', 'health.brakes': 'Brzdy', 'health.changeHistory': 'Historie vymen', 'health.tires': 'Pneumatiky', 'health.usageDistribution': 'Rozlozeni pouziti', 'health.city': 'Mesto', 'health.highway': 'Dalnice', 'health.countryRoad': 'Silnice', 'health.engineOil': 'Motorovy olej', 'health.lastChange': 'Posledni vymena', 'health.oilChangeHistory': 'Historie vymen oleje', 'health.tireRotation': 'Rotace pneumatik', 'health.tireChange': 'Vymena pneumatik',
+  'health.aiHealthCare': 'AI zdravi', 'health.aiTireSpec.applyFailed': 'Nepodarilo se aplikovat specifikaci pneumatik AI.', 'health.aiTireSpec.applySuccess': 'Specifikace pneumatik AI aplikovana.', 'health.aiTireSpec.seasonMismatchWarning': 'Spec AI ulozena. Sezona setupu nebyla zmenena a lisi se od navrhu AI.', 'health.aiTireSpec.staleBinding': 'Setup pneumatik se zmenil po AI dotazu. Znovu stahnete spec AI.', 'health.aiTireSpec.missingGenerationBinding': 'Chybi vazba generovani. Znovu stahnete spec AI.', 'health.aiTireSpec.missingActiveSetup': 'Neni aktivni setup pneumatik.', 'health.aiTireSpec.identityMismatch': 'Identita spec AI neodpovida setupu ani pozadavku.', 'health.poweredByAi': 'Pohaneno AI', 'health.errorCodes': 'Chybove kody', 'health.noActiveErrors': 'Zadne aktivni chybove kody', 'health.timeline': 'Casova osa', 'health.battery': 'Baterie', 'health.voltage': 'Napeti', 'health.lastCheck': 'Posledni kontrola', 'health.temperature': 'Teplota', 'health.estimatedCapacity': 'Odhadovana kapacita', 'health.serviceInfo': 'Info o servisu', 'health.nextService': 'Dalsi servis', 'health.serviceHistory': 'Historie servisu', 'health.brakes': 'Brzdy', 'health.changeHistory': 'Historie vymen', 'health.tires': 'Pneumatiky', 'health.usageDistribution': 'Rozlozeni pouziti', 'health.city': 'Mesto', 'health.highway': 'Dalnice', 'health.countryRoad': 'Silnice', 'health.engineOil': 'Motorovy olej', 'health.lastChange': 'Posledni vymena', 'health.oilChangeHistory': 'Historie vymen oleje', 'health.tireRotation': 'Rotace pneumatik', 'health.tireChange': 'Vymena pneumatik',
   'damages.totalDamages': 'Celkem poskozeni', 'damages.activeDamages': 'Aktivni poskozeni', 'damages.vehicleDamageMap': 'Mapa poskozeni vozidla', 'damages.damageHistory': 'Historie poskozeni',
   'documents.vehicleDocuments': 'Dokumenty vozidla', 'documents.monthlyFixedCosts': 'Mesicni fixni naklady',
   'customerDetail.title': 'Detail zakaznika', 'customerDetail.customerDocuments': 'Dokumenty zakaznika', 'customerDetail.customerAlerts': 'Upozorneni zakaznika', 'customerDetail.customerNotes': 'Poznamky zakaznika',   'customerDetail.drivingScore': 'Skore jizdy',
@@ -176,8 +204,10 @@ export const cs = {
   'trips.drivingImpact.quality.unavailable': 'Není k dispozici spolehlivé hodnocení zatížení vozidla.',
   'trips.drivingImpact.quality.r1Contained': 'Zatížení vozidla dočasně nedostupné (časové omezení R1).',
   ...masterPhysicalDeviceInventoryCs,
+  ...masterIntelligenceCs,
   ...masterMotionPhysicsCs,
 ...masterVehicleIdentityCs,
+  ...masterOneAutoCs,
   ...masterCvTechnicalSpecsCs,
   ...batteryV2HvInspectionCS,
   ...tireWearV3Cs,

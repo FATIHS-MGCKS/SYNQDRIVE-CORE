@@ -52,4 +52,18 @@ export const masterVehicleIdentityEn = {
   'master.vehicleIdentity.field.electrificationGrade': 'Electrification level',
   'master.vehicleIdentity.extractionStatus': 'OCR status: {status}',
   'master.vehicleIdentity.documentLinked': 'Document: {id}',
+  'master.vehicleIdentity.uploadToolbar': 'Upload registration certificate',
+  'master.vehicleIdentity.uploadUseToolbar': 'Use “Upload registration certificate” in the specification toolbar above.',
+  'master.vehicleIdentity.zb1DialogTitle': 'Registration certificate (ZB-I)',
+  'master.vehicleIdentity.zb1DialogDescription':
+    'Upload a PDF or image, review extracted fields, and apply confirmed values to the specification form.',
+  'master.vehicleIdentity.applyToRegistrationForm': 'Apply to specification form',
+  'master.vehicleIdentity.applyToFormBlockedVin': 'Apply blocked — acknowledge the VIN conflict first.',
+  'master.vehicleIdentity.applyToFormConflict': 'No values applied — confirm fields or resolve conflicts.',
+  'master.vehicleIdentity.applyToFormEmpty': 'No confirmed fields to apply.',
+  'master.vehicleIdentity.applyToFormSuccess': 'Confirmed values applied to the specification form (save to persist).',
+  'master.vehicleIdentity.applyToFormVinMismatchDocument':
+    'Document FIN does not match this vehicle — specification fields from this document cannot be applied.',
+  'master.vehicleIdentity.p2ToolbarDisabledHint':
+    'Registration certificate upload is not enabled in this environment (Vehicle Identity P2).',
 };

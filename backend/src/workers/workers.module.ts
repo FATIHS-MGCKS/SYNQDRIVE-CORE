@@ -28,7 +28,9 @@ import { DimoDtcProcessor } from './processors/dimo-dtc.processor';
 import { TireRecalculationProcessor } from './processors/tire-recalculation.processor';
 import { TireDs4ShadowProcessor } from './processors/tire-ds4-shadow.processor';
 import { TireDs4ShadowCatchupScheduler } from './schedulers/tire-ds4-shadow-catchup.scheduler';
+import { TireWearV3CalibrationShadowScheduler } from './schedulers/tire-wear-v3-calibration-shadow.scheduler';
 import { TireDs4ShadowModule } from '@modules/vehicle-intelligence/tires/ds4-shadow/tire-ds4-shadow.module';
+import { TireWearV3CalibrationShadowModule } from '@modules/vehicle-intelligence/tires/wear-v3-calibration-shadow/tire-wear-v3-calibration-shadow.module';
 import { BrakeRecalculationProcessor } from './processors/brake-recalculation.processor';
 import { TripTrackingProcessor } from './processors/trip-tracking.processor';
 import { TripBehaviorEnrichmentProcessor } from './processors/trip-behavior-enrichment.processor';
@@ -53,12 +55,14 @@ import { RawRefuelCandidateRecoveryScheduler } from './schedulers/raw-refuel-can
 import { ReferenceCaptureProcessor } from './processors/reference-capture.processor';
 import { ReferenceCaptureSettlementShadowProcessor } from './processors/reference-capture-settlement-shadow.processor';
 import { ReferenceCaptureExp021MaturationShadowProcessor } from './processors/reference-capture-exp021-maturation-shadow.processor';
+import { OneAutoProviderProcessor } from './processors/oneauto-provider.processor';
 import { ReferenceCaptureRetentionScheduler } from './schedulers/reference-capture-retention.scheduler';
 import { ReferenceCaptureSettlementShadowRecoveryScheduler } from './schedulers/reference-capture-settlement-shadow-recovery.scheduler';
 import { ReferenceCaptureExp021MaturationShadowRecoveryScheduler } from './schedulers/reference-capture-exp021-maturation-shadow-recovery.scheduler';
 import { ReferenceCaptureExp021FleetCoordinatorScheduler } from './schedulers/reference-capture-exp021-fleet-coordinator.scheduler';
 import { ReferenceCaptureExp021CanaryLiveWindowActivationScheduler } from './schedulers/reference-capture-exp021-canary-live-window-activation.scheduler';
 import { ReferenceCaptureExp021CanaryLiveWindowActivationSchedulerRuntimeModule } from '@modules/vehicle-intelligence/reference-capture/exp021-canary-live-window/reference-capture-exp021-canary-live-window-activation-scheduler-runtime.module';
+import { OneAutoProviderModule } from '@modules/oneauto-provider/oneauto-provider.module';
 
 import { DimoSnapshotScheduler } from './schedulers/dimo-snapshot.scheduler';
 import { SnapshotWakeHandoffRecoveryScheduler } from './schedulers/snapshot-wake-handoff-recovery.scheduler';
@@ -117,6 +121,7 @@ import { VehicleRegistryLifecycleOutboxWorker } from '@modules/vehicle-onboardin
       { name: QUEUE_NAMES.REFERENCE_CAPTURE },
       { name: QUEUE_NAMES.REFERENCE_CAPTURE_SETTLEMENT_SHADOW },
       { name: QUEUE_NAMES.REFERENCE_CAPTURE_EXP021_MATURATION_SHADOW },
+      { name: QUEUE_NAMES.ONEAUTO_PROVIDER },
     ),
     DimoModule,
     PdiIdentityDriftShadowModule,
@@ -125,6 +130,7 @@ import { VehicleRegistryLifecycleOutboxWorker } from '@modules/vehicle-onboardin
     VsiReadonlySignalComposerModule,
     VehicleIntelligenceModule,
     TireDs4ShadowModule,
+    TireWearV3CalibrationShadowModule,
     HighMobilityModule,
     NotificationsModule,
     PaymentsModule,
@@ -140,6 +146,7 @@ import { VehicleRegistryLifecycleOutboxWorker } from '@modules/vehicle-onboardin
     VehicleWarningGdprModule,
     BookingDocumentGenerationModule,
     ReferenceCaptureExp021CanaryLiveWindowActivationSchedulerRuntimeModule,
+    OneAutoProviderModule,
   ],
   providers: [
     // Processors
@@ -169,6 +176,7 @@ import { VehicleRegistryLifecycleOutboxWorker } from '@modules/vehicle-onboardin
     ReferenceCaptureProcessor,
     ReferenceCaptureSettlementShadowProcessor,
     ReferenceCaptureExp021MaturationShadowProcessor,
+    OneAutoProviderProcessor,
 
     // Schedulers
     DimoSnapshotScheduler,
@@ -177,6 +185,7 @@ import { VehicleRegistryLifecycleOutboxWorker } from '@modules/vehicle-onboardin
     DimoVehicleSyncScheduler,
     TireRecalculationScheduler,
     TireDs4ShadowCatchupScheduler,
+    TireWearV3CalibrationShadowScheduler,
     BrakeRecalculationScheduler,
     TripTrackingRecoveryScheduler,
     TripAnalysisRecoveryScheduler,

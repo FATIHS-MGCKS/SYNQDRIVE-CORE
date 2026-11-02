@@ -1,6 +1,7 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { VehicleTireSetup } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
+import { buildAuthoritativeV3UnavailableRead } from './tire-health-v3-read.adapter';
 import { TireHealthV3ReadService } from './tire-health-v3-read.service';
 import { TireWearModelService } from './tire-wear-model.service';
 
@@ -33,11 +34,31 @@ export class TiresService {
       where: { vehicleId, status: 'ACTIVE' },
       select: { id: true },
     });
-    const wearV3 = setup ? await this.tireHealthV3Read.computeCustomerRead(setup.id) : null;
-    return {
-      ...analysis,
-      wearReadModel: this.tireHealthV3Read.isCustomerReadAuthoritative() ? 'v3' : 'v2',
-      wearV3,
-    };
+    const authoritative = this.tireHealthV3Read.isCustomerReadAuthoritative();
+    if (!setup) {
+      if (!authoritative) {
+        return { ...analysis, wearReadModel: 'v2' as const, wearV3: undefined };
+      }
+      return {
+        ...analysis,
+        wearReadModel: 'v3' as const,
+        wearV3: buildAuthoritativeV3UnavailableRead('no_result'),
+      };
+    }
+
+    const resolution = await this.tireHealthV3Read.resolveCustomerReadForApi(setup.id);
+    if (resolution.kind === 'inactive') {
+      return analysis;
+    }
+    if (!authoritative) {
+      const wearV3 = resolution.kind === 'ok' ? resolution.read : undefined;
+      return { ...analysis, wearReadModel: 'v2' as const, wearV3 };
+    }
+
+    const wearV3 =
+      resolution.kind === 'ok'
+        ? resolution.read
+        : buildAuthoritativeV3UnavailableRead(resolution.reason);
+    return { ...analysis, wearReadModel: 'v3' as const, wearV3 };
   }
 }

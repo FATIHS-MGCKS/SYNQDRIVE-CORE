@@ -13,16 +13,25 @@ import type { Ds4TripAssessmentReasonCodeV1 } from './ds4-trip-assessment-v1.con
  */
 export const DS4_ASSESSMENT_QUALITY_POLICY_VERSION_V1 = 'DS4_ASSESSMENT_QUALITY_POLICY_V1' as const;
 
+export const DS4_ASSESSMENT_QUALITY_POLICY_VERSION_V2 = 'DS4_ASSESSMENT_QUALITY_POLICY_V2' as const;
+
 export type Ds4AssessmentQualityPolicyV1 = {
-  policyVersion: typeof DS4_ASSESSMENT_QUALITY_POLICY_VERSION_V1;
+  policyVersion:
+    | typeof DS4_ASSESSMENT_QUALITY_POLICY_VERSION_V1
+    | typeof DS4_ASSESSMENT_QUALITY_POLICY_VERSION_V2;
   /** When false, trip-level RATED is never emitted (calibration gap documented). */
   ordinalTripRatingApproved: boolean;
 };
 
-export const DS4_ASSESSMENT_QUALITY_POLICY_V1_DEFAULT: Ds4AssessmentQualityPolicyV1 = {
-  policyVersion: DS4_ASSESSMENT_QUALITY_POLICY_VERSION_V1,
+/** PR-A2: intensity eligibility + driving exposure (ordinal trip rating still off). */
+export const DS4_ASSESSMENT_QUALITY_POLICY_V2_DEFAULT: Ds4AssessmentQualityPolicyV1 = {
+  policyVersion: DS4_ASSESSMENT_QUALITY_POLICY_VERSION_V2,
   ordinalTripRatingApproved: false,
 };
+
+/** @deprecated Use DS4_ASSESSMENT_QUALITY_POLICY_V2_DEFAULT — retained for imports/tests. */
+export const DS4_ASSESSMENT_QUALITY_POLICY_V1_DEFAULT: Ds4AssessmentQualityPolicyV1 =
+  DS4_ASSESSMENT_QUALITY_POLICY_V2_DEFAULT;
 
 export type Ds4AssessmentQualityEvaluationV1 = {
   reasonCodes: Ds4TripAssessmentReasonCodeV1[];

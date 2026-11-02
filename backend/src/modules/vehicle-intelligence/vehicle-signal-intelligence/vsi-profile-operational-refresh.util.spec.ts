@@ -7,7 +7,9 @@ import {
 import {
   buildOperationalProfileRefreshCasWhere,
   buildOperationalProfileRefreshUpdate,
+  isActiveRpmProfileEvidenceMonotonic,
   isIncomingActiveRpmEvidenceMonotonic,
+  isRpmCadenceTierResolutionEvidenceMonotonic,
   mergeOperationalCadenceIntelligence,
   mergeOperationalSignalSnapshots,
 } from './vsi-profile-operational-refresh.util';
@@ -319,6 +321,240 @@ describe('vsi-profile-operational-refresh.util', () => {
       'trip-f',
     ]);
     expect(merged?.cadenceSemanticFingerprint).toBe('cadence-fp-stable');
+  });
+
+  it('mergeOperationalCadenceIntelligence refreshes rpmCadenceTierResolution when fingerprint is stable', () => {
+    const cadenceBase = {
+      contractVersion: VSI_SIGNAL_CADENCE_CONTRACT_VERSION,
+      evidenceConfidence: 'HIGH' as const,
+      provenance: [],
+      limitations: [],
+      observedSampleCount: 100,
+      distinctTimestampCount: 100,
+      intervalMedianSeconds: 1,
+      intervalP95Seconds: 2,
+      maxIntraWindowGapSeconds: 2,
+      activeWindowCoverageRatio: 0.5,
+      finalizedTripCount: 5,
+      regimes: [],
+      observedDensityLabel: 'ONE_SECOND_BUCKETS_UNPROVEN' as const,
+      cadenceSemanticFingerprint: 'cadence-fp-tier',
+    };
+    const tierTrip = (tripId: string, endMs: number) => ({
+      tripId,
+      endMs,
+      tier: 'RPM_1S' as const,
+      cadenceConfidence: 'HIGH' as const,
+      tripCoverageBand: 'FULL_SPAN' as const,
+      analysisReadiness: 'TIER_ANALYTICS_OK' as const,
+      decisionCode: 'TIER_ASSIGNED' as const,
+      intervalEvidenceUsed: {
+        rpmPointCount: 50,
+        activeIntervalCount: 49,
+        tripDurationSeconds: 400,
+      },
+      p50ActiveSeconds: 1,
+      p75ActiveSeconds: 1,
+      p90ActiveSeconds: 2,
+      activeSpanRatio: 0.5,
+      activeDensityVsTier: 1,
+      tierPuritySharePlusOne: 0.9,
+      longestSequenceIntervals: 20,
+    });
+    const persistedCadence: VsiSignalCadenceIntelligenceV2 = {
+      ...cadenceBase,
+      rpmCadenceTierResolution: {
+        contractVersion: 'vsi-rpm-cadence-tier-resolution-v1',
+        evaluatedTripIds: ['trip-a', 'trip-b', 'trip-c', 'trip-d', 'trip-e'],
+        tripClassifications: [
+          tierTrip('trip-a', 1),
+          tierTrip('trip-b', 2),
+          tierTrip('trip-c', 3),
+          tierTrip('trip-d', 4),
+          tierTrip('trip-e', 5),
+        ],
+        rollingVehicleTierSummary: {
+          tier: 'RPM_1S',
+          agreementRatio: 1,
+          classificationDecisionCode: 'ROLLING_SUPERMAJORITY',
+          classificationDecisionSummary: 'ok',
+          sufficientEvidence: true,
+        },
+        provenance: ['CLICKHOUSE_TELEMETRY_HF_POINTS'],
+        evidenceObservedAt: '2026-10-27T00:00:00.000Z',
+      },
+    };
+    const incomingCadence: VsiSignalCadenceIntelligenceV2 = {
+      ...cadenceBase,
+      rpmCadenceTierResolution: {
+        ...persistedCadence.rpmCadenceTierResolution!,
+        evaluatedTripIds: ['trip-b', 'trip-c', 'trip-d', 'trip-e', 'trip-f'],
+        tripClassifications: [
+          tierTrip('trip-b', 2),
+          tierTrip('trip-c', 3),
+          tierTrip('trip-d', 4),
+          tierTrip('trip-e', 5),
+          tierTrip('trip-f', 6),
+        ],
+      },
+    };
+    const merged = mergeOperationalCadenceIntelligence(persistedCadence, incomingCadence);
+    expect(merged?.rpmCadenceTierResolution?.evaluatedTripIds).toEqual([
+      'trip-b',
+      'trip-c',
+      'trip-d',
+      'trip-e',
+      'trip-f',
+    ]);
+  });
+
+  describe('independent legacy vs tier rolling monotonicity', () => {
+    const cadenceFp = 'cadence-fp-independent';
+    const cadenceBase = {
+      contractVersion: VSI_SIGNAL_CADENCE_CONTRACT_VERSION,
+      evidenceConfidence: 'HIGH' as const,
+      provenance: [],
+      limitations: [],
+      observedSampleCount: 100,
+      distinctTimestampCount: 100,
+      intervalMedianSeconds: 1,
+      intervalP95Seconds: 2,
+      maxIntraWindowGapSeconds: 2,
+      activeWindowCoverageRatio: 0.5,
+      finalizedTripCount: 1,
+      regimes: [],
+      observedDensityLabel: 'ONE_SECOND_BUCKETS_UNPROVEN' as const,
+      cadenceSemanticFingerprint: cadenceFp,
+    };
+
+    const legacyProfile = (endMs: number) => ({
+      contractVersion: 'vsi-active-rpm-profile-v1' as const,
+      activeProfile: 'RPM_1HZ' as const,
+      evaluatedTripIds: [`trip-${endMs}`],
+      qualifyingTripCount: 1,
+      agreementRatio: 1,
+      classificationDecisionCode: 'ROLLING_SUPERMAJORITY',
+      classificationDecisionSummary: 'ok',
+      tripClassifications: [
+        {
+          tripId: `trip-${endMs}`,
+          endMs,
+          profile: 'RPM_1HZ' as const,
+          intervalMedianSeconds: 1,
+          intervalP95Seconds: 2,
+          intervalCount: 40,
+          rpmPointCount: 50,
+          fractionIntervalsLe2s: 0.9,
+          decisionCode: 'FAST_1_2S_BUCKET_PATTERN',
+        },
+      ],
+      profileSemanticFingerprint: 'rpm-profile-fp',
+    });
+
+    const tierResolution = (endMs: number, tierLabel = 'RPM_1S') => ({
+      contractVersion: 'vsi-rpm-cadence-tier-resolution-v1' as const,
+      evaluatedTripIds: [`trip-tier-${endMs}`],
+      tripClassifications: [
+        {
+          tripId: `trip-tier-${endMs}`,
+          endMs,
+          tier: tierLabel as 'RPM_1S',
+          cadenceConfidence: 'HIGH' as const,
+          tripCoverageBand: 'FULL_SPAN' as const,
+          analysisReadiness: 'TIER_ANALYTICS_OK' as const,
+          decisionCode: 'TIER_ASSIGNED' as const,
+          intervalEvidenceUsed: {
+            rpmPointCount: 50,
+            activeIntervalCount: 49,
+            tripDurationSeconds: 400,
+          },
+          p50ActiveSeconds: 1,
+          p75ActiveSeconds: 1,
+          p90ActiveSeconds: 2,
+          activeSpanRatio: 0.5,
+          activeDensityVsTier: 1,
+          tierPuritySharePlusOne: 0.9,
+          longestSequenceIntervals: 20,
+        },
+      ],
+      rollingVehicleTierSummary: {
+        tier: tierLabel as 'RPM_1S',
+        agreementRatio: 1,
+        classificationDecisionCode: 'ROLLING_SUPERMAJORITY',
+        classificationDecisionSummary: 'ok',
+        sufficientEvidence: true,
+      },
+      provenance: ['CLICKHOUSE_TELEMETRY_HF_POINTS'],
+      evidenceObservedAt: new Date(endMs).toISOString(),
+    });
+
+    const mkCadence = (legacyEndMs: number, tierEndMs: number): VsiSignalCadenceIntelligenceV2 => ({
+      ...cadenceBase,
+      activeRpmProfile: legacyProfile(legacyEndMs),
+      rpmCadenceTierResolution: tierResolution(tierEndMs),
+    });
+
+    it('merges fresh legacy (121) but keeps persisted tier when incoming tier is stale (90 vs 100)', () => {
+      const persisted = mkCadence(120, 100);
+      const incoming = mkCadence(121, 90);
+      const merged = mergeOperationalCadenceIntelligence(persisted, incoming)!;
+      expect(merged.activeRpmProfile?.tripClassifications[0]?.endMs).toBe(121);
+      expect(merged.rpmCadenceTierResolution?.tripClassifications[0]?.endMs).toBe(100);
+      expect(merged.rpmCadenceTierResolution?.evaluatedTripIds).toEqual(['trip-tier-100']);
+      expect(isActiveRpmProfileEvidenceMonotonic(persisted, incoming)).toBe(true);
+      expect(isRpmCadenceTierResolutionEvidenceMonotonic(persisted, incoming)).toBe(false);
+      expect(isIncomingActiveRpmEvidenceMonotonic(persisted, incoming)).toBe(true);
+    });
+
+    it('merges fresh tier (110) but keeps persisted legacy when incoming legacy is stale (119 vs 120)', () => {
+      const persisted = mkCadence(120, 100);
+      const incoming = mkCadence(119, 110);
+      const merged = mergeOperationalCadenceIntelligence(persisted, incoming)!;
+      expect(merged.activeRpmProfile?.tripClassifications[0]?.endMs).toBe(120);
+      expect(merged.rpmCadenceTierResolution?.tripClassifications[0]?.endMs).toBe(110);
+      expect(isActiveRpmProfileEvidenceMonotonic(persisted, incoming)).toBe(false);
+      expect(isRpmCadenceTierResolutionEvidenceMonotonic(persisted, incoming)).toBe(true);
+    });
+
+    it('accepts identical max endMs when evaluatedTripIds match', () => {
+      const persisted = mkCadence(120, 120);
+      const incoming = {
+        ...mkCadence(120, 120),
+        observedSampleCount: 101,
+      };
+      expect(isActiveRpmProfileEvidenceMonotonic(persisted, incoming)).toBe(true);
+      expect(isRpmCadenceTierResolutionEvidenceMonotonic(persisted, incoming)).toBe(true);
+      const merged = mergeOperationalCadenceIntelligence(persisted, incoming)!;
+      expect(merged.observedSampleCount).toBe(101);
+    });
+
+    it('rejects merge when both blocks regress', () => {
+      const persisted = mkCadence(120, 100);
+      const incoming = mkCadence(119, 90);
+      expect(isIncomingActiveRpmEvidenceMonotonic(persisted, incoming)).toBe(false);
+      expect(mergeOperationalCadenceIntelligence(persisted, incoming)).toBe(persisted);
+    });
+
+    it('rejects incoming that drops persisted rolling blocks (missing HF)', () => {
+      const persisted = mkCadence(120, 100);
+      const incoming: VsiSignalCadenceIntelligenceV2 = {
+        ...cadenceBase,
+      };
+      expect(isActiveRpmProfileEvidenceMonotonic(persisted, incoming)).toBe(false);
+      expect(isRpmCadenceTierResolutionEvidenceMonotonic(persisted, incoming)).toBe(false);
+      expect(mergeOperationalCadenceIntelligence(persisted, incoming)).toBe(persisted);
+    });
+
+    it('sequential partial merges compose without cross-block stale overwrite', () => {
+      const persisted = mkCadence(120, 100);
+      const afterLegacy = mergeOperationalCadenceIntelligence(persisted, mkCadence(121, 90))!;
+      expect(afterLegacy.activeRpmProfile?.tripClassifications[0]?.endMs).toBe(121);
+      expect(afterLegacy.rpmCadenceTierResolution?.tripClassifications[0]?.endMs).toBe(100);
+
+      const finalMerged = mergeOperationalCadenceIntelligence(afterLegacy, mkCadence(119, 110))!;
+      expect(finalMerged.activeRpmProfile?.tripClassifications[0]?.endMs).toBe(121);
+      expect(finalMerged.rpmCadenceTierResolution?.tripClassifications[0]?.endMs).toBe(110);
+    });
   });
 
   it('mergeOperationalCadenceIntelligence keeps persisted cadence when semantic fingerprint diverges', () => {

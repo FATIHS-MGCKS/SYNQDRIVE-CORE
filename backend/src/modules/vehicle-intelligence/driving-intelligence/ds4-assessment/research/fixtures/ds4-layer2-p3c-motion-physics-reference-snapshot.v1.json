@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "DS4_LAYER2_P3C_MOTION_PHYSICS_REFERENCE_FIXTURE_V1",
+  "organizationId": "faa710c9-6d91-4079-a7d5-91fdccdec14a",
+  "referenceInputProvenance": "FIXTURE_SNAPSHOT",
+  "effectiveFromNotHistoricalEvidence": true,
+  "note": "Scalar values are production-aligned for exploratory research. effectiveFrom dates are fixture authoring only and must not be treated as independently evidenced historical applicability.",
+  "vehicles": {
+    "68868291-5478-42cd-b0c4-cc77b2a78e21": {
+      "vehicleLine": "TESLA_MODEL_3",
+      "reference": {
+        "id": "fixture-tesla-ref",
+        "identityFingerprintJson": {
+          "vinHash": null,
+          "make": "Tesla",
+          "model": "Model 3",
+          "modelYear": 2019,
+          "variantLabel": null
+        },
+        "curbMassKg": 1760,
+        "systemMotorPowerKw": 208,
+        "systemPowerDefinition": "OEM_RATED_SYSTEM_KW",
+        "accel0To100S": 6.1,
+        "evidenceTier": "CONFIRMED",
+        "source": "MANUAL_ENTRY",
+        "verifiedAt": null,
+        "verifiedByUserId": null,
+        "documentExtractionId": null,
+        "effectiveFrom": "2025-01-01T00:00:00.000Z",
+        "effectiveTo": null,
+        "isActive": true,
+        "supersededById": null,
+        "variantAssumption": null
+      }
+    },
+    "19fedd4b-c4e8-4de8-a125-dab293326e7e": {
+      "vehicleLine": "VW_TIGUAN",
+      "reference": {
+        "id": "fixture-tiguan-ref",
+        "identityFingerprintJson": {
+          "vinHash": null,
+          "make": "Volkswagen",
+          "model": "Tiguan",
+          "modelYear": 2019,
+          "variantLabel": null
+        },
+        "curbMassKg": 1601,
+        "systemMotorPowerKw": 110,
+        "systemPowerDefinition": "OEM_RATED_ENGINE_KW",
+        "accel0To100S": 9.1,
+        "evidenceTier": "ESTIMATED",
+        "source": "MANUAL_ENTRY",
+        "verifiedAt": null,
+        "verifiedByUserId": null,
+        "documentExtractionId": null,
+        "effectiveFrom": "2025-01-01T00:00:00.000Z",
+        "effectiveTo": null,
+        "isActive": true,
+        "supersededById": null,
+        "variantAssumption": "BASE_TRIM"
+      }
+    },
+    "c10351f8-b6a2-4258-947f-631aeaa6d359": {
+      "vehicleLine": "AUDI_A4",
+      "reference": {
+        "id": "fixture-audi-ref",
+        "identityFingerprintJson": {
+          "vinHash": null,
+          "make": "Audi",
+          "model": "A4",
+          "modelYear": 2019,
+          "variantLabel": null
+        },
+        "curbMassKg": 1735,
+        "systemMotorPowerKw": 200,
+        "systemPowerDefinition": "OEM_RATED_ENGINE_KW",
+        "accel0To100S": 5.3,
+        "evidenceTier": "CONFIRMED",
+        "source": "MANUAL_ENTRY",
+        "verifiedAt": null,
+        "verifiedByUserId": null,
+        "documentExtractionId": null,
+        "effectiveFrom": "2025-01-01T00:00:00.000Z",
+        "effectiveTo": null,
+        "isActive": true,
+        "supersededById": null,
+        "variantAssumption": null
+      }
+    }
+  }
+}

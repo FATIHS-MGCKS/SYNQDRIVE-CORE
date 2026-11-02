@@ -34,6 +34,7 @@ import {
 import {
   buildMountPeriodCreateData,
   buildSetupOdometerAnchorFields,
+  assessOdometerPlausibility,
   resolveOdometerAnchor,
   toFiniteOdometerKm,
   type ResolvedOdometerAnchor,
@@ -47,6 +48,8 @@ import {
 import {
   assessV3Ingestion,
   isGroundTruthMeasurementCommand,
+  isOdometerExplicitlyConfirmed,
+  isRegistrationBaselineLegacySource,
   resolveExplicitMeasurementOdometerKm,
   resolveInferredMeasurementOdometerKm,
   resolvePersistedMeasurementOdometerKm,
@@ -56,9 +59,11 @@ import {
 } from './tire-measurement-v3-ingestion';
 import { resolveActiveMountPeriod } from './wear-v3-prior/tire-wear-v3-prior.lifecycle';
 import { TireWearV3PriorService } from './wear-v3-prior/tire-wear-v3-prior.service';
+import { isVerificationExcludedLegacySource } from './wear-v3-prior/tire-wear-v3-verification.accepted';
 
 export type TireMeasurementSource =
   | 'manual'
+  | 'manual_registration'
   | 'workshop'
   | 'ai_confirmed'
   | 'calibration';
@@ -177,7 +182,9 @@ export interface UpsertVehicleTireInput {
 const SOURCE_MAP: Record<string, TireMeasurementSource> = {
   manual: 'manual',
   manual_edit: 'manual',
-  manual_registration: 'manual',
+  manual_registration: 'manual_registration',
+  documented_registration: 'manual_registration',
+  registration: 'manual_registration',
   workshop: 'workshop',
   ai_upload: 'ai_confirmed',
   ai_confirmed: 'ai_confirmed',
@@ -297,10 +304,28 @@ export class TireLifecycleService {
     const inferredAnchor = resolveInferredMeasurementOdometerKm(command, odometerContext);
     const explicitOdometerKm = resolveExplicitMeasurementOdometerKm(command);
     const groundTruth = isGroundTruthMeasurementCommand(source, evidenceSource);
+    if (
+      groundTruth &&
+      explicitOdometerKm != null &&
+      isOdometerExplicitlyConfirmed(command)
+    ) {
+      const plausibility = assessOdometerPlausibility(
+        explicitOdometerKm,
+        odometerContext.lastKnownOdometerKm,
+      );
+      if (!plausibility.plausible) {
+        throw new BadRequestException(
+          `Odometer at measurement time is not plausible (${plausibility.issue ?? 'UNKNOWN'}). Correct the reading or save tread without odometer confirmation for V3.`,
+        );
+      }
+    }
+    const blockInferredOdometer =
+      isVerificationExcludedLegacySource(source) ||
+      isRegistrationBaselineLegacySource(source);
     const resolvedOdometer = resolvePersistedMeasurementOdometerKm({
       groundTruth,
       explicitOdometerKm,
-      inferredOdometerKm: inferredAnchor.odometerKm,
+      inferredOdometerKm: blockInferredOdometer ? null : inferredAnchor.odometerKm,
     });
 
     const mountPeriod = await this.resolveActiveMountPeriodForSetup(setup.id, measuredAt, setup);
@@ -405,6 +430,7 @@ export class TireLifecycleService {
           inferredAnchor,
           treadValues: values,
           priorResult,
+          workshopName: command.workshopName ?? null,
         });
         v3Recompute = { status: 'ok' };
       } catch (err) {
@@ -426,6 +452,7 @@ export class TireLifecycleService {
         v3Ingestion = {
           verificationEligible: false,
           posteriorCalibrationEligible: false,
+          evidenceClass: 'EXCLUDED_SOURCE',
           verificationStatus: null,
           warnings: [
             {
@@ -1445,7 +1472,7 @@ export class TireLifecycleService {
         rearRightMm: input.treadBR ?? undefined,
         source: input.source ?? 'manual_registration',
         quality: 'measured',
-        shouldCalibrate: true,
+        shouldCalibrate: false,
         triggerRecalculate: true,
       });
       measurement = measured.measurement;

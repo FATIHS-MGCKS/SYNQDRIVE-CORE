@@ -7,6 +7,8 @@ export const masterMotionPhysicsCs = {
   'master.motionPhysics.systemPowerDefinition.option.estimated': 'Odhadovaný systémový výkon (AI / nejistý)',
   'master.motionPhysics.systemPowerDefinition.hint':
     'Nemíchejte výkon motoru a systémový výkon — zejména u EV a hybridů.',
+  'master.motionPhysics.systemPowerDefinition.persistHint':
+    'Typ uvedeného výkonu se neukládá tlačítkem „Uložit změny“. Použijte „Potvrdit ruční hodnoty“ pro uložení volby v referenci pohybové fyziky.',
   'master.motionPhysics.systemMotorPowerKw.hintMotor': 'Zadejte jmenovitý výkon motoru OEM v kW.',
   'master.motionPhysics.systemMotorPowerKw.hintSystem': 'Zadejte kombinovaný systémový výkon OEM v kW (ne výkon na kolech).',
   'master.motionPhysics.accel0To100S': '0–100 km/h (s)',

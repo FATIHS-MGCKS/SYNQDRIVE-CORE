@@ -22,20 +22,9 @@ import {
   validateJobTireSetupBinding,
   type TireSetupIdentitySnapshot,
 } from '../../vehicle-intelligence/tires/ai-tire-spec-job-binding.util';
-
-function mapTireSpecAliases(
-  raw: Record<string, unknown> | null,
-): Record<string, unknown> | null {
-  if (!raw) return null;
-  return {
-    ...raw,
-    legalMinimumMm: raw.legalMinimumMm ?? raw.legalMinTreadDepthMm,
-    recommendedReplacementDepthMm:
-      raw.recommendedReplacementDepthMm ?? raw.practicalReplacementDepthMm,
-    operationalReplacementDepthMm:
-      raw.operationalReplacementDepthMm ?? raw.winterRecommendedMinDepthMm,
-  };
-}
+import { mapAiTireSpecLegacyAliases } from '../../vehicle-intelligence/tires/ai-tire-spec-legacy-alias.util';
+import { preflightJobAiTireSpecApply } from '../../vehicle-intelligence/tires/ai-tire-spec-apply-preflight.util';
+import { processAiTireSpecCompactLlmOutput } from '../../vehicle-intelligence/tires/ai-tire-spec-compact-pipeline.util';
 
 // ── Input DTO ─────────────────────────────────────────────────────────────────
 export interface StartAiTireSpecJobInput {
@@ -83,6 +72,8 @@ export interface AiTireSpecApplyResult {
   appliedFields?: string[];
   message?: string;
   idempotentReplay?: boolean;
+  code?: string;
+  setupSpecWarnings?: import('../../vehicle-intelligence/tires/ai-tire-spec-setup-consistency.util').AiTireSpecSetupConflict[];
 }
 
 @Injectable()
@@ -243,6 +234,7 @@ export class AiTireSpecJobService {
       loadIndexRear: true,
       speedIndexFront: true,
       speedIndexRear: true,
+      tireSeason: true,
       initialTreadEvidenceSource: true,
       initialTreadDepthMm: true,
       initialTreadFrontMm: true,
@@ -317,6 +309,20 @@ export class AiTireSpecJobService {
       null;
 
     const userConfirmedSpec = options.userConfirmedSpec === true;
+    const specForApply = { ...normalized, userConfirmedSpec };
+
+    const preflight = preflightJobAiTireSpecApply({
+      setup: setup as TireSetupIdentitySnapshot,
+      spec: specForApply,
+      jobIdentity: {
+        tireSize: job.tireSize,
+        loadIndex: job.loadIndex,
+        speedIndex: job.speedIndex,
+      },
+    });
+    if (!preflight.ok) {
+      return { success: false, message: preflight.message, code: preflight.code };
+    }
 
     const persisted = buildPersistedAiTireSpec(normalized, {
       jobId: job.id,
@@ -387,7 +393,13 @@ export class AiTireSpecJobService {
       .filter(([, v]) => v != null)
       .map(([k]) => k);
 
-    return { success: true, setupId: setup.id, appliedFields };
+    return {
+      success: true,
+      setupId: setup.id,
+      appliedFields,
+      setupSpecWarnings:
+        preflight.setupSpecWarnings.length > 0 ? preflight.setupSpecWarnings : undefined,
+    };
   }
 
   // ── Internal: async job execution ───────────────────────────────────────────
@@ -457,8 +469,15 @@ export class AiTireSpecJobService {
         return;
       }
 
-      const specsForNormalize = mapTireSpecAliases(rawSpecs);
-      const normalized = normalizeAiTireSpecResult(specsForNormalize);
+      const specsForNormalize = mapAiTireSpecLegacyAliases(rawSpecs);
+      const compactRaw = processAiTireSpecCompactLlmOutput(specsForNormalize ?? {}, {
+        brand: job.brand,
+        model: job.model,
+        tireSize: job.tireSize,
+        loadIndex: job.loadIndex,
+        speedIndex: job.speedIndex,
+      });
+      const normalized = normalizeAiTireSpecResult(compactRaw);
       const validation = validateAiTireSpec(normalized);
 
       if (validation.warnings.length > 0) {

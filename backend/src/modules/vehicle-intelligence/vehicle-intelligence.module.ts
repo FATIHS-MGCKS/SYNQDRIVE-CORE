@@ -303,6 +303,10 @@ import { DiV0S4RuntimeModule } from './driving-intelligence/s4-runtime/di-v0-s4-
 import { VsiReadonlySignalComposerModule } from './vehicle-signal-intelligence/vsi-readonly-composer.module';
 import { VsiSignalProfileInspectionController } from './vehicle-signal-intelligence/vsi-signal-profile-inspection.controller';
 import { VsiCapabilityResolverController } from './vehicle-signal-intelligence/vsi-capability-resolver.controller';
+import { VsiMasterIntelligenceReadController } from './vehicle-signal-intelligence/vsi-master-intelligence-read.controller';
+import { VsiMasterIntelligenceReadService } from './vehicle-signal-intelligence/vsi-master-intelligence-read.service';
+import { ApdsMasterIntelligenceReadController } from './vehicle-signal-intelligence/apds-master-intelligence-read.controller';
+import { ApdsMasterIntelligenceReadService } from './vehicle-signal-intelligence/apds-master-intelligence-read.service';
 import { VsiCapabilityResolverService } from './vehicle-signal-intelligence/vsi-capability-resolver.service';
 import { VsiCapabilityResolverRepository } from './vehicle-signal-intelligence/vsi-capability-resolver.repository';
 import { VsiApdsP5ReadonlyService } from './vehicle-signal-intelligence/vsi-apds-p5.service';
@@ -310,8 +314,11 @@ import { DiV0TripSpeedQualityModule } from './driving-intelligence/trip-speed-qu
 import { DiV0S4ResearchModule } from './driving-intelligence/s4-research-worker/di-v0-s4-research.module';
 import { DiV0MotionCoreShadowModule } from './driving-intelligence/motion-core-shadow-worker/di-v0-motion-core-shadow.module';
 import { DiV0Ds4AssessmentModule } from './driving-intelligence/ds4-assessment/ds4-assessment.module';
+import { DiV0Ds4RpmHfV1aModule } from './driving-intelligence/rpm-hf-v1a/di-v0-ds4-rpm-hf-v1a.module';
+import { DiV0Ds4RpmHfV1bModule } from './driving-intelligence/rpm-hf-v1b/di-v0-ds4-rpm-hf-v1b.module';
 import { TireDs4ShadowModule } from './tires/ds4-shadow/tire-ds4-shadow.module';
 import { TireWearV3PriorModule } from './tires/wear-v3-prior/tire-wear-v3-prior.module';
+import { TireWearV3CalibrationShadowModule } from './tires/wear-v3-calibration-shadow/tire-wear-v3-calibration-shadow.module';
 import { TireHealthV3ReadModule } from './tires/tire-health-v3-read.module';
 import { DiV0M7aRoadAssignmentShadowModule } from './driving-intelligence/m7a-road-assignment-shadow-worker/di-v0-m7a-road-assignment-shadow.module';
 
@@ -324,8 +331,11 @@ import { DiV0M7aRoadAssignmentShadowModule } from './driving-intelligence/m7a-ro
     DiV0S4ResearchModule,
     DiV0MotionCoreShadowModule,
     DiV0Ds4AssessmentModule,
+    DiV0Ds4RpmHfV1aModule,
+    DiV0Ds4RpmHfV1bModule,
     TireDs4ShadowModule,
     TireWearV3PriorModule,
+    TireWearV3CalibrationShadowModule,
     TireHealthV3ReadModule,
     DiV0M7aRoadAssignmentShadowModule,
     forwardRef(() => AiModule),
@@ -359,11 +369,13 @@ import { DiV0M7aRoadAssignmentShadowModule } from './driving-intelligence/m7a-ro
       { name: QUEUE_NAMES.REFERENCE_CAPTURE_EXP021_MATURATION_SHADOW },
     ),
   ],
-  controllers: [VehicleIntelligenceController, DamagesOrgController, DrivingDecisionsController, VehicleBatteryReferenceCapacityController, VehicleMotionPhysicsReferenceController, HvCapacityShadowEvaluationController, HvMeasurementQualityController, BatteryShadowValidationController, ReferenceCaptureController, VsiSignalProfileInspectionController, VsiCapabilityResolverController],
+  controllers: [VehicleIntelligenceController, DamagesOrgController, DrivingDecisionsController, VehicleBatteryReferenceCapacityController, VehicleMotionPhysicsReferenceController, HvCapacityShadowEvaluationController, HvMeasurementQualityController, BatteryShadowValidationController, ReferenceCaptureController, VsiSignalProfileInspectionController, VsiCapabilityResolverController, VsiMasterIntelligenceReadController, ApdsMasterIntelligenceReadController],
   providers: [
     VsiCapabilityResolverRepository,
     VsiApdsP5ReadonlyService,
     VsiCapabilityResolverService,
+    VsiMasterIntelligenceReadService,
+    ApdsMasterIntelligenceReadService,
     VehicleIntelligencePermissionGuard,
     BatteryService,
     TiresService,

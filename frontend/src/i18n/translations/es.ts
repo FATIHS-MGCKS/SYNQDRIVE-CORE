@@ -8,8 +8,10 @@ import { masterPlatformOpsDiS4Es } from './master.platformOps.diS4.es';
 import { batteryV2HvInspectionES } from './battery-v2-hv-inspection.es';
 import { tireWearV3Es } from './tire.wearV3.es';
 import { masterPhysicalDeviceInventoryEs } from './master.physicalDeviceInventory.es';
+import { masterIntelligenceEs } from './master.intelligence.es';
 import { masterMotionPhysicsEs } from './master.motionPhysics.es';
 import { masterVehicleIdentityEs } from './master.vehicleIdentity.es';
+import { masterOneAutoEs } from './master.oneAuto.es';
 import { masterCvTechnicalSpecsEs } from './master.cv.technicalSpecs.es';
 
 export const es = {
@@ -59,6 +61,16 @@ export const es = {
   'settings.accountInfo': 'Informacion de cuenta', 'settings.companyProfile': 'Perfil de empresa', 'settings.stationsBranches': 'Estaciones y sucursales', 'settings.usersRoles': 'Usuarios y roles', 'settings.billingSubscription': 'Facturacion y suscripcion', 'settings.firmLogo': 'Logo de empresa', 'settings.documents': 'Documentos', 'settings.createNewLocation': 'Crear nueva ubicacion', 'settings.inviteUser': 'Invitar usuario', 'settings.paymentMethod': 'Metodo de pago', 'settings.subscriptionSummary': 'Resumen de suscripcion', 'settings.invoiceHistory': 'Historial de facturas', 'settings.vehicles': 'Vehiculos', 'settings.connectedVehicles': 'Vehiculos conectados', 'settings.dataSync': 'Sincronizacion de datos',
 
   // ─── Master — Connected Vehicles offboard (VO5C-P2A) ───
+  // ─── Master — Vehicle registration spec contract (V3) ───
+  'master.registration.lvBatteryConstructionType.label': 'Tipo de batería LV',
+  'master.registration.lvBatteryConstructionType.leadAcid': 'Plomo-ácido (inundada)',
+  'master.registration.lvBatteryChemistryHint.label': 'Química (solo sugerencia IA)',
+  'master.registration.lvBatteryChemistryHint.placeholder': 'No se guarda — use el tipo LV',
+  'master.registration.lvBatteryChemistryHint.title': 'La química del material no se persiste; Battery Health usa el tipo de construcción LV.',
+  'master.registration.lvBatteryType.legacyLabel': 'Valor legacy guardado (elija tipo para actualizar)',
+  'master.registration.lvBatteryType.lvBatteryTypeRequiredForNumbers': 'Seleccione un tipo LV admitido antes de capacidad o voltaje.',
+  'master.registration.lvBatteryType.lvBatteryTypeInvalid': 'Tipo LV no admitido. Elija AGM, EFB, plomo-ácido o litio.',
+
   'master.cv.registryLifecycle.active': 'Activo',
   'master.cv.registryLifecycle.offboarded': 'Retirado del parque',
   'master.cv.registryLifecycle.archived': 'Archivado',
@@ -68,6 +80,22 @@ export const es = {
   'master.cv.registryLifecycle.filter.archived': 'Archivados',
   'master.cv.registryLifecycle.filter.all': 'Todos los ciclos',
   'master.cv.registryLifecycle.filter.ariaLabel': 'Filtrar por ciclo de vida del registro',
+  'master.cv.overview.telemetryNoSignal': 'Sin señal',
+  'master.cv.overview.telemetrySignalDelayed': 'Señal retrasada',
+  'master.cv.overview.openPlatformHealth': 'Abrir estado de la plataforma',
+  'master.cv.overview.platformDimoDegradedBody':
+    'Interrupción global de DIMO: la telemetría del vehículo puede estar desactualizada. Sin aviso duplicado por vehículo.',
+  'master.cv.overview.platformDimoDegradedTitle': 'Plataforma DIMO degradada',
+  'master.cv.overview.unavailableTitle': 'Resumen no disponible',
+  'master.cv.overview.noAttention': 'No hay elementos de gobernanza abiertos.',
+  'master.cv.overview.showAll': 'Mostrar todo',
+  'master.cv.overview.attentionQueue': 'Cola de atención',
+  'master.cv.overview.telemetryDistribution': 'Distribución de telemetría',
+  'master.cv.overview.dimoLinked': 'Vinculado a DIMO (activo)',
+  'master.cv.overview.withAttention': 'Requiere atención',
+  'master.cv.overview.unregistered': 'Sin asignar',
+  'master.cv.overview.registeredActive': 'Parque activo',
+  'master.cv.overview.registeredAllHint': 'Todos los registros: {total} (retirados {offboarded}, archivados {archived})',
   'master.cv.mapping.mirrorProvider': 'Espejo DIMO (proveedor)',
   'master.cv.mapping.effectiveSynqDriveAccess': 'Acceso SynqDrive (efectivo)',
   'master.cv.offboard.action': 'Retirar del parque activo',
@@ -157,7 +185,7 @@ export const es = {
   'newBooking.title': 'Nueva reserva', 'newBooking.selectCustomer': 'Seleccionar cliente', 'newBooking.selectVehicle': 'Seleccionar vehiculo', 'newBooking.timePeriod': 'Periodo y recogida', 'newBooking.mileagePackages': 'Paquetes de kilometraje', 'newBooking.insurancePackages': 'Paquetes de seguro', 'newBooking.extras': 'Extras', 'newBooking.invoice': 'Factura', 'newBooking.rentalContract': 'Contrato de alquiler', 'newBooking.createCustomer': 'Crear nuevo cliente', 'newBooking.bookingCreated': 'Reserva creada!',
   'newTaskModal.title': 'Nueva tarea', 'newTaskModal.basicInfo': 'Informacion basica', 'newTaskModal.vehicleAssignment': 'Vehiculo y asignacion', 'newTaskModal.scheduling': 'Programacion',
   'trips.tripHistory': 'Historial de viajes', 'trips.noTrips': 'Sin viajes encontrados', 'trips.tryAdjusting': 'Intente ajustar los filtros', 'trips.frequency': 'Frecuencia', 'trips.low': 'Baja', 'trips.medium': 'Media', 'trips.high': 'Alta', 'trips.distance': 'Distancia', 'trips.duration': 'Duracion', 'trips.alerts': 'Alertas', 'trips.drivingScore': 'Puntuacion de conduccion', 'trips.start': 'Inicio', 'trips.destination': 'Destino',
-  'health.aiHealthCare': 'Salud IA', 'health.poweredByAi': 'Impulsado por IA', 'health.errorCodes': 'Codigos de error', 'health.noActiveErrors': 'Sin codigos de error activos', 'health.timeline': 'Linea temporal', 'health.battery': 'Bateria', 'health.voltage': 'Voltaje', 'health.lastCheck': 'Ultima revision', 'health.temperature': 'Temperatura', 'health.estimatedCapacity': 'Capacidad estimada', 'health.serviceInfo': 'Info servicio', 'health.nextService': 'Proximo servicio', 'health.serviceHistory': 'Historial de servicio', 'health.brakes': 'Frenos', 'health.changeHistory': 'Historial de cambios', 'health.tires': 'Neumaticos', 'health.usageDistribution': 'Distribucion de uso', 'health.city': 'Ciudad', 'health.highway': 'Autopista', 'health.countryRoad': 'Carretera', 'health.engineOil': 'Aceite motor', 'health.lastChange': 'Ultimo cambio', 'health.oilChangeHistory': 'Historial cambios aceite', 'health.tireRotation': 'Rotacion neumaticos', 'health.tireChange': 'Cambio neumaticos',
+  'health.aiHealthCare': 'Salud IA', 'health.aiTireSpec.applyFailed': 'No se pudo aplicar la especificacion de neumatico IA.', 'health.aiTireSpec.applySuccess': 'Especificacion de neumatico IA aplicada.', 'health.aiTireSpec.seasonMismatchWarning': 'Spec IA guardada. La temporada del setup no cambio y difiere de la sugerencia IA.', 'health.aiTireSpec.staleBinding': 'El setup cambio tras la consulta IA. Vuelva a obtener la spec antes de aplicar.', 'health.aiTireSpec.missingGenerationBinding': 'Falta enlace de generacion. Vuelva a obtener la spec IA.', 'health.aiTireSpec.missingActiveSetup': 'No hay setup de neumaticos activo.', 'health.aiTireSpec.identityMismatch': 'La identidad de la spec IA no coincide con el setup o la solicitud.', 'health.poweredByAi': 'Impulsado por IA', 'health.errorCodes': 'Codigos de error', 'health.noActiveErrors': 'Sin codigos de error activos', 'health.timeline': 'Linea temporal', 'health.battery': 'Bateria', 'health.voltage': 'Voltaje', 'health.lastCheck': 'Ultima revision', 'health.temperature': 'Temperatura', 'health.estimatedCapacity': 'Capacidad estimada', 'health.serviceInfo': 'Info servicio', 'health.nextService': 'Proximo servicio', 'health.serviceHistory': 'Historial de servicio', 'health.brakes': 'Frenos', 'health.changeHistory': 'Historial de cambios', 'health.tires': 'Neumaticos', 'health.usageDistribution': 'Distribucion de uso', 'health.city': 'Ciudad', 'health.highway': 'Autopista', 'health.countryRoad': 'Carretera', 'health.engineOil': 'Aceite motor', 'health.lastChange': 'Ultimo cambio', 'health.oilChangeHistory': 'Historial cambios aceite', 'health.tireRotation': 'Rotacion neumaticos', 'health.tireChange': 'Cambio neumaticos',
   'damages.totalDamages': 'Total danos', 'damages.activeDamages': 'Danos activos', 'damages.vehicleDamageMap': 'Mapa de danos vehiculo', 'damages.damageHistory': 'Historial de danos',
   'documents.vehicleDocuments': 'Documentos del vehiculo', 'documents.monthlyFixedCosts': 'Costes fijos mensuales',
   'customerDetail.title': 'Detalles del cliente', 'customerDetail.customerDocuments': 'Documentos del cliente', 'customerDetail.customerAlerts': 'Alertas del cliente', 'customerDetail.customerNotes': 'Notas del cliente',   'customerDetail.drivingScore': 'Puntuacion de conduccion',
@@ -176,8 +204,10 @@ export const es = {
   'trips.drivingImpact.quality.unavailable': 'No hay una evaluación fiable de carga del vehículo.',
   'trips.drivingImpact.quality.r1Contained': 'Carga del vehículo no disponible temporalmente (contención temporal R1).',
   ...masterPhysicalDeviceInventoryEs,
+  ...masterIntelligenceEs,
   ...masterMotionPhysicsEs,
 ...masterVehicleIdentityEs,
+  ...masterOneAutoEs,
   ...masterCvTechnicalSpecsEs,
   ...batteryV2HvInspectionES,
   ...tireWearV3Es,

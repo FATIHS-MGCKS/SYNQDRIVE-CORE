@@ -12,9 +12,11 @@ import { DS4_TRIP_ASSESSMENT_VERSION_V1 } from '../ds4-trip-assessment-v1.contra
 import {
   bindDs4TenantToFleetVehicle,
   ds4PinnedEvidenceStub,
+  DS4_ASSESSMENT_TEST_COLLECTION_CUTOFF,
   DS4_POSTGRES_LIVE,
   seedDs4PostgresTenant,
 } from './ds4-assessment-postgres-harness';
+import { DI_V0_MOTION_CORE_SHADOW_EVENT_ROW_CONTRACT_V2_INTENSITY } from '../../motion-core-shadow-worker/di-v0-motion-core-shadow-event-row.contract';
 
 const describePg =
   process.env.DI_V0_DS4_ASSESSMENT_POSTGRES_INTEGRATION === '1' && DS4_POSTGRES_LIVE ? describe : describe.skip;
@@ -122,6 +124,14 @@ describePg('ds4-assessment worker postgres integration', () => {
       )`;
   }
 
+  function discoverInput(limit: number, now: Date) {
+    return {
+      limit,
+      now,
+      minMotionRunCreatedAt: DS4_ASSESSMENT_TEST_COLLECTION_CUTOFF,
+    };
+  }
+
   it('discoverFromSucceededMotionRuns terminals poisoned oldest rows and enqueues valid runs', async () => {
     const fleet = DS4_ASSESSMENT_FLEET_VEHICLES_V1[1]!;
     const tenant = await bindDs4TenantToFleetVehicle(db, await seedDs4PostgresTenant(db), fleet);
@@ -142,7 +152,10 @@ describePg('ds4-assessment worker postgres integration', () => {
         payloadGzip: Buffer.from('not-valid-gzip'),
         jsonLength: 0,
         createdAt: new Date(now.getTime() + i * 1000),
-        summaryJson: { contentFingerprint: `poison-${i}` },
+        summaryJson: {
+          contentFingerprint: `poison-${i}`,
+          eventRowContract: DI_V0_MOTION_CORE_SHADOW_PERSISTENCE_CONTRACT_V2.eventRowContract,
+        },
       });
     }
 
@@ -166,7 +179,7 @@ describePg('ds4-assessment worker postgres integration', () => {
       },
     });
 
-    const discovered = await outbox.discoverFromSucceededMotionRuns({ limit: 10, now });
+    const discovered = await outbox.discoverFromSucceededMotionRuns(discoverInput(10, now));
     expect(discovered).toBe(6);
 
     const terminalRows = await db.diV0Ds4AssessmentOutboxV1.findMany({
@@ -180,7 +193,7 @@ describePg('ds4-assessment worker postgres integration', () => {
     });
     expect(pending?.assessmentVersion).toBe(DS4_TRIP_ASSESSMENT_VERSION_V1);
 
-    const rediscover = await outbox.discoverFromSucceededMotionRuns({ limit: 10, now });
+    const rediscover = await outbox.discoverFromSucceededMotionRuns(discoverInput(10, now));
     expect(rediscover).toBe(0);
   });
 
@@ -205,7 +218,7 @@ describePg('ds4-assessment worker postgres integration', () => {
       contentFingerprint: fp,
       payloadGzip,
       jsonLength: json.length,
-      createdAt: new Date(),
+      createdAt: new Date('2026-06-15T00:00:00.000Z'),
       summaryJson: {
         contentFingerprint: fp,
         eventRowContract: DI_V0_MOTION_CORE_SHADOW_PERSISTENCE_CONTRACT_V2.eventRowContract,
@@ -247,7 +260,7 @@ describePg('ds4-assessment worker postgres integration', () => {
       contentFingerprint: fp,
       payloadGzip,
       jsonLength: json.length,
-      createdAt: new Date(),
+      createdAt: new Date('2026-06-01T00:00:00.000Z'),
       summaryJson: {
         contentFingerprint: fp,
         eventRowContract: DI_V0_MOTION_CORE_SHADOW_PERSISTENCE_CONTRACT_V2.eventRowContract,
@@ -256,8 +269,10 @@ describePg('ds4-assessment worker postgres integration', () => {
 
     const prevEnabled = process.env.DI_V0_DS4_ASSESSMENT_ENABLED;
     const prevWorker = process.env.DI_V0_DS4_ASSESSMENT_WORKER_ENABLED;
+    const prevCutoff = process.env.DI_V0_DS4_ASSESSMENT_MIN_MOTION_RUN_CREATED_AT;
     process.env.DI_V0_DS4_ASSESSMENT_ENABLED = '1';
     process.env.DI_V0_DS4_ASSESSMENT_WORKER_ENABLED = '1';
+    process.env.DI_V0_DS4_ASSESSMENT_MIN_MOTION_RUN_CREATED_AT = DS4_ASSESSMENT_TEST_COLLECTION_CUTOFF.toISOString();
     const liveProcessor = new Ds4AssessmentProcessorServiceV1(
       db as unknown as PrismaService,
       new TripDiBoundaryAdmissionService(db as unknown as PrismaService),
@@ -271,6 +286,7 @@ describePg('ds4-assessment worker postgres integration', () => {
     } finally {
       process.env.DI_V0_DS4_ASSESSMENT_ENABLED = prevEnabled;
       process.env.DI_V0_DS4_ASSESSMENT_WORKER_ENABLED = prevWorker;
+      process.env.DI_V0_DS4_ASSESSMENT_MIN_MOTION_RUN_CREATED_AT = prevCutoff;
     }
 
     const outboxRow = await db.diV0Ds4AssessmentOutboxV1.findFirst({
@@ -295,7 +311,7 @@ describePg('ds4-assessment worker postgres integration', () => {
       contentFingerprint: 'terminal-only',
       payloadGzip: Buffer.from('bad'),
       jsonLength: 0,
-      createdAt: new Date(),
+      createdAt: new Date('2026-06-15T00:00:00.000Z'),
       summaryJson: { contentFingerprint: 'terminal-only' },
     });
 
@@ -309,7 +325,7 @@ describePg('ds4-assessment worker postgres integration', () => {
     });
     expect(terminal).toBe('inserted');
 
-    const discovered = await outbox.discoverFromSucceededMotionRuns({ limit: 5, now: new Date() });
+    const discovered = await outbox.discoverFromSucceededMotionRuns(discoverInput(5, new Date()));
     expect(discovered).toBe(0);
   });
 
@@ -331,18 +347,131 @@ describePg('ds4-assessment worker postgres integration', () => {
       contentFingerprint: fp,
       payloadGzip,
       jsonLength: json.length,
-      createdAt: new Date(),
+      createdAt: new Date('2026-06-15T00:00:00.000Z'),
       summaryJson: {
         contentFingerprint: fp,
         eventRowContract: DI_V0_MOTION_CORE_SHADOW_PERSISTENCE_CONTRACT_V2.eventRowContract,
       },
     });
 
-    const discovered = await outbox.discoverFromSucceededMotionRuns({ limit: 5, now: new Date() });
+    const discovered = await outbox.discoverFromSucceededMotionRuns(discoverInput(5, new Date()));
     expect(discovered).toBe(1);
     const pending = await db.diV0Ds4AssessmentOutboxV1.findFirst({
       where: { sourceMotionRunId: runId, status: 'PENDING' },
     });
     expect(pending?.vehicleId).toBe(tenant.vehicleId);
+  });
+
+  it('excludes motion runs before the configured collection cutoff', async () => {
+    const tenant = await seedDs4PostgresTenant(db);
+    const tripId = tenant.tripId;
+    const runId = randomUUID();
+    const fp = 'before-cutoff';
+    const payload = buildValidPayload(fp);
+    const json = JSON.stringify(payload);
+    await insertMotionRun({
+      runId,
+      organizationId: tenant.organizationId,
+      vehicleId: tenant.vehicleId,
+      tripId,
+      contentFingerprint: fp,
+      payloadGzip: gzipSync(json),
+      jsonLength: json.length,
+      createdAt: new Date(DS4_ASSESSMENT_TEST_COLLECTION_CUTOFF.getTime() - 1000),
+      summaryJson: {
+        contentFingerprint: fp,
+        eventRowContract: DI_V0_MOTION_CORE_SHADOW_PERSISTENCE_CONTRACT_V2.eventRowContract,
+      },
+    });
+    const discovered = await outbox.discoverFromSucceededMotionRuns(discoverInput(5, new Date()));
+    expect(discovered).toBe(0);
+  });
+
+  it('includes V2 motion runs exactly at the collection cutoff boundary', async () => {
+    const tenant = await seedDs4PostgresTenant(db);
+    const tripId = tenant.tripId;
+    const runId = randomUUID();
+    const fp = 'at-cutoff';
+    const payload = buildValidPayload(fp);
+    const json = JSON.stringify(payload);
+    await insertMotionRun({
+      runId,
+      organizationId: tenant.organizationId,
+      vehicleId: tenant.vehicleId,
+      tripId,
+      contentFingerprint: fp,
+      payloadGzip: gzipSync(json),
+      jsonLength: json.length,
+      createdAt: new Date(DS4_ASSESSMENT_TEST_COLLECTION_CUTOFF),
+      summaryJson: {
+        contentFingerprint: fp,
+        eventRowContract: DI_V0_MOTION_CORE_SHADOW_PERSISTENCE_CONTRACT_V2.eventRowContract,
+      },
+    });
+    const discovered = await outbox.discoverFromSucceededMotionRuns(discoverInput(5, new Date()));
+    expect(discovered).toBe(1);
+  });
+
+  it('does not let legacy V1 runs consume discovery batch capacity', async () => {
+    const tenant = await seedDs4PostgresTenant(db);
+    const tripId = tenant.tripId;
+    for (let i = 0; i < 8; i += 1) {
+      await insertMotionRun({
+        runId: randomUUID(),
+        organizationId: tenant.organizationId,
+        vehicleId: tenant.vehicleId,
+        tripId,
+        contentFingerprint: `legacy-${i}`,
+        payloadGzip: gzipSync(JSON.stringify(buildValidPayload(`legacy-${i}`))),
+        jsonLength: 100,
+        createdAt: new Date(DS4_ASSESSMENT_TEST_COLLECTION_CUTOFF.getTime() + i * 1000),
+        summaryJson: { contentFingerprint: `legacy-${i}` },
+      });
+    }
+    const v2RunId = randomUUID();
+    const fp = 'v2-only';
+    const payload = buildValidPayload(fp);
+    const json = JSON.stringify(payload);
+    await insertMotionRun({
+      runId: v2RunId,
+      organizationId: tenant.organizationId,
+      vehicleId: tenant.vehicleId,
+      tripId,
+      contentFingerprint: fp,
+      payloadGzip: gzipSync(json),
+      jsonLength: json.length,
+      createdAt: new Date(DS4_ASSESSMENT_TEST_COLLECTION_CUTOFF.getTime() + 60_000),
+      summaryJson: {
+        contentFingerprint: fp,
+        eventRowContract: DI_V0_MOTION_CORE_SHADOW_EVENT_ROW_CONTRACT_V2_INTENSITY,
+      },
+    });
+    const discovered = await outbox.discoverFromSucceededMotionRuns(discoverInput(1, new Date()));
+    expect(discovered).toBe(1);
+    const pending = await db.diV0Ds4AssessmentOutboxV1.findFirst({ where: { sourceMotionRunId: v2RunId } });
+    expect(pending?.status).toBe('PENDING');
+  });
+
+  it('runPass is not configured when worker flags are set without collection cutoff', async () => {
+    const prevEnabled = process.env.DI_V0_DS4_ASSESSMENT_ENABLED;
+    const prevWorker = process.env.DI_V0_DS4_ASSESSMENT_WORKER_ENABLED;
+    const prevCutoff = process.env.DI_V0_DS4_ASSESSMENT_MIN_MOTION_RUN_CREATED_AT;
+    process.env.DI_V0_DS4_ASSESSMENT_ENABLED = '1';
+    process.env.DI_V0_DS4_ASSESSMENT_WORKER_ENABLED = '1';
+    delete process.env.DI_V0_DS4_ASSESSMENT_MIN_MOTION_RUN_CREATED_AT;
+    const liveProcessor = new Ds4AssessmentProcessorServiceV1(
+      db as unknown as PrismaService,
+      new TripDiBoundaryAdmissionService(db as unknown as PrismaService),
+    );
+    const liveService = new Ds4AssessmentServiceV1(db as unknown as PrismaService, liveProcessor);
+    try {
+      const pass = await liveService.runPass(new Date());
+      expect(pass.configured).toBe(false);
+      expect(pass.discovered).toBe(0);
+    } finally {
+      process.env.DI_V0_DS4_ASSESSMENT_ENABLED = prevEnabled;
+      process.env.DI_V0_DS4_ASSESSMENT_WORKER_ENABLED = prevWorker;
+      process.env.DI_V0_DS4_ASSESSMENT_MIN_MOTION_RUN_CREATED_AT = prevCutoff;
+    }
   });
 });

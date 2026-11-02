@@ -80,4 +80,34 @@ describe('vehicle technical spec persistence patch', () => {
     expect(patch.maxRpm).toBeUndefined();
     expect(patch.brakeForceFrontPercent).toBeUndefined();
   });
+
+  it('builds tank, interval, and drivetrain patch with confirmation', () => {
+    const baseline = {
+      ...baseRv(),
+      tankCapacityLiters: '50',
+      serviceIntervalManufacturerKm: '15000',
+      oilChangeIntervalMonths: '',
+      drivetrain: 'FWD',
+    };
+    const current = {
+      ...baseline,
+      tankCapacityLiters: '55',
+      serviceIntervalManufacturerKm: '30000',
+      oilChangeIntervalMonths: '24',
+      drivetrain: 'AWD',
+    };
+    const patch = buildMasterVehiclePhysicsSpecPatch(current, baseline);
+    expect(patch.tankCapacityLiters).toBe(55);
+    expect(patch.serviceIntervalManufacturerKm).toBe(30000);
+    expect(patch.oilChangeIntervalMonths).toBe(24);
+    expect(patch.drivetrain).toBe('AWD');
+    expect(patch.technicalSpecificationSave).toEqual({
+      confirmedFieldKeys: expect.arrayContaining([
+        'tankCapacityLiters',
+        'manufacturerServiceIntervalKm',
+        'oilchangeIntervalMonths',
+        'drivetrain',
+      ]),
+    });
+  });
 });

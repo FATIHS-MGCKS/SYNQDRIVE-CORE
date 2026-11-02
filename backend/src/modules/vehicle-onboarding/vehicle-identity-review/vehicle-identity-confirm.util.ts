@@ -10,6 +10,12 @@ export type VehicleIdentityConfirmValidationResult = {
   confirmedFieldCodes: string[];
 };
 
+function normalizeVinCompare(value: string | number | null | undefined): string | null {
+  if (value == null) return null;
+  const s = String(value).trim().toUpperCase().replace(/\s+/g, '');
+  return s.length > 0 ? s : null;
+}
+
 export function validateVehicleIdentityFieldConfirmations(input: {
   snapshot: VehicleIdentityReviewSnapshot;
   confirmations: VehicleIdentityFieldConfirmationInput[];
@@ -46,6 +52,38 @@ export function validateVehicleIdentityFieldConfirmations(input: {
   for (const field of input.snapshot.fields) {
     const conf = byCode.get(field.fieldCode);
     if (!conf?.confirmed) continue;
+
+    if (input.snapshot.vinMismatchBlocked) {
+      if (field.fieldCode === 'eVin') {
+        const resolved =
+          conf.correctedValue !== undefined && conf.correctedValue !== null
+            ? conf.correctedValue
+            : field.documentValue ?? field.value;
+        const baseline = normalizeVinCompare(field.baselineValue);
+        const resolvedNorm = normalizeVinCompare(resolved);
+        if (resolvedNorm && baseline && resolvedNorm !== baseline) {
+          errors.push({
+            code: 'VIN_MISMATCH_DOCUMENT_VIN_NOT_CANONICAL',
+            fieldCode: 'eVin',
+            message:
+              'Document FIN cannot replace canonical vehicle FIN; use an authorized identity correction workflow.',
+          });
+          continue;
+        }
+      } else if (
+        field.documentValue != null &&
+        field.extractionStatus === 'EXTRACTED' &&
+        (conf.correctedValue === undefined || conf.correctedValue === null)
+      ) {
+        errors.push({
+          code: 'VIN_MISMATCH_DOCUMENT_FIELD_BLOCKED',
+          fieldCode: field.fieldCode,
+          message:
+            'Fields extracted from a FIN-mismatched document cannot be confirmed for this vehicle.',
+        });
+        continue;
+      }
+    }
 
     const hasManual = field.manualValue != null;
     const hasCorrection =

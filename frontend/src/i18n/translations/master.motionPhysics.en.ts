@@ -7,6 +7,8 @@ export const masterMotionPhysicsEn = {
   'master.motionPhysics.systemPowerDefinition.option.estimated': 'Estimated system power (AI / uncertain)',
   'master.motionPhysics.systemPowerDefinition.hint':
     'Do not mix motor-only and combined system ratings — especially for EV and hybrid vehicles.',
+  'master.motionPhysics.systemPowerDefinition.persistHint':
+    'Power rating type is not saved with “Save Changes”. Use “Confirm manual values” to persist it in the motion physics reference.',
   'master.motionPhysics.systemMotorPowerKw.hintMotor': 'Enter OEM motor rated power in kW.',
   'master.motionPhysics.systemMotorPowerKw.hintSystem': 'Enter OEM combined system power in kW (not wheel power).',
   'master.motionPhysics.accel0To100S': '0–100 km/h (s)',

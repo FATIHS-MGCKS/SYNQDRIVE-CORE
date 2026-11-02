@@ -333,6 +333,11 @@ async function cleanupProfiles(prisma: PrismaClient, organizationId: string) {
       })),
     });
 
+    await prisma.vehicle.update({
+      where: { id: fixture.vehicleId },
+      data: { fuelType: 'ELECTRIC' },
+    });
+
     const ts = new Date('2026-10-15T14:00:00Z');
     await upsertVlsForTest(prisma, {
       vehicleId: fixture.vehicleId,

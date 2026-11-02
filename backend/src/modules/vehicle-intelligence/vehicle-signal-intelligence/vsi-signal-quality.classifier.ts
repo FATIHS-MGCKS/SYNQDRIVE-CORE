@@ -8,6 +8,7 @@ export const VsiSignalQualityClassification = {
   OBSERVED_STALE: 'OBSERVED_STALE',
   OBSERVED_INTERMITTENT: 'OBSERVED_INTERMITTENT',
   NEVER_OBSERVED: 'NEVER_OBSERVED',
+  NOT_APPLICABLE: 'NOT_APPLICABLE',
   INSUFFICIENT_HISTORY: 'INSUFFICIENT_HISTORY',
   UNKNOWN: 'UNKNOWN',
 } as const;
@@ -95,6 +96,29 @@ export function classifyVsiSignalQuality(input: VsiSignalQualityInput): VsiSigna
     return VsiSignalQualityClassification.UNKNOWN;
   }
 
+  if (signal.empiricalObservation === VsiEmpiricalObservationStatus.NOT_APPLICABLE) {
+    return VsiSignalQualityClassification.NOT_APPLICABLE;
+  }
+
+  if (signal.canonicalSignalKey === 'provider_last_successful_fetch') {
+    if (signal.empiricalObservation === VsiEmpiricalObservationStatus.NEVER_OBSERVED) {
+      return VsiSignalQualityClassification.NEVER_OBSERVED;
+    }
+    if (!signal.lastProviderFetchAt) {
+      return VsiSignalQualityClassification.UNKNOWN;
+    }
+    if (signal.freshnessClassification === 'STALE') {
+      return VsiSignalQualityClassification.OBSERVED_STALE;
+    }
+    if (
+      signal.empiricalObservation === VsiEmpiricalObservationStatus.OBSERVED &&
+      signal.freshnessClassification === 'FRESH'
+    ) {
+      return VsiSignalQualityClassification.OBSERVED_FRESH;
+    }
+    return VsiSignalQualityClassification.UNKNOWN;
+  }
+
   if (signal.empiricalObservation === VsiEmpiricalObservationStatus.NEVER_OBSERVED) {
     return VsiSignalQualityClassification.NEVER_OBSERVED;
   }
@@ -138,6 +162,9 @@ export function resolveVsiSignalConfidence(
     return VsiSignalConfidenceLevel.UNKNOWN;
   }
   if (quality === VsiSignalQualityClassification.NEVER_OBSERVED) {
+    return VsiSignalConfidenceLevel.LOW;
+  }
+  if (quality === VsiSignalQualityClassification.NOT_APPLICABLE) {
     return VsiSignalConfidenceLevel.LOW;
   }
   if (quality === VsiSignalQualityClassification.INSUFFICIENT_HISTORY) {

@@ -16,6 +16,11 @@ const S4F_DIR = path.join(__dirname, '../../s4f-observability');
 const FLEET_MOTION_ADMISSION_DIR = path.join(__dirname, '../../fleet-motion-admission');
 const S4_RUNTIME_DIR = path.join(__dirname, '../../s4-runtime');
 const VI_MODULE = path.join(REPO_ROOT, 'backend/src/modules/vehicle-intelligence/vehicle-intelligence.module.ts');
+/** PostgreSQL-only partial-extension → admission → discovery contract (PR #2293); not AppModule runtime. */
+const TRIPS_PARTIAL_BOUNDARY_EXTENSION_PG_SPEC = path.join(
+  REPO_ROOT,
+  'backend/src/modules/vehicle-intelligence/trips/reconciliation/partial-boundary-extension-admission.postgres.integration.spec.ts',
+);
 
 function walk(dir: string, pattern: RegExp, acc: string[] = []): string[] {
   if (!fs.existsSync(dir)) return acc;
@@ -101,6 +106,7 @@ describe('DI V0 S4B dormant-by-construction audit', () => {
           file.startsWith(S4F_DIR + path.sep) ||
           file.startsWith(FLEET_MOTION_ADMISSION_DIR + path.sep) ||
           file.startsWith(S4_RUNTIME_DIR + path.sep) ||
+          file === TRIPS_PARTIAL_BOUNDARY_EXTENSION_PG_SPEC ||
           file === VI_MODULE
         ) {
           continue;

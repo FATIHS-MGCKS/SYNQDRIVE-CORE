@@ -44,6 +44,38 @@ export interface MotionPhysicsIdentityFingerprint {
   variantLabel?: string | null;
 }
 
+/** Canonical semantics for how systemMotorPowerKw should be interpreted (Master UI: Art der Leistungsangabe). */
+export const MOTION_SYSTEM_POWER_DEFINITION_VALUES = [
+  'OEM_RATED_MOTOR_KW',
+  'OEM_RATED_SYSTEM_KW',
+  'OEM_RATED_SYSTEM_KW_ESTIMATED',
+] as const;
+
+export type MotionSystemPowerDefinition = (typeof MOTION_SYSTEM_POWER_DEFINITION_VALUES)[number];
+
+/**
+ * Legacy persisted tokens → canonical contract (read / input normalization only; no DB rewrite).
+ * OEM_RATED_ENGINE_KW was used for ICE nominal engine kW before the MOTOR_KW enum name;
+ * same semantics as vehicle-spec AI rule: ICE / single-motor rated power (not combined system kW).
+ */
+export const MOTION_SYSTEM_POWER_DEFINITION_LEGACY_ALIASES: Readonly<
+  Record<string, MotionSystemPowerDefinition>
+> = {
+  OEM_RATED_ENGINE_KW: 'OEM_RATED_MOTOR_KW',
+};
+
+export function normalizeMotionSystemPowerDefinition(value: unknown): MotionSystemPowerDefinition | null {
+  if (value == null) return null;
+  const raw = String(value).trim().toUpperCase();
+  if (!raw) return null;
+  const legacy = MOTION_SYSTEM_POWER_DEFINITION_LEGACY_ALIASES[raw];
+  if (legacy) return legacy;
+  if ((MOTION_SYSTEM_POWER_DEFINITION_VALUES as readonly string[]).includes(raw)) {
+    return raw as MotionSystemPowerDefinition;
+  }
+  return null;
+}
+
 export interface MotionPhysicsReferencePayload {
   curbMassKg?: number | null;
   systemMotorPowerKw?: number | null;

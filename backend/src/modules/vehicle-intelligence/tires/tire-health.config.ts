@@ -9,6 +9,8 @@
  * behavior sensitivity modulation, and source priority types.
  */
 
+import { parseValidatedAiTireSpecFromStorage } from './ai-tire-spec-read.util';
+
 // ── AI Tire Spec shape (stored as JSON on VehicleTireSetup.aiTireSpec) ──────
 
 export interface AiTireSpec {
@@ -506,95 +508,10 @@ export function isStaggeredSetup(setup: {
 
 /**
  * Safely parse AI tire spec JSON from Prisma.
- * Applies type coercion so downstream consumers always get correct types,
- * even if the stored blob was written before normalization existed.
+ * Applies tire_v2 normalizer range rules on read (invalid → null); does not mutate stored JSON.
  */
 export function parseAiTireSpec(raw: unknown): AiTireSpec | null {
-  if (raw == null || typeof raw !== 'object') return null;
-  const obj = raw as Record<string, unknown>;
-
-  const hasContent = Object.entries(obj).some(
-    ([k, v]) => v != null && !METADATA_KEYS.has(k),
-  );
-  if (!hasContent) return null;
-
-  return {
-    matchedBrand: _str(obj.matchedBrand),
-    matchedModel: _str(obj.matchedModel),
-    matchedVariant: _str(obj.matchedVariant),
-    tireSizeRaw: _str(obj.tireSizeRaw),
-    widthMm: _num(obj.widthMm),
-    aspectRatio: _num(obj.aspectRatio),
-    rimDiameterInch: _num(obj.rimDiameterInch),
-    loadIndex: _str(obj.loadIndex),
-    speedIndex: _str(obj.speedIndex),
-    seasonType: _str(obj.seasonType),
-    vehicleClassFit: _str(obj.vehicleClassFit),
-    runFlat: _bool(obj.runFlat),
-    reinforced: _bool(obj.reinforced),
-    xl: _bool(obj.xl),
-    evOptimized: _bool(obj.evOptimized),
-    oeHomologation: _str(obj.oeHomologation),
-    sectionWidthMm: _num(obj.sectionWidthMm),
-    overallDiameterMm: _num(obj.overallDiameterMm),
-    approvedRimWidthMinIn: _num(obj.approvedRimWidthMinIn),
-    approvedRimWidthMaxIn: _num(obj.approvedRimWidthMaxIn),
-    measuredRimWidthIn: _num(obj.measuredRimWidthIn),
-    revsPerKm: _num(obj.revsPerKm),
-    euRollingResistanceClass: _str(obj.euRollingResistanceClass),
-    euWetGripClass: _str(obj.euWetGripClass),
-    euExternalNoiseDb: _num(obj.euExternalNoiseDb),
-    euExternalNoiseClass: _str(obj.euExternalNoiseClass),
-    severeSnowMarked: _bool(obj.severeSnowMarked),
-    iceMarked: _bool(obj.iceMarked),
-    utqgTreadwear: _num(obj.utqgTreadwear),
-    utqgTraction: _str(obj.utqgTraction),
-    utqgTemperature: _str(obj.utqgTemperature),
-    mileageWarrantyKm: _num(obj.mileageWarrantyKm),
-    comfortBias: _num(obj.comfortBias),
-    efficiencyBias: _num(obj.efficiencyBias),
-    wetSafetyBias: _num(obj.wetSafetyBias),
-    sportBias: _num(obj.sportBias),
-    maxLoadKg: _num(obj.maxLoadKg),
-    maxInflationKpa: _num(obj.maxInflationKpa),
-    maxInflationPsi: _num(obj.maxInflationPsi),
-    newTreadDepthMm: _num(obj.newTreadDepthMm),
-    legalMinimumMm: _num(obj.legalMinimumMm ?? obj.legalMinTreadDepthMm),
-    recommendedReplacementDepthMm: _num(obj.recommendedReplacementDepthMm ?? obj.practicalReplacementDepthMm),
-    operationalReplacementDepthMm: _num(obj.operationalReplacementDepthMm ?? obj.winterRecommendedMinDepthMm),
-    intendedUse: _str(obj.intendedUse),
-    longevityBias: _num(obj.longevityBias),
-    aggressiveDrivingSensitivity: _num(obj.aggressiveDrivingSensitivity),
-    underinflationSensitivity: _num(obj.underinflationSensitivity),
-    heatSensitivity: _num(obj.heatSensitivity),
-    payloadBias: _num(obj.payloadBias),
-    urbanBias: _num(obj.urbanBias),
-    highwayBias: _num(obj.highwayBias),
-    tireArchetype: _str(obj.tireArchetype),
-    confidenceScore: _num(obj.confidenceScore),
-    manufacturerSourceUrl: _str(obj.manufacturerSourceUrl),
-    labelSourceUrl: _str(obj.labelSourceUrl),
-    userConfirmedSpec: _bool(obj.userConfirmedSpec),
-    specSourceType: _str(obj.specSourceType),
-  };
-}
-
-const METADATA_KEYS = new Set(['userConfirmedSpec', 'specSourceType', 'fetchedAt', 'jobId', 'normalizedAt', 'tireSpecConfidence']);
-
-function _str(v: unknown): string | null {
-  if (v == null) return null;
-  const s = String(v).trim();
-  return s.length > 0 ? s : null;
-}
-function _num(v: unknown): number | null {
-  if (v == null) return null;
-  const n = typeof v === 'number' ? v : parseFloat(String(v));
-  return Number.isFinite(n) ? n : null;
-}
-function _bool(v: unknown): boolean | null {
-  if (v === true || v === 'true' || v === 1) return true;
-  if (v === false || v === 'false' || v === 0) return false;
-  return null;
+  return parseValidatedAiTireSpecFromStorage(raw);
 }
 
 /**

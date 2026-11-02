@@ -9,6 +9,7 @@ describe('TripReconciliationScheduler cohort independence', () => {
   let scheduler: TripReconciliationScheduler;
   let vlsFindMany: jest.Mock;
   let reconcileWindow: jest.Mock;
+  let runDurableAdmissionRecoveryFleetPass: jest.Mock;
 
   beforeEach(async () => {
     vlsFindMany = jest.fn().mockResolvedValue([]);
@@ -16,6 +17,13 @@ describe('TripReconciliationScheduler cohort independence', () => {
       repairsProposed: 0,
       repairsApplied: 0,
       repairsRejected: 0,
+    });
+    runDurableAdmissionRecoveryFleetPass = jest.fn().mockResolvedValue({
+      vehiclesEligible: 0,
+      vehiclesScanned: 0,
+      writerAttempts: 0,
+      released: 0,
+      durationMs: 1,
     });
 
     const moduleRef = await Test.createTestingModule({
@@ -29,7 +37,7 @@ describe('TripReconciliationScheduler cohort independence', () => {
         },
         {
           provide: TripReconciliationService,
-          useValue: { reconcileWindow },
+          useValue: { reconcileWindow, runDurableAdmissionRecoveryFleetPass },
         },
         {
           provide: SchedulerLeaderGuardService,
@@ -78,7 +86,7 @@ describe('TripReconciliationScheduler cohort independence', () => {
       expect.any(Date),
       expect.any(Date),
       'warm',
-      { useDimoSegmentFallback: true },
+      expect.objectContaining({ useDimoSegmentFallback: true, recoveryFleetBudget: expect.anything() }),
     );
   });
 
@@ -96,7 +104,35 @@ describe('TripReconciliationScheduler cohort independence', () => {
       expect.any(Date),
       expect.any(Date),
       'cold',
-      { useDimoSegmentFallback: true },
+      expect.objectContaining({ useDimoSegmentFallback: true, recoveryFleetBudget: expect.anything() }),
     );
+  });
+
+  it('admission recovery fleet pass uses leader guard and delegates to reconciliation service', async () => {
+    const prior = process.env.TRIP_DI_BOUNDARY_ADMISSION_RECOVERY_ACTIVATED_AT_UTC;
+    process.env.TRIP_DI_BOUNDARY_ADMISSION_RECOVERY_ACTIVATED_AT_UTC = '2026-11-01T00:00:00.000Z';
+    const leaderGuard = {
+      shouldRun: jest.fn().mockReturnValue(true),
+    };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        TripReconciliationScheduler,
+        {
+          provide: PrismaService,
+          useValue: { vehicleLatestState: { findMany: jest.fn() } },
+        },
+        {
+          provide: TripReconciliationService,
+          useValue: { reconcileWindow, runDurableAdmissionRecoveryFleetPass },
+        },
+        { provide: SchedulerLeaderGuardService, useValue: leaderGuard },
+      ],
+    }).compile();
+    const sched = moduleRef.get(TripReconciliationScheduler);
+    await sched.admissionRecoveryFleetPass();
+    expect(leaderGuard.shouldRun).toHaveBeenCalledWith('trip_di_boundary_admission_recovery_fleet');
+    expect(runDurableAdmissionRecoveryFleetPass).toHaveBeenCalled();
+    if (prior === undefined) delete process.env.TRIP_DI_BOUNDARY_ADMISSION_RECOVERY_ACTIVATED_AT_UTC;
+    else process.env.TRIP_DI_BOUNDARY_ADMISSION_RECOVERY_ACTIVATED_AT_UTC = prior;
   });
 });

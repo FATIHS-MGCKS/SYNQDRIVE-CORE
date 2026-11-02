@@ -59,7 +59,7 @@ export async function submitOperatorTireMeasurement(params: {
   tireSetupId: string | null;
   tread: OperatorTireTreadForm;
   context: OperatorTireContextForm;
-}): Promise<void> {
+}): Promise<{ v3Ingestion?: { warnings?: Array<{ code: string }>; evidenceClass?: string } }> {
   const { vehicleId, tireSetupId, tread, context } = params;
   const treadPayload = {
     frontLeftMm: parseTreadMm(tread.fl),
@@ -84,16 +84,15 @@ export async function submitOperatorTireMeasurement(params: {
 
   if (useSetupEndpoint) {
     const measuredAt = new Date(context.measuredAt);
-    await api.vehicleIntelligence.addTireMeasurement(vehicleId, tireSetupId!, {
+    return api.vehicleIntelligence.addTireMeasurement(vehicleId, tireSetupId!, {
       ...treadPayload,
       odometerAtMeasurement: Number.isFinite(odometer!) ? odometer : undefined,
       measuredAt: measuredAt.toISOString(),
       manualConfirmOdometer: manualConfirmOdometer || undefined,
     });
-    return;
   }
 
-  await api.vehicleIntelligence.addTireHealthMeasurement(vehicleId, {
+  return api.vehicleIntelligence.addTireHealthMeasurement(vehicleId, {
     ...treadPayload,
     odometerKm: Number.isFinite(odometer!) ? odometer : undefined,
     measuredAt: context.measuredAt.trim() ? new Date(context.measuredAt).toISOString() : undefined,

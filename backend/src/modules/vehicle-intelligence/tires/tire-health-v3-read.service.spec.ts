@@ -4,7 +4,7 @@ import type { TireHealthSummary } from './tire-health.service';
 import { mapV3SetupToCustomerRead } from './tire-health-v3-read.adapter';
 import type { TireWearV3PriorSetupResult } from './wear-v3-prior/tire-wear-v3-prior.types';
 
-function minimalPriorResult(): TireWearV3PriorSetupResult {
+export function minimalPriorResult(): TireWearV3PriorSetupResult {
   return {
     tireSetupId: 'setup-1',
     vehicleId: 'veh-1',
@@ -70,7 +70,7 @@ function minimalPriorResult(): TireWearV3PriorSetupResult {
   } as unknown as TireWearV3PriorSetupResult;
 }
 
-function baseSummary(): TireHealthSummary {
+export function baseSummary(): TireHealthSummary {
   return {
     overallPercent: 80,
     overallRemainingKm: 10000,
@@ -91,7 +91,7 @@ function baseSummary(): TireHealthSummary {
     hasActiveSet: true,
     hasSetups: true,
     hasMeasurements: false,
-    overallStatus: 'OK',
+    overallStatus: 'GOOD',
     displayMode: 'ESTIMATED',
     confidence: 'MEDIUM',
     pressureContext: {} as TireHealthSummary['pressureContext'],
@@ -122,7 +122,7 @@ describe('TireHealthV3ReadService', () => {
     } as never);
     const summary = baseSummary();
     const enriched = await svc.enrichSummary(summary, 'setup-1', 'SUMMER', []);
-    expect(enriched.overallStatus).toBe('OK');
+    expect(enriched.overallStatus).toBe('GOOD');
     expect(enriched.wearV3).toBeDefined();
     expect(enriched.wearReadModel).toBe('v2');
   });
@@ -155,6 +155,22 @@ describe('TireHealthV3ReadService', () => {
     expect(enriched.wearReadModel).toBe('v3');
     expect(enriched.displayMode).toBe('UNKNOWN');
     expect(enriched.lowestTreadMm).toBeNull();
+  });
+
+  it('authoritative mode fail-closed when compute returns null', async () => {
+    const computeForSetup = jest.fn().mockResolvedValue(null);
+    const config = {
+      get: () => ({ customerReadEnabled: true, customerReadAuthoritative: true }),
+    };
+    const svc = new TireHealthV3ReadService(config as never, {
+      computeForSetup,
+    } as never);
+    const legacy = baseSummary();
+    const enriched = await svc.enrichSummary(legacy, 'setup-1', 'SUMMER', []);
+    expect(enriched.wearReadModel).toBe('v3');
+    expect(enriched.overallStatus).toBe('UNKNOWN');
+    expect(enriched.displayMode).toBe('UNKNOWN');
+    expect(enriched.overallStatus).not.toBe(legacy.overallStatus);
   });
 });
 

@@ -67,9 +67,11 @@ import { buildIntraTripGapSplitRepairAuditId } from './intra-trip-gap-split-repa
 import { acquirePgAdvisoryXactLock64 } from '@shared/database/pg-advisory-lock.util';
 import type { SplitTripAtGapResult } from '../decision/decision.types';
 import { TripDiBoundaryAdmissionService } from '../di-boundary-admission/trip-di-boundary-admission.service';
+import type { TripDiBoundaryAdmissionRecoveryFleetBudget } from '../di-boundary-admission/trip-di-boundary-admission-recovery.fleet-budget';
 
 interface ReconciliationOptions {
   useDimoSegmentFallback?: boolean;
+  recoveryFleetBudget?: TripDiBoundaryAdmissionRecoveryFleetBudget;
 }
 
 interface RepairCandidate {
@@ -165,6 +167,7 @@ export class TripReconciliationService {
     private readonly policyResolver: TripDetectionPolicyResolver,
     private readonly overlapDetector: TripOverlapDetector,
     private readonly dimoSegments: DimoSegmentsService,
+    private readonly diBoundaryAdmission: TripDiBoundaryAdmissionService,
     @Optional() private readonly ignitionDetector: IgnitionSegmentDetector,
     @Optional() private readonly motionDetector: MotionSegmentDetector,
     @Optional() private readonly activityDetector: ActivityWindowDetector,
@@ -180,8 +183,6 @@ export class TripReconciliationService {
     @Optional() private readonly boundaryRefreshLifecycle?: BoundaryRefreshLifecycleService,
     @Optional()
     private readonly reconciliationMutex?: ReconciliationExecutionMutexService,
-    @Optional()
-    private readonly diBoundaryAdmission?: TripDiBoundaryAdmissionService,
   ) {
     this.maxSameTripQualifiedStopMs =
       this.configService?.get<number>('worker.tripSameTripMaxQualifiedStopMs') ??
@@ -257,6 +258,17 @@ export class TripReconciliationService {
       skipped: true,
       skipReason: mutexResult.reason,
     };
+  }
+
+  /** Leader-scheduled admission-only fleet sweep (no DIMO reconciliation window). */
+  async runDurableAdmissionRecoveryFleetPass(): Promise<{
+    vehiclesEligible: number;
+    vehiclesScanned: number;
+    writerAttempts: number;
+    released: number;
+    durationMs: number;
+  }> {
+    return this.diBoundaryAdmission.runDurableAdmissionRecoveryFleetPass();
   }
 
   private async resolveOrganizationId(vehicleId: string): Promise<string> {
@@ -364,34 +376,43 @@ export class TripReconciliationService {
         }
       }
 
-      if (this.diBoundaryAdmission) {
-        if (boundaryScannedTripIds.length > 0) {
-          try {
-            await this.diBoundaryAdmission.releaseForBoundaryScannedTripIds(boundaryScannedTripIds);
-          } catch (err: unknown) {
-            this.logger.warn(
-              `DI boundary admission release failed for vehicle ${vehicleId}: ${(err as Error).message}`,
-            );
-          }
-        }
+      if (boundaryScannedTripIds.length > 0) {
         try {
-          const organizationId = await this.resolveOrganizationId(vehicleId);
-          await this.diBoundaryAdmission.releaseLiveFsmSplitSegmentsInReconciliationWindow(
-            organizationId,
-            vehicleId,
-            from,
-            to,
-          );
+          await this.diBoundaryAdmission.releaseForBoundaryScannedTripIds(boundaryScannedTripIds);
         } catch (err: unknown) {
           this.logger.warn(
-            `DI boundary admission LIVE_FSM split recovery failed for vehicle ${vehicleId}: ${(err as Error).message}`,
+            `DI boundary admission release failed for vehicle ${vehicleId}: ${(err as Error).message}`,
           );
         }
+      }
+      try {
+        const organizationId = await this.resolveOrganizationId(vehicleId);
+        await this.diBoundaryAdmission.releaseLiveFsmSplitSegmentsInReconciliationWindow(
+          organizationId,
+          vehicleId,
+          from,
+          to,
+        );
+      } catch (err: unknown) {
+        this.logger.warn(
+          `DI boundary admission LIVE_FSM split recovery failed for vehicle ${vehicleId}: ${(err as Error).message}`,
+        );
       }
     } catch (err: unknown) {
       this.logger.warn(
         `Reconciliation failed for vehicle ${vehicleId} [${tier}]: ${(err as Error).message}`,
       );
+    } finally {
+      try {
+        const organizationId = await this.resolveOrganizationId(vehicleId);
+        await this.diBoundaryAdmission.runDurableAdmissionRecoveryPass(organizationId, vehicleId, {
+          fleetBudget: options?.recoveryFleetBudget,
+        });
+      } catch (err: unknown) {
+        this.logger.warn(
+          `DI boundary admission durable recovery failed for vehicle ${vehicleId}: ${(err as Error).message}`,
+        );
+      }
     }
 
     return {
@@ -875,6 +896,17 @@ export class TripReconciliationService {
     }
 
     for (const trip of trips) {
+      try {
+        await this.diBoundaryAdmission.tryReleaseAfterPartialTripBoundaryExtension(
+          trip.id,
+          vehicleId,
+        );
+      } catch (err: unknown) {
+        this.logger.warn(
+          `DI boundary admission recovery failed for trip ${trip.id}: ${(err as Error).message}`,
+        );
+      }
+
       const refresh = readBoundaryRefreshRecord(trip.rawDetectionMeta);
       if (!isBoundaryRefreshRetryable(refresh)) continue;
 
@@ -1184,6 +1216,23 @@ export class TripReconciliationService {
           reason: 'Boundary repair idempotent no-op — already at target boundaries',
         });
         return { handled: true, proposed: false, applied: false, rejected: false };
+      }
+
+      try {
+        const admissionOutcome =
+          await this.diBoundaryAdmission.tryReleaseAfterPartialTripBoundaryExtension(
+            classification.tripId,
+            input.vehicleId,
+          );
+        if (!admissionOutcome.released) {
+          this.logger.debug(
+            `DI boundary admission deferred after partial extension trip=${classification.tripId}: ${admissionOutcome.reason ?? 'RELEASE_GUARDS'}`,
+          );
+        }
+      } catch (err: unknown) {
+        this.logger.warn(
+          `DI boundary admission release failed after partial extension trip=${classification.tripId}: ${(err as Error).message}`,
+        );
       }
 
       await this.finalizeBoundaryRepairRefresh(

@@ -18,6 +18,9 @@ export type Ds4PostgresTenant = {
   dimoSegmentId: string;
 };
 
+/** Integration tests: motion runs must be >= this cutoff to enter assessment discovery. */
+export const DS4_ASSESSMENT_TEST_COLLECTION_CUTOFF = new Date('2026-01-01T00:00:00.000Z');
+
 export async function seedDs4PostgresTenant(prisma: PrismaClient, ageSeconds = 3 * 86_400): Promise<Ds4PostgresTenant> {
   const suffix = randomUUID().slice(0, 8);
   const organizationId = randomUUID();

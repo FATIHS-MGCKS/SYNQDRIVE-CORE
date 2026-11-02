@@ -19,6 +19,7 @@ import {
 import {
   MOTION_PHYSICS_POLICY_REASONS,
   MOTION_PHYSICS_REFERENCE_CHANGE_ACTIONS,
+  normalizeMotionSystemPowerDefinition,
   resolveMotionPhysicsEvidenceTierForCreate,
 } from './motion-physics-reference.domain';
 import type { MotionPhysicsReferenceAuditEntry } from './motion-physics-reference.repository';
@@ -115,6 +116,7 @@ export class VehicleMotionPhysicsReferenceService {
     });
 
     try {
+      const normalizedDefinition = normalizeMotionSystemPowerDefinition(body.systemPowerDefinition);
       const created = await this.repository.createWithSupersedeAndAudit(
         {
           organizationId,
@@ -123,8 +125,11 @@ export class VehicleMotionPhysicsReferenceService {
           curbMassKg: body.curbMassKg ?? null,
           systemMotorPowerKw: body.systemMotorPowerKw ?? null,
           systemPowerDefinition:
-            body.systemPowerDefinition ??
-            (body.systemMotorPowerKw != null ? 'OEM_RATED_SYSTEM_KW_ESTIMATED' : null),
+            normalizedDefinition ??
+            (body.systemMotorPowerKw != null &&
+            (body.systemPowerDefinition == null || String(body.systemPowerDefinition).trim() === '')
+              ? 'OEM_RATED_SYSTEM_KW_ESTIMATED'
+              : null),
           accel0To100S: body.accel0To100S ?? null,
           variantAssumption: body.variantAssumption ?? null,
           evidenceTier: proposedTier,
@@ -301,7 +306,8 @@ export class VehicleMotionPhysicsReferenceService {
       identityFingerprint: row.identityFingerprintJson,
       curbMassKg: row.curbMassKg,
       systemMotorPowerKw: row.systemMotorPowerKw,
-      systemPowerDefinition: row.systemPowerDefinition,
+      systemPowerDefinition:
+        normalizeMotionSystemPowerDefinition(row.systemPowerDefinition) ?? row.systemPowerDefinition,
       accel0To100S: row.accel0To100S,
       variantAssumption: row.variantAssumption,
       evidenceTier: row.evidenceTier,

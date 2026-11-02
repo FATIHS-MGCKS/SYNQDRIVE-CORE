@@ -186,6 +186,25 @@ export const VSI_CONSUMER_REQUIREMENTS_V1: readonly VsiConsumerRequirementSpecV1
     evidenceReference:
       'vsi-apds-consumer.adapter.contract.ts — design/contract approval only; no APDS shadow wiring in P4',
   },
+  {
+    contractVersion: VSI_CONSUMER_REQUIREMENTS_CONTRACT_VERSION,
+    consumerModule: ModuleId.DRIVING_INTELLIGENCE,
+    featureId: 'ds4_rpm_hf_v1a',
+    requirementId: 'di.engine_rpm.active_cadence_profile',
+    canonicalSignalKeys: ['engine_rpm'],
+    providerSourceLinkScoped: true,
+    minimumEvidence: 'EMPIRICAL_OBSERVED',
+    maxSignalAgeMs: null,
+    minimumQuality: 'ANY_OBSERVED',
+    historicalReliability: 'PER_SIGNAL_CADENCE_PROVEN',
+    declaredOnlySufficient: false,
+    requireAllSignalsTogether: false,
+    fallbackChainId: null,
+    domainOwner: 'driving_intelligence',
+    domainApprovalStatus: VsiDomainApprovalStatus.APPROVED_DESIGN_CONTRACT,
+    evidenceReference:
+      'DS4 RPM HF V1A — reads cadenceIntelligence.activeRpmProfile only; design contract, no production activation',
+  },
 ];
 
 export function listConsumerRequirements(input: {

@@ -76,37 +76,125 @@ export function maxActiveRpmTripEndMs(
   return max;
 }
 
+/** Latest reliable trip end timestamp from tier rolling evidence, if present. */
+export function maxRpmCadenceTierTripEndMs(
+  cadence: VsiSignalCadenceIntelligenceV2 | undefined,
+): number | null {
+  const rows = cadence?.rpmCadenceTierResolution?.tripClassifications;
+  if (!rows?.length) {
+    return null;
+  }
+  let max: number | null = null;
+  for (const row of rows) {
+    if (!Number.isFinite(row.endMs)) {
+      continue;
+    }
+    max = max == null ? row.endMs : Math.max(max, row.endMs);
+  }
+  return max;
+}
+
+/** @deprecated Prefer block-specific checks; max of legacy + tier ends (diagnostics only). */
+export function maxCadenceRollingTripEndMs(
+  cadence: VsiSignalCadenceIntelligenceV2 | undefined,
+): number | null {
+  const fromActive = maxActiveRpmTripEndMs(cadence);
+  const fromTier = maxRpmCadenceTierTripEndMs(cadence);
+  if (fromActive == null) return fromTier;
+  if (fromTier == null) return fromActive;
+  return Math.max(fromActive, fromTier);
+}
+
+function isRollingTripWindowMonotonic(input: {
+  persistedMaxEndMs: number | null;
+  incomingMaxEndMs: number | null;
+  persistedEvaluatedTripIds: readonly string[] | undefined;
+  incomingEvaluatedTripIds: readonly string[] | undefined;
+  hasPersistedBlock: boolean;
+  hasIncomingBlock: boolean;
+}): boolean {
+  const {
+    persistedMaxEndMs,
+    incomingMaxEndMs,
+    persistedEvaluatedTripIds,
+    incomingEvaluatedTripIds,
+    hasPersistedBlock,
+    hasIncomingBlock,
+  } = input;
+  if (!hasPersistedBlock) {
+    return true;
+  }
+  if (!hasIncomingBlock) {
+    return false;
+  }
+  if (persistedMaxEndMs == null || incomingMaxEndMs == null) {
+    return false;
+  }
+  if (incomingMaxEndMs < persistedMaxEndMs) {
+    return false;
+  }
+  if (incomingMaxEndMs > persistedMaxEndMs) {
+    return true;
+  }
+  const persistedIds = persistedEvaluatedTripIds ?? [];
+  const incomingIds = incomingEvaluatedTripIds ?? [];
+  return JSON.stringify(persistedIds) === JSON.stringify(incomingIds);
+}
+
+/** Legacy activeRpmProfile rolling window monotonicity (independent of tier block). */
+export function isActiveRpmProfileEvidenceMonotonic(
+  persisted: VsiSignalCadenceIntelligenceV2,
+  incoming: VsiSignalCadenceIntelligenceV2,
+): boolean {
+  return isRollingTripWindowMonotonic({
+    persistedMaxEndMs: maxActiveRpmTripEndMs(persisted),
+    incomingMaxEndMs: maxActiveRpmTripEndMs(incoming),
+    persistedEvaluatedTripIds: persisted.activeRpmProfile?.evaluatedTripIds,
+    incomingEvaluatedTripIds: incoming.activeRpmProfile?.evaluatedTripIds,
+    hasPersistedBlock: Boolean(persisted.activeRpmProfile),
+    hasIncomingBlock: Boolean(incoming.activeRpmProfile),
+  });
+}
+
+/** rpmCadenceTierResolution rolling window monotonicity (independent of legacy block). */
+export function isRpmCadenceTierResolutionEvidenceMonotonic(
+  persisted: VsiSignalCadenceIntelligenceV2,
+  incoming: VsiSignalCadenceIntelligenceV2,
+): boolean {
+  return isRollingTripWindowMonotonic({
+    persistedMaxEndMs: maxRpmCadenceTierTripEndMs(persisted),
+    incomingMaxEndMs: maxRpmCadenceTierTripEndMs(incoming),
+    persistedEvaluatedTripIds: persisted.rpmCadenceTierResolution?.evaluatedTripIds,
+    incomingEvaluatedTripIds: incoming.rpmCadenceTierResolution?.evaluatedTripIds,
+    hasPersistedBlock: Boolean(persisted.rpmCadenceTierResolution),
+    hasIncomingBlock: Boolean(incoming.rpmCadenceTierResolution),
+  });
+}
+
 /**
- * Rejects stale active RPM rolling windows that share the same cadence semantic fingerprint.
- * LV cadence (no activeRpmProfile) is not gated here.
+ * True when incoming cadence can advance at least one rolling block without regressing the other.
+ * LV cadence (no rolling RPM blocks) is not gated here.
  */
 export function isIncomingActiveRpmEvidenceMonotonic(
   persisted: VsiSignalCadenceIntelligenceV2,
   incoming: VsiSignalCadenceIntelligenceV2,
 ): boolean {
-  if (!persisted.activeRpmProfile) {
+  const legacyOk = isActiveRpmProfileEvidenceMonotonic(persisted, incoming);
+  const tierOk = isRpmCadenceTierResolutionEvidenceMonotonic(persisted, incoming);
+  const hasLegacy = Boolean(persisted.activeRpmProfile || incoming.activeRpmProfile);
+  const hasTier = Boolean(
+    persisted.rpmCadenceTierResolution || incoming.rpmCadenceTierResolution,
+  );
+  if (!hasLegacy && !hasTier) {
     return true;
   }
-  if (!incoming.activeRpmProfile) {
-    return false;
+  if (hasLegacy && hasTier) {
+    return legacyOk || tierOk;
   }
-  const persistedMax = maxActiveRpmTripEndMs(persisted);
-  const incomingMax = maxActiveRpmTripEndMs(incoming);
-  if (persistedMax == null || incomingMax == null) {
-    return false;
+  if (hasLegacy) {
+    return legacyOk;
   }
-  if (incomingMax < persistedMax) {
-    return false;
-  }
-  if (incomingMax > persistedMax) {
-    return true;
-  }
-  const persistedIds = persisted.activeRpmProfile.evaluatedTripIds;
-  const incomingIds = incoming.activeRpmProfile.evaluatedTripIds;
-  if (JSON.stringify(persistedIds) === JSON.stringify(incomingIds)) {
-    return true;
-  }
-  return false;
+  return tierOk;
 }
 
 /**
@@ -133,7 +221,22 @@ export function mergeOperationalCadenceIntelligence(
   if (!isIncomingActiveRpmEvidenceMonotonic(persisted, incoming)) {
     return persisted;
   }
-  return incoming;
+
+  const legacyMonotonic = isActiveRpmProfileEvidenceMonotonic(persisted, incoming);
+  const tierMonotonic = isRpmCadenceTierResolutionEvidenceMonotonic(persisted, incoming);
+
+  const merged: VsiSignalCadenceIntelligenceV2 = { ...incoming };
+  if (!legacyMonotonic) {
+    merged.activeRpmProfile = persisted.activeRpmProfile;
+  }
+  if (!tierMonotonic) {
+    merged.rpmCadenceTierResolution = persisted.rpmCadenceTierResolution;
+  }
+
+  if (JSON.stringify(merged) === JSON.stringify(persisted)) {
+    return persisted;
+  }
+  return merged;
 }
 
 export function mergeOperationalSignalSnapshots(

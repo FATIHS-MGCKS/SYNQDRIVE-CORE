@@ -19,6 +19,7 @@ import { formatDateTimeDe } from './cv.utils';
 import { OffboardReleaseGatePanel } from './OffboardReleaseGatePanel';
 import { ConnectedVehicleTechnicalSpecsSection } from './ConnectedVehicleTechnicalSpecsSection';
 import { useConnectedVehicleTechnicalSpecs } from './useConnectedVehicleTechnicalSpecs';
+import { ConnectedVehicleIntelligenceSection } from './ConnectedVehicleIntelligenceSection';
 
 interface ConnectedVehicleDetailDrawerProps {
   open: boolean;
@@ -224,6 +225,13 @@ export function ConnectedVehicleDetailDrawer({
                 editLoading={editSpecificationsLoading}
                 onEdit={onEditSpecifications}
                 onRetry={() => void refreshSpecs()}
+              />
+            ) : null}
+
+            {vehicleId && detail.organizationId ? (
+              <ConnectedVehicleIntelligenceSection
+                organizationId={detail.organizationId}
+                vehicleId={vehicleId}
               />
             ) : null}
 

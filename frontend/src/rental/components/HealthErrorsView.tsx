@@ -870,6 +870,14 @@ export function HealthErrorsView({
   ]);
 
   const [tireActionError, setTireActionError] = useState<string | null>(null);
+  const [tireActionWarning, setTireActionWarning] = useState<string | null>(null);
+  const [aiTireGenerationBinding, setAiTireGenerationBinding] = useState<{
+    tireSetupId: string;
+    setupUpdatedAt: string;
+    requestTireSize: string;
+    requestLoadIndex: string;
+    requestSpeedIndex: string;
+  } | null>(null);
 
   const handleSubmitMeasurement = async () => {
     if (!vehicleId) return;
@@ -963,8 +971,38 @@ export function HealthErrorsView({
     vehicleYear,
   );
 
+  const mapAiTireApplyError = useCallback((code?: string, message?: string) => {
+    switch (code) {
+      case 'STALE_GENERATION_BINDING':
+        return t('health.aiTireSpec.staleBinding');
+      case 'MISSING_GENERATION_BINDING':
+        return t('health.aiTireSpec.missingGenerationBinding');
+      case 'PAYLOAD_GENERATION_IDENTITY_MISMATCH':
+      case 'PAYLOAD_AXLE_IDENTITY_MISMATCH':
+      case 'AMBIGUOUS_AXLE_BINDING':
+      case 'INCOMPLETE_SPEC_IDENTITY':
+        return t('health.aiTireSpec.identityMismatch');
+      default:
+        return message || t('health.aiTireSpec.applyFailed');
+    }
+  }, [t]);
+
   const handleFetchAiTireSpec = useCallback(() => {
     if (!aiTireSpecFieldsReady) return;
+
+    const activeSetup = resolveActiveSetup(tiresData);
+    if (!activeSetup?.id || !activeSetup?.updatedAt) {
+      setTireActionError(t('health.aiTireSpec.missingActiveSetup'));
+      return;
+    }
+
+    const generationSnapshot = {
+      tireSetupId: String(activeSetup.id),
+      setupUpdatedAt: new Date(activeSetup.updatedAt).toISOString(),
+      requestTireSize: editSetupForm.frontDimension.trim(),
+      requestLoadIndex: editSetupForm.loadIndex.trim(),
+      requestSpeedIndex: editSetupForm.speedIndex.trim(),
+    };
 
     // Abort previous
     if (aiTireAbortRef.current) aiTireAbortRef.current.abort();
@@ -975,6 +1013,7 @@ export function HealthErrorsView({
     setAiTireSteps([]);
     setAiTireLiveStep('');
     setAiTireResult(null);
+    setAiTireGenerationBinding(null);
     setAiTireError('');
     setAiTireDegraded(false);
     setAiTireCountdown(30);
@@ -1022,6 +1061,7 @@ export function HealthErrorsView({
             setAiTireDegraded(true);
           }
           setAiTireResult(evt.data.specs);
+          setAiTireGenerationBinding(generationSnapshot);
           setAiTireLoading(false);
         } else if (evt.event === 'error') {
           if (aiTireCountdownRef.current) clearInterval(aiTireCountdownRef.current);
@@ -1036,24 +1076,42 @@ export function HealthErrorsView({
       },
     );
     aiTireAbortRef.current = controller;
-  }, [aiTireSpecFieldsReady, editSetupForm.brandModelFront, editSetupForm.frontDimension, editSetupForm.loadIndex, editSetupForm.speedIndex, vehicleYear]);
+  }, [aiTireSpecFieldsReady, editSetupForm.brandModelFront, editSetupForm.frontDimension, editSetupForm.loadIndex, editSetupForm.speedIndex, vehicleYear, tiresData, resolveActiveSetup, t]);
 
   const handleApplyAiTireSpec = async () => {
-    if (!vehicleId || !aiTireResult) return;
+    if (!vehicleId || !aiTireResult || !aiTireGenerationBinding) return;
     setAiTireApplying(true);
+    setTireActionError(null);
+    setTireActionWarning(null);
     try {
-      await api.vehicleIntelligence.applyAiTireSpec(vehicleId, { aiTireSpec: aiTireResult });
+      const result = await api.vehicleIntelligence.applyAiTireSpec(vehicleId, {
+        aiTireSpec: aiTireResult,
+        generationBinding: aiTireGenerationBinding,
+      });
+      if (!result.success) {
+        setTireActionError(mapAiTireApplyError(result.code, result.message));
+        return;
+      }
+      if (result.setupSpecWarnings?.length) {
+        setTireActionWarning(
+          result.setupSpecWarnings.some((w) => w.code === 'SEASON_MISMATCH')
+            ? t('health.aiTireSpec.seasonMismatchWarning')
+            : result.setupSpecWarnings.map((w) => w.message).join(' · '),
+        );
+      }
       setAiTireResult(null);
+      setAiTireGenerationBinding(null);
       refreshTireWear();
       loadTireDetail();
     } catch (err: any) {
-      setTireActionError(err?.message || 'Failed to apply AI tire spec');
+      setTireActionError(err?.message || t('health.aiTireSpec.applyFailed'));
     }
     setAiTireApplying(false);
   };
 
   const handleDiscardAiTireSpec = () => {
     setAiTireResult(null);
+    setAiTireGenerationBinding(null);
     setAiTireError('');
     setAiTireDegraded(false);
     setAiTireSteps([]);
@@ -3303,6 +3361,13 @@ export function HealthErrorsView({
                     <Icon name="alert-triangle" className="w-4 h-4 text-red-500 shrink-0" />
                     <span className={`text-xs ${'text-[color:var(--status-critical)]'}`}>{tireActionError}</span>
                     <button onClick={() => setTireActionError(null)} className={`ml-auto p-0.5 rounded ${'text-muted-foreground hover:text-foreground'}`}><Icon name="x" className="w-3 h-3" /></button>
+                  </div>
+                )}
+                {tireActionWarning && !tireActionError && (
+                  <div className={`rounded-xl px-4 py-3 mb-4 flex items-center gap-2 border border-[color:var(--status-watch)]/40 bg-[color:var(--status-watch)]/10`}>
+                    <Icon name="info" className="w-4 h-4 shrink-0 text-[color:var(--status-watch)]" />
+                    <span className="text-xs text-[color:var(--status-watch)]">{tireActionWarning}</span>
+                    <button onClick={() => setTireActionWarning(null)} className={`ml-auto p-0.5 rounded ${'text-muted-foreground hover:text-foreground'}`}><Icon name="x" className="w-3 h-3" /></button>
                   </div>
                 )}
 

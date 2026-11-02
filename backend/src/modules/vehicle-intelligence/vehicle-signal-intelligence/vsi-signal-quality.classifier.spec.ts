@@ -53,7 +53,44 @@ describe('vsi-signal-quality.classifier', () => {
     expect(quality).toBe(VsiSignalQualityClassification.OBSERVED_STALE);
   });
 
-  it('does not label physical signals INSUFFICIENT_HISTORY from bundle gaps alone', () => {
+  it('classifies NOT_APPLICABLE empirical axis', () => {
+    const quality = classifyVsiSignalQuality({
+      signal: baseSignal({
+        empiricalObservation: VsiEmpiricalObservationStatus.NOT_APPLICABLE,
+      }),
+      profileLimitations: [],
+    });
+    expect(quality).toBe(VsiSignalQualityClassification.NOT_APPLICABLE);
+  });
+
+  it('classifies provider_last_successful_fetch from fetch recency, not sensor FRESH axis', () => {
+    const freshMeta = classifyVsiSignalQuality({
+      signal: baseSignal({
+        canonicalSignalKey: 'provider_last_successful_fetch',
+        providerNativeSignalName: 'provider_last_successful_fetch',
+        empiricalObservation: VsiEmpiricalObservationStatus.OBSERVED,
+        freshnessClassification: 'FRESH',
+        lastSourceTimestamp: null,
+        lastProviderFetchAt: '2026-10-30T11:59:00.000Z',
+        limitations: ['PROVIDER_FETCH_TIME_NOT_SOURCE_ADVANCE_PROOF'],
+      }),
+      profileLimitations: [],
+    });
+    expect(freshMeta).toBe(VsiSignalQualityClassification.OBSERVED_FRESH);
+
+    const staleMeta = classifyVsiSignalQuality({
+      signal: baseSignal({
+        canonicalSignalKey: 'provider_last_successful_fetch',
+        empiricalObservation: VsiEmpiricalObservationStatus.OBSERVED,
+        freshnessClassification: 'STALE',
+        lastProviderFetchAt: '2026-10-01T00:00:00.000Z',
+      }),
+      profileLimitations: [],
+    });
+    expect(staleMeta).toBe(VsiSignalQualityClassification.OBSERVED_STALE);
+  });
+
+  it('lv_voltage sensor quality path unchanged (requires sensor freshness FRESH)', () => {
     const quality = classifyVsiSignalQuality({
       signal: baseSignal({
         canonicalSignalKey: 'vehicle_speed',

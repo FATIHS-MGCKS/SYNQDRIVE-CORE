@@ -219,6 +219,10 @@ async function seedBundleHistory(
         },
       },
     });
+    await prisma.vehicle.update({
+      where: { id: fixture.vehicleId },
+      data: { fuelType: 'ELECTRIC' },
+    });
     const ts = new Date('2026-10-15T14:00:00.000Z');
     await upsertVls(prisma, {
       vehicleId: fixture.vehicleId,

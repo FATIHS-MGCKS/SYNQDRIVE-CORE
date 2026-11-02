@@ -8,8 +8,10 @@ import { masterPlatformOpsDiS4Fr } from './master.platformOps.diS4.fr';
 import { batteryV2HvInspectionFR } from './battery-v2-hv-inspection.fr';
 import { tireWearV3Fr } from './tire.wearV3.fr';
 import { masterPhysicalDeviceInventoryFr } from './master.physicalDeviceInventory.fr';
+import { masterIntelligenceFr } from './master.intelligence.fr';
 import { masterMotionPhysicsFr } from './master.motionPhysics.fr';
 import { masterVehicleIdentityFr } from './master.vehicleIdentity.fr';
+import { masterOneAutoFr } from './master.oneAuto.fr';
 import { masterCvTechnicalSpecsFr } from './master.cv.technicalSpecs.fr';
 
 export const fr = {
@@ -440,6 +442,16 @@ export const fr = {
   'settings.dataSync': 'Synchronisation donnees',
 
   // ─── Master — Connected Vehicles offboard (VO5C-P2A) ───
+  // ─── Master — Vehicle registration spec contract (V3) ───
+  'master.registration.lvBatteryConstructionType.label': 'Type de batterie LV',
+  'master.registration.lvBatteryConstructionType.leadAcid': 'Plomb-acide (noyée)',
+  'master.registration.lvBatteryChemistryHint.label': 'Chimie (indication IA uniquement)',
+  'master.registration.lvBatteryChemistryHint.placeholder': 'Non enregistré — utiliser le type LV',
+  'master.registration.lvBatteryChemistryHint.title': 'La chimie matière n’est pas persistée ; Battery Health utilise le type de construction LV.',
+  'master.registration.lvBatteryType.legacyLabel': 'Valeur legacy enregistrée (choisir un type pour mettre à jour)',
+  'master.registration.lvBatteryType.lvBatteryTypeRequiredForNumbers': 'Sélectionnez un type LV pris en charge avant la capacité ou la tension.',
+  'master.registration.lvBatteryType.lvBatteryTypeInvalid': 'Type LV non pris en charge. Choisissez AGM, EFB, plomb-acide ou lithium.',
+
   'master.cv.registryLifecycle.active': 'Actif',
   'master.cv.registryLifecycle.offboarded': 'Retire du parc',
   'master.cv.registryLifecycle.archived': 'Archive',
@@ -449,6 +461,22 @@ export const fr = {
   'master.cv.registryLifecycle.filter.archived': 'Archives',
   'master.cv.registryLifecycle.filter.all': 'Tous les cycles',
   'master.cv.registryLifecycle.filter.ariaLabel': 'Filtrer par cycle de vie du registre',
+  'master.cv.overview.telemetryNoSignal': 'Aucun signal',
+  'master.cv.overview.telemetrySignalDelayed': 'Signal retardé',
+  'master.cv.overview.openPlatformHealth': 'Ouvrir l’état de la plateforme',
+  'master.cv.overview.platformDimoDegradedBody':
+    'Panne DIMO globale — la télémétrie véhicule peut être obsolète. Pas d’avertissement dupliqué par véhicule.',
+  'master.cv.overview.platformDimoDegradedTitle': 'Plateforme DIMO dégradée',
+  'master.cv.overview.unavailableTitle': 'Vue d’ensemble indisponible',
+  'master.cv.overview.noAttention': 'Aucun élément de gouvernance ouvert.',
+  'master.cv.overview.showAll': 'Tout afficher',
+  'master.cv.overview.attentionQueue': 'File d’attention',
+  'master.cv.overview.telemetryDistribution': 'Répartition télémétrie',
+  'master.cv.overview.dimoLinked': 'Lié à DIMO (actif)',
+  'master.cv.overview.withAttention': 'Nécessite une attention',
+  'master.cv.overview.unregistered': 'Non assigné',
+  'master.cv.overview.registeredActive': 'Parc actif',
+  'master.cv.overview.registeredAllHint': 'Tous les enregistrements : {total} (retirés {offboarded}, archivés {archived})',
   'master.cv.mapping.mirrorProvider': 'Miroir DIMO (fournisseur)',
   'master.cv.mapping.effectiveSynqDriveAccess': 'Accès SynqDrive (effectif)',
   'master.cv.offboard.action': 'Retirer du parc actif',
@@ -576,6 +604,16 @@ export const fr = {
   'trips.start': 'Depart',
   'trips.destination': 'Destination',
   'health.aiHealthCare': 'Sante IA',
+  'health.aiTireSpec.applyFailed': 'Echec de l’application de la spec pneu IA.',
+  'health.aiTireSpec.applySuccess': 'Spec pneu IA appliquee.',
+  'health.aiTireSpec.seasonMismatchWarning':
+    'Spec pneu IA enregistree. La saison du setup n’a pas ete modifiee et differe de la suggestion IA.',
+  'health.aiTireSpec.staleBinding':
+    'Le setup pneu a change apres l’appel IA. Relancez la spec pneu IA avant d’appliquer.',
+  'health.aiTireSpec.missingGenerationBinding': 'Application sans lien de generation. Relancez la spec pneu IA.',
+  'health.aiTireSpec.missingActiveSetup': 'Aucun setup pneu actif.',
+  'health.aiTireSpec.identityMismatch':
+    'L’identite de la spec IA ne correspond pas au setup ou a la requete d’appel.',
   'health.poweredByAi': 'Propulse par IA',
   'health.errorCodes': 'Codes erreur',
   'health.noActiveErrors': 'Aucun code erreur actif',
@@ -917,8 +955,10 @@ export const fr = {
   ...dimoWebhookHealthFr,
   ...masterPlatformOpsDiS4Fr,
   ...masterPhysicalDeviceInventoryFr,
+  ...masterIntelligenceFr,
   ...masterMotionPhysicsFr,
 ...masterVehicleIdentityFr,
+  ...masterOneAutoFr,
   ...masterCvTechnicalSpecsFr,
   ...batteryV2HvInspectionFR,
   ...tireWearV3Fr,

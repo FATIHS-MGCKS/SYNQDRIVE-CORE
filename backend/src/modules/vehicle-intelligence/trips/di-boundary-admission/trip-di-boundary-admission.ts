@@ -5,6 +5,7 @@
 import { buildDiV0S4BoundaryFingerprint, type DiV0S4BoundaryInput } from '../../driving-intelligence/s4a-foundation/di-v0-s4a-identity';
 import {
   isBoundaryRefreshRetryable,
+  partialExtensionAllowsAdmissionDuringRetryableRefresh,
   readBoundaryRefreshRecord,
   readCurrentBoundaryRepairGeneration,
 } from '../boundary-repair.state.util';
@@ -104,7 +105,11 @@ export function canReleaseTripDiBoundaryAdmission(scope: TripDiBoundaryAdmission
   if (scope.activeTripId != null && scope.activeTripId === scope.tripId) return 'FSM_STILL_ACTIVE_ON_TRIP';
   if (scope.proposedBoundaryRepairCount > 0) return 'PROPOSED_BOUNDARY_REPAIR_OPEN';
   const refresh = readBoundaryRefreshRecord(scope.rawDetectionMeta);
-  if (isBoundaryRefreshRetryable(refresh)) return 'BOUNDARY_REFRESH_IN_FLIGHT';
+  if (isBoundaryRefreshRetryable(refresh)) {
+    if (!partialExtensionAllowsAdmissionDuringRetryableRefresh(scope.rawDetectionMeta)) {
+      return 'BOUNDARY_REFRESH_IN_FLIGHT';
+    }
+  }
   return null;
 }
 

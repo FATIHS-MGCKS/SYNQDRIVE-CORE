@@ -203,12 +203,22 @@ async function upsertVlsForTest(
               profileSemanticFingerprint: string;
               evaluatedTripIds: string[];
             };
+            rpmCadenceTierResolution?: {
+              contractVersion: string;
+              tripClassifications: unknown[];
+            };
           };
         }[]
       ).find((s) => s.canonicalSignalKey === 'engine_rpm');
       expect(rpmFive?.cadenceIntelligence?.activeRpmProfile?.activeProfile).toBe('RPM_1HZ');
       const tripIdsFive = rpmFive?.cadenceIntelligence?.activeRpmProfile?.evaluatedTripIds ?? [];
       expect(tripIdsFive).toHaveLength(5);
+      expect(rpmFive?.cadenceIntelligence?.rpmCadenceTierResolution?.contractVersion).toBe(
+        'vsi-rpm-cadence-tier-resolution-v1',
+      );
+      expect(
+        rpmFive?.cadenceIntelligence?.rpmCadenceTierResolution?.tripClassifications.length,
+      ).toBeGreaterThan(0);
 
       rollingTripCount = 6;
       const second = await cadenceService.materializeFromPersistedEvidence({
@@ -243,6 +253,7 @@ async function upsertVlsForTest(
               evaluatedTripIds: string[];
               tripClassifications: unknown[];
             };
+            rpmCadenceTierResolution?: { evaluatedTripIds: string[] };
           };
         }[]
       ).find((s) => s.canonicalSignalKey === 'engine_rpm');
@@ -255,6 +266,9 @@ async function upsertVlsForTest(
       expect(tripIdsSix).toEqual(buildFastTrips(6).slice(-5).map((t) => t.tripId));
       expect((rpmSix?.cadenceIntelligence?.activeRpmProfile?.tripClassifications ?? []).length).toBe(
         5,
+      );
+      expect(rpmSix?.cadenceIntelligence?.rpmCadenceTierResolution?.evaluatedTripIds).toEqual(
+        tripIdsSix,
       );
 
       await prisma.vehicleSignalCapabilityProfile.deleteMany({ where: { organizationId } });

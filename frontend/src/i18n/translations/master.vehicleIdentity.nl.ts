@@ -52,4 +52,18 @@ export const masterVehicleIdentityNl = {
   'master.vehicleIdentity.field.electrificationGrade': 'Elektrificatieniveau',
   'master.vehicleIdentity.extractionStatus': 'OCR-status: {status}',
   'master.vehicleIdentity.documentLinked': 'Document: {id}',
+  'master.vehicleIdentity.uploadToolbar': 'Kentekenbewijs uploaden',
+  'master.vehicleIdentity.uploadUseToolbar': 'Gebruik „Kentekenbewijs uploaden” in de specificatiebalk hierboven.',
+  'master.vehicleIdentity.zb1DialogTitle': 'Kentekenbewijs (ZB-I)',
+  'master.vehicleIdentity.zb1DialogDescription':
+    'Upload een PDF of afbeelding, controleer OCR-velden en pas bevestigde waarden toe op het specificatieformulier.',
+  'master.vehicleIdentity.applyToRegistrationForm': 'Toepassen op specificatieformulier',
+  'master.vehicleIdentity.applyToFormBlockedVin': 'Toepassen geblokkeerd — bevestig eerst het VIN-conflict.',
+  'master.vehicleIdentity.applyToFormConflict': 'Geen waarden toegepast — bevestig velden of los conflicten op.',
+  'master.vehicleIdentity.applyToFormEmpty': 'Geen bevestigde velden om toe te passen.',
+  'master.vehicleIdentity.applyToFormSuccess': 'Bevestigde waarden toegepast op het formulier (opslaan om te bewaren).',
+  'master.vehicleIdentity.applyToFormVinMismatchDocument':
+    'FIN van het document komt niet overeen met dit voertuig — specificatievelden uit dit document kunnen niet worden toegepast.',
+  'master.vehicleIdentity.p2ToolbarDisabledHint':
+    'Kentekenbewijs uploaden is niet ingeschakeld in deze omgeving (voertuigidentiteit P2).',
 };

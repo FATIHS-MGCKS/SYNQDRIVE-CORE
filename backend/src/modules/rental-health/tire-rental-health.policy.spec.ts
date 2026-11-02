@@ -362,4 +362,42 @@ describe('tire-rental-health.policy', () => {
     expect(overdue.structuredReasonCodes).toContain('V3_VERIFICATION_OVERDUE');
     expect(overdue.structuredReasonCodes).not.toContain('V3_VERIFICATION_INSUFFICIENT_EVIDENCE');
   });
+
+  it('blocks legacy GOOD rental clearance when V3 authoritative payload missing', () => {
+    const model = buildTireRentalHealthReadModel({
+      summary: baseSummary({
+        wearReadModel: 'v3',
+        overallStatus: 'GOOD',
+        displayMode: 'ESTIMATED',
+        wearV3: undefined,
+      }),
+    });
+    expect(model.structuredReasonCodes).toContain('V3_READ_UNAVAILABLE');
+    expect(model.overallStatus).not.toBe('good');
+  });
+
+  it('blocks GOOD clearance for authoritative unavailable V3 stub', () => {
+    const model = buildTireRentalHealthReadModel({
+      summary: baseSummary({
+        wearReadModel: 'v3',
+        overallStatus: 'GOOD',
+        displayMode: 'UNKNOWN',
+        wearV3: {
+          modelVersion: 'tire-wear-v3-read-unavailable',
+          computedAt: '2026-10-28T12:00:00.000Z',
+          inputFingerprint: 'unavailable:compute_failed',
+          rated: false,
+          setupFlags: [],
+          verificationStatus: 'INSUFFICIENT_EVIDENCE',
+          verificationQualityFlags: ['V3_READ_COMPUTE_FAILED'],
+          wheels: [],
+          lowestTreadPosition: null,
+          lowestTreadMm: null,
+          insufficientEvidence: true,
+        },
+      }),
+    });
+    expect(model.structuredReasonCodes).toContain('V3_VERIFICATION_INSUFFICIENT_EVIDENCE');
+    expect(model.overallStatus).not.toBe('good');
+  });
 });

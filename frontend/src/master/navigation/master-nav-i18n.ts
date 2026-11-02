@@ -29,6 +29,8 @@ const DE: Record<string, string> = {
   'master.nav.batteryV2HvInspection': 'HV-Batterie',
   'master.nav.architecture': 'Architektur',
   'master.nav.changes': 'Änderungsprotokoll',
+  'master.nav.vsiIntelligence': 'VSI – Signal Intelligence',
+  'master.nav.apdsIntelligence': 'APDS – Adaptives Polling',
   'master.nav.systemStatus': 'Systemstatus',
   'master.nav.systemStatusOperational': 'Betriebsbereit',
   'master.nav.systemStatusDegraded': 'Eingeschränkt',

@@ -2380,3 +2380,256 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | VALIDATION | `npm run test:di:ds4-assessment`; optional postgres integration when `S4A_POSTGRES_LIVE`; `nest build`; architecture validators |
 | NON_EFFECTS | Motion detection, legacy HF/Impact V1, Trip UI/DriverScore/Rental/Brake/Tire customer paths unchanged; motion-core env allowlists untouched; no deploy |
 | REMAINING | Fable review quality policy + reference distribution calibration; PR-B consumer cutover |
+
+### DS4 Assessment L2 PR-A2 — intensity eligibility + driving exposure (2026-10-28)
+
+| Event | Detail |
+|-------|--------|
+| CHANGE | `ds4-assessment-event-intensity-eligibility.v1.ts` + `ds4-assessment-driving-exposure.v1.ts`; L2 engine wires admissible ordinals, exposure provenance, `NO_VALID_DRIVING_EXPOSURE`; quality policy V2 default; extended `eventSummariesJson` (no schema migration) |
+| WHY | Fable 2026-10-28: gate ordinal bins on validated V2 intensity + duration metadata; canonical Es/D_km for future calibrated impact without publishing numeric score |
+| VALIDATION | `npm run test:di:ds4-assessment` (unit + optional postgres) |
+| NON_EFFECTS | C4/C5.1 algorithms unchanged; `operationalLoadIndex` remains null; worker OFF; no consumer cutover |
+| REMAINING | Reference population calibration; Fable re-review of eligibility thresholds |
+
+### DS4 RPM High Frequency V1A — data integration & admission (2026-10-28, Draft PR, not deployed)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | VSI cadence loader read RPM HF via vehicle time-band only (12k cap); no trip-scoped DS4 reader; no DS4 admission/DQ contract for RPM HF shadow path |
+| CHANGE | `ClickHouseHfService.getTripRpmHfPoints` (org + vehicle + trip_id + signal + trip window; pagination; tenant violation detection; fail-soft). New isolated module `driving-intelligence/rpm-hf-v1a/` (`Ds4RpmHfV1aTripInputService`: per-trip VSI admission, descriptive DQ, read-only contract). VSI consumer registry entry `ds4_rpm_hf_v1a` (APPROVED_DESIGN_CONTRACT). **Production activation forbidden** — no scheduler/outbox/shadow persist |
+| WHY | Phase 2A controlled integration after read-only audit 2026-10-28; trip-scoped HF read without retroactive RPM_1HZ on unclassified historical trips |
+| VALIDATION | Jest: `ds4-rpm-hf-v1a/*`, `clickhouse-hf.trip-rpm.spec.ts`; `nest build`; replay fixture `rpm-production-interval-replay.json` |
+| NON_EFFECTS | Motion C5.1, Trip FSM, Driving Impact, DriverScore, Tire/Brake, DIMO fetch pipeline, HF mirror ingest unchanged; no DB migration; no deploy |
+| REMAINING | Live ClickHouse preflight gate before activation; V1B shadow engine + Fable before production allowlist |
+
+### DS4 RPM High Frequency V1B — post-trip temporal quality shadow (2026-10-28, Draft PR, not deployed)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | V1A read-only trip input only; no versioned post-trip RPM HF shadow persistence or temporal coverage contract |
+| CHANGE | `rpm-hf-v1b/`: deterministic temporal engine, versioned shadow result contract, trip outbox + run persistence (`ds4_rpm_hf_v1b_shadow_*`), leader-gated scheduler (`ds4_rpm_hf_v1b_shadow_v1`). Consumes **only** `Ds4RpmHfV1aTripInputService.buildTripInput()` — no alternate RPM pipeline. Flags default OFF |
+| WHY | Phase 2B shadow quality validation after prod V1A smoke; bounded post-trip processing with VSI rolling trip classification provenance (no vehicle-level promotion) |
+| VALIDATION | Jest `rpm-hf-v1b/*`; Prisma migration `20261028180000_ds4_rpm_hf_v1b_shadow_v1`; scheduler registry entry; `nest build` |
+| NON_EFFECTS | V1A contract unchanged; motion-core shadow scheduler untouched; no customer scoring/API/UI; no deploy/backfill |
+| REMAINING | Owner allowlist pilot + Fable review before any production flag enable |
+
+### DS4 RPM HF V1B — Phase 4I admission quality exposure (2026-10-30, Draft PR, not deployed)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | Tier-aware shadow persisted tier metadata under `tierEvidence` only; flat `admission` could be read as full-trip enablement alongside `HIGH_RESOLUTION` |
+| CHANGE | Additive `admission.qualityExposure` (`ds4-rpm-hf-v1b-admission-quality-v1`): cadence tier/confidence, analysisMode, analysisReadiness, tripCoverageBand, observedBucketCoverageRatio, `qualityScope: OBSERVED_HF_TEMPORAL`, `tierAnalyticsReady`, `impliesFullTripCoverage: false` |
+| WHY | Phase 4H audit: downstream interpretation gap — separate temporal method from full-trip / TIER_ANALYTICS_OK |
+| VALIDATION | Jest `ds4-rpm-hf-v1b-quality-exposure.spec.ts` (Phase 4H Tiguan-shaped fixtures); existing rpm-hf-v1b processor/tier/fingerprint specs |
+| NON_EFFECTS | No VSI classifier/threshold changes; no admission routing or temporal/RPM math changes; input fingerprints unchanged; flags default OFF |
+
+### DS4 RPM HF V1B — PR #2224 targeted hardening (2026-10-28, not deployed)
+
+| Event | Detail |
+|-------|--------|
+| CHANGE | Lease recovery for expired `PROCESSING` claims; claim-token fencing; canonical RPM series input fingerprint; bounded SUCCEEDED outbox reopen for input revision (`succeeded_input_fingerprint`); 72h post-trip readiness window vs defer attempt budget; temporal `observedSequenceDurationSeconds` excludes inter-sequence gaps; V1B-local control-plane env parsing (no `s4a-foundation` import); postgres integration spec `ds4-rpm-hf-v1b-outbox.postgres.integration.spec.ts` |
+| WHY | Independent code review on PR #2224 — worker safety, idempotency/revision semantics, VSI defer correctness, S4 dormant audit boundary |
+| VALIDATION | Jest `rpm-hf-v1b/*`; optional `DI_V0_S4A_POSTGRES_INTEGRATION=1` outbox postgres spec; `nest build`; S4 unit dormant audit |
+| NON_EFFECTS | V1A unchanged; flags default OFF; no deploy |
+| REMAINING | Merge review; owner pilot allowlist when ready |
+
+### DS4 RPM HF V1B — runtime integrity hardening (2026-10-28, PR #2224)
+
+| Event | Detail |
+|-------|--------|
+| CHANGE | Trip-scoped VSI fingerprint; revision reopen gated on RPM_1HZ authoritative inputs; fair revision probe cursor (`revision_last_probed_at`); trip-end defer schedule vs 72h deadline; run insert bound to live outbox claim; dedicated postgres CI workflow |
+| WHY | Code review runtime risks: rolling VSI window churn, unsafe revision reopen, defer timeline vs budget, stale worker persist |
+| VALIDATION | Jest rpm-hf-v1b + v1a; `ds4-rpm-hf-v1b-postgres-ci.sh` (PR-path hook in `di-v0-s4a-postgres-ci.sh`) |
+| NON_EFFECTS | V1A contract unchanged; flags default OFF; no deploy |
+
+### DS4 RPM HF V1B — SUCCEEDED run insert idempotency (2026-10-28, PR #2224)
+
+| Event | Detail |
+|-------|--------|
+| CHANGE | `insertRun` / `insertRunWithActiveClaim` use partial unique index `ON CONFLICT … WHERE shadow_status = 'SUCCEEDED' DO NOTHING RETURNING id`; claim path verifies live lease before insert |
+| WHY | CI postgres test expected `idempotent_duplicate`; Prisma catch path missed partial-index violation metadata |
+| VALIDATION | `ds4-rpm-hf-v1b-postgres-ci.sh` (9/9) |
+| NON_EFFECTS | Schema unchanged; V1A/VSI/temporal/scheduler untouched |
+
+### DS4 Assessment L2 PR-A2 hardening — exposure integrity + fingerprint binding (2026-10-28, PR #2218)
+
+| Event | Detail |
+|-------|--------|
+| CHANGE | Fail-closed duplicate label handling; C5_1_PREFERRED no c4Speeds fallback; 1s exposure grid gap; L2 rule bindings in assessment input fingerprint; zero-exposure fail-closed independent of manoeuvre count |
+| WHY | Independent Fable review PASS_WITH_CONDITIONS remediation on PR #2218 |
+| VALIDATION | `npm run test:di:ds4-assessment`; `test:di:ds4-assessment:postgres:ci`; merge with main (#2217) |
+| NON_EFFECTS | No score publication; workers OFF; no consumer cutover |
+| REMAINING | Impact V2 percentile gate on `assessmentStatus===RATED` before future activation |
+
+### DS4 pre-activation readiness — exposure perf + postgres persistence assertions (2026-10-28)
+
+| Event | Detail |
+|-------|--------|
+| CHANGE | O(n) Map-based FSM duplicate-label counting in `ds4-assessment-driving-exposure.v1.ts`; postgres integration asserts persisted `eventSummariesJson` exposure provenance + intensity quality + zero-exposure path |
+| WHY | Close PR-A2 technical prerequisites before assessment worker data collection; production read-only audit baseline |
+| VALIDATION | `npm run test:di:ds4-assessment`; `test:di:ds4-assessment:postgres:ci`; evidence `evidence/DS4_PRE_ACTIVATION_READINESS_2026-10-28.md` |
+| NON_EFFECTS | No deploy; assessment/impact workers OFF; no numeric score; no consumer cutover |
+| REMAINING | Production deploy of #2212/#2215/#2218 stack; V2 intensity backfill on legacy motion payloads; owner activation record |
+
+### DS4 assessment collection safety — V2-only discovery + cutoff fail-closed (2026-10-28)
+
+| Event | Detail |
+|-------|--------|
+| CHANGE | `discoverFromSucceededMotionRuns` filters V2 contract + `DI_V0_DS4_ASSESSMENT_MIN_MOTION_RUN_CREATED_AT`; summary/payload contract validation; Impact V2 percentile resolver gated on `assessmentStatus===RATED` only |
+| WHY | Safe shadow collection for post-L2 Motion V2 without V1 starvation or numeric score leakage under unapproved policy |
+| VALIDATION | `npm run test:di:ds4-assessment`; postgres integration when `DI_V0_DS4_ASSESSMENT_POSTGRES_INTEGRATION=1` |
+| NON_EFFECTS | No deploy; no production env activation; workers remain OFF without explicit cutoff |
+| REMAINING | Owner sets cutoff + enables worker for collection; ordinal rating still unapproved |
+
+### DS4 Layer 2 AP2 — longitudinal load observables read projection (2026-10-29)
+
+| Event | Detail |
+|-------|--------|
+| CHANGE | Extend internal `GET …/trips/:tripId/ds4-assessment` response with optional `longitudinalLoadObservablesV1`; deterministic AP1 kernel projection from persisted `eventSummariesJson` (no motion recompute, no schema migration) |
+| WHY | Expose Layer-2 load observables on existing authorized internal read path after AP1 kernel merge (#2239) |
+| VALIDATION | `jest ds4-longitudinal-load-observables.v1.spec.ts`; `jest ds4-assessment-read.service.v1.unit.spec.ts`; backend `tsc --noEmit` |
+| NON_EFFECTS | No worker/scheduler change; no customer score; no Driving Impact mutation; exposureGate remains UNCALIBRATED |
+| REMAINING | Layer-3 fleet calibration and operational load index remain out of scope |
+
+### DS4 R1 shadow speed safety P1 — intensity endpoint evidence gates (2026-10-29)
+
+| Event | Detail |
+|-------|--------|
+| CHANGE | `motion-event-intensity-endpoint-evidence.v1.ts`; shadow processor applies `applyMotionEventIntensityEvidenceGatesV1` after universal plausibility; marks `ARTEFACT_SUSPECT` + `INTENSITY_ENDPOINT_EVIDENCE` / `SHARED_CONFLICT_KNOT` when speed samples carry abstained/conflict QC flags or opposite secants share an isolated spike knot |
+| WHY | Production Arteon trip `630dc631…`: ABSTAINED/CONFLICT 220 km/h knot produced admissible BIN_ONLY ACCEL/BRAKE secants (~26–27 m/s²) because spike-bracket skipped `oppositeFollows` pairs; fail closed before DS4 intensity eligibility without caps or zeroing kinematics |
+| VALIDATION | `motion-event-intensity-endpoint-evidence.v1.spec.ts`; `npm run test:di:ds4-assessment`; `npm run test:di:s4a`; motion P1/P2 + shadow processor unit regressions |
+| NON_EFFECTS | No C4/C5.1 speed rewrite; no Tesla API_SYNTHETIC L2 resolver change; no persisted row mutation/backfill; no deploy/flags |
+| REMAINING | Owner review; optional processor integration fixture against full S4 evidence adaptation |
+
+### DS4 Layer-2 historical export P1 — persisted assessment read-only CLI (2026-10-30)
+
+| Event | Detail |
+|-------|--------|
+| CHANGE | `ds4-layer2-historical-export.v1.*` + research CLI; artifacts `manifest.json`, `assessments.csv`, `longitudinal_events.csv`, `exclusions.csv`, `coverage_summary.json`; design `design/DS4_LAYER2_HISTORICAL_EXPORT_V1.md` |
+| WHY | Reproducible research export for persisted L2 assessments (P1 scope: assessment rows only) without new persistence, backfill, or motion-only recomputation |
+| VALIDATION | `npm run test:di:ds4-layer2-export` |
+| NON_EFFECTS | No deploy/flags/migrations/worker changes; no production data in git; no motion-only annex |
+| REMAINING | Optional production read-only smoke to local artifacts; batch automation outside P1 PR |
+
+### DS4 Layer-2 historical export P1 hardening — S4A SQL, attestation, JSON integrity (2026-10-30)
+
+| Event | Detail |
+|-------|--------|
+| CHANGE | Export loader → explicit SQL repository (no `diV0S4*` delegates); `evaluationCodeSha` from git HEAD; fail-closed `eventSummariesJson` integrity gate; guard bundle manifest SHA regen for `test:di:ds4-layer2-export` npm script |
+| WHY | Close PR #2256 review blockers without expanding export architecture |
+| VALIDATION | `npm run test:di:ds4-layer2-export` (23); `npm run test:di:s4a` (125/125); `di-v0-s4a-dormant-audit`; `production-database-guard-bootstrap-dry-run.sh` |
+| NON_EFFECTS | No S4A guard edits; no deploy/production writes; no second L2 engine |
+
+### 2026-10-30 — DS4 Layer-2 P2 offline reconstruction pilot (draft PR)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Isolated P2 research adapter: pinned 8-trip cohort, revision selector, read-only motion loader, `p2_*` artifacts, CLI gated by `DS4_LAYER2_P2_PRODUCTION_RECONSTRUCTION_AUTHORIZED=1`; reuses canonical DS4 assessment + L2 projector |
+| WHY | Implement feasibility-audit pilot without P1 persistence or bulk backfill |
+| VALIDATION | `npm run test:di:ds4-layer2-p2-offline` (12); production-database-guard manifest regen |
+| NON_EFFECTS | No production assessment writes; no worker replay; no merge into P1 export |
+| EVIDENCE | `architecture/drivingintelligence/research/DS4_LAYER2_P2_OFFLINE_RECONSTRUCTION_PILOT_2026-10-30.md` |
+
+### 2026-10-30 — DS4 Layer-2 P2 pilot hardening (draft PR #2258)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Cohort pins `expectedVehicleId` + `expectedSourceFamily`; runtime scope assert before compute; motion payload `sparse.channelOutcome` threaded into evidence loader; revision tie-break `created_at` desc + `motionRunId` asc; `test:di:ds4-layer2-p2-offline` in S4A unit CI job |
+| WHY | Close architecture-audit gaps (identity, Tesla API_SYNTHETIC context, deterministic selection, CI coverage) |
+| VALIDATION | `npm run test:di:ds4-layer2-p2-offline` (18); S4A workflow unit job |
+| NON_EFFECTS | No production reconstruction; no assessment persistence |
+
+### 2026-10-30 — RPM Reference Intelligence ownership boundaries (Phase 5 ADR, documentation-only)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | ADR [`design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md`](../design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md); decision `DI-DEC-RPM-REF-INTEL-001`; graph evidence `DI-EVID-RPM-REF-INTEL-ADR-001`; cross-refs in DI README/CURRENT_STATE, VSI cross-workstream contracts, VSI change ledger |
+| WHY | Owner-approved Phase 5 architecture: register boundaries between VSI, RPM HF V1A/V1B, Vehicle Specifications reference metadata, RPM Reference Intelligence (small RPM-workstream component), and DS4 — without implementation or canary interference |
+| VALIDATION | `bash architecture/drivingintelligence/scripts/validate-docs.sh`; `bash architecture/drivingintelligence/scripts/validate-graph.sh`; `bash architecture/scripts/validate-module-registry.sh` |
+| NON_EFFECTS | **No** production flag/env changes; **no** runtime code; **no** migrations; **no** V1B admission/VSI tier changes; **no** DS4 Motion/Driving Impact/Tire/Trip FSM/customer behavior; active Audi+Arteon V1B shadow canary unaffected |
+| REMAINING | Future P1–P5 implementation PRs; DS4 optional consumer contract; Fable review before any RPM-derived load/wear/scoring |
+
+### 2026-10-31 — DS4 Layer-2 P3C offline physics diagnostics sidecar
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | P3C sidecar exporter + pinned 11-trip P2 attestation/fixtures; temporal P3B wrapper; architecture [`DS4_LAYER2_P3C_OFFLINE_PHYSICS_DIAGNOSTICS_V1.md`](./DS4_LAYER2_P3C_OFFLINE_PHYSICS_DIAGNOSTICS_V1.md) |
+| WHY | Independent Motion Physics diagnostics for pinned P2 cohort without mutating canonical kinematic outputs |
+| VALIDATION | `npm run test:di:ds4-layer2-p3c-physics`; `npm run research:ds4-layer2-p3c-physics` |
+| NON_EFFECTS | **No** P2 CSV mutation; **no** admission/eligibility/production writes; **no** B/I/Phi/S recompute in P2 path |
+
+### 2026-10-31 — DS4 Layer-2 P3C temporal provenance hardening (PR #2270)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `classifyDs4Layer2P3cTemporalProvenanceV1`; read-only `selectMotionPhysicsReferenceEffectiveAtTripV1` + optional Prisma historical resolver; fixture `effectiveFrom` labeled `RETROSPECTIVE_REFERENCE` / `FIXTURE_SNAPSHOT`; sidecar CSV columns `temporalProvenance`, `historicalEvidenceSupported`, `numericDiagnosticAvailability`; production DB guard manifest regen for P3C npm scripts |
+| WHY | Fixture `2025-01-01` effectiveFrom must not read as independently evidenced historical applicability; separate numeric availability from evidence tier and temporal provenance |
+| VALIDATION | `npm run test:di:ds4-layer2-p3c-physics`; `ds4-layer2-p3c-historical-motion-physics-resolver.v1.spec`; `bash backend/scripts/test/production-database-guard-bootstrap-dry-run.sh`; `npx tsc -p tsconfig.build.json --noEmit` |
+| NON_EFFECTS | **No** P3B production resolver semantic change; **no** P2 checksum/CSV mutation; **no** fabricated historical reference rows; **no** deploy/merge |
+
+### 2026-10-31 — DS4 Layer-2 P3B Motion Physics context resolver (research-only)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `resolveDs4Layer2MotionPhysicsContextV1` + contract under `ds4-assessment/research/`; architecture note [`DS4_LAYER2_P3_MOTION_PHYSICS_CONTEXT_V1.md`](./DS4_LAYER2_P3_MOTION_PHYSICS_CONTEXT_V1.md); unit tests with mocked deps |
+| WHY | Minimal read-only reference resolver for future Layer-2 offline vehicle-physics diagnostics without production wiring |
+| VALIDATION | `npm test -- --testPathPatterns=ds4-layer2-p3-motion-physics-context.resolver.v1.spec`; `npx tsc -p tsconfig.build.json --noEmit` |
+| NON_EFFECTS | **No** motion-core/assessment/admission integration; **no** schema migrations; **no** production writes; **no** B/I/Phi/S changes |
+
+|-------|--------|
+| CHANGE | `applyMotionEventSharedKnotSpikePairGate` in `motion-event-intensity-endpoint-evidence.v1.ts`; wired from `applyMotionEventIntensityEvidenceGatesV1` with optional C5.1 Q5/Q6 repair evidence; shadow processor passes `speedRepairs` |
+| WHY | Tiguan trip `dbdded5c-ee72-40f3-91bb-62d5a1b7f7ff`: K3 `REVERSION_EXPLAINED_BY_OPPOSITE_EVENT` + non-isolated shared knot let BIN_ONLY 7.898/8.561 m/s² secants stay `OK`; multi-indicator fail-closed gate marks pair `ARTEFACT_SUSPECT` + `SHARED_KNOT_SPIKE_PAIR` flag |
+| VALIDATION | `motion-event-intensity-endpoint-evidence.v1.spec.ts` (dbdded5c fixture, hard-braking counterexample, missing-evidence fail-closed); `npm run test:di:ds4-assessment`; P2 differential harness `ds4-shared-knot-spike-pair-p2-differential.harness.ts` (124→122 admissible) |
+| NON_EFFECTS | No P2 CLI/reconstruction change; no DB writes/backfill/deploy/flags; no Tire/Brake/Driving Impact/customer scores |
+| REMAINING | Existing persisted shadow payloads unchanged until shadow recompute; C4-only paths need two geometry-independent indicators without C5.1 (see assessSharedKnotSpikePairIndicatorsV1) |
+
+### 2026-10-30 — RPM Reference Intelligence V1 library (Phase 5A, shadow-safe)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Pure library `rpm-reference-intelligence-v1/` — contract `ds4-rpm-reference-intelligence-v1`, reference spec + HF admission inputs, normalized position, idle proximity, operating bands, time-weighted exposure on eligible continuous sequences only; DI consumer interface types only |
+| WHY | Implement ADR `DI-DEC-RPM-REF-INTEL-001` P2 metrics calculator without V1B admission changes, persistence, flags, or DS4/Tire/Impact integration |
+| VALIDATION | `npm run test:di:rpm-ref-intel-v1`; P1 hardening: V1B temporal gap binding + UNKNOWN provenance + production DB guard manifest regen |
+| NON_EFFECTS | **No** production deploy; **no** canary/env flag changes; **no** V1B shadow processor or admission edits; **no** migrations/workers; **no** customer-facing surfaces |
+| REMAINING | P4 DS4 optional consumer; localization N/A (developer contract only); spec edits do not reopen historical attachments (`REFERENCE_SNAPSHOT_AT_CALCULATION_TIME_NO_SPEC_REPLAY`) |
+
+### 2026-10-30 — RPM Reference Intelligence V1 V1B shadow attach (Phase 5B, flag-gated)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `DS4_RPM_REF_INTEL_V1_V1B_ATTACH_ENABLED` (default OFF); `Ds4RpmHfV1bShadowService` attaches optional `rpmReferenceIntelligenceV1` to `summary_json` on V1B SUCCEEDED runs only; shared vehicle reference mapper + V1B temporal binding from `qualityExposure` / `tierEvidence` |
+| WHY | ADR `DI-DEC-RPM-REF-INTEL-001` P3 — persist reference metrics additively without changing V1B admission, canary flags, or customer surfaces |
+| VALIDATION | `npm run test:di:rpm-ref-intel-v1`; failure-isolated try/catch; no new DB table |
+| NON_EFFECTS | **No** `DS4_RPM_HF_V1B_*` changes; **no** deploy/canary activation; **no** DS4/Tire/Impact; **no** spec-revision replay/backfill |
+| REMAINING | P4 DS4 optional consumer; production attach flag remains OFF until owner scope |
+
+### 2026-10-31 — DS4 Layer-2 P4B event kinematics evidence sidecar (research)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Read-only P4B sidecar `DS4_LAYER2_P4B_EVENT_KINEMATICS_EVIDENCE_V1`: pinned payload loader, strict P2 join (`tripId`+`sourceMotionRunId`+`eventIndex`), boundary/window speed evidence, peak explicitly unavailable |
+| WHY | Persisted Motion V2 payloads carry boundary speeds; peaks excluded from shadow contract — versioned research artifacts without mutating P2 or motion-core |
+| VALIDATION | `npm run test:di:ds4-layer2-p4b-event-speed`; CLI `npm run research:ds4-layer2-p4b-event-speed` (read-only DB) |
+| NON_EFFECTS | **No** production writes/deploy; **no** motion-core/admission/P2 CSV changes; **no** peak reconstruction |
+| REMAINING | Empirical 129-event sidecar from Production DB requires operator `DATABASE_URL` CLI run; peaks remain unavailable until contract extension |
+
+### 2026-10-31 — Tiguan partial boundary extension → DI admission release (trips reconciliation hook)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Trips module releases `diV0BoundaryAdmissionV1` after committed `PARTIAL_TRIP_BOUNDARY_EXTENSION`; S4 discovery eligibility unchanged (still requires matching admission revision) |
+| WHY | Post-repair `boundaryRefresh` PENDING blocked `canRelease`; Tiguan canonical trip never received admission via boundary-scanned release path |
+| VALIDATION | `trip-di-boundary-admission.unit.spec.ts`; postgres harness when live |
+| NON_EFFECTS | **No** S4 worker/discovery code change; **no** scoring; **no** historical replay |
+| REMAINING | Owner-authorized read-only Production eligibility before any Tiguan replay |
+
+### 2026-11-01 — Durable DI boundary admission recovery (Fable P0, extends PR #2293)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `runDurableAdmissionRecoveryPass` on reconciliation tick — bounded COMPLETED/RESTING scan, `tryReleaseForTripTransactional`, shadow/writer activation env gates; Prometheus `synqdrive_trip_di_boundary_admission_recovery_*` |
+| WHY | Direct finalize/LIVE_FSM/scanner paths leave eligible trips permanently unadmitted; S4 discovery requires admission revision |
+| VALIDATION | `trip-di-boundary-admission-recovery.*.spec.ts`; existing S4 T01 postgres harness unchanged |
+| NON_EFFECTS | **No** S4 physics/C5.1; **no** scoring; **no** production env activation; **no** automatic historical backfill |
+| REMAINING | Owner sets `TRIP_DI_BOUNDARY_ADMISSION_RECOVERY_ACTIVATED_AT_UTC` + writer flag in controlled rollout; historical trips (e.g. `2245f107…`) require separate approval |
+

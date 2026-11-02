@@ -100,6 +100,55 @@ describe('tire-wear-v3-prior.math', () => {
     expect(tread.lo).toBeCloseTo(8 - 0.00015 * 10000, 2);
   });
 
+  it('widens projection when measurement anchor uncertainty is provided (C2)', () => {
+    const tread = projectTreadMm({
+      anchorTreadMm: 7,
+      anchorOdometerKm: 5000,
+      currentOdometerKm: 8000,
+      rateMmPerKm: { lo: 0.0001, hi: 0.00012 },
+      anchorUncertaintyMm: 0.4,
+    });
+    const narrow = projectTreadMm({
+      anchorTreadMm: 7,
+      anchorOdometerKm: 5000,
+      currentOdometerKm: 8000,
+      rateMmPerKm: { lo: 0.0001, hi: 0.00012 },
+    });
+    expect(tread.lo).toBeLessThan(narrow.lo);
+    expect(tread.hi).toBeGreaterThan(narrow.hi);
+  });
+
+  it('floors OLS rate sigma with measurement noise (C3)', () => {
+    const fit = fitWearRateFromMeasurements(
+      [
+        {
+          measuredAt: new Date('2026-01-01'),
+          odometerKm: 10000,
+          treadMm: 7.2,
+          source: 'manual',
+          isCalibrationPoint: false,
+        },
+        {
+          measuredAt: new Date('2026-04-01'),
+          odometerKm: 15000,
+          treadMm: 7.0,
+          source: 'manual',
+          isCalibrationPoint: false,
+        },
+        {
+          measuredAt: new Date('2026-07-01'),
+          odometerKm: 20000,
+          treadMm: 6.8,
+          source: 'manual',
+          isCalibrationPoint: false,
+        },
+      ],
+      0.4,
+    );
+    expect(fit.rateSigmaMmPerKm).not.toBeNull();
+    expect(fit.rateSigmaMmPerKm!).toBeGreaterThan(1e-8);
+  });
+
   it('computes remaining km interval with consistent units', () => {
     const remaining = remainingKmInterval(
       { lo: 4.0, hi: 5.0 },

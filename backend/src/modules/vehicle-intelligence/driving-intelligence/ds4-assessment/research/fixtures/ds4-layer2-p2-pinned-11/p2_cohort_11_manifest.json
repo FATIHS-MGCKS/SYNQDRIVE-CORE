@@ -1,0 +1,117 @@
+{
+  "operation": "DS4_LAYER2_P2_OFFLINE_COHORT_V1_EXPAND_8_TO_11",
+  "parentCohort": "DS4_LAYER2_P2_OFFLINE_PILOT_COHORT_V1 (8 trips, artifacts unchanged in ds4-p2-pilot-run1)",
+  "feasibilityAuditProductionSha": "7ab55a0d22223ad9de5bc6691b726e169d377517",
+  "admissionEvaluationCodeSha": "355d9cb6d5e5204465274fb1229168c516322755",
+  "admissionStack": "applyMotionEventUniversalPlausibility + applyMotionEventIntensityEvidenceGatesV1 (incl. shared-knot spike pair @355d9cb6d)",
+  "reconstructionMode": "NEWLY_COMPUTED_OFFLINE",
+  "tripCount": 11,
+  "tripIds": [
+    "004f9579-2875-42f2-8aa7-e82c343c954e",
+    "0a14d29d-167c-4f28-851b-5c6f6e7f3e5d",
+    "2ccf0d2a-d5b8-4612-aabe-b4c1f387d9af",
+    "3c8827e9-7dd0-46a8-ae7c-eb5c7495c65b",
+    "4dcc7cbf-9d1c-4efa-b395-6ad540091143",
+    "b304e9ad-0dcb-4b69-a93e-5364078a20a1",
+    "ba66e2ad-a824-4944-83c9-4472a5508e82",
+    "c0448fea-e7c3-4658-b2fd-417c452f70d7",
+    "d06f1e85-cf2f-4d7f-88d7-13e5c0a24ac1",
+    "dbdded5c-ee72-40f3-91bb-62d5a1b7f7ff",
+    "dfc7c443-d847-4d31-8c84-9c0f11e47e1e"
+  ],
+  "addedTripIds": [
+    "0a14d29d-167c-4f28-851b-5c6f6e7f3e5d",
+    "c0448fea-e7c3-4658-b2fd-417c452f70d7",
+    "dfc7c443-d847-4d31-8c84-9c0f11e47e1e"
+  ],
+  "entries": [
+    {
+      "tripId": "004f9579-2875-42f2-8aa7-e82c343c954e",
+      "expectedVehicleId": "c10351f8-b6a2-4258-947f-631aeaa6d359",
+      "vehicleLine": "AUDI_A4",
+      "expectedSpeedAuthority": "C4_ONLY",
+      "expectedSourceFamily": "RUPTELA_R1",
+      "feasibilityAuditClass": "RECONSTRUCTABLE_V2"
+    },
+    {
+      "tripId": "0a14d29d-167c-4f28-851b-5c6f6e7f3e5d",
+      "expectedVehicleId": "19fedd4b-c4e8-4de8-a125-dab293326e7e",
+      "vehicleLine": "VW_TIGUAN",
+      "expectedSpeedAuthority": "C5_1_PREFERRED",
+      "expectedSourceFamily": "RUPTELA_R1",
+      "feasibilityAuditClass": "RECONSTRUCTABLE_V2"
+    },
+    {
+      "tripId": "2ccf0d2a-d5b8-4612-aabe-b4c1f387d9af",
+      "expectedVehicleId": "19fedd4b-c4e8-4de8-a125-dab293326e7e",
+      "vehicleLine": "VW_TIGUAN",
+      "expectedSpeedAuthority": "C5_1_PREFERRED",
+      "expectedSourceFamily": "RUPTELA_R1",
+      "feasibilityAuditClass": "RECONSTRUCTABLE_V2"
+    },
+    {
+      "tripId": "3c8827e9-7dd0-46a8-ae7c-eb5c7495c65b",
+      "expectedVehicleId": "c10351f8-b6a2-4258-947f-631aeaa6d359",
+      "vehicleLine": "AUDI_A4",
+      "expectedSpeedAuthority": "C4_ONLY",
+      "expectedSourceFamily": "RUPTELA_R1",
+      "feasibilityAuditClass": "RECONSTRUCTABLE_V2"
+    },
+    {
+      "tripId": "4dcc7cbf-9d1c-4efa-b395-6ad540091143",
+      "expectedVehicleId": "19fedd4b-c4e8-4de8-a125-dab293326e7e",
+      "vehicleLine": "VW_TIGUAN",
+      "expectedSpeedAuthority": "C5_1_PREFERRED",
+      "expectedSourceFamily": "RUPTELA_R1",
+      "feasibilityAuditClass": "RECONSTRUCTABLE_V2"
+    },
+    {
+      "tripId": "b304e9ad-0dcb-4b69-a93e-5364078a20a1",
+      "expectedVehicleId": "68868291-5478-42cd-b0c4-cc77b2a78e21",
+      "vehicleLine": "TESLA_MODEL_3",
+      "expectedSpeedAuthority": "C5_1_PREFERRED",
+      "expectedSourceFamily": "API_SYNTHETIC",
+      "feasibilityAuditClass": "RECONSTRUCTABLE_V2"
+    },
+    {
+      "tripId": "ba66e2ad-a824-4944-83c9-4472a5508e82",
+      "expectedVehicleId": "c10351f8-b6a2-4258-947f-631aeaa6d359",
+      "vehicleLine": "AUDI_A4",
+      "expectedSpeedAuthority": "C4_ONLY",
+      "expectedSourceFamily": "RUPTELA_R1",
+      "feasibilityAuditClass": "RECONSTRUCTABLE_V2"
+    },
+    {
+      "tripId": "c0448fea-e7c3-4658-b2fd-417c452f70d7",
+      "expectedVehicleId": "19fedd4b-c4e8-4de8-a125-dab293326e7e",
+      "vehicleLine": "VW_TIGUAN",
+      "expectedSpeedAuthority": "C5_1_PREFERRED",
+      "expectedSourceFamily": "RUPTELA_R1",
+      "feasibilityAuditClass": "RECONSTRUCTABLE_V2"
+    },
+    {
+      "tripId": "d06f1e85-cf2f-4d7f-88d7-13e5c0a24ac1",
+      "expectedVehicleId": "c10351f8-b6a2-4258-947f-631aeaa6d359",
+      "vehicleLine": "AUDI_A4",
+      "expectedSpeedAuthority": "C4_ONLY",
+      "expectedSourceFamily": "RUPTELA_R1",
+      "feasibilityAuditClass": "RECONSTRUCTABLE_V2"
+    },
+    {
+      "tripId": "dbdded5c-ee72-40f3-91bb-62d5a1b7f7ff",
+      "expectedVehicleId": "19fedd4b-c4e8-4de8-a125-dab293326e7e",
+      "vehicleLine": "VW_TIGUAN",
+      "expectedSpeedAuthority": "C5_1_PREFERRED",
+      "expectedSourceFamily": "RUPTELA_R1",
+      "feasibilityAuditClass": "RECONSTRUCTABLE_V2"
+    },
+    {
+      "tripId": "dfc7c443-d847-4d31-8c84-9c0f11e47e1e",
+      "expectedVehicleId": "68868291-5478-42cd-b0c4-cc77b2a78e21",
+      "vehicleLine": "TESLA_MODEL_3",
+      "expectedSpeedAuthority": "C5_1_PREFERRED",
+      "expectedSourceFamily": "API_SYNTHETIC",
+      "feasibilityAuditClass": "RECONSTRUCTABLE_V2"
+    }
+  ]
+}

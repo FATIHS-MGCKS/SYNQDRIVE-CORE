@@ -52,4 +52,18 @@ export const masterVehicleIdentityPl = {
   'master.vehicleIdentity.field.electrificationGrade': 'Stopień elektryfikacji',
   'master.vehicleIdentity.extractionStatus': 'Status OCR: {status}',
   'master.vehicleIdentity.documentLinked': 'Dokument: {id}',
+  'master.vehicleIdentity.uploadToolbar': 'Prześlij dowód rejestracyjny',
+  'master.vehicleIdentity.uploadUseToolbar': 'Użyj „Prześlij dowód rejestracyjny” na pasku specyfikacji powyżej.',
+  'master.vehicleIdentity.zb1DialogTitle': 'Dowód rejestracyjny (ZB-I)',
+  'master.vehicleIdentity.zb1DialogDescription':
+    'Prześlij PDF lub obraz, sprawdź pola OCR i zastosuj potwierdzone wartości w formularzu specyfikacji.',
+  'master.vehicleIdentity.applyToRegistrationForm': 'Zastosuj w formularzu specyfikacji',
+  'master.vehicleIdentity.applyToFormBlockedVin': 'Zastosowanie zablokowane — najpierw potwierdź konflikt VIN.',
+  'master.vehicleIdentity.applyToFormConflict': 'Brak zastosowanych wartości — potwierdź pola lub rozwiąż konflikty.',
+  'master.vehicleIdentity.applyToFormEmpty': 'Brak potwierdzonych pól do zastosowania.',
+  'master.vehicleIdentity.applyToFormSuccess': 'Potwierdzone wartości zastosowano w formularzu (zapisz, aby utrwalić).',
+  'master.vehicleIdentity.applyToFormVinMismatchDocument':
+    'FIN dokumentu nie pasuje do tego pojazdu — nie można zastosować pól specyfikacji z tego dokumentu.',
+  'master.vehicleIdentity.p2ToolbarDisabledHint':
+    'Przesyłanie dowodu rejestracyjnego nie jest włączone w tym środowisku (identyfikacja pojazdu P2).',
 };

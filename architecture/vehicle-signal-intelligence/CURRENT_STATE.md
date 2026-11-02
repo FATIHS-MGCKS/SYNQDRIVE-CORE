@@ -4,7 +4,7 @@
 |-------|-------|
 | **Registry coverage status** | `AUDIT_IN_PROGRESS` |
 | **Product focus** | Per-vehicle, per-provider-source-link **signal capability profiles** (declared vs observed) |
-| **Last updated** | 2026-10-28 (LV standby transmission profile V1 hardening) |
+| **Last updated** | 2026-10-31 (P1-d RPM combined dual-lane evidence; P1-c signal powertrain applicability; P0-a audit follow-ups) |
 | **Product charter** | [`VSI_PRODUCT_CHARTER.md`](VSI_PRODUCT_CHARTER.md) |
 | **Master roadmap** | [`VSI_MASTER_ROADMAP.md`](VSI_MASTER_ROADMAP.md) |
 | **P0+P1 on `main`** | Merged PR #2034 @ `eb5f1f2ee` — **not** equivalent to Production deploy ([evidence](evidence/VSI_P0P1_MERGE_BASELINE_2026-10-15.md)) |
@@ -36,8 +36,9 @@
 - **Semantic profile fingerprint (P0 hardening)** — `contentFingerprint` / revision identity excludes `lastMaterializedProviderFetchAt` and per-signal `lastProviderFetchAt`; operational fetch metadata can refresh without a new `profileRevision` when capability evidence is unchanged (`vsi-profile-fingerprint.util.ts`, `vsi-profile-materialization.service.ts`). Operational-only writes use CAS on `profileRevision`, `updatedAt`, and `lastMaterializedProviderFetchAt` (`buildOperationalProfileRefreshCasWhere`). Deferred consumer/P1 notes: [`evidence/VSI_P0_P1_DEFERRED_NOTES_2026-10-26.md`](evidence/VSI_P0_P1_DEFERRED_NOTES_2026-10-26.md).
 - **DTC-01A cross-path (2026-10-24)** — When telemetry bundle lacks `obdDTCList`, materialization uses binding-matched `vehicle_dtc_source_heads` confirmed-complete timestamps + VLS operational list (`vsi-dtc-complete-evidence.util.ts`); idempotency bypass when DTC source advances without bundle timestamp change; non-blocking `DTC_CONFIRMED_COMPLETE_APPLIED` hook from `DtcSnapshotApplyService`. Does not mutate bundle JSON or create legacy source heads.
 - **Bundle vs per-signal evidence** — bundle cadence / advance counts apply only to `provider_source_timestamp` (+ `bundleAdvanceFingerprint` on evaluation). Legacy V1 bundle metrics remain excluded from semantic revision identity.
-- **P2 cadence intelligence (draft)** — `engine_rpm` materialized with bounded ClickHouse `telemetry_hf_points` + finalized trip windows; `lv_voltage` cadence from PostgreSQL `battery_measurements` with link-activation scoping. Per-signal `cadenceIntelligence` (`vsi-signal-cadence-v2`) is semantically fingerprinted via `cadenceSemanticFingerprint`; operational fetch fields and stored quality/confidence tiers are not used for cadence eligibility. RPM refresh triggered post-trip (`TRIP_FINALIZED_RPM_CADENCE`) when trip HF **points** exist in ClickHouse; `TripBehaviorEnrichmentService` requires injected `VsiSignalProfileMaterializationService` (fail-closed bootstrap, no silent skip) (new insert or idempotent re-mirror via `hasTripHfPoints`; events/windows alone insufficient); structured `VSI_POST_TRIP_RPM_CADENCE` logs. LV cadence on bounded materialization reads. **LV standby transmission profile V1 (draft PR)** — `lvStandbyTransmissionProfile` on `lv_voltage.cadenceIntelligence` (`LV_8H_OBSERVED` | `LV_24H_OBSERVED` | `UNKNOWN`) from 30d `battery_measurements` standby loader (provider-time + trip isolation; ingest context not used); generic `MAX_LV_ROWS=256` cadence path unchanged. No native 1 Hz / device transmission claims without authoritative proof.
+- **P2 cadence intelligence (draft)** — `engine_rpm` materialized with **per-trip org-scoped** ClickHouse `getTripRpmHfPoints` (P1-f; replaces vehicle-wide bulk read) + link-clipped finalized trip windows; historical link lifecycle + DIMO `token_id` attribution fail-closed (`RPM_HF_*` limitations). `lv_voltage` cadence from PostgreSQL `battery_measurements` with link-activation scoping (unchanged). Per-signal `cadenceIntelligence` (`vsi-signal-cadence-v2`) is semantically fingerprinted via `cadenceSemanticFingerprint`; operational fetch fields and stored quality/confidence tiers are not used for cadence eligibility. RPM refresh triggered post-trip (`TRIP_FINALIZED_RPM_CADENCE`) when trip HF **points** exist in ClickHouse; `TripBehaviorEnrichmentService` requires injected `VsiSignalProfileMaterializationService` (fail-closed bootstrap, no silent skip) (new insert or idempotent re-mirror via `hasTripHfPoints`; events/windows alone insufficient); structured `VSI_POST_TRIP_RPM_CADENCE` logs. LV cadence on bounded materialization reads. **LV standby transmission profile V1 (draft PR)** — `lvStandbyTransmissionProfile` on `lv_voltage.cadenceIntelligence` (`LV_8H_OBSERVED` | `LV_24H_OBSERVED` | `UNKNOWN`) from 30d `battery_measurements` standby loader (provider-time + trip isolation; ingest context not used); generic `MAX_LV_ROWS=256` cadence path unchanged. No native 1 Hz / device transmission claims without authoritative proof.
 - **P2 active RPM profile resolver V1.1** — same contract (`vsi-active-rpm-profile-v1`); per-trip RPM profile is resolved from **active measurement sequences** (gap break **>8 s**, constant `VSI_ACTIVE_RPM_ACTIVE_SEQUENCE_GAP_BREAK_SECONDS`) and trip-level active-interval cadence (≤8 s intervals only), not gap-pooled trip P95; mixed qualifying fast + slow evidence without clear interval dominance → `UNKNOWN` (`MIXED_ACTIVE_CADENCE_NO_CLEAR_DOMINANCE`). Verified production export fixture for Tiguan neue trips `fixtures/rpm-production-neue-trips-verified.json`. Rolling supermajority, semantic fingerprint, and monotone operational refresh unchanged.
+- **RPM multi-cadence tier Phase 2 (draft)** — optional `rpmCadenceTierResolution` (`vsi-rpm-cadence-tier-resolution-v1`) on `engine_rpm.cadenceIntelligence` using `classifyVsiRpmCadenceTierV1`; operational-only (does not alter `cadenceSemanticFingerprint` or legacy `activeRpmProfile` labels). See `RPM_MULTICADENCE_TIER_PHASE2.md`.
 - **Quality classifier** — current-observation freshness only on physical signals; `UNKNOWN` when attribution blockers; bundle historical helper separate (`classifyBundleHistoricalQuality`). No `OBSERVED_INTERMITTENT` from bundle irregularity alone.
 - **Historical loader** — latest 64 bundle rows (`orderBy desc` + chronological window), not oldest 64 (`vsi-profile-historical-evidence.loader.ts`).
 - **Registry coverage matrix** — explicit flags: catalog support, mapping, extractor, materialization, historical quality (`vsi-signal-registry-coverage.ts`).
@@ -109,6 +110,13 @@
 - **CLI** — `VSI_P5B2_REPLAY_PROFILE_MODE=HISTORY_AS_OF` for `vsi-p5b1-offline-correlation-replay.ts`.
 - **Status** — IMPLEMENTED / TESTED (unit + disposable PG); not MERGED / DEPLOYED / ACTIVATED.
 
+## Implemented (P0-a audit follow-ups — draft PRs on `main` lineage)
+
+- **P1-a cadence provenance dedup** — PR #2263; cadence analyzer provenance tags deduped (FC-PROV-DEDUP).
+- **P1-b provider fetch meta quality** — PR #2265; `provider_last_successful_fetch` fetch-recency quality (FC-FETCH-QUALITY).
+- **P1-c signal powertrain applicability** — `NOT_APPLICABLE` empirical status from `vehicle.fuelType` + registry `iceOnly`/`evOnly`; fixes five P0-a MISLEADING rows (FC-APPLICABILITY); evidence [`evidence/VSI_P1C_SIGNAL_APPLICABILITY_2026-10-30.md`](evidence/VSI_P1C_SIGNAL_APPLICABILITY_2026-10-30.md).
+- **P1-d RPM combined dual-lane evidence** — additive `rpmCombinedEvidenceAvailabilityV1` on Master read `engine_rpm` (lanes unchanged); Audi reference → `PROVEN_HISTORICAL_ONLY`; evidence [`evidence/VSI_P1D_RPM_EVIDENCE_QUALITY_2026-10-31.md`](evidence/VSI_P1D_RPM_EVIDENCE_QUALITY_2026-10-31.md).
+
 ## Explicit non-goals (this slice)
 
 - APDS shadow runtime hook / live P5B correlation persistence activation.
@@ -119,6 +127,7 @@
 
 ```bash
 cd backend && npm test -- --testPathPattern=vehicle-signal-intelligence/vsi-profile
+cd backend && npx jest --testPathPatterns=vsi-p0a-signal-integrity-audit
 VSI03_READONLY_COMPOSER_PG=1 bash scripts/test/vsi03-p2c-postgres-ci.sh
 bash architecture/scripts/validate-module-registry.sh
 ```

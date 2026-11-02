@@ -4,7 +4,10 @@
 
 import { AiTireSpec } from './tire-health.config';
 import { normalizeTireSpecConfidenceScore } from './ai-tire-spec-confidence.util';
-import { AI_TIRE_SPEC_LLM_FIELD_KEYS, AI_TIRE_SPEC_SCHEMA_VERSION } from './ai-tire-spec-canonical.contract';
+import {
+  AI_TIRE_SPEC_LLM_FIELD_KEYS,
+  AI_TIRE_SPEC_V3_COMPACT_SCHEMA_VERSION,
+} from './ai-tire-spec-canonical.contract';
 
 const SEASON_TYPES = new Set(['summer', 'winter', 'all_season']);
 const VEHICLE_CLASS_FITS = new Set(['passenger', 'suv', 'van', 'truck', 'sport', 'luxury', 'commercial']);
@@ -235,7 +238,7 @@ export function buildPersistedAiTireSpec(
     fetchedAt: metadata.completedAt ?? new Date().toISOString(),
     jobId: metadata.jobId,
     normalizedAt: new Date().toISOString(),
-    schemaVersion: AI_TIRE_SPEC_SCHEMA_VERSION,
+    schemaVersion: AI_TIRE_SPEC_V3_COMPACT_SCHEMA_VERSION,
   };
 }
 

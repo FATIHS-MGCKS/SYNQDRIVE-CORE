@@ -138,8 +138,19 @@ Newest entry last. Never rewrite or delete entries.
 | CHANGE | `tire-measurement-v3-ingestion.ts`; `TireLifecycleService.recordMeasurement` mount-period validation, explicit vs inferred odometer persistence, post-save `computeForSetup({ persistShadow: false })` + `v3Ingestion` assessment; OperatorTireMeasureFlow odometer confirm + V3 warnings; DTO `manualConfirmOdometer` |
 | EXPECTED_EFFECT | New measurements can feed V3 verification policy when odometer explicitly confirmed; insufficient evidence returns operator-visible warnings; V2 kFactor/recalculate unchanged |
 | VALIDATION | Jest `tire-measurement-v3-ingestion.spec.ts`, `tire-lifecycle-record-measurement-v3.spec.ts`, `operatorTireMeasure.utils.test.ts` |
-| NON_EFFECTS | No migration; shadow writer OFF; no scheduler; no production backfill; Health quick-measure still may auto-confirm odometer when `odometerKm` sent (V2-compat) |
+| NON_EFFECTS | No migration; shadow writer OFF; no scheduler; no production backfill; superseded by measurement integrity P1 for quick-measure auto-confirm removal |
 | EVIDENCE | Read-only fleet odometer audit (Tiguan/Tesla/Audi/Arteon): NULL measurement odometers + `mileage_km` vs install anchor retrograde flags documented in agent artifacts |
+
+### Tire V3 measurement integrity P1 — explicit odometer provenance (2026-10-28)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | `addTireHealthMeasurement` auto-set `manualConfirmOdometer` when `odometerKm` present; registration/bootstrap could infer telemetry odometer; workshop source treated as explicit without finite km |
+| WHY | Evidence readiness P1: forward-only ground-truth intake for V3 verification/calibration without inventing historical odometers or changing wear math |
+| CHANGE | Controller requires explicit `manualConfirmOdometer`; registration `manual_registration` persisted + verification-excluded + no inferred odometer; plausibility guard on confirmed odometer; `assessV3Ingestion` evidenceClass + workshop/registration warnings; operator post-save V3 toast; i18n en/de keys |
+| EXPECTED_EFFECT | New manual/workshop measurements store explicit odometer only when confirmed/report-backed; unverified tread still savable; one-point vs two-point V3 rules visible in operator UI |
+| VALIDATION | Jest ingestion + lifecycle P1 specs; `operatorTireMeasure.utils.test.ts`; `npm run i18n:check` |
+| NON_EFFECTS | No production deploy; β=0; DS4 unchanged; historical rows untouched; no backfill |
 
 ### Tire V3 cutover P1 — post-commit compute + persistShadow safety (2026-10-27)
 
@@ -198,3 +209,132 @@ Newest entry last. Never rewrite or delete entries.
 | CHANGE | Documentation only. `TIRE-GAP-DS4-PERSISTED-INTENSITY-FIELDS-001` → **PARTIALLY_CLOSED** pointer: Driving Intelligence PR-2 (Draft, not deployed) persists `meanAccelMps2`, `durationS`, `steps`, `coverageRatio`, uncertainty labels on new shadow runs under `DI_V0_MOTION_CORE_EVENT_ROW_V2_INTENSITY_ORDINAL_V1`; peaks excluded by contract |
 | WHY | Keep tire integration audit consistent with DI persistence state; data precondition for a future ordinal intensity channel |
 | NON_EFFECTS | No tire runtime, adapter, flag or model change; `tire-ds4-shadow-input.mapper.ts` still consumes the trip-map DTO (no intensity); tire consumer binding remains forbidden until Fable review of `DI-DEC-DS4-INTENSITY-PERSIST-001`; historical DS4 rows unchanged |
+
+### Tire V3 — authoritative customer read fail-closed hotfix (2026-10-28)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | `TireHealthV3ReadService.enrichSummary` returned unchanged legacy summary when `computeCustomerRead` was null under authoritative flags (silent V2 GOOD / rental false-green; V2 snapshot suppression still active) |
+| WHY | Production cutover readiness audit HARD BLOCKER — no silent V2 fallback when both customer authority flags are ON |
+| CHANGE | `resolveCustomerReadForApi` + `buildAuthoritativeV3UnavailableRead`; authoritative path applies UNKNOWN/INSUFFICIENT stub; `TiresService.getWearAnalysis` attaches unavailable payload; rental policy blocks legacy GOOD clearance under V3 authority (`V3_READ_UNAVAILABLE`) |
+| EXPECTED_EFFECT | Failed or missing V3 compute never presents legacy V2 as authoritative wear; rental stays measurement-required without new HARD_BLOCK |
+| VALIDATION | Jest: `tire-health-v3-read*.spec`, `tires.service.v3-fail-closed.spec`, existing `tire-health-recalculate-v3-cutover.spec` |
+| NON_EFFECTS | Flags default OFF; no migration; no DS4/RPM changes; `persistShadow: false` unchanged; β=0 unchanged |
+
+### Tire V3 measurement numerical evidence safety follow-up (2026-10-29)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | Post–#2232: `computeForSetup` could still consume mount-period rows excluded from verification (e.g. `ai_confirmed` with finite odometer) for rate segments and projection anchors; ingest `verificationEligible` did not require mount-period timestamp; `posteriorCalibrationEligible` could be inferred from setup flags rather than fused wheel rates |
+| WHY | Close numerical evidence-integrity gaps without changing DS4, dynamic β, physics, or production cutover state |
+| CHANGE | `tire-wear-v3-numerical-evidence.ts` trusted-row filter + posterior eligibility from per-wheel `measurement_fused`; `TireWearV3PriorService.computeForSetup` uses trusted rows only for rate/odometer validation/projection; `assessV3Ingestion` mount-period gate on verification + posterior from prior wheels |
+| EXPECTED_EFFECT | Excluded sources never silently drive trusted V3 numbers; single accepted point cannot imply empirical rate calibration |
+| VALIDATION | Jest: `tire-wear-v3-numerical-evidence.spec`, extended `tire-measurement-v3-ingestion.spec`, `tire-wear-v3-prior.service.spec`, existing P3 consumer + rental fail-closed + productive isolation specs |
+| NON_EFFECTS | No deploy, migration, DS4, β, or V2 writer changes; global V3 fail-closed semantics preserved |
+
+### Tire spec P0 integrity hardening — aiTireSpec read/apply (2026-10-30)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | Stored `aiTireSpec` could be read without tire_v2 range validation; legacy direct apply skipped job binding guards; setup vs AI season/size conflicts were silent |
+| WHY | P0 data-integrity hardening without V3 formula, DS4, calibration, or DB backfill changes |
+| CHANGE | `parseValidatedAiTireSpecFromStorage` + shared legacy aliases on read; `guardDirectAiTireSpecApply` on direct apply; `detectAiTireSpecSetupConflicts` on apply + tire detail; rental apply sends tire identity + `tireSetupId`; V3 prior uses `parseAiTireSpec` only |
+| EXPECTED_EFFECT | Invalid historical AI numerics fail closed on read; cross-setup direct apply blocked; conflicts reported explicitly; raw JSON in DB unchanged |
+| VALIDATION | Jest: `ai-tire-spec-read*.spec`, `ai-tire-spec-setup-consistency.util.spec`, `ai-tire-spec-direct-apply.guard.spec`, `ai-tire-spec-apply.util.spec`, `ai-tire-spec-job-binding.util.spec` |
+| NON_EFFECTS | No new AI prompt; no V3 math/DS4/calibration activation; no migration or production deploy |
+
+### PR #2264 review remediation — payload binding + stale SSE (2026-10-30)
+
+| Event | Detail |
+|-------|--------|
+| CHANGE | Server-side payload identity validation (`ai-tire-spec-payload-identity.util`); generation binding for direct apply; block apply on axle/LI/SI mismatch; season-only warnings; physical-axle ambiguous binding; preserve source URLs on read; rental warning banner + 9-locale keys |
+| VALIDATION | Jest ai-tire-spec* (54 passed); frontend i18n:check PASS |
+
+### PR #2264 final hardening — setup-wide axle binding + production parser audit (2026-10-30)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | Identical front/rear setups falsely rejected as `AMBIGUOUS_AXLE_BINDING` despite single setup-wide `aiTireSpec` JSON column |
+| WHY | Align apply guards with persistence: one blob per `VehicleTireSetup`; unified axle identity must accept `setup_wide` binding |
+| CHANGE | `setupHasUnifiedAxleIdentity`, `resolvePayloadBindingScope` (`setup_wide` \| `front_axle` \| `rear_axle`); staggered setups remain single-axle match; read-only production parser audit script `backend/scripts/ops/tire-ai-spec-historical-parser-audit.ts` |
+| EXPECTED_EFFECT | Square setups apply without false ambiguous binding; staggered and generation-binding failures unchanged fail-closed |
+| VALIDATION | Jest ai-tire-spec* (57 passed); production read-only SSH psql audit: 4 stored blobs examined |
+| OBSERVED_EFFECT | Production audit: 4/4 records parse under legacy permissive and new validated read; 4/4 differ only on `confidenceScore` (normalized scale); zero fields nullified by new parser |
+| NON_EFFECTS | No schema/migration; no production writes/backfill; no V3 formula/DS4/calibration/AI prompt changes |
+
+### Tire AI tire_v3_compact LLM contract (P1) (2026-10-30)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | Mistral strict JSON requested 50 `tire_v2` fields including bias/sensitivity scores |
+| WHY | Reduce hallucinated OEM surface; align LLM output with V3 + PR2264 identity needs only |
+| CHANGE | `AI_TIRE_SPEC_V3_COMPACT_*` (14 CORE + 10 OPTIONAL LLM keys); `buildTireSpecJsonSchema` + prompt; `processAiTireSpecCompactLlmOutput` (authoritative identity, dimension reconcile, archetype/mark consistency, evidence fail-closed); new writes `schemaVersion: tire_v3_compact`; historical 50-field read/normalize unchanged |
+| EXPECTED_EFFECT | New AI fetches omit excluded fields; optional/EU/UTQG/OE/newTread null without catalog alignment; V3 prior formulas unchanged |
+| VALIDATION | Jest: `ai-tire-spec-compact-pipeline*`, `ai-tire-spec-canonical.contract.spec`, `ai-tire-spec*`, `vehicle-spec-ai.service.spec` |
+| NON_EFFECTS | No DB migration; no V3 math changes; PR2264 apply guards preserved; V2 still reads legacy bias fields from old blobs |
+
+### Tire AI tire_v3_compact final hardening — depth evidence + registration identity (2026-10-30)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | Compact pipeline retained LLM `newTreadDepthMm` when request/setup identity aligned; registration persist ran compact pipeline without tire-side identity context |
+| WHY | Identity match is not manufacturer catalog evidence; knowledge-only LLM must not establish verified nominal tread; registration must not conflate vehicle fields with tire brand/model |
+| CHANGE | `applyCompactEvidenceGate`: always null `newTreadDepthMm` unless `catalogNominalTreadEvidence === true` (future catalog/OCR paths only); `resolveRegistrationTireIdentityContext` + registration DIMO persist passes `brandModelFront` / front LI·SI·size; prompt instructs LLM to always null nominal depth |
+| EXPECTED_EFFECT | All current LLM/job/stream/registration writes store `newTreadDepthMm: null`; setup initial tread + historical V2 blobs unchanged; optional tier still fail-closed |
+| VALIDATION | Jest: compact pipeline, registration identity/persist specs; tire-spec suite |
+| NON_EFFECTS | No migration/backfill; no V3 formula/DS4 changes; no merge/deploy in this workstream |
+
+### Tire AI tire_v3_compact P2A — Mistral eval harness + optional evidence review (2026-10-31)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | No non-persistent way to score live Mistral output against compact pipeline + documented cohort |
+| WHY | Production activation requires real LLM evidence and explicit optional-field policy |
+| CHANGE | `ai-tire-spec-compact-eval.*` + `scripts/ops/tire-v3-compact-mistral-eval.readonly.ts`; `TIRE_V3_COMPACT_OPTIONAL_EVIDENCE_POLICY.md` |
+| EXPECTED_EFFECT | Operators run harness with `MISTRAL_API_KEY` or `--fixture=p2-simulated`; JSON report with rejected fields and season consistency |
+| VALIDATION | Jest `ai-tire-spec-compact-eval.util.spec.ts`; script smoke with fixture flag |
+| NON_EFFECTS | No normalizer/gate changes; no deploy; PR2264/V3 formulas unchanged |
+
+### Tire Wear V3 P2 — C5 temporal weight + C2/C3 safety + shadow plan (2026-10-31)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | V3 DS4 temporal weight used missing `tripDurationSeconds` → silent 0.5; projection treated anchors as exact; OLS rate σ could collapse to ~0 |
+| WHY | Fable review P2: fix adapter contract mismatch; widen only where σ_m already defined; prepare calibration snapshots without enabling writer |
+| CHANGE | `tire-wear-v3-ds4-payload.util` accountableFraction/tripWindowSeconds; repository pre-resolves weight; C2 `projectTreadMm` optional measurement anchor σ; C3 noise floor on OLS σ; `TIRE_WEAR_V3_P2_CALIBRATION_SHADOW_PERSISTENCE_PLAN.md` |
+| EXPECTED_EFFECT | `ds4SeverityCoverage` reflects accountableFraction; measurement-anchored tread/remaining km intervals widen; fused rate intervals less overconfident on sparse points |
+| VALIDATION | Jest wear-v3-prior + p2 regression specs (84 tests in pattern scope) |
+| NON_EFFECTS | β=0; shadow write env default OFF; no DS4 motion engine change; no C1/C4/C6–C8 |
+
+### Tire Wear V3 Calibration Shadow P3 — snapshot store + writer + pairing foundation (2026-11-01)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | P2 plan only; `tire_wear_v3_prior_shadow_v1` P3A table unused; no prospective per-wheel calibration snapshots |
+| WHY | Enable future measurement calibration without altering customer V3 authority or wear equations |
+| CHANGE | Table `tire_wear_v3_calibration_snapshot_v1`; `TIRE_WEAR_V3_CALIBRATION_SHADOW_WRITE_ENABLED` default false; leader scheduler `tire_wear_v3_calibration_shadow_writer`; pairing policy; Master Admin read endpoints; doc `integration/TIRE_WEAR_V3_CALIBRATION_SHADOW_P3.md` |
+| EXPECTED_EFFECT | When ops enables flag on leader replica, idempotent per-wheel snapshots on changed V3 fingerprints; pairing rejects retroactive/leakage cases |
+| VALIDATION | Jest calibration-shadow + pairing + writer + scheduler specs |
+| NON_EFFECTS | Customer read path unchanged; β=0; P3A prior shadow flag unchanged; no production activation in PR |
+
+### Tire Wear V3 Calibration Center P3.1 — Master Admin UI (2026-11-01)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | PR #2289 calibration shadow APIs only; no Master UI |
+| WHY | Operational monitoring dashboard + snapshot drawer without implying persisted pairs or accuracy |
+| CHANGE | Paginated read routes + snapshot detail; Engineering nav `tire-v3-calibration-center`; 9-locale `master.intelligence.tireCalibration.*` |
+| EXPECTED_EFFECT | MASTER_ADMIN can inspect writer replica-local stats, snapshots, sampled rejection histogram, honest NOT_EVALUABLE accuracy tab |
+| VALIDATION | Jest master-read security/scoping; frontend nav regression tests |
+| NON_EFFECTS | Customer V3; writer default OFF; no pair persistence |
+
+### Tire Wear V3 Calibration Shadow P3 — PR #2289 pre-merge hardening (2026-11-01)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | Snapshots keyed on full V3 `inputFingerprint` (odometer telemetry churn); no physical tire id / temporal cutoff fields; no DB immutability trigger; pairing gaps on leakage and ambiguous rotation |
+| WHY | Safety audit before merge: reduce redundant compute/writes, fail-closed pairing, temporal leakage guards, tenant-scoped eligibility, insert-only enforcement |
+| CHANGE | `computeTireWearV3CalibrationEligibilityDigest()` + `TireWearV3CalibrationEligibilityService`; writer digest gate; columns `calibration_eligibility_digest`, measurement cutoff fields, `pairing_eligible`, `measurement_ids_used`; migration `20261101183000_*` immutability trigger; extended pairing rejections; hardening Jest specs |
+| EXPECTED_EFFECT | Odometer-only telemetry ticks do not insert; ledger/measurement/setup changes still snapshot; pairing rejects cross-identity/leakage; UPDATE forbidden at DB |
+| VALIDATION | Jest calibration + fingerprint eligibility specs; backend build |
+| NON_EFFECTS | Customer V3 fusion/fingerprint math unchanged; β=0; writer flag default OFF; no DS4 / V4 / production activation |

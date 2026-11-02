@@ -52,4 +52,18 @@ export const masterVehicleIdentityCs = {
   'master.vehicleIdentity.field.electrificationGrade': 'Stupeň elektrizace',
   'master.vehicleIdentity.extractionStatus': 'Stav OCR: {status}',
   'master.vehicleIdentity.documentLinked': 'Dokument: {id}',
+  'master.vehicleIdentity.uploadToolbar': 'Nahrát technický průkaz',
+  'master.vehicleIdentity.uploadUseToolbar': 'Použijte „Nahrát technický průkaz“ na liště specifikace výše.',
+  'master.vehicleIdentity.zb1DialogTitle': 'Technický průkaz (ZB-I)',
+  'master.vehicleIdentity.zb1DialogDescription':
+    'Nahrajte PDF nebo obrázek, zkontrolujte extrahovaná pole a použijte potvrzené hodnoty ve formuláři specifikace.',
+  'master.vehicleIdentity.applyToRegistrationForm': 'Použít ve formuláři specifikace',
+  'master.vehicleIdentity.applyToFormBlockedVin': 'Použití blokováno — nejprve potvrďte konflikt VIN.',
+  'master.vehicleIdentity.applyToFormConflict': 'Žádné hodnoty nebyly použity — potvrďte pole nebo vyřešte konflikty.',
+  'master.vehicleIdentity.applyToFormEmpty': 'Žádná potvrzená pole k použití.',
+  'master.vehicleIdentity.applyToFormSuccess': 'Potvrzené hodnoty použity ve formuláři (uložte pro trvalé uložení).',
+  'master.vehicleIdentity.applyToFormVinMismatchDocument':
+    'FIN dokumentu neodpovídá tomuto vozidlu — pole specifikace z tohoto dokumentu nelze použít.',
+  'master.vehicleIdentity.p2ToolbarDisabledHint':
+    'Nahrání technického průkazu není v tomto prostředí aktivní (identita vozidla P2).',
 };

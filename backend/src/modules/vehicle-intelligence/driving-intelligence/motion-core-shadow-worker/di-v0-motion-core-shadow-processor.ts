@@ -4,6 +4,7 @@ import {
   computeC5_1GatedRepair,
   withImplausibleLegEndpointsQuarantined,
   applyMotionEventUniversalPlausibility,
+  applyMotionEventIntensityEvidenceGatesV1,
   detectMotionManoeuvreEvents,
   extractMotionFsmStopEpisodes,
   MOTION_CORE_C4_FULL_FINALIZATION_HORIZON_FORWARD_S,
@@ -195,6 +196,13 @@ export function processDiV0MotionCoreShadowFromEvidenceAdaptation(
     MOTION_EVENT_V0_3_CANDIDATE_OPTIONS,
   );
   applyMotionEventUniversalPlausibility(events);
+  applyMotionEventIntensityEvidenceGatesV1(events, eventSpeedSeries, {
+    c51RepairEvidence: c5RepairRows?.map((row) => ({
+      bucketLabelUtc: row.bucketLabelUtc,
+      q5Evidence: row.q5Evidence,
+      q6Evidence: row.q6Evidence,
+    })),
+  });
 
   const intentKey = buildMotionCoreShadowIntentKey({
     pinnedSnapshotHash: meta.pinnedSnapshotHash,

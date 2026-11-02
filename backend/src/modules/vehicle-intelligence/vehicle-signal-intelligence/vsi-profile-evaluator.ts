@@ -30,11 +30,16 @@ import {
   resolveStrictSourceAdvanceEvidence,
   isLatestStateAttributedToLink,
 } from './vsi-readonly-composer.evidence';
+import {
+  resolveProviderLastSuccessfulFetchFreshness,
+  VSI_LIMITATION_PROVIDER_LAST_SUCCESSFUL_FETCH_WALL_CLOCK_NOT_PHYSICAL_SIGNAL,
+} from './vsi-provider-last-successful-fetch-meta.util';
 import type { VehicleRegistryLifecycle } from '@prisma/client';
 import {
   VsiEmpiricalObservationStatus,
   type VsiEvidenceOrigin,
 } from './vehicle-signal-evidence.contract';
+import { applyVsiProfileSignalPowertrainApplicability } from './vsi-signal-powertrain-applicability.util';
 
 export type VsiProfileEvaluatorInput = {
   organizationId: string;
@@ -50,6 +55,8 @@ export type VsiProfileEvaluatorInput = {
   priorProvenStrictSourceAdvanceAt?: Date | null;
   projectionAsOf?: Date;
   dtcConfirmedComplete?: VsiDtcConfirmedCompleteEvidence | null;
+  /** Vehicle registry / Spec V3 fuel type (Prisma FuelType string). */
+  fuelType?: string | null;
 };
 
 function isoOrNull(
@@ -147,7 +154,10 @@ function mergeEmpiricalRow(
           empiricalContext.latestState.providerFetchedAt.toISOString();
       }
       row.limitations.push(VSI_LIMITATION_PER_SIGNAL_HISTORICAL_EVIDENCE_INSUFFICIENT);
-    } else if (!isProfileEmpiricalExtractorImplemented(key)) {
+    } else if (
+      !isProfileEmpiricalExtractorImplemented(key) &&
+      key !== 'provider_last_successful_fetch'
+    ) {
       row.limitations.push(VSI_LIMITATION_EMPIRICAL_EXTRACTOR_NOT_IMPLEMENTED);
     }
   }
@@ -230,6 +240,14 @@ export function evaluateVsiSignalProfile(
     }
     if (key === 'provider_last_successful_fetch' && stateAttributed && input.latestState) {
       const fetched = input.latestState.providerFetchedAt;
+      const { freshnessClassification, limitations: fetchFreshnessLimits } =
+        resolveProviderLastSuccessfulFetchFreshness({
+          providerFetchedAt: fetched,
+          projectionAsOfMs: projectionAsOf.getTime(),
+        });
+      const withoutExtractorLimitation = row.limitations.filter(
+        (l) => !l.includes(VSI_LIMITATION_EMPIRICAL_EXTRACTOR_NOT_IMPLEMENTED),
+      );
       return {
         ...row,
         empiricalObservation: fetched
@@ -237,17 +255,26 @@ export function evaluateVsiSignalProfile(
           : VsiEmpiricalObservationStatus.NEVER_OBSERVED,
         lastValidObservationAt: fetched?.toISOString() ?? null,
         lastProviderFetchAt: fetched?.toISOString() ?? null,
+        freshnessClassification: fetched ? freshnessClassification : 'UNKNOWN',
         evidenceProvenance: [
           ...new Set<VsiEvidenceOrigin>([...row.evidenceProvenance, 'VEHICLE_LATEST_STATE']),
         ],
         limitations: [
-          ...row.limitations,
-          'PROVIDER_FETCH_TIME_NOT_SOURCE_ADVANCE_PROOF',
+          ...new Set([
+            ...withoutExtractorLimitation,
+            ...fetchFreshnessLimits,
+            'PROVIDER_FETCH_TIME_NOT_SOURCE_ADVANCE_PROOF',
+            VSI_LIMITATION_PROVIDER_LAST_SUCCESSFUL_FETCH_WALL_CLOCK_NOT_PHYSICAL_SIGNAL,
+          ]),
         ],
       };
     }
     return row;
   });
+
+  const withApplicability = signals.map((row) =>
+    applyVsiProfileSignalPowertrainApplicability(row, input.fuelType ?? null),
+  );
 
   return {
     contractVersion: VSI_PROFILE_CONTRACT_VERSION,
@@ -272,7 +299,7 @@ export function evaluateVsiSignalProfile(
       ? input.latestState?.providerFetchedAt ?? null
       : null,
     lastProvenStrictSourceAdvanceAt,
-    signals,
+    signals: withApplicability,
     profileLimitations,
   };
 }

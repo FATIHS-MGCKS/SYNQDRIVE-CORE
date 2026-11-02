@@ -25,6 +25,7 @@ import {
   deriveOperatorV3EvidenceWarnings,
   deriveTirePlausibilityWarnings,
   formatTreadInput,
+  operatorTireMeasureV3BackendWarningKey,
   resolveOperatorOdometerSourceKey,
   SEASON_LABELS,
   validateTireMeasureStep,
@@ -197,13 +198,27 @@ export function OperatorTireMeasureFlow({ action }: Props) {
     try {
       const setupId =
         selectedSetupId === '__unknown__' ? null : selectedSetupId;
-      await submitOperatorTireMeasurement({
+      const result = await submitOperatorTireMeasurement({
         vehicleId: action.vehicleId,
         tireSetupId: setupId,
         tread,
         context,
       });
-      toast.success('Reifenprofilmessung gespeichert');
+      toast.success(t('operator.tireMeasure.toast.success'));
+      const backendWarnings = result?.v3Ingestion?.warnings ?? [];
+      if (backendWarnings.length > 0) {
+        const lines = backendWarnings
+          .map((w) => {
+            const key = operatorTireMeasureV3BackendWarningKey(String(w.code ?? ''));
+            return key ? t(key as TranslationKey) : String(w.code ?? '');
+          })
+          .filter(Boolean);
+        if (lines.length > 0) {
+          toast.message(t('operator.tireMeasure.toast.v3EvidenceNotice'), {
+            description: lines.join(' · '),
+          });
+        }
+      }
       dispatchTireMeasurementSaved(action.vehicleId, action.bookingId);
       triggerRefresh();
       if (orgId) {

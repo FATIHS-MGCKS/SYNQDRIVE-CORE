@@ -63,6 +63,16 @@ export function PhysicalDeviceInventoryHub({ organizations }: PhysicalDeviceInve
   const [detailOpen, setDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<PdiHubTab>('stock');
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const deepLinkId = params.get('pdiDeviceId') ?? params.get('physicalDeviceId');
+    if (deepLinkId && /^[0-9a-f-]{36}$/i.test(deepLinkId.trim())) {
+      setDetailDeviceId(deepLinkId.trim());
+      setDetailOpen(true);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {

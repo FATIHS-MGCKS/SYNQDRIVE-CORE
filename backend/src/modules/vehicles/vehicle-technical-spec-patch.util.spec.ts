@@ -14,6 +14,12 @@ const baseVehicle = {
   idleRpm: null as number | null,
   maxRpm: null as number | null,
   brakeForceFrontPercent: null as number | null,
+  tankCapacityLiters: null as number | null,
+  serviceIntervalManufacturerKm: null as number | null,
+  serviceIntervalManufacturerMonths: null as number | null,
+  oilChangeIntervalKm: null as number | null,
+  oilChangeIntervalMonths: null as number | null,
+  driveType: null as import('@prisma/client').DriveType | null,
   registrationIdentityProvenance: null,
 };
 
@@ -236,5 +242,39 @@ describe('vehicle-technical-spec-patch.util', () => {
       null,
     );
     expect(patch.idleRpm).toBeUndefined();
+  });
+
+  it('persists tank and service intervals with confirmation', () => {
+    const patch = buildVehicleTechnicalSpecificationPrismaPatch(
+      baseVehicle,
+      {
+        tankCapacityLiters: 55,
+        serviceIntervalManufacturerKm: 30000,
+        oilChangeIntervalMonths: 24,
+        technicalSpecificationSave: {
+          confirmedFieldKeys: [
+            'tankCapacityLiters',
+            'serviceIntervalManufacturerKm',
+            'oilChangeIntervalMonths',
+          ],
+        },
+      },
+      null,
+    );
+    expect(patch.tankCapacityLiters).toBe(55);
+    expect(patch.serviceIntervalManufacturerKm).toBe(30000);
+    expect(patch.oilChangeIntervalMonths).toBe(24);
+  });
+
+  it('persists drivetrain as driveType when confirmed', () => {
+    const patch = buildVehicleTechnicalSpecificationPrismaPatch(
+      baseVehicle,
+      {
+        drivetrain: 'AWD',
+        technicalSpecificationSave: { confirmedFieldKeys: ['drivetrain'] },
+      },
+      null,
+    );
+    expect(patch.driveType).toBe('AWD');
   });
 });

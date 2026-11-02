@@ -46,6 +46,14 @@ export function parsePositiveIntegerField(input: unknown): number | null {
   return n;
 }
 
+/** Non-negative tank capacity (liters); zero is valid for BEV. */
+export function parseTankCapacityLiters(input: unknown): number | null {
+  if (input == null || input === '') return null;
+  const n = typeof input === 'number' ? input : Number(String(input).replace(',', '.').trim());
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
 /** Engine idle/max RPM — positive integer within plausible engine range. */
 export function parseVehicleRpmField(input: unknown): number | null {
   const n = parsePositiveIntegerField(input);

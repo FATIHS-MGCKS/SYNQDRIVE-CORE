@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
-EXPECTED_POSTGRES_TESTS=24
+EXPECTED_POSTGRES_TESTS=31
 
 fail_closed_url() {
   local name="$1" url="$2"

@@ -26,6 +26,7 @@ import {
   DRIVING_INTELLIGENCE_JOB_ERROR_CODES,
 } from '../driving-intelligence-jobs/driving-intelligence-jobs.errors';
 import { buildDimoProviderRequestContext } from '../../dimo/provider/dimo-provider-request-context.util';
+import { listReconciledGapSplitSuffixTripIdsHiddenFromCustomerList, applyHiddenCustomerSuffixTripExclusion } from './trip-customer-list-reconciled-gap-split-suffix.util';
 
 export interface TripEnrichmentResult {
   citySharePercent: number;
@@ -93,6 +94,53 @@ export class TripsService {
     await assertVehicleInOrganization(this.prisma, organizationId, vehicleId);
 
     const where = scopedVehicleTripWhere(organizationId, vehicleId);
+    if (options?.from || options?.to) {
+      where.startTime = {};
+      if (options.from) where.startTime.gte = options.from;
+      if (options.to) where.startTime.lte = options.to;
+    }
+    const driverFilter = buildTripDriverIdentityFilter({
+      driverCustomerId: options?.driverCustomerId,
+      driverName: options?.driverName,
+    });
+    if (driverFilter) {
+      Object.assign(where, driverFilter);
+    }
+
+    return this.prisma.vehicleTrip.findMany({
+      where,
+      orderBy: { startTime: 'desc' },
+      take: options?.limit ?? 50,
+    });
+  }
+
+  /**
+   * Customer-facing trip list: excludes CANCELLED LIVE_FSM gap-split suffix rows that
+   * reconciliation already absorbed into a canonical parent (DB rows unchanged).
+   */
+  async findCustomerVisibleTripsByVehicle(
+    organizationId: string,
+    vehicleId: string,
+    options?: {
+      from?: Date;
+      to?: Date;
+      driverCustomerId?: string;
+      driverName?: string;
+      limit?: number;
+    },
+  ) {
+    await assertVehicleInOrganization(this.prisma, organizationId, vehicleId);
+
+    const hiddenSuffixIds = await listReconciledGapSplitSuffixTripIdsHiddenFromCustomerList(
+      this.prisma,
+      vehicleId,
+      { from: options?.from, to: options?.to },
+    );
+
+    const where = applyHiddenCustomerSuffixTripExclusion(
+      scopedVehicleTripWhere(organizationId, vehicleId),
+      hiddenSuffixIds,
+    );
     if (options?.from || options?.to) {
       where.startTime = {};
       if (options.from) where.startTime.gte = options.from;

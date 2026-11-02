@@ -95,6 +95,9 @@ export interface VehiclesOperationalOverviewDto {
   platformDimoMessage: string | null;
   counts: {
     registered: number;
+    registeredOffboarded: number;
+    registeredArchived: number;
+    registeredAll: number;
     unregistered: number;
     withAttention: number;
     dimoLinked: number;

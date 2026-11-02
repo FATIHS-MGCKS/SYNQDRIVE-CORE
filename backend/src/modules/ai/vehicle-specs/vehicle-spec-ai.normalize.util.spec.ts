@@ -50,6 +50,18 @@ describe('vehicle-spec-ai.normalize.util', () => {
     expect(specs.systemMotorPowerKw).toBeNull();
   });
 
+  it('normalizes lv battery type aliases onto batteryType', () => {
+    const specs = normalizeVehicleSpecValues({
+      lvBatteryType: 'Lead-Acid',
+      batteryType: null,
+    });
+    expect(specs.lvBatteryType).toBe('LEAD_ACID');
+    expect(specs.batteryType).toBe('LEAD_ACID');
+    expect(
+      normalizeVehicleSpecValues({ lvBatteryType: 'unknown-brand', batteryType: 'AGM' }).batteryType,
+    ).toBeNull();
+  });
+
   it('clears HV capacity fields for MHEV electrification level', () => {
     const specs = normalizeVehicleSpecValues({
       electrificationLevel: 'MHEV_48V',

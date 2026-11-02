@@ -1,0 +1,21 @@
+{
+  "document": "rpm-cadence-tier-fable-vs-frozen-fixture-delta",
+  "fableArtifact": "/opt/cursor/artifacts/rpm-multicadence-recommended-model-replay.json",
+  "frozenFixture": "fixtures/rpm-multicadence-tier-frozen-cohort-v1.json",
+  "rootCause": "PERCENTILE_OR_ROUNDING_SEMANTICS",
+  "explanation": "FABLE offline replay rows store p50 using ceil-index percentile (cadenceFeatures pct(50)). Phase-1 classifier initially used arithmetic median for R1; for even-length active-interval arrays these differ (e.g. median 1.5 vs pct50 1). Live ClickHouse re-read (recorded_at only) matches frozen fixture intervals exactly on all five previously diverging trips — not raw row-count drift.",
+  "differingTripIdsBeforeFix": [
+    { "tripIdPrefix": "0ced919c", "fableTier": "RPM_1S", "composerTierBeforeFix": "RPM_2S", "fablePct50": 1, "fixtureMedian": 1.5, "fixturePct50": 1, "category": "PERCENTILE_OR_ROUNDING_SEMANTICS" },
+    { "tripIdPrefix": "0ee895a6", "fableTier": "RPM_2S", "composerTierBeforeFix": "RPM_3S", "fablePct50": 2, "fixtureMedian": 2.5, "fixturePct50": 2, "category": "PERCENTILE_OR_ROUNDING_SEMANTICS" },
+    { "tripIdPrefix": "00578ab7", "fableTier": "SPARSE", "composerTierBeforeFix": "RPM_3S", "fablePct50": 2, "fixtureMedian": 2.5, "category": "PERCENTILE_OR_ROUNDING_SEMANTICS" },
+    { "tripIdPrefix": "17990e02", "fableTier": "SPARSE", "composerTierBeforeFix": "RPM_3S", "fablePct50": 2, "fixtureMedian": 2.5, "category": "PERCENTILE_OR_ROUNDING_SEMANTICS" },
+    { "tripIdPrefix": "50171956", "fableTier": "RPM_2S", "composerTierBeforeFix": "RPM_3S", "fablePct50": 2, "fixtureMedian": 2.5, "category": "PERCENTILE_OR_ROUNDING_SEMANTICS" }
+  ],
+  "duplicateTimestampTrips": [
+    { "tripIdPrefix": "e3624b7d", "duplicateTimestampCount": 52, "rpmPointCount": 54, "note": "106 raw CH rows, 54 unique timestamps — semantics verified" },
+    { "tripIdPrefix": "0ee895a6", "duplicateTimestampCount": 66, "rpmPointCount": 66, "note": "132 raw CH rows, each timestamp duplicated once in mirror" },
+    { "tripIdPrefix": "813feafd", "duplicateTimestampCount": 82, "rpmPointCount": 83, "note": "165 raw rows, 83 unique timestamps" },
+    { "tripIdPrefix": "2237b42a", "duplicateTimestampCount": 116, "rpmPointCount": 116, "note": "232 raw rows, 116 unique timestamps" }
+  ],
+  "afterFix": "R1 tier candidate uses fablePercentileSeconds(50) aligned with FABLE replay; expect zero tier mismatches vs artifact on frozen fixture."
+}

@@ -94,6 +94,7 @@ Reference: VDC change ledger APDS-9.x evidence; `vsi-apds-consumer.adapter.contr
 
 - EXP021 speed QC and trip projections consume trip boundaries from Trip Detection / DIMO Segments — not VSI.
 - **P4 (in PR):** read-only capability resolver supplies assessability context per link (`vsi-capability-resolver`); does not change EXP021 speed QC algorithms or trip boundaries.
+- **RPM multicadence tier (2026-10-30):** VSI owns authoritative `engine_rpm` profile semantics and **RPM cadence tier evidence** (`rpmCadenceTierResolution`). RPM HF V1B consumes tier snapshots for admission/tier-aware shadow only; VSI must not assign synthetic tiers for canary vehicles. Vehicle `idleRpm`/`maxRpm` (Vehicle Specifications) are **not** VSI inputs. Boundaries: [`../drivingintelligence/design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md`](../drivingintelligence/design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md) (`DI-DEC-RPM-REF-INTEL-001`).
 
 ---
 

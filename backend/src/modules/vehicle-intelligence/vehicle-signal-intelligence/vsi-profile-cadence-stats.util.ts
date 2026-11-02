@@ -15,6 +15,21 @@ import {
 export const VSI_CADENCE_MIN_INTERVAL_SAMPLES = 3;
 export const VSI_CADENCE_MIN_REGIME_SAMPLES = 3;
 
+/**
+ * Cadence provenance tags: preserve first-seen order, drop exact duplicates only.
+ * Idempotent when the same tag list is processed again.
+ */
+export function dedupeCadenceProvenanceTags(tags: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const tag of tags) {
+    if (seen.has(tag)) continue;
+    seen.add(tag);
+    out.push(tag);
+  }
+  return out;
+}
+
 const POLL_BOUND_MAX_SECONDS = 45 * 60;
 const RESTING_HEARTBEAT_MIN_SECONDS = 2 * 3600;
 const RESTING_HEARTBEAT_MIN_SAMPLES_FOR_HIGH = 5;
@@ -378,14 +393,17 @@ export function analyzeEngineRpmCadence(
     'SPEED_ZERO_NOT_IGNITION_OFF_PROOF',
     'MISSING_GPS_NOT_STATIONARY_PROOF',
   ];
-  const provenance = [...input.provenance];
+  if (input.attributionLimitations?.length) {
+    limitations.push(...input.attributionLimitations);
+  }
+  let provenance = dedupeCadenceProvenanceTags(input.provenance);
 
   if (input.iceRpmApplicability === 'NOT_APPLICABLE') {
     limitations.push('ICE_RPM_NOT_APPLICABLE');
     return {
       contractVersion: VSI_SIGNAL_CADENCE_CONTRACT_VERSION,
       evidenceConfidence: 'HIGH',
-      provenance,
+      provenance: dedupeCadenceProvenanceTags(provenance),
       limitations,
       observedSampleCount: 0,
       distinctTimestampCount: 0,
@@ -418,7 +436,7 @@ export function analyzeEngineRpmCadence(
     return {
       contractVersion: VSI_SIGNAL_CADENCE_CONTRACT_VERSION,
       evidenceConfidence: 'UNKNOWN',
-      provenance,
+      provenance: dedupeCadenceProvenanceTags(provenance),
       limitations,
       observedSampleCount: 0,
       distinctTimestampCount: 0,
@@ -453,9 +471,14 @@ export function analyzeEngineRpmCadence(
   const intervals = collectIntraTripIntervalsSeconds(scopedPoints, input.tripWindows);
   const sortedIntervals = [...intervals].sort((a, b) => a - b);
 
-  if (input.hfReadStatus === 'SUCCESS' && scopedPoints.length > 0) {
-    provenance.push('CLICKHOUSE_TELEMETRY_HF_POINTS');
+  if (
+    input.hfReadStatus === 'SUCCESS' &&
+    scopedPoints.length > 0 &&
+    !provenance.includes('CLICKHOUSE_TELEMETRY_HF_POINTS')
+  ) {
+    provenance = [...provenance, 'CLICKHOUSE_TELEMETRY_HF_POINTS'];
   }
+  provenance = dedupeCadenceProvenanceTags(provenance);
   if (input.hfReadStatus === 'UNAVAILABLE') {
     limitations.push('CLICKHOUSE_HF_UNAVAILABLE');
   }
@@ -525,7 +548,10 @@ export function analyzeLvVoltageCadence(
     'LV_PROVIDER_TIMESTAMP_MAY_REFLECT_DIMO_BUNDLE_NOT_INDEPENDENT_PHYSICAL_SAMPLE',
     'NATIVE_DEVICE_TRANSMISSION_INTERVAL_NOT_INFERRED_FROM_DIMO_SNAPSHOT_TIMING',
   ];
-  const provenance = [...input.provenance, 'POSTGRES_BATTERY_MEASUREMENTS'];
+  const provenance = dedupeCadenceProvenanceTags([
+    ...input.provenance,
+    'POSTGRES_BATTERY_MEASUREMENTS',
+  ]);
 
   const linkEnd = input.linkDeactivatedAtMs ?? Number.POSITIVE_INFINITY;
   const scoped = input.points.filter(

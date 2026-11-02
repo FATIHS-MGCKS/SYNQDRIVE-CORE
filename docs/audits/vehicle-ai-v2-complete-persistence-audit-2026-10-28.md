@@ -275,4 +275,152 @@ Executed at audit SHA (no production DB):
 
 ---
 
-**FINAL_VERDICT:** Architecture is **multi-lane by design**; completeness on **Connected Vehicle edit** was incomplete for idle/max/brake on production baseline. **PR #2213 is necessary and sufficient for that subset** (verified by unit tests). **Broader AI V2 field set** remains **registration-first** or **reference-table**; several modal fields are **still not durable on edit-save** (P1). Recommend merge #2213 for P0-1, then scoped follow-ups for P1/P2.
+**FINAL_VERDICT:** Architecture is **multi-lane by design**; completeness on **Connected Vehicle edit** was incomplete for idle/max/brake on production baseline. **PR #2213** closes that P0 subset. **P1 completion (branch `cursor/vehicle-ai-v2-p1-persistence-f8cd`)** extends confirmed technical PATCH + manual baseline APIs on edit; see **§ P1 resolution matrix** below.
+
+---
+
+## P1 resolution matrix (2026-10-28 implementation)
+
+| Field | Prior gap | Storage path (edit) | Test evidence | Remaining limits |
+|-------|-----------|---------------------|---------------|------------------|
+| `tankCapacityLiters` | Edit omitted | `vehicles.tank_capacity_liters` via `vehicle-technical-spec-patch.util` + CV `buildMasterVehiclePhysicsSpecPatch` | `vehicle-technical-spec-patch.util.spec.ts`; `vehicle-technical-spec.util.test.ts`; PG spec `vehicle-technical-spec-patch.postgres.integration.spec.ts` (opt-in) | CV panel still may not display tank |
+| `serviceIntervalManufacturerKm/Months` | Edit omitted | `vehicles.service_interval_manufacturer_*` | Same unit + PG tests | — |
+| `oilChangeIntervalKm/Months` | Edit omitted | `vehicles.oil_change_interval_*` | Same unit + PG tests | — |
+| `drivetrain` | Edit omitted | `vehicles.drive_type` via `mapMasterFormDrivetrainToDriveType` | Same unit + PG tests | Form values must be FWD/RWD/AWD/4WD |
+| Tire reference dims | Edit omitted | `api.vehicles.upsertTires` on diff (`applyManualBaselinesOnEdit`) | `master-vehicle-registration.test.ts` | Tread/measurement paths unchanged |
+| LV battery spec (type/A/V) | Edit omitted | `api.vehicleIntelligence.createBatterySpec` on diff | `master-vehicle-registration.test.ts` | No `lvBatteryChemistry` column — **not persistable** |
+| Brake reference dims | Edit omitted | `api.vehicleIntelligence.createBrakeSpec` on diff (not health measurements) | `master-vehicle-registration.test.ts` | Workshop measurements still use `recordBrakeService` only when confirmed |
+| `electrificationLevel` | No column | **Not in edit PATCH** — `VEHICLE_AI_V2_EDIT_NON_PERSISTENT_FIELDS` | Documented only | Still in register `extraData` for fuel/HV heuristics; lost on reload |
+| `lvBatteryChemistry` | No column | **Not persistable** — same constant | Documented only | UI must not imply save |
+| Registration AI parity | Register skipped `assertAiTechnicalFieldsConfirmed` | `technicalSpecificationSave.confirmedFieldKeys` in `buildVehicleExtraData` + `assertMasterRegistrationAiTechnicalFieldsConfirmed` in activation finalize | `master-vehicle-registration.test.ts` | — |
+
+**Regression preserved:** PR #2210 displacement/cylinders/weight; PR #2213 idle/max/brake; HV master, motion physics, brake health measurement protection unchanged.
+
+---
+
+## Vehicle Specifications V3 — Final consistency addendum (2026-10-29)
+
+| Baseline | SHA / status |
+|----------|----------------|
+| **MAIN_SHA** | `634bb4b029e186e853f4cad0810894b822086c45` |
+| **PRODUCTION_SHA** | `ebe9015386d4f5e69505b2c44a56c0e3869afec8` (release `20261029123520_v4994`) |
+| **PR #2238** | **MERGED** @ `34346cdcca8fb20dd13db77ba70bc5f1b8e5b8c1` (2026-10-29 12:31 UTC); CI **SUCCESS**; **not yet on production** (prod i18n still `unitAmpere: 'A'`) |
+| **Original audit baseline** | `440db67229bbd1f1b9b98b43cb6d4d661979c697` — superseded for prod/main |
+
+**Mode:** read-only production verification + documentation + contract registry tests. No migrations, no production writes, no consumer formula changes.
+
+### Canonical units (`CANONICAL_UNITS_STATUS`)
+
+Code registry: `backend/src/modules/vehicles/vehicle-specification-canonical.contract.ts` → `VEHICLE_SPEC_CANONICAL_UNITS`.
+
+| Semantic | Canonical unit |
+|----------|----------------|
+| Motor / charger power | kW |
+| HV usable / gross / legacy usable alias | kWh |
+| LV charge capacity (`lvBatteryAmpere`) | **Ah** (not A) |
+| LV voltage | V |
+| Electric current (when distinct from charge capacity) | A |
+| Torque | Nm |
+| Displacement | cm³ |
+| Mass | kg |
+| Length / width / height / brake dims | mm |
+| Percent (bias, weight %) | % |
+| RPM | rpm |
+| Tank | L |
+| Tire size | standardized string via tire reference pipeline (not re-labeled here) |
+
+**UNIT_MISMATCHES**
+
+| ID | Surface | Issue | Priority | Fix status |
+|----|---------|-------|----------|------------|
+| U1 | Master CV i18n `master.cv.technicalSpecs.unitAmpere` | Production shows **A**; main shows **Ah** after #2238 | P2 | **Fixed on main**; await owner deploy (do not duplicate in new PR) |
+| U2 | AI schema key name `lvBatteryAmpere` | Key name says “Ampere” but semantics are **charge capacity Ah** | P2 | Documented; no rename (breaking) |
+
+All other audited contract surfaces use consistent unit semantics in schema descriptions and CV labels on **main**.
+
+### Field precedence (`FIELD_PRECEDENCE_STATUS`)
+
+| Field / concept | Authoritative source (precedence) | Must not merge with |
+|-----------------|-----------------------------------|---------------------|
+| **HV usable kWh** | (1) Active `vehicle_battery_reference_capacities` row `capacityType=USABLE` → (2) `vehicles.hv_battery_capacity_kwh` legacy column | Gross catalog, telemetry BMS |
+| **HV gross kWh** | `vehicles.hv_master_specification.grossCapacityKwh` (+ provenance on master JSON) | Usable column, unverified reference |
+| **hvBatteryUsableCapacityKwh** (AI/API) | Same as usable lane above on GET (`vehicles.service.ts` ~951–954) | `hvBatteryGrossCapacityKwh` |
+| **vehicle_battery_reference_capacities** | SOH / reference workflows; **VERIFIED** tier required for SOH gate (`hv-soh-gate.policy.ts`) | Legacy usable column alone |
+| **brakeForceFrontPercent** | `vehicles.brake_force_front_percent` when USER_CONFIRMED / AI confirmed | `frontWeightDistributionPct` |
+| **brake force fallback** | `null` → EBD **72/28** in `brake-health.service.ts` | Weight distribution |
+| **frontWeightDistributionPct** | `vehicles.front_weight_distribution_pct` | Brake bias |
+| **driveType** | `vehicles.drive_type` (canonical enum via `normalizeCanonicalDrivetrain`) | AI `drivetrain` string without PATCH |
+| **electrificationLevel** | **Non-persistent** input; read-only derive via `deriveElectrificationLevelReadOnly(fuelType, powertrainType)` | Stored column (none) |
+| **lvBatteryChemistry** | **Non-persistent** (`NON_PERSISTENT_VEHICLE_SPEC_INPUT_FIELDS`) | `lvBatteryType` persisted enum |
+
+**LEGACY_ALIAS_STATUS:** `VEHICLE_SPEC_LEGACY_AI_FIELD_ALIASES` in canonical contract; PATCH util maps `brakeForceDistribution` → `brakeForceFrontPercent`, weight string → `frontWeightDistributionPct`. Tests: `vehicle-technical-spec-patch.util.spec.ts`, `vehicle-specification-canonical.contract.spec.ts`.
+
+### Variant naming (`VARIANT_NAME_POLICY` / `VARIANT_NAME_SOURCE_OF_TRUTH`)
+
+**Source of truth (persisted identity, not AI preview alone):**
+
+| Attribute | Primary store | Notes |
+|-----------|---------------|-------|
+| Manufacturer / model / year | Registration identity canonical + `vehicles` | `registration_identity_provenance` v1 |
+| Engine / trim line | `typeVariantVersion`, `electrificationGrade`, `nominalMotorPowerKw` | USER_CONFIRMED gates in identity review |
+| AI `resolvedVariant` | Provenance + P3 bridge suggestion only | Gated in `vehicle-spec-ai.normalize.util.ts` |
+| HV pack label | `hv_master_specification.variantLabel` | Separate from commercial variant name |
+| Motion assumption | `vehicle_motion_physics_references.variantAssumption` | Reference tier |
+
+**Display policy (deterministic, display-only — no bulk rename):**
+
+1. **Fleet short name:** existing `vehicleDisplayName` = make + model (rental/rules mapper) — **does not** embed full powertrain line.
+2. **Full variant line (when shown):** concatenate **only verified** identity fields in order: `[typeVariantVersion]`, `[nominalMotorPowerKw kW or PS if confirmed]`, `[driveType token if known]`, `[transmission if stored elsewhere]` — omit unknown segments; **never** duplicate make/model inside `typeVariantVersion`.
+3. **AI path:** apply `resolvedVariant` to numerics only when confidence + identity match; ambiguous/low confidence → numerics nulled, variant unresolved.
+4. **USER_CONFIRMED** provenance on identity fields **must not** be overwritten by lower-confidence AI (#2210 / identity review).
+5. **No formatter shared today** across Master Admin, CV hub, and rental — policy above is the contract target; future work may extract one pure function without new tables.
+
+**VARIANT_INCONSISTENCIES (P1/P2, no silent fix):**
+
+| ID | Finding | Class |
+|----|---------|-------|
+| V1 | Rental/customer `vehicleDisplayName` ≠ Master full variant line | P2 by design unless product unifies |
+| V2 | Tesla `drive_type` may be null while label says RWD | P1 identity vs scalar |
+| V3 | `hvMasterSpecificationVariantLabel` (pack) vs `typeVariantVersion` (commercial) | P2 — keep separate |
+
+**AI_VARIANT_NORMALIZATION:** `vehicle-spec-ai.normalize.util.ts` — MHEV strip, drivetrain normalize, variant gate, identity mismatch rejection.
+
+**VARIANT_CONFIDENCE_PROTECTION:** Tests in `vehicle-spec-ai.normalize.util.spec.ts`; identity P3 bridge stores `resolvedVariant` as SUGGESTED until USER_CONFIRMED.
+
+### Downstream consumers (`DOWNSTREAM_CONSUMER_STATUS`)
+
+| Consumer | Source field(s) | Unit | Fallback / risk |
+|----------|-----------------|------|-----------------|
+| **Brake health** | `brakeForceFrontPercent` | % front | null → 72% EBD; **not** weight % |
+| **Tire wear / lifecycle** | `curbWeightKg`, `frontWeightDistributionPct`, `driveType` | kg, % front | Missing weight → degraded estimates |
+| **VSI / trip RPM** | `idleRpm`, `maxRpm` | rpm | Missing → enrichment skips |
+| **Legacy HV health nominal** | `hvBatteryCapacityKwh` column | kWh | Not gross master |
+| **SOH gate** | Verified reference capacity only | kWh | Weak sources excluded |
+| **DS4 / Motion** | Telemetry + motion references | — | **No** direct read of all V3 scalars in DS4 assessment grep; do not claim dependency |
+
+### Protected values (verified read-only)
+
+**TESLA_VALUES_PRESERVED** — vehicle `68868291-5478-42cd-b0c4-cc77b2a78e21`: usable **57 kWh**, master gross **60 kWh** ESTIMATED, **0** battery reference rows; no workflow change in this workstream.
+
+**ARTEON_VALUES_PRESERVED** — vehicle `8c850ff1-4201-432b-af2e-2711dbc7ca48`: `brake_force_front_percent` **NULL** (USER_CONFIRMED null); brake refs **312 / 300 mm** unchanged.
+
+### Before / after matrix (contract focus)
+
+| Topic | Before (prod / audit gaps) | After (main + this addendum) |
+|-------|----------------------------|------------------------------|
+| LV unit label | A on prod | Ah on main (#2238); prod pending deploy |
+| Canonical unit registry | Implicit in code/i18n | `VEHICLE_SPEC_CANONICAL_UNITS` exported |
+| Legacy aliases | PATCH util only | + `VEHICLE_SPEC_LEGACY_AI_FIELD_ALIASES` + tests |
+| Field precedence | Described in prose in prior sections | Explicit table above |
+| Variant display | Ad hoc per surface | Documented policy; no persistence change |
+
+### Implementation in this workstream
+
+| Item | Action |
+|------|--------|
+| Duplicate Ah i18n fix | **Skipped** (#2238 merged) |
+| New variant catalog / migration | **Skipped** |
+| Consumer formula changes | **Skipped** |
+| Doc + contract tests | **PR** `cursor/vspec-v3-final-consistency-f8cd` |
+
+**FINAL_VERDICT (V3 pass):** Canonical contract is **consistent on main** except **production deploy lag** for Ah (P2). No P0 unit errors in protected Tesla/Arteon paths. **One minimal PR** documents precedence + units registry tests; **merge/deploy of #2238 to prod** remains owner-operated out of scope here.

@@ -16,10 +16,12 @@ export interface MotionPhysicsPolicyEvaluation {
 }
 
 function hasAnyMotionValue(payload: MotionPhysicsReferencePayload): boolean {
+  const definition = payload.systemPowerDefinition?.trim();
   return (
     payload.curbMassKg != null ||
     payload.systemMotorPowerKw != null ||
-    payload.accel0To100S != null
+    payload.accel0To100S != null ||
+    Boolean(definition)
   );
 }
 

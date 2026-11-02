@@ -1916,3 +1916,31 @@ nodes:
       - architecture/drivingintelligence/evidence/DS4_EVENT_INTENSITY_PERSISTENCE_PR2.md
       - backend/src/modules/vehicle-intelligence/driving-intelligence/motion-core-shadow-worker/__tests__/di-v0-motion-core-shadow-event-intensity-persistence.unit.spec.ts
       - backend/src/modules/vehicle-intelligence/driving-intelligence/motion-core-shadow-worker/__tests__/di-v0-motion-core-shadow-event-intensity.postgres.integration.spec.ts
+
+  - id: DI-DEC-RPM-REF-INTEL-001
+    type: decision
+    title: RPM Reference Intelligence and Driving Intelligence ownership boundaries
+    epistemic_status: CONFIRMED
+    decision_status: PROPOSED
+    summary: >
+      Documentation-only owner architecture: VSI owns RPM profiles and cadence tier evidence; RPM HF V1A/V1B owns
+      HF observation, admission, and qualityExposure; vehicle idle/max specs are reference metadata only (never HF
+      substitute, never silent V1B gate changes); future small RPM Reference Intelligence component within RPM workstream;
+      DS4 remains motion authority with optional future versioned consumer interface; no RPM load/wear/scoring without
+      separate validation.
+    source_paths:
+      - architecture/drivingintelligence/decisions/DECISION_REGISTER.md
+      - architecture/drivingintelligence/design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md
+    evidence:
+      - DI-EVID-RPM-REF-INTEL-ADR-001
+
+  - id: DI-EVID-RPM-REF-INTEL-ADR-001
+    type: evidence
+    title: RPM Reference Intelligence ownership boundaries ADR (Phase 5)
+    epistemic_status: CONFIRMED
+    source_type: DESIGN
+    summary: >
+      ADR distinguishing CURRENT IMPLEMENTED (VSI tier, V1A/V1B, vehicle spec persistence) from APPROVED FUTURE
+      (RPM Reference Intelligence metrics, DS4 optional interface) and NOT YET IMPLEMENTED runtime modules.
+    source_paths:
+      - architecture/drivingintelligence/design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md

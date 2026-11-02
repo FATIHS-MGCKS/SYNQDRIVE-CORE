@@ -3,7 +3,9 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
 import {
   extractM3JPerKgPerKmFromShadowPayload,
+  extractTemporalDetailFromShadowPayload,
   extractTemporalSecondsFromShadowPayload,
+  resolveDs4TemporalTripWeight,
 } from './tire-wear-v3-ds4-payload.util';
 import type { TireWearV3Ds4LedgerShadowRow } from './tire-wear-v3-dynamic.math';
 import type { TireWearV3PriorSetupResult } from './tire-wear-v3-prior.types';
@@ -68,6 +70,7 @@ export class TireWearV3PriorRepository {
         tireTripUsageLedgerId: true,
         temporalCoverage: true,
         ds4ReadStatus: true,
+        speedAuthority: true,
         inputPayload: true,
         createdAt: true,
       },
@@ -78,14 +81,27 @@ export class TireWearV3PriorRepository {
     for (const row of rows) {
       if (byLedger.has(row.tireTripUsageLedgerId)) continue;
       const temporal = extractTemporalSecondsFromShadowPayload(row.inputPayload);
+      const temporalDetail = extractTemporalDetailFromShadowPayload(row.inputPayload);
+      const m3 = extractM3JPerKgPerKmFromShadowPayload(row.inputPayload);
+      const weightResolved = resolveDs4TemporalTripWeight({
+        ds4ReadStatus: row.ds4ReadStatus,
+        temporalCoverage: row.temporalCoverage,
+        m3JPerKgPerKm: m3,
+        detail: temporalDetail,
+        speedAuthority: row.speedAuthority,
+      });
       byLedger.set(row.tireTripUsageLedgerId, {
         ledgerId: row.tireTripUsageLedgerId,
         distanceKm: 0,
         ds4ReadStatus: row.ds4ReadStatus,
         temporalCoverage: row.temporalCoverage,
-        m3JPerKgPerKm: extractM3JPerKgPerKmFromShadowPayload(row.inputPayload),
+        m3JPerKgPerKm: m3,
         validDrivingSeconds: temporal.validDrivingSeconds,
         tripDurationSeconds: temporal.tripDurationSeconds,
+        temporalDetail,
+        speedAuthority: row.speedAuthority,
+        temporalTripWeight: weightResolved.weight,
+        temporalWeightFlags: weightResolved.flags,
       });
     }
     return [...byLedger.values()];

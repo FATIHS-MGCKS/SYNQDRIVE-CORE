@@ -15,6 +15,13 @@ export const MOTION_SYSTEM_POWER_DEFINITION_OPTIONS = [
   'OEM_RATED_SYSTEM_KW_ESTIMATED',
 ] as const;
 
+/** Must stay aligned with backend MOTION_SYSTEM_POWER_DEFINITION_LEGACY_ALIASES. */
+const MOTION_SYSTEM_POWER_DEFINITION_LEGACY_ALIASES: Readonly<
+  Record<string, MotionSystemPowerDefinitionOption>
+> = {
+  OEM_RATED_ENGINE_KW: 'OEM_RATED_MOTOR_KW',
+};
+
 export type MotionSystemPowerDefinitionOption = (typeof MOTION_SYSTEM_POWER_DEFINITION_OPTIONS)[number];
 
 export const MOTION_PHYSICS_SYNC_REASON_CODES = {
@@ -422,7 +429,7 @@ export function snapshotMotionPhysicsFromActiveReference(ref: {
     systemMotorPowerKw: ref.systemMotorPowerKw != null ? String(ref.systemMotorPowerKw) : '',
     accel0To100S: ref.accel0To100S != null ? String(ref.accel0To100S) : '',
     variantAssumption: ref.variantAssumption ?? '',
-    systemPowerDefinition: ref.systemPowerDefinition?.trim() ?? '',
+    systemPowerDefinition: parseMotionSystemPowerDefinitionOption(ref.systemPowerDefinition),
   });
 }
 
@@ -440,8 +447,49 @@ export function buildMotionPhysicsReferenceCreateBody(input: {
     systemMotorPowerKw: parseMotionPhysicsDecimalField(input.systemMotorPowerKw),
     accel0To100S: parseMotionPhysicsDecimalField(input.accel0To100S),
     variantAssumption: input.variantAssumption.trim() || null,
-    systemPowerDefinition: input.systemPowerDefinition.trim() || null,
+    systemPowerDefinition:
+      parseMotionSystemPowerDefinitionOption(input.systemPowerDefinition) || null,
     source: input.source,
     manualOperatorConfirm: input.manualOperatorConfirm === true ? true : undefined,
   };
+}
+
+/** Returns a reason code when create payload has no persistable motion fields. */
+export function validateMotionPhysicsReferenceCreatePayload(input: {
+  curbMassKg?: number | null;
+  systemMotorPowerKw?: number | null;
+  accel0To100S?: number | null;
+  systemPowerDefinition?: string | null;
+}): MotionPhysicsSyncReasonCode | null {
+  const definition = input.systemPowerDefinition?.trim();
+  if (
+    input.curbMassKg == null &&
+    input.systemMotorPowerKw == null &&
+    input.accel0To100S == null &&
+    !definition
+  ) {
+    return MOTION_PHYSICS_SYNC_REASON_CODES.REFERENCE_CREATE_FAILED;
+  }
+  return null;
+}
+
+export function parseMotionSystemPowerDefinitionOption(
+  raw: unknown,
+): MotionSystemPowerDefinitionOption | '' {
+  const token = String(raw ?? '').trim().toUpperCase();
+  const legacy = MOTION_SYSTEM_POWER_DEFINITION_LEGACY_ALIASES[token];
+  if (legacy) return legacy;
+  if ((MOTION_SYSTEM_POWER_DEFINITION_OPTIONS as readonly string[]).includes(token)) {
+    return token as MotionSystemPowerDefinitionOption;
+  }
+  return '';
+}
+
+export function hydrateSystemPowerDefinitionFormState(
+  fromReference: string | null | undefined,
+  fromRegisteredVehicle: string | null | undefined,
+): MotionSystemPowerDefinitionOption | '' {
+  const fromRef = parseMotionSystemPowerDefinitionOption(fromReference);
+  if (fromRef) return fromRef;
+  return parseMotionSystemPowerDefinitionOption(fromRegisteredVehicle);
 }

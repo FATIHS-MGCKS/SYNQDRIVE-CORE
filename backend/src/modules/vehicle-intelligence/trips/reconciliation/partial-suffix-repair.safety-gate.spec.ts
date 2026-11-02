@@ -1,6 +1,7 @@
 import { TripOverlapDetector, type TripOverlapEvidence } from '../detectors/trip-overlap.detector';
 import { assessCoverage } from '../detectors/trip-coverage.util';
 import { TripReconciliationService } from './trip-reconciliation.service';
+import { stubTripDiBoundaryAdmissionService } from './__tests__/trip-reconciliation-di-admission.stub';
 import { TripOverlapDetector as OverlapCtor } from '../detectors/trip-overlap.detector';
 import { REPAIR_STATUS } from './reconciliation.types';
 
@@ -155,6 +156,7 @@ function buildReconciliationHarness(
     {} as never,
     new OverlapCtor(prisma as never),
     {} as never,
+    stubTripDiBoundaryAdmissionService(),
     undefined as never,
     undefined as never,
     undefined as never,

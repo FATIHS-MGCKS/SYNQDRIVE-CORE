@@ -98,9 +98,15 @@ export interface VehiclesOperationalOverviewDto {
   platformDimoDegraded: boolean;
   platformDimoMessage: string | null;
   counts: {
+    /** Registered vehicles in ACTIVE registry lifecycle (default list filter). */
     registered: number;
+    registeredOffboarded: number;
+    registeredArchived: number;
+    /** All registered vehicle rows regardless of lifecycle. */
+    registeredAll: number;
     unregistered: number;
     withAttention: number;
+    /** ACTIVE registered vehicles with a DIMO link. */
     dimoLinked: number;
   };
   freshness: {

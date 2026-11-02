@@ -1,4 +1,11 @@
 import type { VsiSignalConfidenceLevel } from './vsi-profile.types';
+import type {
+  VsiRpmAnalysisReadiness,
+  VsiRpmCadenceConfidenceLevel,
+  VsiRpmCadenceTierDecisionCode,
+  VsiRpmCadenceTierLabel,
+  VsiRpmTripCoverageBand,
+} from './vsi-rpm-cadence-tier.types';
 
 export const VSI_SIGNAL_CADENCE_CONTRACT_VERSION = 'vsi-signal-cadence-v2' as const;
 
@@ -56,6 +63,50 @@ export type VsiActiveRpmProfileResolutionV1 = {
   profileSemanticFingerprint: string;
 };
 
+export const VSI_RPM_CADENCE_TIER_RESOLUTION_CONTRACT_VERSION =
+  'vsi-rpm-cadence-tier-resolution-v1' as const;
+
+/** Operational multi-cadence tier block (Phase 2); does not affect cadenceSemanticFingerprint. */
+export type VsiRpmCadenceTierTripClassificationV1 = {
+  tripId: string;
+  endMs: number;
+  tier: VsiRpmCadenceTierLabel;
+  cadenceConfidence: VsiRpmCadenceConfidenceLevel | null;
+  tripCoverageBand: VsiRpmTripCoverageBand | null;
+  analysisReadiness: VsiRpmAnalysisReadiness;
+  decisionCode: VsiRpmCadenceTierDecisionCode;
+  intervalEvidenceUsed: {
+    rpmPointCount: number;
+    activeIntervalCount: number;
+    tripDurationSeconds: number;
+  };
+  p50ActiveSeconds: number | null;
+  p75ActiveSeconds: number | null;
+  p90ActiveSeconds: number | null;
+  activeSpanRatio: number | null;
+  activeDensityVsTier: number | null;
+  tierPuritySharePlusOne: number | null;
+  longestSequenceIntervals: number;
+};
+
+export type VsiRpmCadenceTierRollingSummaryV1 = {
+  tier: VsiRpmCadenceTierLabel | null;
+  agreementRatio: number | null;
+  classificationDecisionCode: string;
+  classificationDecisionSummary: string;
+  sufficientEvidence: boolean;
+};
+
+export type VsiRpmCadenceTierResolutionV1 = {
+  contractVersion: typeof VSI_RPM_CADENCE_TIER_RESOLUTION_CONTRACT_VERSION;
+  evaluatedTripIds: string[];
+  tripClassifications: readonly VsiRpmCadenceTierTripClassificationV1[];
+  rollingVehicleTierSummary: VsiRpmCadenceTierRollingSummaryV1 | null;
+  provenance: string[];
+  /** Latest HF observation timestamp used for tier resolution (ISO-8601). */
+  evidenceObservedAt: string | null;
+};
+
 export type VsiSignalCadenceIntelligenceV2 = {
   contractVersion: typeof VSI_SIGNAL_CADENCE_CONTRACT_VERSION;
   evidenceConfidence: VsiSignalConfidenceLevel;
@@ -72,6 +123,8 @@ export type VsiSignalCadenceIntelligenceV2 = {
   observedDensityLabel: VsiCadenceObservedDensityLabel;
   /** Rolling-trip resolver for the active provider source link (not 14 d pooled). */
   activeRpmProfile?: VsiActiveRpmProfileResolutionV1;
+  /** Multi-cadence effective resolution tiers (operational-only; no semantic fingerprint impact). */
+  rpmCadenceTierResolution?: VsiRpmCadenceTierResolutionV1;
   /** Observed R1/LV standby transmission cadence (not native device config). */
   lvStandbyTransmissionProfile?: VsiLvStandbyTransmissionProfileV1;
   /** Stable semantic identity for cadence dimension (excludes raw counters). */
@@ -96,6 +149,8 @@ export type VsiRpmCadenceEvidenceInput = {
   points: readonly VsiRpmCadenceSamplePoint[];
   provenance: string[];
   hfReadStatus: VsiHfCadenceReadStatus;
+  /** Fail-closed HF source-link attribution limitations (P1-F). */
+  attributionLimitations?: readonly string[];
 };
 
 export type VsiLvCadenceEvidencePoint = {

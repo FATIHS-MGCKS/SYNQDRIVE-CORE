@@ -29,7 +29,8 @@ export type TireRentalReasonCode =
   | 'DATA_STALE'
   | 'REVIEW_OVERRIDE_ACTIVE'
   | 'V3_VERIFICATION_INSUFFICIENT_EVIDENCE'
-  | 'V3_VERIFICATION_OVERDUE';
+  | 'V3_VERIFICATION_OVERDUE'
+  | 'V3_READ_UNAVAILABLE';
 
 export type TireMeasurementFreshness = 'fresh' | 'aging' | 'stale' | 'no_data';
 

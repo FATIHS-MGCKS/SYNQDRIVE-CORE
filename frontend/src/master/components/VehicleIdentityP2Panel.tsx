@@ -3,6 +3,10 @@ import { AlertCircle, FileText, Loader2, Upload } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useLanguage } from '../../i18n/LanguageContext';
 import {
+  buildZb1RegistrationFormPatch,
+  type Zb1RegistrationFormPatch,
+} from '../connected-vehicles/zb1-registration-form-merge.util';
+import {
   isVehicleIdentityP2Enabled,
   isVehicleIdentityP3Enabled,
   provenanceBadgeClass,
@@ -40,12 +44,23 @@ type Props = {
   isDarkMode: boolean;
   organizationId: string;
   vehicleId: string;
+  /** When true, document upload is only via the toolbar dialog (avoids duplicate file inputs). */
+  hideDocumentUpload?: boolean;
+  registrationFormCurrent?: {
+    engineDisplacementCc: string;
+    fuelType: string;
+    curbWeight: string;
+  };
+  onApplyToRegistrationForm?: (patch: Zb1RegistrationFormPatch) => void;
 };
 
 export function VehicleIdentityP2Panel({
   isDarkMode,
   organizationId,
   vehicleId,
+  hideDocumentUpload = false,
+  registrationFormCurrent,
+  onApplyToRegistrationForm,
 }: Props) {
   const { t } = useLanguage();
   const enabled = isVehicleIdentityP2Enabled();
@@ -63,6 +78,7 @@ export function VehicleIdentityP2Panel({
   const [extractionId, setExtractionId] = useState<string | null>(null);
   const [validateMsg, setValidateMsg] = useState<string | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [applyFormMsg, setApplyFormMsg] = useState<string | null>(null);
 
   const p3Enabled = useMemo(
     () => isVehicleIdentityP3Enabled() && snapshot?.capabilities.p3Enabled === true,
@@ -118,7 +134,10 @@ export function VehicleIdentityP2Panel({
   }, [enabled, organizationId, vehicleId, refreshSnapshot]);
 
   const onUpload = async (file: File) => {
-    if (!snapshot?.capabilities.zb1UploadEnabled) return;
+    if (!snapshot?.capabilities.zb1UploadEnabled) {
+      setError(t('master.vehicleIdentity.uploadDisabled'));
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -218,10 +237,46 @@ export function VehicleIdentityP2Panel({
   }
 
   const reviewRows = (snapshot?.fields ?? []).filter((f) =>
-    ['d1Manufacturer', 'd3TradeName', 'd2TypeVariantVersion', 'eVin', 'p1DisplacementCc', 'p2NominalPowerKw', 'p3FuelOrEnergy', 'hsnCode21', 'tsnCode22'].includes(
-      f.fieldCode,
-    ),
+    [
+      'd1Manufacturer',
+      'd3TradeName',
+      'd2TypeVariantVersion',
+      'eVin',
+      'p1DisplacementCc',
+      'p2NominalPowerKw',
+      'p3FuelOrEnergy',
+      'hsnCode21',
+      'tsnCode22',
+      'gKerbMassKg',
+    ].includes(f.fieldCode),
   );
+
+  const onApplyToForm = () => {
+    if (!onApplyToRegistrationForm || !registrationFormCurrent || !snapshot) return;
+    const result = buildZb1RegistrationFormPatch(
+      reviewRows,
+      confirmedFields,
+      registrationFormCurrent,
+      {
+        vinMismatchBlocked: snapshot.vinMismatchBlocked,
+        vinMismatchAcknowledged: vinAck,
+      },
+    );
+    if (result.blockedReason === 'VIN_MISMATCH') {
+      setApplyFormMsg(t('master.vehicleIdentity.applyToFormVinMismatchDocument'));
+      return;
+    }
+    if (Object.keys(result.patch).length === 0) {
+      setApplyFormMsg(
+        result.skippedConflicts.length
+          ? t('master.vehicleIdentity.applyToFormConflict')
+          : t('master.vehicleIdentity.applyToFormEmpty'),
+      );
+      return;
+    }
+    onApplyToRegistrationForm(result.patch);
+    setApplyFormMsg(t('master.vehicleIdentity.applyToFormSuccess'));
+  };
 
   return (
     <div className="space-y-4" data-testid="vehicle-identity-p2-panel">
@@ -285,23 +340,27 @@ export function VehicleIdentityP2Panel({
             <FileText className="h-3.5 w-3.5" />
             {t('master.vehicleIdentity.pathDocument')}
           </p>
-          {snapshot?.capabilities.zb1UploadEnabled ? (
-            <label className="flex cursor-pointer items-center gap-2 text-xs text-primary">
-              <Upload className="h-4 w-4" />
-              <input
-                type="file"
-                accept="application/pdf,image/*"
-                className="hidden"
-                data-testid="vehicle-identity-zb1-upload"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void onUpload(f);
-                }}
-              />
-              {t('master.vehicleIdentity.uploadRegistrationCertificate')}
-            </label>
+          {!hideDocumentUpload ? (
+            snapshot?.capabilities.zb1UploadEnabled ? (
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-primary">
+                <Upload className="h-4 w-4" />
+                <input
+                  type="file"
+                  accept="application/pdf,image/*"
+                  className="hidden"
+                  data-testid="vehicle-identity-zb1-upload"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void onUpload(f);
+                  }}
+                />
+                {t('master.vehicleIdentity.uploadRegistrationCertificate')}
+              </label>
+            ) : (
+              <p className="text-[10px] text-muted-foreground">{t('master.vehicleIdentity.uploadDisabled')}</p>
+            )
           ) : (
-            <p className="text-[10px] text-muted-foreground">{t('master.vehicleIdentity.uploadDisabled')}</p>
+            <p className="text-[10px] text-muted-foreground">{t('master.vehicleIdentity.uploadUseToolbar')}</p>
           )}
           {extractionId && (
             <p className="text-[10px] text-muted-foreground">
@@ -381,6 +440,17 @@ export function VehicleIdentityP2Panel({
         >
           {t('master.vehicleIdentity.validateConfirm')}
         </button>
+        {onApplyToRegistrationForm && registrationFormCurrent ? (
+          <button
+            type="button"
+            className="rounded border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+            disabled={loading || (snapshot?.vinMismatchBlocked && !vinAck)}
+            onClick={onApplyToForm}
+            data-testid="vehicle-identity-apply-to-registration-form"
+          >
+            {t('master.vehicleIdentity.applyToRegistrationForm')}
+          </button>
+        ) : null}
         {p3Enabled && (
           <>
             <button
@@ -405,6 +475,7 @@ export function VehicleIdentityP2Panel({
         )}
       </div>
       {validateMsg && <p className="text-xs text-emerald-600">{validateMsg}</p>}
+      {applyFormMsg && <p className="text-xs text-muted-foreground">{applyFormMsg}</p>}
       {saveMsg && <p className="text-xs text-emerald-600">{saveMsg}</p>}
     </div>
   );

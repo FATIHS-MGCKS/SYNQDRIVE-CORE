@@ -311,6 +311,7 @@ See [contradictions/OPEN_CONTRADICTIONS.md](contradictions/OPEN_CONTRADICTIONS.m
 - Resolved DIMO Integration vs trip reconciliation ownership — **TDL-OQ-006 / DIM-GAP-001 RESOLVED** (TDL-EVID-OQ006-BOUNDARY-001); TDL-CX-006 DI registry wording remains open
 - **P1A** start boundary admission offline resolver — evidence [TDL_START_BOUNDARY_ADMISSION_P1A_2026-10-16.md](evidence/TDL_START_BOUNDARY_ADMISSION_P1A_2026-10-16.md) (PR #2055 merged)
 - **P1B** runtime shadow wiring at start confirmation — legacy canonical writer preserved; gate `TRIP_START_BOUNDARY_ADMISSION_SHADOW_ENABLED` default OFF — [TDL_START_BOUNDARY_ADMISSION_P1B_2026-10-16.md](evidence/TDL_START_BOUNDARY_ADMISSION_P1B_2026-10-16.md)
+- **P0 (draft)** durable DI boundary admission recovery — bounded reconciliation sweeper + shadow/writer activation policy; extends PR #2293; **production activation OFF** — [TDL_DURABLE_DI_BOUNDARY_ADMISSION_RECOVERY_P0_2026-11-01.md](evidence/TDL_DURABLE_DI_BOUNDARY_ADMISSION_RECOVERY_P0_2026-11-01.md)
 
 ---
 

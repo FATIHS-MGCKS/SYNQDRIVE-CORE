@@ -8,10 +8,30 @@ import { buildPostActivationVehiclePatch } from './master-dimo-registration.mapp
 import type { MasterDimoActivationFinalizeInput } from './master-dimo-activation-extensions';
 import { applyMasterPostActivationVehicleScalarsInTransaction } from './master-dimo-post-activation.persistence';
 import { computeMasterDimoRegistrationPayloadFingerprint } from './master-dimo-registration-payload-fingerprint';
+import {
+  assertAiTechnicalFieldsConfirmed,
+  extractTechnicalSpecificationPatchInput,
+} from '@modules/vehicles/vehicle-technical-spec-patch.util';
+import { normalizeLvBatteryTypeInput } from '@modules/vehicles/vehicle-specification-canonical.contract';
+
+export function assertMasterRegistrationAiTechnicalFieldsConfirmed(
+  input: MasterDimoRegistrationInput,
+): void {
+  const extra = input.extraData ?? {};
+  const technicalInput = extractTechnicalSpecificationPatchInput(
+    extra as Record<string, unknown>,
+  );
+  if (!technicalInput) return;
+  assertAiTechnicalFieldsConfirmed(
+    technicalInput,
+    (extra as { aiFieldProvenance?: Record<string, { category?: string }> }).aiFieldProvenance,
+  );
+}
 
 export function buildMasterDimoActivationFinalizeInput(
   input: MasterDimoRegistrationInput,
 ): MasterDimoActivationFinalizeInput {
+  assertMasterRegistrationAiTechnicalFieldsConfirmed(input);
   const patch = buildPostActivationVehiclePatch(input);
   if (input.actorUserId) {
     patch.createdByUserId = input.actorUserId;
@@ -52,11 +72,11 @@ async function applyLowVoltageBatterySpecIdempotentInTransaction(
   battery: MasterDimoActivationFinalizeInput['lowVoltageBattery'],
 ): Promise<void> {
   if (!battery) return;
-  const hasAny =
-    (battery.batteryType != null && String(battery.batteryType).trim() !== '') ||
-    battery.batteryAmpere != null ||
-    battery.batteryVolt != null;
-  if (!hasAny) return;
+
+  const normalizedType = normalizeLvBatteryTypeInput(battery.batteryType);
+  if (!normalizedType) {
+    return;
+  }
 
   const existing = await tx.vehicleBatterySpec.findFirst({
     where: { vehicleId },
@@ -67,7 +87,7 @@ async function applyLowVoltageBatterySpecIdempotentInTransaction(
   await tx.vehicleBatterySpec.create({
     data: {
       vehicleId,
-      batteryType: battery.batteryType?.trim() || null,
+      batteryType: normalizedType,
       batteryAmpere: battery.batteryAmpere ?? null,
       batteryVolt: battery.batteryVolt ?? null,
       sourceType: BatterySourceType.MANUAL,

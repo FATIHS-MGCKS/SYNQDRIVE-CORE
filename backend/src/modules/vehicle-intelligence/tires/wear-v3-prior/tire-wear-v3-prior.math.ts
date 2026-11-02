@@ -215,10 +215,15 @@ export function fitWearRateFromMeasurements(
       flags.push('RATE_MEASUREMENT_SERIES_CONTRADICTORY');
     }
   }
-  const rateSigma =
-    n > 2 && residualVar > 0
-      ? Math.sqrt(residualVar / ssDd)
+  const rateSigmaFromOls =
+    n > 2 && ssDd > 0
+      ? (() => {
+          const varFromResidual = residualVar > 0 ? residualVar / ssDd : 0;
+          const varFromMeasurementNoise = (sigmaMeasMm * sigmaMeasMm) / ssDd;
+          return Math.sqrt(Math.max(varFromMeasurementNoise, varFromResidual));
+        })()
       : rateSigmaFromTwoPoints(treads[0]! - treads[n - 1]!, spanKm, sigmaMeasMm);
+  const rateSigma = rateSigmaFromOls;
 
   const ratePer1000 = rate * 1000;
   if (ratePer1000 > config.maxPlausibleWearRateMmPer1000km) {
@@ -415,11 +420,20 @@ export function projectTreadMm(args: {
   anchorOdometerKm: number;
   currentOdometerKm: number;
   rateMmPerKm: NumericInterval;
+  /**
+   * 1σ uncertainty on anchor tread (mm). Widens the projection envelope (90 % uses 1.645σ in display layer).
+   * Use only for trusted measurement anchors to avoid double-counting with MEASURED display bands.
+   */
+  anchorUncertaintyMm?: number;
 }): NumericInterval {
   const delta = Math.max(0, args.currentOdometerKm - args.anchorOdometerKm);
+  const u = args.anchorUncertaintyMm ?? 0;
+  const z = 1.645;
+  const anchorLo = args.anchorTreadMm - z * u;
+  const anchorHi = args.anchorTreadMm + z * u;
   return {
-    lo: args.anchorTreadMm - args.rateMmPerKm.hi * delta,
-    hi: args.anchorTreadMm - args.rateMmPerKm.lo * delta,
+    lo: anchorLo - args.rateMmPerKm.hi * delta,
+    hi: anchorHi - args.rateMmPerKm.lo * delta,
   };
 }
 

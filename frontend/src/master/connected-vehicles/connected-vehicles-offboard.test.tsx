@@ -112,12 +112,26 @@ describe('connected vehicles offboard (VO5C-P2A)', () => {
 
   it('R — native locales define master.cv offboard keys (tr uses en fallback per registry)', () => {
     const locales = ['de', 'en', 'pl', 'fr', 'cs', 'nl', 'es', 'it'];
-    const required = Object.keys(en).filter((k) => k.startsWith('master.cv.'));
+    const required = Object.keys(en).filter(
+      (k) => k.startsWith('master.cv.') && !k.startsWith('master.cv.technicalSpecs.'),
+    );
+    const technicalRequired = Object.keys(en).filter((k) =>
+      k.startsWith('master.cv.technicalSpecs.'),
+    );
     for (const locale of locales) {
       const file = path.join(frontendRoot, `src/i18n/translations/${locale}.ts`);
       const src = readFileSync(file, 'utf8');
       for (const key of required) {
         expect(src).toContain(`'${key}'`);
+      }
+      if (locale === 'tr') continue;
+      const specsFile = path.join(
+        frontendRoot,
+        `src/i18n/translations/master.cv.technicalSpecs.${locale}.ts`,
+      );
+      const specsSrc = readFileSync(specsFile, 'utf8');
+      for (const key of technicalRequired) {
+        expect(specsSrc).toContain(`'${key}'`);
       }
     }
     const trSrc = readFileSync(path.join(frontendRoot, 'src/i18n/translations/tr.ts'), 'utf8');

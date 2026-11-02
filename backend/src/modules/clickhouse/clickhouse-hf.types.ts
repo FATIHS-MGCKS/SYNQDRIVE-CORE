@@ -219,3 +219,53 @@ export interface HfRecentEventsResult {
   events: HfEventRow[];
   degradedReason?: string | null;
 }
+
+/** Single RPM HF point read from telemetry_hf_points (trip-scoped). */
+export interface HfTripRpmPointRow {
+  recordedAtMs: number;
+  recordedAtIso: string;
+  valueRpm: number;
+  unit: string | null;
+  quality: string;
+  orgId: string;
+  vehicleId: string;
+  tripId: string;
+  /** DIMO device token when mirrored; used for VSI source-link HF attribution checks. */
+  tokenId: number | null;
+}
+
+export type HfTripRpmPointsCompletenessStatus =
+  | 'COMPLETE'
+  | 'INCOMPLETE_MORE_POINTS_AVAILABLE'
+  | 'EMPTY';
+
+export type HfTripRpmPointsReadStatus =
+  | 'SUCCESS'
+  | 'UNAVAILABLE'
+  | 'QUERY_FAILED'
+  | 'EMPTY'
+  | 'TENANT_SCOPE_VIOLATION';
+
+/** Trip-scoped RPM HF read result (DS4 RPM HF V1A). */
+export interface HfTripRpmPointsReadResult {
+  status: HfTripRpmPointsReadStatus;
+  available: boolean;
+  orgId: string;
+  vehicleId: string;
+  tripId: string;
+  tripWindowFromIso: string;
+  tripWindowToIso: string;
+  signalName: string;
+  points: HfTripRpmPointRow[];
+  totalMatchingCount: number;
+  returnedCount: number;
+  /** Rows returned by ClickHouse in this page (before valid-point filtering). */
+  rawRowsReturned: number;
+  limit: number;
+  offset: number;
+  completenessStatus: HfTripRpmPointsCompletenessStatus;
+  duplicateTimestampCount: number;
+  invalidValueCount: number;
+  tenantScopeViolation: boolean;
+  degradedReason?: string | null;
+}

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TireBaselineStatus, TireEvidenceSource, TireOdometerAnchorStatus } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
-import type { AiTireSpec } from '../tire-health.config';
+import { AiTireSpec, parseAiTireSpec, resolveArchetype, resolveReplacementThreshold } from '../tire-health.config';
 import type { WheelPos } from '../tire-evidence-provenance';
 import {
   TIRE_WEAR_V3_PRIOR_CONFIG,
@@ -49,6 +49,10 @@ import {
   resolveWheelInitialTread,
 } from './tire-wear-v3-prior.math';
 import { TireWearV3PriorRepository } from './tire-wear-v3-prior.repository';
+import {
+  assessPosteriorCalibrationEligibleFromPrior,
+  filterTrustedV3NumericalMeasurementRows,
+} from './tire-wear-v3-numerical-evidence';
 import { resolveV3VerificationStatus } from './tire-wear-v3-verification.resolver';
 import type {
   TireWearV3MeasurementPoint,
@@ -70,12 +74,6 @@ function wheelField(position: WheelPos): 'frontLeftMm' | 'frontRightMm' | 'rearL
       return 'frontLeftMm';
   }
 }
-
-function parseAiTireSpec(raw: unknown): AiTireSpec | null {
-  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  return raw as AiTireSpec;
-}
-
 @Injectable()
 export class TireWearV3PriorService {
   constructor(
@@ -168,6 +166,9 @@ export class TireWearV3PriorService {
       measurementsRawAll,
       activePeriod,
     );
+    const trustedNumericalMeasurements = filterTrustedV3NumericalMeasurementRows(
+      measurementsRaw,
+    );
 
     const rotationEvents = await this.prisma.tirePositionHistory.findMany({
       where: { tireSetId: tireSetupId },
@@ -199,6 +200,9 @@ export class TireWearV3PriorService {
     if (measurementsRawAll.length > measurementsRaw.length) {
       setupFlags.push('MEASUREMENTS_EXCLUDED_OUTSIDE_MOUNT_PERIOD');
     }
+    if (measurementsRaw.length > trustedNumericalMeasurements.length) {
+      setupFlags.push('MEASUREMENTS_EXCLUDED_UNTRUSTED_NUMERICAL_SOURCE');
+    }
     if (ledgerRowsAll.length > ledgerRows.length) {
       setupFlags.push('LEDGER_ROWS_EXCLUDED_OUTSIDE_MOUNT_PERIOD');
     }
@@ -216,7 +220,7 @@ export class TireWearV3PriorService {
       anchorOdometerKm: periodAnchorOdometer,
       currentOdometerKm,
       ledgerDistanceKm,
-      measurementOdometers: measurementsRaw
+      measurementOdometers: trustedNumericalMeasurements
         .map((m) => m.odometerAtMeasurement)
         .filter((o): o is number => o != null && Number.isFinite(o)),
     });
@@ -263,7 +267,7 @@ export class TireWearV3PriorService {
       );
       const field = wheelField(position);
       const measurementPoints: TireWearV3MeasurementPoint[] = [];
-      for (const m of measurementsRaw) {
+      for (const m of trustedNumericalMeasurements) {
         const tread = m[field];
         if (tread == null || !Number.isFinite(tread)) continue;
         measurementPoints.push({
@@ -271,7 +275,7 @@ export class TireWearV3PriorService {
           odometerKm: m.odometerAtMeasurement,
           treadMm: tread,
           source: m.source,
-          isCalibrationPoint: m.isCalibrationPoint,
+          isCalibrationPoint: m.isCalibrationPoint ?? false,
         });
       }
 
@@ -387,6 +391,7 @@ export class TireWearV3PriorService {
               anchorOdometerKm: latestMeas.odometerKm,
               currentOdometerKm: currentOdometerKm!,
               rateMmPerKm: rateMmPerKmForProjection,
+              anchorUncertaintyMm: sigmaMeasMm,
             })
           : projectTreadMm({
               anchorTreadMm: initial.treadMm,

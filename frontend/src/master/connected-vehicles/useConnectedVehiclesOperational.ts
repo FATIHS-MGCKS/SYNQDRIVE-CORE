@@ -10,6 +10,7 @@ import type {
 import { readCvListStateFromUrl, urlToCvQuery, writeCvListStateToUrl, queryToCvUrlState } from './cv.utils';
 
 export const CONNECTED_VEHICLES_REFRESH_EVENT = 'synqdrive:connected-vehicles-refresh';
+export const CONNECTED_VEHICLES_OVERVIEW_RESYNC_EVENT = 'synqdrive:cv-overview-resync';
 
 export function emitConnectedVehiclesRefresh(): void {
   window.dispatchEvent(new CustomEvent(CONNECTED_VEHICLES_REFRESH_EVENT));
@@ -24,7 +25,8 @@ export function useConnectedVehiclesOverview() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.vehicles.operationalOverview();
+      const orgId = readCvListStateFromUrl().organizationId?.trim() || undefined;
+      const res = await api.vehicles.operationalOverview(orgId);
       setOverview(res);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Übersicht konnte nicht geladen werden');
@@ -36,6 +38,20 @@ export function useConnectedVehiclesOverview() {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const onRefresh = () => void load();
+    const onPop = () => void load();
+    const onResync = () => void load();
+    window.addEventListener(CONNECTED_VEHICLES_REFRESH_EVENT, onRefresh);
+    window.addEventListener(CONNECTED_VEHICLES_OVERVIEW_RESYNC_EVENT, onResync);
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener(CONNECTED_VEHICLES_REFRESH_EVENT, onRefresh);
+      window.removeEventListener(CONNECTED_VEHICLES_OVERVIEW_RESYNC_EVENT, onResync);
+      window.removeEventListener('popstate', onPop);
+    };
   }, [load]);
 
   return { overview, loading, error, refresh: load };
@@ -50,9 +66,15 @@ export function useConnectedVehiclesList() {
   const [error, setError] = useState<string | null>(null);
 
   const setQuery = useCallback((next: VehiclesOperationalQuery, replace = false) => {
+    const scopeChanged =
+      next.organizationId !== query.organizationId ||
+      next.registryLifecycle !== query.registryLifecycle;
     setQueryState(next);
     writeCvListStateToUrl(queryToCvUrlState(next), replace);
-  }, []);
+    if (scopeChanged) {
+      window.dispatchEvent(new CustomEvent(CONNECTED_VEHICLES_OVERVIEW_RESYNC_EVENT));
+    }
+  }, [query.organizationId, query.registryLifecycle]);
 
   const load = useCallback(async () => {
     setLoading(true);

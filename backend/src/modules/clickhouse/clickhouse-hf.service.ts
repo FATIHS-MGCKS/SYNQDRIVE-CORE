@@ -9,13 +9,23 @@ import type {
   HfSignalFrequencyRow,
   HfSignalFrequencySummary,
   HfSignalPoint,
+  HfTripRpmPointRow,
+  HfTripRpmPointsCompletenessStatus,
+  HfTripRpmPointsReadResult,
   HfTripWindowsResult,
   HfWindowSummary,
 } from './clickhouse-hf.types';
+import { parseHfRpmValueFloat } from './hf-rpm-value-parse.util';
 
 const HF_POINTS_TABLE = 'telemetry_hf_points';
 const HF_EVENTS_TABLE = 'telemetry_hf_events';
 const HF_WINDOWS_TABLE = 'telemetry_hf_windows';
+
+/** DIMO/VSS field stored in telemetry_hf_points.signal_name for engine RPM HF. */
+export const HF_ENGINE_RPM_SIGNAL_NAME = 'powertrainCombustionEngineSpeed';
+
+/** Default max rows per trip RPM read — explicit incompleteness when exceeded. */
+export const HF_TRIP_RPM_DEFAULT_READ_LIMIT = 12_000;
 
 /**
  * Serializes a JS Date into the string ClickHouse's `parseDateTime64BestEffort`
@@ -706,6 +716,250 @@ export class ClickHouseHfService {
         `getBoundedSignalValuePoints failed: ${(err as Error).message}`,
       );
       return { status: 'QUERY_FAILED', points: [] };
+    }
+  }
+
+  /**
+   * Trip-scoped RPM HF points (strict org/vehicle/trip/signal filters + trip time window).
+   * Never assigns points from overlapping vehicle windows alone.
+   */
+  async getTripRpmHfPoints(input: {
+    orgId: string;
+    vehicleId: string;
+    tripId: string;
+    tripStart: Date;
+    tripEnd: Date;
+    signalName?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<HfTripRpmPointsReadResult> {
+    const signalName = input.signalName ?? HF_ENGINE_RPM_SIGNAL_NAME;
+    const limit = input.limit ?? HF_TRIP_RPM_DEFAULT_READ_LIMIT;
+    const offset = input.offset ?? 0;
+    const base: HfTripRpmPointsReadResult = {
+      status: 'UNAVAILABLE',
+      available: false,
+      orgId: input.orgId,
+      vehicleId: input.vehicleId,
+      tripId: input.tripId,
+      tripWindowFromIso: input.tripStart.toISOString(),
+      tripWindowToIso: input.tripEnd.toISOString(),
+      signalName,
+      points: [],
+      totalMatchingCount: 0,
+      returnedCount: 0,
+      rawRowsReturned: 0,
+      limit,
+      offset,
+      completenessStatus: 'EMPTY',
+      duplicateTimestampCount: 0,
+      invalidValueCount: 0,
+      tenantScopeViolation: false,
+    };
+
+    if (!this.ch.isAvailable) {
+      return { ...base, degradedReason: 'clickhouse_unavailable' };
+    }
+
+    const fromMs = input.tripStart.getTime();
+    const toMs = input.tripEnd.getTime();
+    if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs > toMs) {
+      return {
+        ...base,
+        status: 'QUERY_FAILED',
+        degradedReason: 'invalid_trip_window',
+      };
+    }
+
+    try {
+      const countResult = await this.ch.getClient().query({
+        query: `
+          SELECT count() AS cnt
+          FROM ${HF_POINTS_TABLE}
+          WHERE org_id = {orgId: String}
+            AND vehicle_id = {vehicleId: String}
+            AND trip_id = {tripId: String}
+            AND signal_name = {signalName: String}
+            AND recorded_at >= parseDateTime64BestEffort({from: String})
+            AND recorded_at <= parseDateTime64BestEffort({to: String})
+        `,
+        query_params: {
+          orgId: input.orgId,
+          vehicleId: input.vehicleId,
+          tripId: input.tripId,
+          signalName,
+          from: toChDateTimeParam(input.tripStart),
+          to: toChDateTimeParam(input.tripEnd),
+        },
+        format: 'JSONEachRow',
+        clickhouse_settings: { max_execution_time: 15 },
+      });
+      const [countRow] = await countResult.json<{ cnt: string | number }>();
+      const totalMatchingCount = Number(countRow?.cnt ?? 0);
+
+      if (totalMatchingCount === 0) {
+        this.metrics?.clickHouseAnalyticsQueries.inc({
+          query: 'hf_trip_rpm_points',
+          result: 'success',
+        });
+        return {
+          ...base,
+          status: 'EMPTY',
+          available: true,
+          totalMatchingCount: 0,
+          completenessStatus: 'EMPTY',
+        };
+      }
+
+      const result = await this.ch.getClient().query({
+        query: `
+          SELECT
+            org_id,
+            vehicle_id,
+            trip_id,
+            token_id,
+            recorded_at,
+            value_float,
+            unit,
+            quality
+          FROM ${HF_POINTS_TABLE}
+          WHERE org_id = {orgId: String}
+            AND vehicle_id = {vehicleId: String}
+            AND trip_id = {tripId: String}
+            AND signal_name = {signalName: String}
+            AND recorded_at >= parseDateTime64BestEffort({from: String})
+            AND recorded_at <= parseDateTime64BestEffort({to: String})
+          ORDER BY recorded_at ASC, ingested_at ASC, value_float ASC
+          LIMIT {limit: UInt32}
+          OFFSET {offset: UInt32}
+        `,
+        query_params: {
+          orgId: input.orgId,
+          vehicleId: input.vehicleId,
+          tripId: input.tripId,
+          signalName,
+          from: toChDateTimeParam(input.tripStart),
+          to: toChDateTimeParam(input.tripEnd),
+          limit,
+          offset,
+        },
+        format: 'JSONEachRow',
+        clickhouse_settings: { max_execution_time: 15 },
+      });
+
+      const rows = await result.json<{
+        org_id: string;
+        vehicle_id: string;
+        trip_id: string | null;
+        token_id: string | number | null;
+        recorded_at: string;
+        value_float: number | string | null;
+        unit: string | null;
+        quality: string;
+      }>();
+
+      const rawRowsReturned = rows.length;
+
+      this.metrics?.clickHouseAnalyticsQueries.inc({
+        query: 'hf_trip_rpm_points',
+        result: 'success',
+      });
+
+      for (const r of rows) {
+        if (
+          r.org_id !== input.orgId ||
+          r.vehicle_id !== input.vehicleId ||
+          r.trip_id == null ||
+          r.trip_id !== input.tripId
+        ) {
+          return {
+            ...base,
+            status: 'TENANT_SCOPE_VIOLATION',
+            available: true,
+            points: [],
+            totalMatchingCount,
+            returnedCount: 0,
+            rawRowsReturned,
+            completenessStatus: 'COMPLETE',
+            duplicateTimestampCount: 0,
+            invalidValueCount: 0,
+            tenantScopeViolation: true,
+            degradedReason: 'tenant_scope_violation',
+          };
+        }
+      }
+
+      let invalidValueCount = 0;
+      const seenTimestamps = new Map<number, number>();
+      const points: HfTripRpmPointRow[] = [];
+
+      for (const r of rows) {
+        const iso = parseChUtc(r.recorded_at);
+        if (!iso) {
+          invalidValueCount += 1;
+          continue;
+        }
+        const recordedAtMs = new Date(iso).getTime();
+        const valueRpm = parseHfRpmValueFloat(r.value_float);
+        if (valueRpm === null) {
+          invalidValueCount += 1;
+          continue;
+        }
+        seenTimestamps.set(recordedAtMs, (seenTimestamps.get(recordedAtMs) ?? 0) + 1);
+        const tokenRaw = r.token_id;
+        const tokenId =
+          tokenRaw == null || tokenRaw === ''
+            ? null
+            : Number(tokenRaw);
+        points.push({
+          recordedAtMs,
+          recordedAtIso: iso,
+          valueRpm,
+          unit: r.unit ?? null,
+          quality: r.quality ?? 'raw',
+          orgId: r.org_id,
+          vehicleId: r.vehicle_id,
+          tripId: r.trip_id!,
+          tokenId: tokenId != null && Number.isFinite(tokenId) ? tokenId : null,
+        });
+      }
+
+      let duplicateTimestampCount = 0;
+      for (const c of seenTimestamps.values()) {
+        if (c > 1) {
+          duplicateTimestampCount += c - 1;
+        }
+      }
+
+      const completenessStatus: HfTripRpmPointsCompletenessStatus =
+        totalMatchingCount > offset + rawRowsReturned
+          ? 'INCOMPLETE_MORE_POINTS_AVAILABLE'
+          : 'COMPLETE';
+
+      return {
+        ...base,
+        status: 'SUCCESS',
+        available: true,
+        points,
+        totalMatchingCount,
+        returnedCount: points.length,
+        rawRowsReturned,
+        completenessStatus,
+        duplicateTimestampCount,
+        invalidValueCount,
+        tenantScopeViolation: false,
+      };
+    } catch (err: unknown) {
+      this.metrics?.clickHouseAnalyticsQueries.inc({
+        query: 'hf_trip_rpm_points',
+        result: 'error',
+      });
+      this.logger.warn(`getTripRpmHfPoints failed: ${(err as Error).message}`);
+      return {
+        ...base,
+        status: 'QUERY_FAILED',
+        degradedReason: (err as Error).message,
+      };
     }
   }
 

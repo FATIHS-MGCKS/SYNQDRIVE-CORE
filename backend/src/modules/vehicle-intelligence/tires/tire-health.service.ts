@@ -14,6 +14,11 @@ import {
   resolveReferenceNewTread,
 } from './tire-health.config';
 import {
+  detectAiTireSpecSetupConflicts,
+  toTireSetupSpecConsistencyInput,
+  type AiTireSpecSetupConflict,
+} from './ai-tire-spec-setup-consistency.util';
+import {
   TireStatus,
   TireDisplayMode,
   TireConfidenceLevel,
@@ -233,6 +238,7 @@ export interface TireHealthDetail {
   rotationHistory: RotationHistoryEntry[];
   measurements: MeasurementEntry[];
   alerts: TireAlert[];
+  setupSpecConflicts?: AiTireSpecSetupConflict[];
 }
 
 export interface TireAlert {
@@ -480,6 +486,16 @@ export class TireHealthService {
       measurements,
       alerts,
     };
+
+    const parsedSpec = parseAiTireSpec(setup.aiTireSpec);
+    const setupSpecConflicts = detectAiTireSpecSetupConflicts(
+      toTireSetupSpecConsistencyInput(setup),
+      parsedSpec,
+    );
+    if (setupSpecConflicts.length > 0) {
+      detail.setupSpecConflicts = setupSpecConflicts;
+    }
+
     if (!this.tireHealthV3Read?.isCustomerReadEnabled()) {
       return detail;
     }

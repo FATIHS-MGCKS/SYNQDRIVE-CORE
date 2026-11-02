@@ -29,6 +29,7 @@ export * from './kinematics/motion-fsm-zero-run-eval';
 export * from './kinematics/motion-event.types';
 export * from './kinematics/motion-event-detector';
 export * from './kinematics/motion-event-physics-envelope';
+export * from './kinematics/motion-event-intensity-endpoint-evidence.v1';
 export * from './claims/cross-source-relation';
 export * from './claims/claim-confidence';
 export * from './motion/motion-classifier';

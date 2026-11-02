@@ -32,6 +32,8 @@ export const STEP_UP_ACTION = {
   MASTER_USER_MANAGEMENT: 'MASTER_USER_MANAGEMENT',
   /** Master admin audit log export (sensitive read) */
   MASTER_AUDIT_EXPORT: 'MASTER_AUDIT_EXPORT',
+  /** Master admin — chargeable One Auto provider execution */
+  MASTER_ONEAUTO_PROVIDER_EXECUTE: 'MASTER_ONEAUTO_PROVIDER_EXECUTE',
 } as const;
 
 export type StepUpActionCode = (typeof STEP_UP_ACTION)[keyof typeof STEP_UP_ACTION];

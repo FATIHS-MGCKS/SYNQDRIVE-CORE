@@ -318,12 +318,46 @@ export class RetireTireDto {
 
 // ── AI tire spec apply ───────────────────────────────────────────────────────────
 
+export class AiTireSpecApplyGenerationBindingDto {
+  @IsString()
+  tireSetupId!: string;
+
+  @IsString() @MaxLength(64)
+  setupUpdatedAt!: string;
+
+  @IsString() @MaxLength(64)
+  requestTireSize!: string;
+
+  @IsString() @MaxLength(16)
+  requestLoadIndex!: string;
+
+  @IsString() @MaxLength(8)
+  requestSpeedIndex!: string;
+}
+
 export class ApplyAiTireSpecDto {
   @IsOptional() @IsString()
   jobId?: string;
 
   @IsOptional() @IsObject()
   aiTireSpec?: Record<string, unknown>;
+
+  /** Generation-time binding for legacy direct apply (required with aiTireSpec). */
+  @IsOptional() @ValidateNested() @Type(() => AiTireSpecApplyGenerationBindingDto)
+  generationBinding?: AiTireSpecApplyGenerationBindingDto;
+
+  /** Deprecated — not used as proof of payload identity. */
+  @IsOptional() @IsString() @MaxLength(64)
+  tireSize?: string;
+
+  @IsOptional() @IsString() @MaxLength(16)
+  loadIndex?: string;
+
+  @IsOptional() @IsString() @MaxLength(8)
+  speedIndex?: string;
+
+  @IsOptional() @IsString()
+  tireSetupId?: string;
 
   @IsOptional() @IsBoolean()
   userConfirmedSpec?: boolean;

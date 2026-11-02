@@ -7,6 +7,8 @@ export const masterMotionPhysicsTr = {
   'master.motionPhysics.systemPowerDefinition.option.estimated': 'Tahmini sistem gücü (AI / belirsiz)',
   'master.motionPhysics.systemPowerDefinition.hint':
     'Motor gücü ile sistem gücünü karıştırmayın — özellikle EV ve hibritlerde.',
+  'master.motionPhysics.systemPowerDefinition.persistHint':
+    'Güç bildirimi türü «Değişiklikleri kaydet» ile kaydedilmez. Seçimi hareket fiziği referansına yazmak için «Manuel değerleri onayla» kullanın.',
   'master.motionPhysics.systemMotorPowerKw.hintMotor': 'OEM motor nominal gücünü kW olarak girin.',
   'master.motionPhysics.systemMotorPowerKw.hintSystem': 'OEM birleşik sistem gücünü kW olarak girin (tekerlek gücü değil).',
   'master.motionPhysics.accel0To100S': '0–100 km/h (s)',

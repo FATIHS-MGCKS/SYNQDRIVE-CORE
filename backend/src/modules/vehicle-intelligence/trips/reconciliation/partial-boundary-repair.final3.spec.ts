@@ -1,5 +1,6 @@
 import { TripOverlapDetector } from '../detectors/trip-overlap.detector';
 import { TripReconciliationService } from './trip-reconciliation.service';
+import { stubTripDiBoundaryAdmissionService } from './__tests__/trip-reconciliation-di-admission.stub';
 import { TripDecisionEngine } from '../decision/trip-decision.engine';
 import { REPAIR_STATUS, REPAIR_TYPES } from './reconciliation.types';
 
@@ -183,6 +184,7 @@ function buildHarness(trips: ReturnType<typeof row>[]) {
     {} as never,
     new TripOverlapDetector(prisma as never),
     {} as never,
+    stubTripDiBoundaryAdmissionService(),
     undefined as never,
     undefined as never,
     undefined as never,

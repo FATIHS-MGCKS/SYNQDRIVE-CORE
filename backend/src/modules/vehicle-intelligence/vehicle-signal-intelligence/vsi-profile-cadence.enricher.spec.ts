@@ -71,13 +71,24 @@ function rpmEvidenceSuccess() {
 
 describe('vsi-profile-cadence.enricher', () => {
   it('preserves prior RPM cadence when ClickHouse is unavailable', () => {
-    const prior = analyzeEngineRpmCadence({
+    const priorBase = analyzeEngineRpmCadence({
       iceRpmApplicability: 'APPLICABLE',
       tripWindows: [],
       points: [{ recordedAtMs: 1, value: 100 }],
       provenance: ['CLICKHOUSE_TELEMETRY_HF_POINTS'],
       hfReadStatus: 'SUCCESS',
     });
+    const prior = {
+      ...priorBase,
+      rpmCadenceTierResolution: {
+        contractVersion: 'vsi-rpm-cadence-tier-resolution-v1' as const,
+        evaluatedTripIds: ['prior-trip'],
+        tripClassifications: [],
+        rollingVehicleTierSummary: null,
+        provenance: ['PRIOR'],
+        evidenceObservedAt: '2026-10-01T00:00:00.000Z',
+      },
+    };
     const result = enrichVsiProfileWithCadenceIntelligence(minimalEval(), {
       rpmEvidence: {
         iceRpmApplicability: 'APPLICABLE',
@@ -92,6 +103,7 @@ describe('vsi-profile-cadence.enricher', () => {
     const rpm = result.signals[0]?.cadenceIntelligence;
     expect(rpm?.cadenceSemanticFingerprint).toBe(prior.cadenceSemanticFingerprint);
     expect(rpm?.observedSampleCount).toBe(prior.observedSampleCount);
+    expect(rpm?.rpmCadenceTierResolution).toEqual(prior.rpmCadenceTierResolution);
     expect(result.signals[0]?.limitations).toEqual(
       expect.arrayContaining(prior.limitations),
     );

@@ -76,6 +76,37 @@ export const operatorTireMeasureEn = {
   'operator.tireMeasure.v3.odometerUnconfirmed':
     'Odometer not confirmed yet — no explicit V3 odometer evidence will be stored (telemetry is not applied silently).',
   'operator.tireMeasure.v3.noTread': 'At least one wheel tread depth is required for V3 verification.',
+  'operator.tireMeasure.v3.registrationBaseline':
+    'Registration baseline tread is inventory-only and does not create a V3 verification anchor.',
+  'operator.tireMeasure.v3.rateCalibrationTwoPoints':
+    'Empirical wear-rate calibration needs at least two spaced measurements with explicit odometer.',
+  'operator.tireMeasure.v3.verificationOnePoint':
+    'One confirmed measurement can anchor V3 verification; rate calibration needs additional spaced points.',
+  'operator.tireMeasure.v3.recordedUnverified':
+    'Tread saved as unverified V3 evidence — confirm odometer or use workshop provenance for verification.',
+  'operator.tireMeasure.v3.workshopOdometerMissing':
+    'Workshop report needs an explicit odometer reading for V3 evidence.',
+  'operator.tireMeasure.v3.workshopProvenanceIncomplete':
+    'Enter workshop name for verifiable workshop odometer provenance.',
+
+  'operator.tireMeasure.v3.backend.V3_ODOMETER_NOT_EXPLICIT':
+    'No explicit odometer stored for V3 (confirm reading at measurement time).',
+  'operator.tireMeasure.v3.backend.V3_ODOMETER_INFERRED_NOT_USED':
+    'Vehicle telemetry odometer was not applied to V3 evidence.',
+  'operator.tireMeasure.v3.backend.V3_POSTERIOR_INSUFFICIENT_EVIDENCE':
+    'Rate calibration still gated — need more spaced measurement points.',
+  'operator.tireMeasure.v3.backend.V3_REGISTRATION_BASELINE_NOT_VERIFICATION_ANCHOR':
+    'Registration baseline does not anchor V3 verification.',
+  'operator.tireMeasure.v3.backend.V3_MEASUREMENT_RECORDED_UNVERIFIED':
+    'Measurement saved without V3 verification eligibility.',
+  'operator.tireMeasure.v3.backend.V3_WORKSHOP_ODOMETER_MISSING':
+    'Workshop odometer missing for V3 evidence.',
+  'operator.tireMeasure.v3.backend.V3_WORKSHOP_PROVENANCE_INCOMPLETE':
+    'Workshop provenance incomplete.',
+  'operator.tireMeasure.v3.backend.V3_VERIFICATION_ANCHOR_ONE_POINT':
+    'Can anchor V3 verification cadence (one accepted point).',
+  'operator.tireMeasure.v3.backend.V3_RATE_CALIBRATION_REQUIRES_TWO_POINTS':
+    'Rate calibration requires two or more spaced odometer-backed points.',
 
   'operator.tireMeasure.context.aiUploadTitle': 'Extract tire report via AI upload',
   'operator.tireMeasure.context.aiUploadHint': 'Apply extracted values only after confirmation',
@@ -98,6 +129,7 @@ export const operatorTireMeasureEn = {
   'operator.tireMeasure.actions.save': 'Save measurement',
 
   'operator.tireMeasure.toast.success': 'Tire tread measurement saved',
+  'operator.tireMeasure.toast.v3EvidenceNotice': 'Saved — Tire V3 evidence notice',
   'operator.tireMeasure.toast.saveError': 'Could not save',
   'operator.tireMeasure.errors.loadFailed': 'Loading failed',
 

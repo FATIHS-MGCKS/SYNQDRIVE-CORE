@@ -491,3 +491,21 @@ Validate graph consistency: `bash architecture/drivingintelligence/scripts/valid
 | **EPISTEMIC** | CONFIRMED for code/test behaviour (unit 21/21, motion-core suite 72/72, local PostgreSQL 16 round-trip 2/2, tsc + nest build exit 0); Production effect NOT observed (not deployed) |
 | **EVIDENCE** | DI-EVID-DS4-INTENSITY-PERSISTENCE-PR2-001 |
 | **BOUNDARY** | Consulted: Tires Health (DS4 shadow adapter consumes trip-map DTO only — unaffected; gap pointer updated), Trips (trip-map read service unchanged), Brakes / Rental Driving Analysis / DriverScore (no consumer change) |
+
+## DI-DEC-RPM-REF-INTEL-001
+
+| Field | Value |
+|-------|-------|
+| **TITLE** | RPM Reference Intelligence and Driving Intelligence ownership boundaries |
+| **ERA** | RPM workstream Phase 5 architecture (2026-10-30, documentation-only) |
+| **STATUS** | PROPOSED (owner-approved architecture 2026-10-30; documentation-only; **not** runtime activation) |
+| **PROBLEM** | Overlapping RPM surfaces (VSI tier evidence, HF V1A/V1B admission, vehicle idle/max specs, DS4 motion) without a registered boundary risk spec substitution, silent admission changes, and unapproved RPM-derived load/wear/scoring |
+| **ALTERNATIVES** | (1) New top-level “RPM Intelligence” subsystem — **rejected** (owner: small reusable component within RPM workstream). (2) Vehicle specs in V1B admission gates — **rejected**. (3) DS4 derives engine load from RPM HF directly — **rejected** without validated model |
+| **DECISION** | VSI owns RPM profiles + cadence tier evidence; RPM HF V1A/V1B owns HF observation, temporal processing, admission, and `qualityExposure`; Vehicle Specifications supply optional reference metadata (`idleRpm`/`maxRpm` + provenance) that **never substitutes** missing HF; **RPM Reference Intelligence** (future) combines **admitted** observations with reference metadata under versioned optional metrics; reference metadata **must not** modify V1B admission gates; DS4 remains motion/event authority and may consume reference outputs only via a **future versioned optional interface** with temporal alignment and quality gates; **no** RPM engine-load/wear/driving-impact/driver-scoring without separate validation + owner approval |
+| **RATIONALE** | Preserves Phase 4L canary semantics; separates epistemic axes (HF temporal vs reference provenance); aligns with DS4 authority migration and fail-closed culture |
+| **TRADE-OFFS** | Reference metrics deferred; future implementation requires additional PRs and flags default OFF |
+| **CONSEQUENCES** | ADR is canonical boundary doc; implementation phases P1–P5 documented; consumer binding forbidden until contracts exist |
+| **GRAPH NODES** | DI-DEC-RPM-REF-INTEL-001, DI-EVID-RPM-REF-INTEL-ADR-001 |
+| **EPISTEMIC** | CONFIRMED for owner-approved architecture text; RPM Reference Intelligence runtime NOT observed |
+| **EVIDENCE** | [`design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md`](../design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md) |
+| **BOUNDARY** | Consulted: Vehicle Signal Intelligence (tier evidence ownership), Vehicle Onboarding / Master (spec persistence + provenance), Trip Detection (trip boundaries unchanged) — documentation cross-refs only |

@@ -1,0 +1,85 @@
+{
+  "contractVersion": "vsi-p0a-audit-fixtures-v1",
+  "audiRpmReference": {
+    "vehicle": {
+      "vehicleId": "c10351f8-b6a2-4258-947f-631aeaa6d359",
+      "vehicleLabel": "Audi A4",
+      "make": "Audi",
+      "model": "A4",
+      "fuelType": "GASOLINE",
+      "powertrainClass": "ICE",
+      "providerModality": "RUPTELA_R1"
+    },
+    "sourceLinkId": "link-audi-active",
+    "provider": "DIMO",
+    "profileEvaluatedAt": "2026-10-30T12:00:00.000Z",
+    "signals": [
+      {
+        "canonicalSignalKey": "engine_rpm",
+        "providerNativeSignalName": "powertrainCombustionEngineSpeed",
+        "declaredSupport": "UNKNOWN",
+        "empiricalObservation": "NEVER_OBSERVED",
+        "qualityClassification": "NEVER_OBSERVED",
+        "confidenceLevel": "LOW",
+        "freshnessClassification": "UNKNOWN",
+        "cadenceIntelligence": {
+          "activeRpmProfile": { "activeProfile": "RPM_STANDARD" },
+          "observedSampleCount": 2076,
+          "provenance": ["CLICKHOUSE_TELEMETRY_HF_POINTS"],
+          "evaluationWindowStart": "2026-10-16T00:00:00.000Z",
+          "evaluationWindowEnd": "2026-10-30T12:00:00.000Z",
+          "tripClassifications": [{ "tripId": "t1" }, { "tripId": "t2" }]
+        }
+      }
+    ]
+  },
+  "teslaEv": {
+    "vehicle": {
+      "vehicleId": "68868291-5478-42cd-b0c4-cc77b2a78e21",
+      "vehicleLabel": "Tesla Model 3",
+      "make": "Tesla",
+      "model": "Model 3",
+      "fuelType": "ELECTRIC",
+      "powertrainClass": "EV",
+      "providerModality": "API_SYNTHETIC"
+    },
+    "signals": [
+      {
+        "canonicalSignalKey": "engine_rpm",
+        "empiricalObservation": "NEVER_OBSERVED",
+        "declaredSupport": "UNKNOWN",
+        "qualityClassification": "NEVER_OBSERVED",
+        "confidenceLevel": "LOW"
+      },
+      {
+        "canonicalSignalKey": "fuel_level_relative",
+        "empiricalObservation": "NEVER_OBSERVED",
+        "declaredSupport": "UNKNOWN",
+        "qualityClassification": "NEVER_OBSERVED"
+      },
+      {
+        "canonicalSignalKey": "hv_battery_soc",
+        "empiricalObservation": "OBSERVED",
+        "declaredSupport": "LISTED",
+        "qualityClassification": "OBSERVED_FRESH",
+        "confidenceLevel": "HIGH",
+        "freshnessClassification": "FRESH"
+      }
+    ]
+  },
+  "providerFetchObservedUnknownQuality": {
+    "signals": [
+      {
+        "canonicalSignalKey": "provider_last_successful_fetch",
+        "empiricalObservation": "OBSERVED",
+        "qualityClassification": "OBSERVED_FRESH",
+        "freshnessClassification": "FRESH",
+        "lastProviderFetchAt": "2026-10-30T11:59:30.000Z",
+        "limitations": [
+          "PROVIDER_FETCH_TIME_NOT_SOURCE_ADVANCE_PROOF",
+          "PROVIDER_LAST_SUCCESSFUL_FETCH_WALL_CLOCK_NOT_PHYSICAL_SIGNAL"
+        ]
+      }
+    ]
+  }
+}

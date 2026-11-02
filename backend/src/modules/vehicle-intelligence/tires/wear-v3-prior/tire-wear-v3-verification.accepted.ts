@@ -20,6 +20,7 @@ export interface RawTreadMeasurementRow {
   rearRightMm: number | null;
   source: string;
   evidenceSource: TireEvidenceSource | null;
+  isCalibrationPoint?: boolean;
 }
 
 export interface AcceptedVerificationMeasurement {
@@ -46,7 +47,10 @@ export function isVerificationExcludedLegacySource(source: string): boolean {
     normalized === 'calibration' ||
     normalized === 'ai_estimate' ||
     normalized === 'ai_agent' ||
-    normalized === 'ai_confirmed'
+    normalized === 'ai_confirmed' ||
+    normalized === 'manual_registration' ||
+    normalized === 'documented_registration' ||
+    normalized === 'registration'
   );
 }
 

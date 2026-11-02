@@ -1,8 +1,10 @@
 import type { VsiProfileEvaluationResult, VsiProfileSignalFingerprintV1 } from './vsi-profile.types';
 import { mergeActiveRpmProfileOntoEngineRpmCadence } from './vsi-active-rpm-profile-resolver.util';
+import { mergeRpmCadenceTierResolutionOntoEngineRpmCadence } from './vsi-rpm-cadence-tier-resolver.util';
 import {
   analyzeEngineRpmCadence,
   analyzeLvVoltageCadence,
+  dedupeCadenceProvenanceTags,
 } from './vsi-profile-cadence-stats.util';
 import {
   mergeLvStandbyTransmissionProfileOntoLvCadence,
@@ -21,6 +23,21 @@ export type VsiProfileCadenceEnrichmentInput = {
   lvStandbyTransmissionEvidence?: VsiLvStandbyTransmissionEvidenceInput | null;
   priorCadenceByKey?: ReadonlyMap<string, VsiSignalCadenceIntelligenceV2>;
 };
+
+/** P1-G: normalize provenance on attach without re-running cadence analysis (SNAPSHOT_HOOK carry-forward). */
+export function normalizeAttachedCadenceProvenance(
+  cadence: VsiSignalCadenceIntelligenceV2,
+): VsiSignalCadenceIntelligenceV2 {
+  const priorProvenance = cadence.provenance ?? [];
+  const normalized = dedupeCadenceProvenanceTags(priorProvenance);
+  if (
+    priorProvenance.length === normalized.length &&
+    priorProvenance.every((tag, index) => tag === normalized[index])
+  ) {
+    return cadence;
+  }
+  return { ...cadence, provenance: normalized };
+}
 
 function shouldPreservePriorRpmCadence(
   evidence: VsiRpmCadenceEvidenceInput,
@@ -46,7 +63,7 @@ function mergeCadenceOntoSignal(
       return {
         ...signal,
         limitations: [...new Set([...signal.limitations, ...prior.limitations])],
-        cadenceIntelligence: prior,
+        cadenceIntelligence: normalizeAttachedCadenceProvenance(prior),
       };
     }
     return signal;
@@ -62,7 +79,7 @@ function mergeCadenceOntoSignal(
   return {
     ...signal,
     limitations: mergedLimitations,
-    cadenceIntelligence: cadence,
+    cadenceIntelligence: normalizeAttachedCadenceProvenance(cadence),
   };
 }
 
@@ -82,8 +99,11 @@ export function enrichVsiProfileWithCadenceIntelligence(
     if (shouldPreservePriorRpmCadence(input.rpmEvidence, priorRpm)) {
       rpmCadence = priorRpm ?? null;
     } else {
-      rpmCadence = mergeActiveRpmProfileOntoEngineRpmCadence(
-        analyzeEngineRpmCadence(input.rpmEvidence),
+      rpmCadence = mergeRpmCadenceTierResolutionOntoEngineRpmCadence(
+        mergeActiveRpmProfileOntoEngineRpmCadence(
+          analyzeEngineRpmCadence(input.rpmEvidence),
+          input.rpmEvidence,
+        ),
         input.rpmEvidence,
       );
     }

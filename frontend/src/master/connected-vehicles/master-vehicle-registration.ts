@@ -7,11 +7,20 @@ import {
 } from './master-hv-master-specification.util';
 import type { VehicleAiFieldProvenanceMap } from './vehicle-ai-field-provenance.util';
 import {
+  upsertBrakeReferenceSpecOnEdit,
+  upsertLvBatterySpecOnEdit,
+} from './master-vehicle-manual-baseline-edit.util';
+import {
   parseFrontWeightDistributionPct,
   parsePositiveIntegerField,
   parseBrakeForceFrontPercent,
   parseVehicleRpmField,
 } from './vehicle-technical-spec.util';
+import {
+  normalizeCanonicalDrivetrain,
+  normalizeLvBatteryTypeInput,
+  stripNonPersistentVehicleSpecFields,
+} from './vehicle-specification-canonical.util';
 
 function parseOptionalNumber(value: string | number | undefined | null): number | null {
   if (value === undefined || value === null || value === '') return null;
@@ -102,12 +111,46 @@ export function mapApiDimoToDimoVehicle(raw: Record<string, unknown>): DimoVehic
   };
 }
 
+/** Registration submit treats populated spec fields as explicitly confirmed (parity with edit PATCH). */
+export function buildRegistrationTechnicalConfirmedFieldKeys(rv: RegisteredVehicle): string[] {
+  const keys: string[] = [];
+  const pushIf = (key: string, present: boolean) => {
+    if (present) keys.push(key);
+  };
+  pushIf('engineDisplacementCc', parsePositiveIntegerField(rv.engineDisplacementCc) != null);
+  pushIf('cylinderCount', parsePositiveIntegerField(rv.cylinderCount) != null);
+  pushIf(
+    'frontToRearWeightDistribution',
+    Boolean(rv.frontToRearWeightDistribution?.trim()),
+  );
+  pushIf('idleRpm', parseVehicleRpmField(rv.idleRpm) != null);
+  pushIf('maxRpm', parseVehicleRpmField(rv.maxRpm) != null);
+  pushIf(
+    'brakeForceDistribution',
+    parseBrakeForceFrontPercent(rv.brakeForceDistribution) != null ||
+      rv.brakeForceDistribution?.trim() === '',
+  );
+  pushIf('tankCapacityLiters', parseOptionalFloat(rv.tankCapacityLiters) != null);
+  pushIf(
+    'manufacturerServiceIntervalKm',
+    parsePositiveIntegerField(rv.serviceIntervalManufacturerKm) != null,
+  );
+  pushIf(
+    'manufacturerServiceIntervalMonths',
+    parsePositiveIntegerField(rv.serviceIntervalManufacturerMonths) != null,
+  );
+  pushIf('oilchangeIntervalKm', parsePositiveIntegerField(rv.oilChangeIntervalKm) != null);
+  pushIf('oilchangeIntervalMonths', parsePositiveIntegerField(rv.oilChangeIntervalMonths) != null);
+  pushIf('drivetrain', Boolean(rv.drivetrain?.trim()));
+  return keys;
+}
+
 export function buildVehicleExtraData(
   rv: RegisteredVehicle,
   options?: { aiFieldProvenance?: VehicleAiFieldProvenanceMap },
 ): Record<string, unknown> {
   const aiFieldProvenance = options?.aiFieldProvenance ?? rv.aiFieldProvenance;
-  return {
+  const out: Record<string, unknown> = stripNonPersistentVehicleSpecFields({
     vehicleName: rv.vehicleName || `${rv.make} ${rv.model}`.trim(),
     licensePlate: rv.licensePlate || undefined,
     mileageKm: parseOptionalNumber(rv.mileage) ?? 0,
@@ -115,8 +158,8 @@ export function buildVehicleExtraData(
     vehicleType: rv.vehicleType,
     hardwareType: rv.hardwareType ?? 'UNKNOWN',
     notes: rv.notes || undefined,
-    drivetrain: rv.drivetrain || undefined,
-    electrificationLevel: rv.electrificationLevel?.trim() || undefined,
+    drivetrain:
+      normalizeCanonicalDrivetrain(rv.drivetrain) ?? (rv.drivetrain?.trim() || undefined),
     curbWeightKg: parseOptionalNumber(rv.curbWeight),
     systemMotorPowerKw: parseOptionalFloat(rv.systemMotorPowerKw),
     accel0To100S: parseOptionalFloat(rv.accel0To100S),
@@ -136,7 +179,12 @@ export function buildVehicleExtraData(
     ...(aiFieldProvenance && Object.keys(aiFieldProvenance).length > 0
       ? { aiFieldProvenance }
       : {}),
-  };
+  });
+  const confirmedFieldKeys = buildRegistrationTechnicalConfirmedFieldKeys(rv);
+  if (confirmedFieldKeys.length > 0) {
+    out.technicalSpecificationSave = { confirmedFieldKeys };
+  }
+  return out;
 }
 
 export function buildVehicleManualSpecs(rv: RegisteredVehicle) {
@@ -156,11 +204,15 @@ export function buildVehicleManualSpecs(rv: RegisteredVehicle) {
   const manualSpecs: Record<string, unknown> = {};
 
   if (rv.batteryType || rv.batteryAmpere || rv.batteryVolt) {
-    manualSpecs.battery = {
-      batteryType: rv.batteryType || null,
-      batteryAmpere: parseOptionalNumber(rv.batteryAmpere),
-      batteryVolt: parseOptionalNumber(rv.batteryVolt),
-    };
+    const batteryType =
+      normalizeLvBatteryTypeInput(rv.batteryType) ?? null;
+    if (batteryType) {
+      manualSpecs.battery = {
+        batteryType,
+        batteryAmpere: parseOptionalNumber(rv.batteryAmpere),
+        batteryVolt: parseOptionalNumber(rv.batteryVolt),
+      };
+    }
   }
 
   if (hasBrakeInput) {
@@ -251,6 +303,8 @@ type ManualBrakePayload = {
   odometerKm?: number | null;
   frontPadThickness?: number | null;
   rearPadThickness?: number | null;
+  frontRotorDiameter?: number | null;
+  rearRotorDiameter?: number | null;
   frontRotorWidth?: number | null;
   rearRotorWidth?: number | null;
   workshopMeasurementConfirmed?: boolean | null;
@@ -264,6 +318,12 @@ type ManualBatteryPayload = {
   batteryAmpere?: number | null;
   batteryVolt?: number | null;
 };
+
+/** Not persisted on Connected Vehicle edit-save (no durable vehicle column / contract). */
+export const VEHICLE_AI_V2_EDIT_NON_PERSISTENT_FIELDS = [
+  'electrificationLevel',
+  'lvBatteryChemistry',
+] as const;
 
 /** Fields only applied via register-from-dimo today (no safe post-create API). */
 export const MANUAL_CREATE_UNSUPPORTED_REGISTERED_VEHICLE_FIELDS = [
@@ -348,6 +408,95 @@ export async function applyManualBaselinesAfterCreate(
       } catch (error) {
         failures.push({ area: 'brakes', message: baselineErrorMessage(error) });
       }
+    }
+  }
+
+  return failures;
+}
+
+function manualSpecJson(value: ReturnType<typeof buildVehicleManualSpecs>): string {
+  return JSON.stringify(value ?? null);
+}
+
+export async function applyManualBaselinesOnEdit(
+  orgId: string,
+  vehicleId: string,
+  current: RegisteredVehicle,
+  baseline: RegisteredVehicle,
+): Promise<ManualBaselineFailure[]> {
+  const failures: ManualBaselineFailure[] = [];
+  const nextSpecs = buildVehicleManualSpecs(current);
+  const prevSpecs = buildVehicleManualSpecs(baseline);
+  if (manualSpecJson(nextSpecs) === manualSpecJson(prevSpecs)) {
+    return failures;
+  }
+  if (!nextSpecs) return failures;
+
+  const tires = nextSpecs.tires as ManualTirePayload | undefined;
+  const prevTires = prevSpecs?.tires as ManualTirePayload | undefined;
+  if (tires && JSON.stringify(tires) !== JSON.stringify(prevTires)) {
+    try {
+      await api.vehicles.upsertTires(orgId, vehicleId, {
+        frontDimension: tires.frontDimension ?? null,
+        rearDimension: tires.rearDimension ?? null,
+        brandModelFront: tires.brandModelFront ?? null,
+        brandModelRear: tires.brandModelRear ?? null,
+        tireSeason: tires.tireSeason ?? null,
+        loadIndexFront: tires.loadIndexFront ?? null,
+        speedIndexFront: tires.speedIndexFront ?? null,
+        loadIndexRear: tires.loadIndexRear ?? null,
+        speedIndexRear: tires.speedIndexRear ?? null,
+        dotCodeFront: tires.dotCodeFront ?? null,
+        dotCodeRear: tires.dotCodeRear ?? null,
+        tireCondition: tires.tireCondition ?? null,
+        treadFL: tires.treadFL ?? null,
+        treadFR: tires.treadFR ?? null,
+        treadBL: tires.treadBL ?? null,
+        treadBR: tires.treadBR ?? null,
+      });
+    } catch (error) {
+      failures.push({ area: 'tires', message: baselineErrorMessage(error) });
+    }
+  }
+
+  const battery = nextSpecs.battery as ManualBatteryPayload | undefined;
+  const prevBattery = prevSpecs?.battery as ManualBatteryPayload | undefined;
+  if (battery && JSON.stringify(battery) !== JSON.stringify(prevBattery)) {
+    try {
+      await upsertLvBatterySpecOnEdit(vehicleId, battery);
+    } catch (error) {
+      failures.push({ area: 'battery', message: baselineErrorMessage(error) });
+    }
+  }
+
+  const brakes = nextSpecs.brakes as ManualBrakePayload | undefined;
+  const prevBrakes = prevSpecs?.brakes as ManualBrakePayload | undefined;
+  if (brakes?.workshopMeasurementConfirmed === true) {
+    const measured = {
+      frontPadMm: brakes.frontPadMeasuredMm ?? undefined,
+      rearPadMm: brakes.rearPadMeasuredMm ?? undefined,
+      frontDiscMm: brakes.frontDiscMeasuredMm ?? undefined,
+      rearDiscMm: brakes.rearDiscMeasuredMm ?? undefined,
+    };
+    const hasExplicitMeasured = Object.values(measured).some((v) => v != null);
+    if (hasExplicitMeasured) {
+      try {
+        await api.vehicleIntelligence.recordBrakeService(vehicleId, {
+          serviceDate: new Date().toISOString(),
+          odometerKm: brakes.odometerKm ?? parseOptionalNumber(current.mileage) ?? undefined,
+          source: 'manual',
+          measured,
+          initializeIfPossible: true,
+        });
+      } catch (error) {
+        failures.push({ area: 'brakes', message: baselineErrorMessage(error) });
+      }
+    }
+  } else if (brakes && JSON.stringify(brakes) !== JSON.stringify(prevBrakes)) {
+    try {
+      await upsertBrakeReferenceSpecOnEdit(vehicleId, brakes);
+    } catch (error) {
+      failures.push({ area: 'brakes', message: baselineErrorMessage(error) });
     }
   }
 
@@ -521,6 +670,7 @@ export function mapAdminVehicleDtoToRegisteredVehicle(
     systemMotorPowerKw: str('systemMotorPowerKw'),
     accel0To100S: str('accel0To100S'),
     motionPhysicsVariantAssumption: str('motionPhysicsVariantAssumption'),
+    systemPowerDefinition: str('systemPowerDefinition'),
     connectionModality:
       dto.connectionModality != null && String(dto.connectionModality).trim() !== ''
         ? String(dto.connectionModality)
@@ -574,15 +724,16 @@ export function mapAdminVehicleDtoToRegisteredVehicle(
 export type MasterVehicleSaveOutcome = {
   physicsSaved: boolean;
   hvMasterSaved: boolean;
+  manualBaselinesSaved: boolean;
 };
 
 export class MasterVehiclePartialSaveError extends Error {
   readonly outcome: MasterVehicleSaveOutcome;
-  readonly failures: Array<{ step: 'physics' | 'hvMaster'; message: string }>;
+  readonly failures: Array<{ step: 'physics' | 'hvMaster' | 'manualBaselines'; message: string }>;
 
   constructor(
     outcome: MasterVehicleSaveOutcome,
-    failures: Array<{ step: 'physics' | 'hvMaster'; message: string }>,
+    failures: Array<{ step: 'physics' | 'hvMaster' | 'manualBaselines'; message: string }>,
   ) {
     super('MASTER_VEHICLE_PARTIAL_SAVE');
     this.name = 'MasterVehiclePartialSaveError';
@@ -690,6 +841,67 @@ export function buildMasterVehiclePhysicsSpecPatch(
     confirmedFieldKeys.push('brakeForceDistribution');
   }
 
+  if (!strEq(current.tankCapacityLiters, baseline.tankCapacityLiters)) {
+    const parsed = parseOptionalFloat(current.tankCapacityLiters);
+    patch.tankCapacityLiters = parsed;
+    confirmedFieldKeys.push('tankCapacityLiters');
+  }
+
+  if (!strEq(current.serviceIntervalManufacturerKm, baseline.serviceIntervalManufacturerKm)) {
+    const raw = current.serviceIntervalManufacturerKm?.trim() ?? '';
+    if (!raw) {
+      patch.serviceIntervalManufacturerKm = null;
+    } else {
+      const parsed = parsePositiveIntegerField(raw);
+      if (parsed == null) throw new Error('INVALID_SERVICE_INTERVAL_MANUFACTURER_KM');
+      patch.serviceIntervalManufacturerKm = parsed;
+    }
+    confirmedFieldKeys.push('manufacturerServiceIntervalKm');
+  }
+
+  if (
+    !strEq(current.serviceIntervalManufacturerMonths, baseline.serviceIntervalManufacturerMonths)
+  ) {
+    const raw = current.serviceIntervalManufacturerMonths?.trim() ?? '';
+    if (!raw) {
+      patch.serviceIntervalManufacturerMonths = null;
+    } else {
+      const parsed = parsePositiveIntegerField(raw);
+      if (parsed == null) throw new Error('INVALID_SERVICE_INTERVAL_MANUFACTURER_MONTHS');
+      patch.serviceIntervalManufacturerMonths = parsed;
+    }
+    confirmedFieldKeys.push('manufacturerServiceIntervalMonths');
+  }
+
+  if (!strEq(current.oilChangeIntervalKm, baseline.oilChangeIntervalKm)) {
+    const raw = current.oilChangeIntervalKm?.trim() ?? '';
+    if (!raw) {
+      patch.oilChangeIntervalKm = null;
+    } else {
+      const parsed = parsePositiveIntegerField(raw);
+      if (parsed == null) throw new Error('INVALID_OIL_CHANGE_INTERVAL_KM');
+      patch.oilChangeIntervalKm = parsed;
+    }
+    confirmedFieldKeys.push('oilchangeIntervalKm');
+  }
+
+  if (!strEq(current.oilChangeIntervalMonths, baseline.oilChangeIntervalMonths)) {
+    const raw = current.oilChangeIntervalMonths?.trim() ?? '';
+    if (!raw) {
+      patch.oilChangeIntervalMonths = null;
+    } else {
+      const parsed = parsePositiveIntegerField(raw);
+      if (parsed == null) throw new Error('INVALID_OIL_CHANGE_INTERVAL_MONTHS');
+      patch.oilChangeIntervalMonths = parsed;
+    }
+    confirmedFieldKeys.push('oilchangeIntervalMonths');
+  }
+
+  if (!strEq(current.drivetrain, baseline.drivetrain)) {
+    patch.drivetrain = current.drivetrain?.trim() ? current.drivetrain.trim() : null;
+    confirmedFieldKeys.push('drivetrain');
+  }
+
   if (confirmedFieldKeys.length > 0) {
     patch.technicalSpecificationSave = { confirmedFieldKeys };
   }
@@ -705,7 +917,7 @@ export type MasterVehiclePhysicsEditOptions = {
   baseline: RegisteredVehicle;
 };
 
-/** Spec edit from Connected Vehicles — vehicle physics PATCH only; no tire/battery/brake side effects. */
+/** Spec edit from Connected Vehicles — vehicle physics PATCH + manual tire/LV/brake reference baselines. */
 export async function updateMasterRegisteredVehicle(
   rv: RegisteredVehicle,
   options: MasterVehiclePhysicsEditOptions,
@@ -719,8 +931,13 @@ export async function updateMasterRegisteredVehicle(
     throw new Error('EDIT_BASELINE_REQUIRED');
   }
 
-  const outcome: MasterVehicleSaveOutcome = { physicsSaved: false, hvMasterSaved: false };
-  const failures: Array<{ step: 'physics' | 'hvMaster'; message: string }> = [];
+  const outcome: MasterVehicleSaveOutcome = {
+    physicsSaved: false,
+    hvMasterSaved: false,
+    manualBaselinesSaved: false,
+  };
+  const failures: Array<{ step: 'physics' | 'hvMaster' | 'manualBaselines'; message: string }> =
+    [];
 
   const patch = buildMasterVehiclePhysicsSpecPatch(rv, options.baseline);
   if (Object.keys(patch).length > 0) {
@@ -732,6 +949,24 @@ export async function updateMasterRegisteredVehicle(
         step: 'physics',
         message: error instanceof Error ? error.message : String(error),
       });
+    }
+  }
+
+  const manualFailures = await applyManualBaselinesOnEdit(
+    orgId,
+    vehicleId,
+    rv,
+    options.baseline,
+  );
+  if (manualFailures.length === 0) {
+    const nextSpecs = buildVehicleManualSpecs(rv);
+    const prevSpecs = buildVehicleManualSpecs(options.baseline);
+    if (manualSpecJson(nextSpecs) !== manualSpecJson(prevSpecs) && nextSpecs) {
+      outcome.manualBaselinesSaved = true;
+    }
+  } else {
+    for (const f of manualFailures) {
+      failures.push({ step: 'manualBaselines', message: `${f.area}: ${f.message}` });
     }
   }
 

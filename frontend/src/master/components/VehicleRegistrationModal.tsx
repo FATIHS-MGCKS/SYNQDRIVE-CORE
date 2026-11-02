@@ -1,4 +1,10 @@
-import { X, Sparkles, ChevronDown, ChevronUp, Save, AlertCircle, CheckCircle2, XCircle, Loader2, Bot, Pencil, Radio, Search, Link2, Shield, Camera } from 'lucide-react';
+import {
+  CANONICAL_LV_BATTERY_STORAGE_TYPES,
+  deriveElectrificationLevelReadOnly,
+  resolveRegistrationLvBatteryFormState,
+  resolveRegistrationLvBatteryForSubmit,
+} from '../connected-vehicles/vehicle-specification-canonical.util';
+import { X, Sparkles, ChevronDown, ChevronUp, Save, AlertCircle, CheckCircle2, XCircle, Loader2, Bot, Pencil, Radio, Search, Link2, Shield, Camera, FileText, Cloud } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, streamAiSpecs, streamAiTireSpecs } from '../../lib/api';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -21,21 +27,24 @@ import {
 } from '../connected-vehicles/ai-spec-field-merge.util';
 import {
   buildMotionPhysicsReferenceCreateBody,
-  mergeMotionPhysicsReferenceFromCreateResponse,
   canConfirmEstimatedAiMotionReference,
   canConfirmManualMotionValues,
   formatMotionPhysicsUserErrorMessage,
   hasMotionPhysicsFormValues,
   hasMotionPhysicsValuesAtRiskOnRoutineVehicleSave,
   hasUnconfirmedManualMotionPhysicsEdits,
+  hydrateSystemPowerDefinitionFormState,
   isMotionPhysicsReferenceReadOnly,
+  mergeMotionPhysicsReferenceFromCreateResponse,
   MOTION_PHYSICS_SYNC_REASON_CODES,
   MOTION_SYSTEM_POWER_DEFINITION_OPTIONS,
   motionPhysicsReferenceSourceForSave,
+  parseMotionSystemPowerDefinitionOption,
   resolveMotionPhysicsPendingAfterAiApply,
   shouldSyncMotionPhysicsReferenceOnSave,
   snapshotMotionPhysicsFormFields,
   snapshotMotionPhysicsFromActiveReference,
+  validateMotionPhysicsReferenceCreatePayload,
   type AiSpecsApplyProvenance,
   type MotionPhysicsFormSnapshot,
   type MotionPhysicsPendingCreateSource,
@@ -52,7 +61,10 @@ import {
   type ExteriorImageBufferEntry,
 } from './ExteriorImagesEditor';
 import { VehicleIdentityP2Panel } from './VehicleIdentityP2Panel';
+import { MasterZb1RegistrationDialog } from './MasterZb1RegistrationDialog';
+import { OneAutoServiceDialog } from '../oneauto/OneAutoServiceDialog';
 import { isVehicleIdentityP2Enabled } from '../connected-vehicles/vehicle-identity-p2.util';
+import type { Zb1RegistrationFormPatch } from '../connected-vehicles/zb1-registration-form-merge.util';
 
 interface VehicleRegistrationModalProps {
   isDarkMode: boolean;
@@ -113,6 +125,9 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
   const [aiSteps, setAiSteps] = useState<AgentStep[]>([]);
   const [aiLiveStep, setAiLiveStep] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [zb1DialogOpen, setZb1DialogOpen] = useState(false);
+  const [oneAutoDialogOpen, setOneAutoDialogOpen] = useState(false);
+  const [batteryValidationError, setBatteryValidationError] = useState<string | null>(null);
 
   // Assignment
   const [organizationId, setOrganizationId] = useState('');
@@ -267,6 +282,7 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
     setSystemMotorPowerKw(v.systemMotorPowerKw ?? '');
     setAccel0To100S(v.accel0To100S ?? '');
     setMotionPhysicsVariantAssumption(v.motionPhysicsVariantAssumption ?? '');
+    setSystemPowerDefinition(hydrateSystemPowerDefinitionFormState(undefined, v.systemPowerDefinition));
     motionPhysicsManualEditedRef.current = false;
     motionPhysicsPendingCreateSourceRef.current = null;
     motionPhysicsLoadedBaselineRef.current = null;
@@ -546,6 +562,14 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
         setMotionPhysicsVariantAssumption,
         specs.variantAssumption,
       );
+      const aiDefinition = parseMotionSystemPowerDefinitionOption(specs.systemPowerDefinition);
+      if (
+        aiDefinition &&
+        shouldApplyAiSpecToEmptyField(systemPowerDefinitionRef.current, aiDefinition)
+      ) {
+        setSystemPowerDefinition(aiDefinition);
+        appliedMotionFromAi = true;
+      }
       motionPhysicsPendingCreateSourceRef.current = resolveMotionPhysicsPendingAfterAiApply({
         provenance,
         appliedMotionFromAi,
@@ -702,8 +726,8 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
       if (ref.accel0To100S != null) setAccel0To100S(String(ref.accel0To100S));
       if (ref.variantAssumption) setMotionPhysicsVariantAssumption(ref.variantAssumption);
       if (ref.systemPowerDefinition) {
-        const def = ref.systemPowerDefinition as MotionSystemPowerDefinitionOption;
-        if ((MOTION_SYSTEM_POWER_DEFINITION_OPTIONS as readonly string[]).includes(def)) {
+        const def = parseMotionSystemPowerDefinitionOption(ref.systemPowerDefinition);
+        if (def) {
           setSystemPowerDefinition(def);
         }
       }
@@ -726,7 +750,10 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
       systemMotorPowerKw: vehicle.systemMotorPowerKw ?? '',
       accel0To100S: vehicle.accel0To100S ?? '',
       variantAssumption: vehicle.motionPhysicsVariantAssumption ?? '',
-      systemPowerDefinition: '',
+      systemPowerDefinition: hydrateSystemPowerDefinitionFormState(
+        undefined,
+        vehicle.systemPowerDefinition,
+      ),
     });
   }, []);
 
@@ -742,12 +769,20 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
       return;
     }
 
+    const vehicleId = existingVehicle.id;
+    let cancelled = false;
+
+    setSystemPowerDefinition(
+      hydrateSystemPowerDefinitionFormState(undefined, existingVehicle.systemPowerDefinition),
+    );
+
     motionPhysicsNoReferenceSessionBaselineRef.current =
       snapshotMotionPhysicsBaselineFromVehicle(existingVehicle);
 
     api.vehicles.motionPhysicsReference
-      .getActive(organizationId, existingVehicle.id)
+      .getActive(organizationId, vehicleId)
       .then((ref) => {
+        if (cancelled) return;
         if (!ref) {
           setMotionPhysicsReferenceId(null);
           setMotionPhysicsEvidenceTier(null);
@@ -757,6 +792,7 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
         applyActiveMotionPhysicsReference(ref);
       })
       .catch((error) => {
+        if (cancelled) return;
         setMotionPhysicsReferenceId(null);
         setMotionPhysicsEvidenceTier(null);
         motionPhysicsLoadedBaselineRef.current = null;
@@ -768,6 +804,10 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
           ),
         );
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     isOpen,
     isEditMode,
@@ -837,21 +877,30 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
     });
     if (!hasMotionValues) return;
 
+    const createBody = buildMotionPhysicsReferenceCreateBody({
+      curbWeight,
+      systemMotorPowerKw,
+      accel0To100S,
+      variantAssumption: motionPhysicsVariantAssumption,
+      systemPowerDefinition,
+      source: 'MANUAL_ENTRY',
+      manualOperatorConfirm: true,
+    });
+    const payloadError = validateMotionPhysicsReferenceCreatePayload(createBody);
+    if (payloadError) {
+      setMotionPhysicsSyncError(
+        `${t('master.motionPhysics.manualConfirmError')} (${payloadError})`,
+      );
+      return;
+    }
+
     setMotionPhysicsManualConfirming(true);
     setMotionPhysicsSyncError('');
     try {
       const created = await api.vehicles.motionPhysicsReference.create(
         organizationId,
         existingVehicle.id,
-        buildMotionPhysicsReferenceCreateBody({
-          curbWeight,
-          systemMotorPowerKw,
-          accel0To100S,
-          variantAssumption: motionPhysicsVariantAssumption,
-          systemPowerDefinition,
-          source: 'MANUAL_ENTRY',
-          manualOperatorConfirm: true,
-        }),
+        createBody,
       );
 
       let reloaded: Awaited<ReturnType<typeof api.vehicles.motionPhysicsReference.getActive>> = null;
@@ -1054,6 +1103,24 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
     tireAiAbortRef.current = controller;
   }, [tireFrontBrandModel, tireFrontDimension, tireFrontLoadIndex, tireFrontSpeedIndex, vehicleIdentity.year]);
 
+  const applyZb1PatchToRegistrationForm = useCallback((patch: Zb1RegistrationFormPatch) => {
+    if (patch.engineDisplacementCc != null) {
+      setEngineDisplacementCc(patch.engineDisplacementCc);
+    }
+    if (patch.fuelType != null) {
+      setFuelType(patch.fuelType);
+    }
+    if (patch.curbWeight != null) {
+      setCurbWeight(patch.curbWeight);
+    }
+  }, []);
+
+  const zb1RegistrationFormCurrent = {
+    engineDisplacementCc,
+    fuelType,
+    curbWeight,
+  };
+
   const toggleSection = (s: string) => setExpandedSections(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
 
   if (!isOpen) return null;
@@ -1072,7 +1139,13 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
 
   const orgName = organizations.find(o => o.id === organizationId)?.company_name || '';
 
-  const buildVehicle = (): RegisteredVehicle => ({
+  const buildVehicle = (): RegisteredVehicle => {
+    const lvBattery = resolveRegistrationLvBatteryForSubmit({
+      typeRaw: batteryType,
+      ampereRaw: batteryAmpere,
+      voltRaw: batteryVolt,
+    });
+    return {
     id: isEditMode ? existingVehicle.id : generateId('rv'),
     vehicleName: `${vehicleIdentity.make} ${vehicleIdentity.model}`,
     vin: vehicleIdentity.vin,
@@ -1087,9 +1160,13 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
     lastSignal: isEditMode ? existingVehicle.lastSignal : (dimoVehicle?.lastSignal ?? ''),
     online: isEditMode ? existingVehicle.online : (dimoVehicle?.connectionStatus === 'Connected' || false),
     fuelType,
-    electrificationLevel: electrificationLevel.trim() || undefined,
+    electrificationLevel:
+      deriveElectrificationLevelReadOnly({ fuelType }) ??
+      (electrificationLevel.trim() || undefined),
     mileage: vehicleIdentity.odometer, licensePlate, vehicleType, operationalStatus, notes,
-    batteryType, batteryAmpere, batteryVolt, lvBatteryChemistry,
+    batteryType: lvBattery.canonical ?? lvBattery.legacyRaw ?? '',
+    batteryAmpere, batteryVolt,
+    lvBatteryChemistry: undefined,
     hvBatteryCapacityKwh, hvBatteryPresent, hvBatteryChemistry, hvBatteryCellFormat,
     hvBatteryGrossCapacityKwh, hvBatteryUsableCapacityKwh, hvBatteryNominalVoltage,
     hvBatteryArchitecture, hvBatteryThermalManagement,
@@ -1119,10 +1196,21 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
       Object.keys(aiFieldProvenanceRef.current).length > 0
         ? aiFieldProvenanceRef.current
         : undefined,
-  });
+    };
+  };
 
   const handleSubmit = async () => {
     if (!organizationId || submitting) return;
+    setBatteryValidationError(null);
+    const lvBattery = resolveRegistrationLvBatteryForSubmit({
+      typeRaw: batteryType,
+      ampereRaw: batteryAmpere,
+      voltRaw: batteryVolt,
+    });
+    if (lvBattery.validationError) {
+      setBatteryValidationError(t(`master.registration.lvBatteryType.${lvBattery.validationError}`));
+      return;
+    }
     setSubmitting(true);
     setMotionPhysicsSaveInfo('');
     const rv = buildVehicle();
@@ -1169,6 +1257,7 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
 
   const toggleHmSignal = (id: string) => setHmSignals(prev => ({ ...prev, [id]: !prev[id] }));
   const toggleAllHmSignals = (on: boolean) => setHmSignals(Object.fromEntries(HIGH_MOBILITY_SIGNALS.map(s => [s.id, on])));
+  const lvBatteryForm = resolveRegistrationLvBatteryFormState(batteryType);
 
   return (
     <div
@@ -1209,8 +1298,11 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
                 : (isDarkMode ? 'surface-premium border-neutral-700/50' : 'bg-gradient-to-r from-purple-50/60 to-indigo-50/60 border-purple-200/30')
         }`}>
 
-          {/* ── Row 1: Status badge + button ── */}
-          <div className="flex items-center justify-between">
+          {/* ── Row 1: Status badge + spec actions (AI fetch, ZB-I upload) ── */}
+          <div
+            className="flex items-center justify-between"
+            data-testid="vehicle-registration-spec-actions"
+          >
             <div className="flex items-center gap-3">
               {/* Animated status indicator */}
               <div className={`relative w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
@@ -1267,21 +1359,65 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
               </div>
             </div>
 
-            {/* Fetch AI button */}
-            <button
-              type="button"
-              data-testid="vehicle-registration-fetch-ai-specs"
-              onClick={handleFetchAi}
-              disabled={aiLoading || (!vehicleIdentity.vin && !vehicleIdentity.make)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
-                aiLoading || (!vehicleIdentity.vin && !vehicleIdentity.make)
-                  ? 'opacity-50 cursor-not-allowed'
-                  : 'hover:shadow-md hover:scale-[1.02] active:scale-[0.98]'
-              } ${isDarkMode ? 'bg-purple-600/80 text-purple-100 hover:bg-purple-600' : 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-sm'}`}
-            >
-              {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              {aiLoading ? 'AI lädt…' : aiSteps.length > 0 || aiDegraded ? 'Erneut abrufen' : 'Fetch AI Specs'}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {isEditMode && existingVehicle?.id && organizationId ? (
+                isVehicleIdentityP2Enabled() ? (
+                  <button
+                    type="button"
+                    data-testid="vehicle-registration-upload-zb1"
+                    onClick={() => setZb1DialogOpen(true)}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                      isDarkMode
+                        ? 'border-border/60 text-foreground hover:bg-muted/80'
+                        : 'border-border bg-white/80 text-foreground hover:bg-white shadow-sm'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    {t('master.vehicleIdentity.uploadToolbar' as never)}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    data-testid="vehicle-registration-upload-zb1-disabled"
+                    disabled
+                    title={t('master.vehicleIdentity.p2ToolbarDisabledHint' as never)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border opacity-50 cursor-not-allowed border-border/60 text-muted-foreground"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    {t('master.vehicleIdentity.uploadToolbar' as never)}
+                  </button>
+                )
+              ) : null}
+              {isEditMode && existingVehicle?.id && organizationId ? (
+                <button
+                  type="button"
+                  data-testid="vehicle-registration-oneauto-api"
+                  onClick={() => setOneAutoDialogOpen(true)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                    isDarkMode
+                      ? 'border-border/60 text-foreground hover:bg-muted/80'
+                      : 'border-border bg-white/80 text-foreground hover:bg-white shadow-sm'
+                  }`}
+                >
+                  <Cloud className="w-3.5 h-3.5" />
+                  {t('master.oneAuto.buttonLabel' as never)}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                data-testid="vehicle-registration-fetch-ai-specs"
+                onClick={handleFetchAi}
+                disabled={aiLoading || (!vehicleIdentity.vin && !vehicleIdentity.make)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+                  aiLoading || (!vehicleIdentity.vin && !vehicleIdentity.make)
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:shadow-md hover:scale-[1.02] active:scale-[0.98]'
+                } ${isDarkMode ? 'bg-purple-600/80 text-purple-100 hover:bg-purple-600' : 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-sm'}`}
+              >
+                {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {aiLoading ? 'AI lädt…' : aiSteps.length > 0 || aiDegraded ? 'Erneut abrufen' : 'Fetch AI Specs'}
+              </button>
+            </div>
           </div>
 
           {/* ── Progress bar ── */}
@@ -1440,6 +1576,9 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
                 isDarkMode={isDarkMode}
                 organizationId={organizationId}
                 vehicleId={existingVehicle.id}
+                hideDocumentUpload
+                registrationFormCurrent={zb1RegistrationFormCurrent}
+                onApplyToRegistrationForm={applyZb1PatchToRegistrationForm}
               />
             </div>
           ) : null}
@@ -1576,6 +1715,14 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
                         {t('master.motionPhysics.systemPowerDefinition.option.estimated')}
                       </option>
                     </select>
+                    {isEditMode && !motionPhysicsFieldsDisabled && (
+                      <p
+                        className="text-[10px] text-muted-foreground mt-1"
+                        data-testid="motion-physics-system-power-definition-persist-hint"
+                      >
+                        {t('master.motionPhysics.systemPowerDefinition.persistHint')}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className={labelClass}>{t('master.motionPhysics.systemMotorPowerKw')} {aiTag}</label>
@@ -1644,11 +1791,54 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
                   Low Voltage Auxiliary Battery
                 </p>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div><label className={labelClass}>Type {aiTag}</label><input value={batteryType} onChange={e => setBatteryType(e.target.value)} className={inputClass} placeholder="e.g. AGM, EFB" /></div>
-                  <div><label className={labelClass}>Chemistry {aiTag}</label><input value={lvBatteryChemistry} onChange={e => setLvBatteryChemistry(e.target.value)} className={inputClass} placeholder="e.g. Lead-Acid" /></div>
-                  <div><label className={labelClass}>Capacity (Ah) {aiTag}</label><input value={batteryAmpere} onChange={e => setBatteryAmpere(e.target.value)} className={inputClass} placeholder="e.g. 70" /></div>
-                  <div><label className={labelClass}>Voltage (V) {aiTag}</label><input value={batteryVolt} onChange={e => setBatteryVolt(e.target.value)} className={inputClass} placeholder="e.g. 12" /></div>
+                  <div>
+                    <label className={labelClass}>
+                      {t('master.registration.lvBatteryConstructionType.label')} {aiTag}
+                    </label>
+                    <select
+                      value={lvBatteryForm.selectValue}
+                      onChange={(e) => {
+                        setBatteryValidationError(null);
+                        setBatteryType(e.target.value);
+                      }}
+                      className={inputClass}
+                    >
+                      <option value="">—</option>
+                      {CANONICAL_LV_BATTERY_STORAGE_TYPES.map((token) => (
+                        <option key={token} value={token}>
+                          {token === 'LEAD_ACID'
+                            ? t('master.registration.lvBatteryConstructionType.leadAcid')
+                            : token === 'LITHIUM'
+                              ? 'Lithium'
+                              : token}
+                        </option>
+                      ))}
+                    </select>
+                    {lvBatteryForm.legacyDisplay ? (
+                      <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                        {t('master.registration.lvBatteryType.legacyLabel')}: {lvBatteryForm.legacyDisplay}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div>
+                    <label className={labelClass}>
+                      {t('master.registration.lvBatteryChemistryHint.label')} {aiTag}
+                    </label>
+                    <input
+                      value={lvBatteryChemistry}
+                      onChange={(e) => setLvBatteryChemistry(e.target.value)}
+                      className={`${inputClass} opacity-70`}
+                      placeholder={t('master.registration.lvBatteryChemistryHint.placeholder')}
+                      title={t('master.registration.lvBatteryChemistryHint.title')}
+                      readOnly
+                    />
+                  </div>
+                  <div><label className={labelClass}>Capacity (Ah) {aiTag}</label><input value={batteryAmpere} onChange={e => { setBatteryValidationError(null); setBatteryAmpere(e.target.value); }} className={inputClass} placeholder="e.g. 70" /></div>
+                  <div><label className={labelClass}>Voltage (V) {aiTag}</label><input value={batteryVolt} onChange={e => { setBatteryValidationError(null); setBatteryVolt(e.target.value); }} className={inputClass} placeholder="e.g. 12" /></div>
                 </div>
+                {batteryValidationError ? (
+                  <p className="text-xs text-destructive mt-2" role="alert">{batteryValidationError}</p>
+                ) : null}
               </div>
 
               {/* HV Battery subsection */}
@@ -2193,6 +2383,33 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
           </div>
         </div>
       </div>
+
+      {isEditMode && existingVehicle?.id && organizationId && isVehicleIdentityP2Enabled() ? (
+        <MasterZb1RegistrationDialog
+          open={zb1DialogOpen}
+          onOpenChange={setZb1DialogOpen}
+          isDarkMode={isDarkMode}
+          organizationId={organizationId}
+          vehicleId={existingVehicle.id}
+          registrationFormCurrent={zb1RegistrationFormCurrent}
+          onApplyToRegistrationForm={(patch) => {
+            applyZb1PatchToRegistrationForm(patch);
+            setZb1DialogOpen(false);
+          }}
+        />
+      ) : null}
+
+      {isEditMode && existingVehicle?.id && organizationId ? (
+        <OneAutoServiceDialog
+          open={oneAutoDialogOpen}
+          onOpenChange={setOneAutoDialogOpen}
+          organizationId={organizationId}
+          organizationName={orgName}
+          vehicleId={existingVehicle.id}
+          vehicleLabel={`${vehicleIdentity.make} ${vehicleIdentity.model}`.trim() || existingVehicle.vehicleName}
+          vin={vehicleIdentity.vin || existingVehicle.vin}
+        />
+      ) : null}
     </div>
   );
 }

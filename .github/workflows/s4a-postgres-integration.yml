@@ -202,6 +202,7 @@ jobs:
           npm run test:dimo:provider-budget
           npm run test:dimo:provider-budget:redis
           npm run test:di:s4-research-worker
+          npm run test:di:ds4-layer2-p2-offline
 
   s4a-postgres-tests:
     name: S4 PostgreSQL test suites (S4A–S4F)

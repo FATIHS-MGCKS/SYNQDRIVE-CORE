@@ -547,3 +547,9 @@ edges:
     relation: supports
     to: DI-DEC-DS4-AUTHORITY-001
     notes: Closes blocker B2 data precondition of the DS4 authority migration (consumer binding still gated)
+
+  - id: DI-EDGE-159
+    from: DI-DEC-RPM-REF-INTEL-001
+    relation: supports
+    to: DI-EVID-RPM-REF-INTEL-ADR-001
+    notes: Phase 5 documentation-only ownership boundaries ADR

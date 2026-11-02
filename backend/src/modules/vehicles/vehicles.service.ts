@@ -132,6 +132,7 @@ import { TasksService } from '@modules/tasks/tasks.service';
 import { BillingQuantityVehicleIntegration } from '@modules/billing/billing-quantity-vehicle.integration';
 import { VehicleDetailObservabilityService } from './observability/vehicle-detail-observability.service';
 import { classifyVehicleDetailProviderError } from './observability/vehicle-detail-log.util';
+import { normalizeMotionSystemPowerDefinition } from '@modules/vehicle-intelligence/motion-physics-reference/motion-physics-reference.domain';
 
 const DIMO_FUEL_TYPE_MAP: Record<string, FuelType> = {
   GASOLINE: FuelType.GASOLINE,
@@ -798,6 +799,7 @@ export class VehiclesService {
     adminEnrichment?: {
       motionReference?: {
         systemMotorPowerKw: number | null;
+        systemPowerDefinition: string | null;
         accel0To100S: number | null;
         variantAssumption: string | null;
       } | null;
@@ -911,6 +913,10 @@ export class VehiclesService {
           : '',
       motionPhysicsVariantAssumption:
         adminEnrichment?.motionReference?.variantAssumption?.trim() ?? '',
+      systemPowerDefinition:
+        normalizeMotionSystemPowerDefinition(
+          adminEnrichment?.motionReference?.systemPowerDefinition,
+        ) ?? '',
       connectionModality:
         adminEnrichment?.connectionIdentity?.connectionModality ?? null,
       telemetryConnectionFamily:
@@ -972,6 +978,7 @@ export class VehiclesService {
       hvMasterSpecificationCatalogVariantKey: hvMaster?.catalogVariantKey ?? null,
       hvMasterSpecificationFieldChangeClassification:
         hvMaster?.fieldChangeClassification ?? null,
+      registrationIdentityProvenance: v.registrationIdentityProvenance ?? null,
     };
   }
 
@@ -1896,6 +1903,7 @@ export class VehiclesService {
           },
           select: {
             systemMotorPowerKw: true,
+            systemPowerDefinition: true,
             accel0To100S: true,
             variantAssumption: true,
           },
@@ -2313,6 +2321,12 @@ export class VehiclesService {
             idleRpm: true,
             maxRpm: true,
             brakeForceFrontPercent: true,
+            tankCapacityLiters: true,
+            serviceIntervalManufacturerKm: true,
+            serviceIntervalManufacturerMonths: true,
+            oilChangeIntervalKm: true,
+            oilChangeIntervalMonths: true,
+            driveType: true,
             registrationIdentityProvenance: true,
             updatedAt: true,
           },
@@ -2328,6 +2342,12 @@ export class VehiclesService {
             idleRpm: true,
             maxRpm: true,
             brakeForceFrontPercent: true,
+            tankCapacityLiters: true,
+            serviceIntervalManufacturerKm: true,
+            serviceIntervalManufacturerMonths: true,
+            oilChangeIntervalKm: true,
+            oilChangeIntervalMonths: true,
+            driveType: true,
             registrationIdentityProvenance: true,
             updatedAt: true,
           },
@@ -2708,6 +2728,12 @@ export class VehiclesService {
       const normalizedJson = buildNormalizedRegistrationAiTireSpecJson(
         tr.aiTireSpec as Record<string, unknown>,
         existingSetup?.aiTireSpec,
+        {
+          brandModelFront: tr.brandModelFront ?? null,
+          frontDimension: tr.frontDimension ?? null,
+          loadIndexFront: tr.loadIndexFront ?? null,
+          speedIndexFront: tr.speedIndexFront ?? null,
+        },
       );
       if (normalizedJson) {
         await this.prisma.vehicleTireSetup.update({

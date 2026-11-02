@@ -6,7 +6,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
-EXPECTED_POSTGRES_TESTS=127
+# Baseline count gate — update only with documented inventory change (see script footer comment).
+# 131 = 127 (2026-10-29 baseline) + 4 partial-extension admission postgres cases (#2293 / c4194b17).
+EXPECTED_POSTGRES_TESTS=131
 
 fail_closed_url() {
   local name="$1" url="$2"
@@ -61,3 +63,22 @@ if ! grep -qE "Tests:[[:space:]]+${EXPECTED_POSTGRES_TESTS} passed" "$LOG"; then
 fi
 
 echo "S4A Postgres CI suite OK (${EXPECTED_POSTGRES_TESTS}/${EXPECTED_POSTGRES_TESTS})"
+
+run_v1b_postgres_if_relevant() {
+  if [[ "${GITHUB_ACTIONS:-}" != "true" ]]; then
+    return 0
+  fi
+  if [[ ! -f prisma/migrations/20261028180000_ds4_rpm_hf_v1b_shadow_v1/migration.sql ]]; then
+    echo "DS4 RPM HF V1B Postgres: skipped (V1B migration not present)"
+    return 0
+  fi
+  git fetch --no-tags --depth=1 origin main 2>/dev/null || true
+  if git diff --name-only origin/main...HEAD 2>/dev/null | grep -qE 'rpm-hf-v1b|20261028180000_ds4_rpm_hf_v1b'; then
+    echo "DS4 RPM HF V1B Postgres: running (V1B paths changed vs origin/main)"
+  else
+    echo "DS4 RPM HF V1B Postgres: running (V1B migration present on CI disposable DB)"
+  fi
+  DS4_RPM_HF_V1B_POSTGRES_REQUIRED=1 bash scripts/test/ds4-rpm-hf-v1b-postgres-ci.sh
+}
+
+run_v1b_postgres_if_relevant

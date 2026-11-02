@@ -7,6 +7,8 @@ export const masterMotionPhysicsPl = {
   'master.motionPhysics.systemPowerDefinition.option.estimated': 'Szacowana moc układu (AI / niepewna)',
   'master.motionPhysics.systemPowerDefinition.hint':
     'Nie mieszaj mocy silnika i mocy układu — szczególnie w EV i hybrydach.',
+  'master.motionPhysics.systemPowerDefinition.persistHint':
+    'Rodzaj podanej mocy nie jest zapisywany przez „Zapisz zmiany”. Użyj „Potwierdź wartości ręczne”, aby zapisać wybór w referencji fizyki ruchu.',
   'master.motionPhysics.systemMotorPowerKw.hintMotor': 'Podaj znamionową moc silnika OEM w kW.',
   'master.motionPhysics.systemMotorPowerKw.hintSystem': 'Podaj łączną moc układu OEM w kW (nie moc na kołach).',
   'master.motionPhysics.accel0To100S': '0–100 km/h (s)',

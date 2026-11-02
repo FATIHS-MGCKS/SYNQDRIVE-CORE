@@ -353,6 +353,7 @@ jobs:
           PR_BASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.audit_baseline_sha || (github.event_name == 'pull_request' && github.event.pull_request.base.sha || '') }}
           PUSH_BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
           PR_HEAD_SHA: ${{ github.sha }}
+          AUDIT_PROTECTED_BASELINE_REF: origin/main
         run: bash scripts/audits/audit-dependencies.sh
 
   ci-gate:

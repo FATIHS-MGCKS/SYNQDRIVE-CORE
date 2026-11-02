@@ -1,3 +1,4 @@
+import { MOTION_SYSTEM_POWER_DEFINITION_VALUES } from '@modules/vehicle-intelligence/motion-physics-reference/motion-physics-reference.domain';
 import type { VehicleSpecContext, VehicleSpecsScopeResolution } from './vehicle-spec-ai.types';
 
 export const VEHICLE_SPEC_FIELD_KEYS = [
@@ -33,6 +34,7 @@ export const VEHICLE_SPEC_FIELD_KEYS = [
   'maxRpm',
   'curbWeightKg',
   'systemMotorPowerKw',
+  'systemPowerDefinition',
   'accel0To100S',
   'variantAssumption',
   'sourceNote',
@@ -103,6 +105,13 @@ export function buildVehicleSpecJsonSchema(): Record<string, unknown> {
           'BEV',
           'FCEV',
         ],
+      });
+      continue;
+    }
+    if (key === 'systemPowerDefinition') {
+      properties[key] = nullable({
+        type: 'string',
+        enum: [...MOTION_SYSTEM_POWER_DEFINITION_VALUES],
       });
       continue;
     }
@@ -193,7 +202,8 @@ Rules:
 - ambiguousVariants: candidate trims when uncertain (empty when confident)
 - brake disc diameter (*RotorDiameterMm) vs nominal new disc thickness (*RotorWidthMm) are different quantities
 - frontPadThicknessMm: factory NEW pad material thickness, not measured wear
-- Zulassungsbescheinigung P.2 is not traction power without variant context`;
+- Zulassungsbescheinigung P.2 is not traction power without variant context
+- systemPowerDefinition: OEM_RATED_MOTOR_KW when systemMotorPowerKw is ICE/single-motor rated power; OEM_RATED_SYSTEM_KW when it is OEM combined system power (BEV/PHEV/hybrid) with variant confidence >= 0.7; OEM_RATED_SYSTEM_KW_ESTIMATED when systemMotorPowerKw is filled but rating type is uncertain; null when systemMotorPowerKw is null or variant gate applies — never infer from fuelType/electrificationLevel alone`;
 
   return { system, user };
 }

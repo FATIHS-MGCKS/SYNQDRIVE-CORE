@@ -36,6 +36,211 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'rpm-reference-intelligence-v1-v1b-attach-phase5b-2026-10-30',
+    version: '4.9.5019',
+    title: 'RPM Reference Intelligence V1 — V1B shadow attach (Phase 5B, flag OFF)',
+    summary: [
+      'Optional `rpmReferenceIntelligenceV1` block on V1B shadow `summary_json` when `DS4_RPM_REF_INTEL_V1_V1B_ATTACH_ENABLED=true` (default false).',
+      'Integration in `Ds4RpmHfV1bShadowService` after SUCCEEDED admission only; vehicle idle/max + provenance from widened vehicle select; V1B qualityExposure/tierEvidence for temporal gaps.',
+      'Failure-isolated attachment; no V1B flag/canary/admission/fingerprint changes; no new table or customer surfaces.',
+    ],
+    reason:
+      'ADR DI-DEC-RPM-REF-INTEL-001 P3 shadow persistence without altering Audi+Arteon V1B canary behavior.',
+    previousBehavior:
+      'Phase 5A library only — no persisted reference metrics on V1B runs.',
+    details:
+      'rpm-reference-intelligence-v1-v1b-shadow-attach.ts; DS4_RPM_REF_INTEL_V1_V1B_ATTACH_ENABLED; npm run test:di:rpm-ref-intel-v1.',
+    affectsArchitecture: true,
+    module: 'Driving Intelligence',
+    createdAt: '2026-10-30T22:45:00.000Z',
+  },
+  {
+    id: 'rpm-reference-intelligence-v1-phase5a-2026-10-30',
+    version: '4.9.5018',
+    title: 'RPM Reference Intelligence V1 — pure library (Phase 5A, shadow-safe)',
+    summary: [
+      'Backend `rpm-reference-intelligence-v1/`: contract `ds4-rpm-reference-intelligence-v1`, deterministic normalization, idle proximity, operating bands, time-weighted exposure on eligible continuous HF sequences only.',
+      'Separates vehicle spec provenance quality from V1B HF admission qualityExposure; explicit reason codes; normalized RPM is not engine load.',
+      'DI consumer interface types only — no V1B processor wiring, persistence, workers, flags, DS4/Tire/Impact/customer changes.',
+    ],
+    reason:
+      'Implement ADR DI-DEC-RPM-REF-INTEL-001 P2 metrics library without altering Audi+Arteon V1B shadow canary semantics.',
+    previousBehavior:
+      'ADR approved boundaries only; no reference intelligence calculator in repository.',
+    details:
+      'backend/.../rpm-reference-intelligence-v1/*; npm run test:di:rpm-ref-intel-v1; architecture/drivingintelligence CURRENT_STATE + CHANGE_LEDGER + ADR implementation table.',
+    affectsArchitecture: true,
+    module: 'Driving Intelligence',
+    createdAt: '2026-10-30T19:00:00.000Z',
+  },
+  {
+    id: 'vsi-rpm-dual-provenance-ui-2026-10-29',
+    version: '4.9.5017',
+    title: 'VSI Master Admin — engine RPM dual provenance UI (Draft)',
+    summary: [
+      'Master Admin signal table for powertrainCombustionEngineSpeed (engine_rpm): separate Snapshot (VLS empiricalObservation, freshness, lastValidObservationAt) vs HF/cadence (observedSampleCount, activeRpmProfile, profile evaluatedAt, trip classifications, provenance).',
+      'Does not relabel snapshot NEVER_OBSERVED when ClickHouse HF cadence evidence exists; Tesla NOT_APPLICABLE path unchanged.',
+      'Read-only UI + utils regression tests (Audi RPM_STANDARD, Tiguan UNKNOWN, no HF, N/A); master.intelligence.vsi.signals.rpmDual.* i18n (9 locales). No backend or RPM classification changes.',
+    ],
+    reason:
+      'Production audit: empirical plane is VLS snapshot-only while cadence/RPM profile lives in cadenceIntelligence — single table column implied global NEVER_OBSERVED despite HF samples.',
+    previousBehavior:
+      'engine_rpm row showed only snapshot quality/observation fields; HF cadence and active RPM profile were not surfaced in Master Admin VSI overview.',
+    details:
+      'vsi-engine-rpm-dual-provenance.utils.ts; VsiEngineRpmDualProvenancePanel.tsx; VsiMasterIntelligenceView.tsx; vsi-engine-rpm-dual-provenance.ui.test.ts',
+    affectsArchitecture: true,
+    module: 'Vehicle Intelligence',
+    createdAt: '2026-10-29T22:35:00.000Z',
+  },
+  {
+    id: 'vsi-master-intelligence-load-loop-hotfix-2026-10-29',
+    version: '4.9.5016',
+    title: 'VSI Master Intelligence — infinite loading hook stability (Draft)',
+    summary: [
+      'Stable useCallback deps on orgId/vehicleId/providerSourceLinkId/asOf (fixes PR #2242 [input] identity loop → permanent “VSI-Lesemodelle werden geladen…”).',
+      'Load-generation guard so stale overview/profile/revision responses cannot overwrite after rapid vehicle switch.',
+      'Hook regression tests: stable rerender, vehicle change, revision failure isolation, stale concurrency, empty profiles, StrictMode.',
+    ],
+    reason:
+      'Production @ ebe901538: inline hook input + load deps [input] retriggered useEffect every render; loading never settled; empty provider link picker.',
+    previousBehavior:
+      'Every parent render created new input object → new load → effect loop; spinner permanent despite successful API responses.',
+    details:
+      'useVsiMasterIntelligenceData.ts; useVsiMasterIntelligenceData.test.ts; preserves #2242 revision failure isolation.',
+    affectsArchitecture: true,
+    module: 'Vehicle Intelligence',
+    createdAt: '2026-10-29T14:40:00.000Z',
+  },
+  {
+    id: 'vsi-master-intelligence-revision-di-hotfix-2026-10-29',
+    version: '4.9.5015',
+    title: 'VSI Master Intelligence — revision history DI hotfix (Draft)',
+    summary: [
+      '@Injectable() on VsiProfileRevisionHistoryRepository so PrismaService injects when P5H1 revision capture is enabled (fixes production TypeError on GET …/revisions).',
+      'Nest TestingModule DI regression spec for getRevisionHistoryPage (empty + mapped rows).',
+      'VSI hook isolates revision-history failures: overview/profile/link picker preserved; localized revision error + section retry.',
+    ],
+    reason:
+      'Production @ 440db6722: Master Admin VSI 500 on revisions because repository lacked Nest @Injectable(); frontend cleared all state on revision failure.',
+    previousBehavior:
+      'listRevisionsForLink threw TypeError (undefined prisma); any revision 500 wiped overview and emptied provider link selector.',
+    details:
+      'vsi-profile-revision-history.repository.ts; vsi-master-intelligence-revision-history.nest-di.spec.ts; useVsiMasterIntelligenceData.ts; VsiMasterIntelligenceView.tsx; master.intelligence.* i18n (9 locales).',
+    affectsArchitecture: true,
+    module: 'Vehicle Intelligence',
+    createdAt: '2026-10-29T10:35:00.000Z',
+  },
+  {
+    id: 'master-intelligence-center-pr5-vehicle-detail-2026-10-29',
+    version: '4.9.5014',
+    title: 'Master Intelligence Center PR5 — Vehicle Detail integration (Draft)',
+    summary: [
+      'Connected vehicle detail drawer: compact VSI/APDS/PDI intelligence section using existing read APIs only (MASTER_ADMIN).',
+      'Canonical cross-navigation org/vehicle/link/device; VSI/APDS auto-resolve physicalDeviceId for PDI links when unambiguous.',
+      'Four-vehicle QA fixtures + navigation tests; nine-locale vehicleDetail keys.',
+    ],
+    reason: 'End-to-end acceptance of Master Intelligence Center PR1–PR4 from fleet vehicle detail.',
+    previousBehavior: 'Intelligence modules reachable only via nav; vehicle detail had no intelligence entry points.',
+    details:
+      'ConnectedVehicleIntelligenceSection.tsx; resolve-vehicle-physical-device.ts; vehicle-detail-intelligence.test.ts; no new backend aggregate.',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-10-29T08:30:00.000Z',
+  },
+  {
+    id: 'master-intelligence-center-pr4-pdi-2026-10-29',
+    version: '4.9.5013',
+    title: 'Master Admin PDI device intelligence read APIs & UI (Draft)',
+    summary: [
+      'Read-only GET /admin/master-intelligence/pdi/devices/* intelligence + paginated connection episodes; reuses PDI inventory, assignments, audit, DIMO episodes, live R1 drift observation (no persisted drift history).',
+      'Device detail dialog: identity summary, timeline, episodes, drift semantics, VSI/APDS/vehicle cross-links; pdiDeviceId deep links.',
+      'MASTER_ADMIN RBAC without new MFA on read controller; nine-locale i18n.',
+    ],
+    reason: 'PR4 extends Master Intelligence with historical PDI evidence and canonical cross-navigation without provisioning or authority changes.',
+    previousBehavior: 'PDI detail showed operational actions and short audit list only; no connection episode or intelligence read layer.',
+    details:
+      'pdi-master-intelligence-read.*; PhysicalDeviceIntelligencePanel.tsx; api.admin.masterIntelligencePdi.',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-10-29T06:00:00.000Z',
+  },
+  {
+    id: 'master-intelligence-center-pr3-apds-2026-10-29',
+    version: '4.9.5012',
+    title: 'Master Admin Intelligence Center — PR3 APDS read APIs & UI (Draft)',
+    summary: [
+      'Read-only GET /admin/master-intelligence/apds/* (MASTER_ADMIN RBAC; MFA deferred by owner): overview, epoch history, paginated decisions, decision detail, VSI as-of correlation, real poll evidence lookup.',
+      'Strict shadow vs real poll semantics; simulatedNextPollAt is not execution proof; tenant/org/vehicle scope; masked provider identifiers.',
+      'APDS Master Admin UI replaces PR1 placeholder; decision explorer with detail panel, epoch timeline, VSI cross-nav with as-of; nine-locale i18n.',
+    ],
+    reason:
+      'PR3 delivers production-data-backed read-only APDS shadow observability integrated with PR1 navigation and PR2 VSI correlation.',
+    previousBehavior:
+      'APDS intelligence page was an honest placeholder without live decision or epoch data.',
+    details:
+      'backend/.../apds-master-intelligence-read.*; frontend ApdsMasterIntelligenceView.tsx, useApdsMasterIntelligenceData.ts, api.admin.masterIntelligenceApds.',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-10-28T23:30:00.000Z',
+  },
+  {
+    id: 'master-intelligence-center-pr2-2026-10-28',
+    version: '4.9.5011',
+    title: 'Master Admin Intelligence Center — PR2 VSI read APIs & UI (Draft)',
+    summary: [
+      'Read-only GET /admin/master-intelligence/vsi/* (MASTER_ADMIN RBAC; MFA deferred by owner): fleet overview, profile detail, scoped readonly composer signals, paginated revision history, as-of resolution, capability resolver delegate.',
+      'Tenant/link scope validation, OPEN_TRIP semantic masking, NOT_CAPTURED when P5-H1 disabled, no materialize/DIMO/writes.',
+      'VSI Master Admin UI: org/vehicle/link pickers, live DTO badges, signal table, revision/as-of sections, cross-links; nine-locale i18n.',
+    ],
+    reason:
+      'PR2 delivers production-data-backed read-only VSI intelligence on the PR1 URL shell without enabling APDS or P5-H1 capture.',
+    previousBehavior:
+      'PR1 intelligence pages showed presentation preview and honest empty states only.',
+    details:
+      'backend/.../vsi-master-intelligence-read.*; frontend/src/master/intelligence/VsiMasterIntelligenceView.tsx, useVsiMasterIntelligenceData.ts, api.admin.masterIntelligenceVsi.',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-10-28T20:40:00.000Z',
+  },
+  {
+    id: 'master-intelligence-center-pr1-2026-10-28',
+    version: '4.9.5010',
+    title: 'Master Admin Intelligence Center — PR1 navigation & UI foundation (Draft)',
+    summary: [
+      'Connectivity nav: VSI – Signal Intelligence and APDS – Adaptive Polling (MASTER_ADMIN only).',
+      'Shared intelligence module: URL context parse/build, cross-links, profile badges, evidence semantics, honest empty states (no live VSI/APDS APIs).',
+      'Nine-locale i18n for intelligence copy; presentation preview only until PR2/PR3 read APIs.',
+    ],
+    reason:
+      'Owner-accepted P0 plan: ship shared Master Admin shell before wiring read-only VSI (PR2) and APDS (PR3) backends.',
+    previousBehavior:
+      'No dedicated Master Admin surfaces for fleet signal intelligence or adaptive polling shadow review.',
+    details:
+      'frontend/src/master/intelligence/*, master navigation types/config/url/drilldown, App.tsx routes; PR2–PR5: APIs, vehicle/PDI deep integration, history.',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-10-28T19:15:00.000Z',
+  },
+  {
+    id: 'ds4-rpm-hf-v1a-data-integration-2026-10-28',
+    version: '4.9.5004',
+    title: 'DS4 RPM High Frequency V1A — trip-scoped HF read + admission (Draft, not deployed)',
+    summary: [
+      'ClickHouseHfService.getTripRpmHfPoints: org/vehicle/trip_id/signal + trip window; pagination at 12k; tenant scope violation detection; fail-soft on CH outage.',
+      'New rpm-hf-v1a module: per-trip VSI admission (RPM_1HZ only when trip classified), descriptive data quality, read-only contract for future shadow engine.',
+      'VSI consumer registry ds4_rpm_hf_v1a (APPROVED_DESIGN_CONTRACT). Production activation forbidden — no scheduler, outbox, or Motion/Impact changes.',
+    ],
+    reason:
+      'Phase 2A controlled data integration after DS4 RPM HF read-only audit; no retroactive RPM_1HZ on unclassified historical trips.',
+    previousBehavior:
+      'RPM HF cadence evidence used vehicle time-band reads only; DS4 had no trip-scoped RPM HF reader or admission adapter.',
+    details:
+      'backend: clickhouse-hf.service/types, driving-intelligence/rpm-hf-v1a/*, vehicle-intelligence.module.ts, vsi-consumer-requirements.registry.ts; architecture/drivingintelligence/research/CHANGE_LEDGER.md.',
+    affectsArchitecture: true,
+    module: 'Driving Intelligence',
+    createdAt: '2026-10-28T11:30:00.000Z',
+  },
+  {
     id: 'vsi-lv-standby-transmission-profile-v1-2026-10-28',
     version: '4.9.5003',
     title: 'VSI LV standby transmission profile V1 (observed 8h/24h cadence)',
@@ -52,6 +257,62 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     affectsArchitecture: true,
     module: 'Vehicle Intelligence',
     createdAt: '2026-10-28T07:30:00.000Z',
+  },
+  {
+    id: 'ds4-assessment-collection-safety-2026-10-28',
+    version: '4.9.5011',
+    title: 'DS4 L2 assessment collection safety — V2-only discovery + cutoff fail-closed (Draft)',
+    summary: [
+      'Assessment outbox discovery: only SUCCEEDED Motion runs with V2 intensity event-row contract on/after DI_V0_DS4_ASSESSMENT_MIN_MOTION_RUN_CREATED_AT; summary_json validated against payload contract.',
+      'Worker fail-closed without explicit UTC cutoff env; proposed boundary 2026-10-28T17:42:00Z documented in .env.example only (not production).',
+      'Impact V2 percentile resolver runs only when assessmentStatus=RATED; UNRATED/INSUFFICIENT paths keep operationalLoadIndex=null.',
+    ],
+    reason:
+      'Safe shadow collection for post-L2 Motion V2 without V1 batch starvation, historical reprocessing, or numeric score leakage under unapproved ordinal policy.',
+    previousBehavior:
+      'Discovery ordered all SUCCEEDED motion runs regardless of V1/V2 contract or age; Impact V2 could invoke percentile resolver for non-RATED assessments.',
+    details:
+      'backend: ds4-assessment-outbox.repository.v1.ts, ds4-assessment-motion-discovery-eligibility.v1.ts, ds4-assessment.config.ts, ds4-driving-impact-v2.engine.ts; postgres CI 31 tests; architecture/drivingintelligence/research/CHANGE_LEDGER.md.',
+    affectsArchitecture: true,
+    module: 'Driving Intelligence',
+    createdAt: '2026-10-28T21:50:00.000Z',
+  },
+  {
+    id: 'ds4-pre-activation-readiness-2026-10-28',
+    version: '4.9.5006',
+    title: 'DS4 pre-activation readiness — exposure O(n) + postgres persistence assertions (Draft)',
+    summary: [
+      'Map-based duplicate FSM label counting in driving exposure (same fail-closed semantics).',
+      'Disposable Postgres integration asserts persisted eventSummariesJson exposure provenance, intensity quality counts, C4/C5.1 authority, zero-exposure INSUFFICIENT_EVIDENCE.',
+      'Read-only production audit recorded; no worker activation or deploy.',
+    ],
+    reason: 'Close technical prerequisites before DS4 assessment data collection (post PR #2218 merge).',
+    previousBehavior: 'FSM duplicate-label union used O(n²) scans; postgres suite did not assert persisted eventSummariesJson PR-A2 fields.',
+    details:
+      'backend: ds4-assessment-driving-exposure.v1.ts; ds4-assessment.postgres.integration.spec.ts; architecture evidence DS4_PRE_ACTIVATION_READINESS_2026-10-28.md.',
+    affectsArchitecture: true,
+    module: 'Driving Intelligence',
+    createdAt: '2026-10-28T14:05:00.000Z',
+  },
+  {
+    id: 'ds4-assessment-l2-intensity-exposure-pr-a2-2026-10-28',
+    version: '4.9.5005',
+    title: 'DS4 Assessment L2 PR-A2 — intensity, exposure hardening (Draft, worker OFF)',
+    summary: [
+      'L2 event admissibility from persisted V2 intensity only (OK, coverageRatio=1, steps=durationS, duration tiers FULL_ELIGIBLE/BIN_ONLY).',
+      'Canonical exposure Es/D_km: both interval endpoints MOVING+DIRECT + usable speed; 1s grid gap; fail-closed duplicate labels; no C5.1→c4Speeds fallback.',
+      'Assessment input fingerprint binds L2 eligibility + exposure rule versions; zero exposure always INSUFFICIENT_EVIDENCE (never RATED).',
+      'ordinalTripRatingApproved=false; operationalLoadIndex=null; workers OFF.',
+    ],
+    reason:
+      'Implement Fable 2026-10-28 gates for ordinal event quality and exposure before calibrated Driving Impact V2 scoring.',
+    previousBehavior:
+      'PR-A L2 counted any consumable intensity row without duration tier gates or integrated driving exposure metadata.',
+    details:
+      'backend ds4-assessment: ds4-assessment-event-intensity-eligibility.v1.ts, ds4-assessment-driving-exposure.v1.ts, ds4-trip-assessment-v1.engine.ts; tests; architecture/drivingintelligence design + evidence PR-A2.',
+    affectsArchitecture: true,
+    module: 'Driving Intelligence',
+    createdAt: '2026-10-28T12:30:00.000Z',
   },
   {
     id: 'ds4-event-intensity-persistence-pr2-2026-10-28',
@@ -74,6 +335,26 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-10-28T01:00:00.000Z',
   },
   {
+    id: 'rpm-reference-intelligence-adr-2026-10-30',
+    version: '4.9.5002',
+    title: 'RPM Reference Intelligence — ownership boundaries ADR (Phase 5, docs only)',
+    summary: [
+      'Decision DI-DEC-RPM-REF-INTEL-001: VSI owns RPM profiles + cadence tier evidence; RPM HF V1A/V1B owns HF observation, admission, qualityExposure.',
+      'Vehicle Specifications idleRpm/maxRpm are reference metadata only — never substitute missing HF; must not modify V1B admission gates.',
+      'RPM Reference Intelligence is a small future RPM-workstream component (normalized position, bands, time-weighted exposure) — NOT YET IMPLEMENTED.',
+      'DS4 remains motion/event authority; optional future versioned consumer interface with temporal alignment; no RPM load/wear/scoring without owner approval.',
+    ],
+    reason:
+      'Register owner-approved Phase 5 architecture without runtime, migration, or canary interference.',
+    previousBehavior:
+      'RPM boundaries scattered across V1B/VSI code comments and audit notes; no single ADR for reference metadata vs HF vs DS4.',
+    details:
+      'architecture/drivingintelligence/design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md, decisions/DECISION_REGISTER.md, VSI_CROSS_WORKSTREAM_CONTRACTS.md, SYNQDRIVE_RENTAL_ARCHITECTURE.md.',
+    affectsArchitecture: true,
+    module: 'Driving Intelligence',
+    createdAt: '2026-10-30T17:00:00.000Z',
+  },
+  {
     id: 'ds4-authority-migration-pr0-2026-10-28',
     version: '4.9.5001',
     title: 'DS4 authoritative assessment migration — PR-0 (governance only)',
@@ -93,6 +374,157 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     affectsArchitecture: true,
     module: 'Driving Intelligence',
     createdAt: '2026-10-28T00:00:00.000Z',
+  },
+  {
+    id: 'tire-v3-calibration-center-p3-1-2026-11-01',
+    version: '4.9.5004',
+    title: 'Master Admin — Tire V3 Calibration Center (P3.1 read-only UI)',
+    summary: [
+      'Engineering nav entry and four-tab dashboard: overview, snapshots, accuracy (not evaluable), data quality (sampled rejections).',
+      'Read-only list/detail APIs for org-scoped snapshot exploration; snapshot drawer with prediction payload sections.',
+      'Writer telemetry labeled replica-local; no customer V3 or writer activation from UI.',
+    ],
+    reason: 'Operational monitoring for calibration shadow P3 without implying persisted measurement pairs or accuracy metrics.',
+    previousBehavior: 'Calibration shadow inspectable via raw Master Admin API only (PR #2289).',
+    details:
+      'backend: tire-wear-v3-calibration-center read routes; frontend: master/tire-v3-calibration-center/*; master.intelligence.tireCalibration.* i18n.',
+    affectsArchitecture: true,
+    module: 'Tires Health',
+    createdAt: '2026-11-01T09:30:00.000Z',
+  },
+  {
+    version: '4.9.5003',
+    title: 'Tire Wear V3 — calibration shadow P3 (snapshots + writer, default OFF)',
+    summary: [
+      'Additive table `tire_wear_v3_calibration_snapshot_v1` for immutable per-wheel V3 predictions; reuses `computeForSetup` with `persistShadow: false`.',
+      'Leader scheduler `tire_wear_v3_calibration_shadow_writer` and `TIRE_WEAR_V3_CALIBRATION_SHADOW_WRITE_ENABLED` (default false); pairing policy + Master Admin read-only inspection API.',
+      'Pre-merge hardening: calibration eligibility digest gate (no odometer-only churn), physical tire id + temporal leakage fields, DB immutability trigger, org-scoped eligibility.',
+      'Separate from P3A `tire_wear_v3_prior_shadow_v1`; no customer UI or wear-equation changes.',
+    ],
+    reason:
+      'Prospective calibration evidence for independent tread measurements without activating production writes in this PR.',
+    previousBehavior:
+      'P2 calibration shadow persistence plan only; no calibration snapshot store or scheduled writer.',
+    details:
+      'backend: wear-v3-calibration-shadow/*, migrations 20261101120000 + 20261101183000; architecture/tires/integration/TIRE_WEAR_V3_CALIBRATION_SHADOW_P3.md.',
+    affectsArchitecture: true,
+    module: 'Tires Health',
+    createdAt: '2026-11-01T02:00:00.000Z',
+  },
+  {
+    id: 'oneauto-p1-provider-foundation-2026-10-31',
+    version: '4.9.5002',
+    title: 'One Auto API — Master Admin provider foundation (backend P1)',
+    summary: [
+      'Additive backend module: typed service catalog (six SKUs), allowlisted sandbox/live HTTP client, cost confirmation + org budget guards, BullMQ job lifecycle, external response store only.',
+      'Master Admin routes under `admin/organizations/:orgId/oneauto/*`; default OFF (`ONEAUTO_ENABLED=false`); no auto-write to vehicle specs or service history.',
+      'Provider paths and response fields remain PATH_UNVERIFIED until OpenAPI attestation; indicative prices via `ONEAUTO_INDICATIVE_PRICE_*_MINOR` env only.',
+    ],
+    reason:
+      'Secure extensible One Auto integration for future Master workflows without altering existing manual spec, AI merge, or ZB-I flows.',
+    previousBehavior:
+      'One Auto documented as future-only in `ONEAUTO_MASTER_SPEC_INTEGRATION.md` with no backend execution path.',
+    details:
+      'backend: `modules/oneauto-provider/*`, Prisma `OneAutoProviderJob` / `OneAutoProviderResponse`, `ONEAUTO_*` env; tests: foundation + security + service specs (mocked fetch).',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-10-31T16:00:00.000Z',
+  },
+  {
+    id: 'oneauto-p25a-contract-hardening-2026-11-01',
+    version: '4.9.5004',
+    title: 'One Auto API — P2.5A documented contracts & HTTP hardening',
+    summary: [
+      'Six vendor-documented GET paths, `x-api-key`, and `vehicle_identification_number` recorded in `oneauto-documented-contracts.ts` — DOCUMENTED ≠ executable.',
+      'Execution registry remains empty; allowlist + outbound HTTP require EXECUTION_VERIFIED attestation. HTTP 206 and async poll billing fail-closed.',
+      'DE PrePay EUR reference minors in `oneauto-prepay-reference-prices.ts` (not auto-quoted); catalog paths updated; `ONEAUTO_MAX_RETRIES` default 0.',
+    ],
+    reason:
+      'Align P1 foundation with P2.5 audit without enabling paid provider calls or bypassing MFA/budget/idempotency gates.',
+    previousBehavior:
+      'Placeholder `oe/.../v1/lookup` paths, `Authorization`/`vin` HTTP defaults, empty verified registry only.',
+    details:
+      'backend: `oneauto-contract-types`, `oneauto-documented-contracts`, `oneauto-prepay-reference-prices`, HTTP client + execution 206/async policy, `oneauto-p25a.contract-hardening.spec.ts`, evidence doc refresh.',
+    affectsArchitecture: false,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-01T08:40:00.000Z',
+  },
+  {
+    id: 'oneauto-p25e-a-offline-security-hardening-2026-11-01',
+    version: '4.9.5006',
+    title: 'One Auto API — P2.5E-A offline security hardening',
+    summary: [
+      'Fail-closed SUCCESS_RESULT_ERROR envelope on HTTP 200 (`success:false` / malformed success never completes jobs).',
+      'HTTP client enforces `isValidVin`, manual redirects, bounded response bytes; non-JSON bodies stored without raw preview text.',
+      'Positive finite `ONEAUTO_ORG_DAILY_BUDGET_MINOR` required when `ONEAUTO_ENABLED=true`; default disabled installs unchanged.',
+      'Execution-verified registry remains empty; mocked regression tests only — no live provider calls.',
+    ],
+    reason: 'Remediate P2.5D live-readiness findings before any sandbox attestation.',
+    previousBehavior:
+      'HTTP 200 could mark jobs SUCCEEDED regardless of OpenAPI success flag; HTTP client lacked VIN regex, redirect policy, and response size cap.',
+    details:
+      'backend: envelope + budget guard utils, HTTP/execution service updates, `oneauto-p25e-offline-security-hardening.spec.ts`; architecture `oneauto-provider/P1_CHANGE_RECORD.md`.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-01T22:15:00.000Z',
+  },
+  {
+    id: 'oneauto-p25e-c-isolated-attestation-harness-2026-11-02',
+    version: '4.9.5007',
+    title: 'One Auto API — P2.5E-C isolated sandbox attestation harness',
+    summary: [
+      'Dedicated sandbox-only attestation transport (DOCUMENTED contract) decoupled from EXECUTION_VERIFIED registry and ONEAUTO_ENABLED.',
+      'Offline CLI + fixtures simulate HTTP outcomes; production one-shot via --live-production with explicit env authorizations (api.oneautoapi.com only).',
+      'Evidence template + DE runbook for manual redacted capture; no automatic registry promotion.',
+    ],
+    reason: 'Prepare controlled first sandbox VIN lookup attestation without weakening production execution gates.',
+    previousBehavior: 'No isolated owner-controlled attestation path; production execute required EXECUTION_VERIFIED promotion first.',
+    details:
+      'backend: attestation/*, scripts/ops/oneauto-p25e-c-sandbox-attestation.ts, oneauto-p25e-c-isolated-attestation.harness.spec.ts; architecture evidence P25E_C_ATTESTATION_TEMPLATE.md.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-02T00:00:00.000Z',
+  },
+  {
+    id: 'oneauto-p2-master-admin-ui-2026-11-01',
+    version: '4.9.5003',
+    title: 'One Auto API — Master Admin service dialog (frontend P2)',
+    summary: [
+      'Spec-actions button `vehicle-registration-oneauto-api` opens `OneAutoServiceDialog` beside Fetch AI Specs and ZB-I upload (edit mode only).',
+      'Catalog, quote, explicit cost confirmation, MFA step-up on execute, bounded job polling, and read-only result viewer call existing P1 routes only — no browser calls to One Auto.',
+      'CONTRACT_UNVERIFIED / disabled provider SKUs remain visible but non-executable; no auto-import into vehicle specifications or service history.',
+      'Nine-locale `master.oneAuto.*` keys; component tests for catalog safety, quote gate, MFA, polling, and context binding.',
+    ],
+    reason:
+      'Master operators need a gated UI on top of P1 provider foundation without duplicating backend logic or bypassing contract/MFA gates.',
+    previousBehavior:
+      'Reserved integration marker on spec-actions row; no Master Admin One Auto UI.',
+    details:
+      'frontend: `master/oneauto/*`, VehicleRegistrationModal.tsx, i18n `master.oneAuto.*`; tests: OneAutoServiceDialog.test.tsx, VehicleRegistrationModal.oneauto.test.tsx.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-01T00:00:00.000Z',
+  },
+  {
+    id: 'master-zb1-additive-toolbar-2026-10-29',
+    version: '4.9.5001',
+    title: 'Master vehicle spec — additive ZB-I upload toolbar + form apply',
+    summary: [
+      'Preserves manual spec entry, Fetch AI Specs, AI field merge, save/update, service/history blocks, and ConnectedVehiclesHub navigation.',
+      'New spec-actions control `vehicle-registration-upload-zb1` opens `MasterZb1RegistrationDialog` (PDF/image → existing document extraction + review).',
+      'Embedded `VehicleIdentityP2Panel` keeps review path but defers upload to toolbar; apply-to-form maps confirmed P.1/P.3/G kerb mass into registration fields with VIN-mismatch gate.',
+      'One Auto API: integration contract documented only (`ONEAUTO_MASTER_SPEC_INTEGRATION.md`); `data-oneauto-future-action=reserved` on spec-actions row — no paid API or placeholder button.',
+      'Nine-locale `master.vehicleIdentity.uploadToolbar` + apply/dialog copy; unit tests for merge util + modal regression.',
+    ],
+    reason:
+      'Operators need Fahrzeugschein upload beside existing AI spec actions without redesigning the registration modal or duplicating document pipelines.',
+    previousBehavior:
+      'ZB-I upload lived only inside the embedded P2 panel when flags enabled; no dedicated toolbar entry or apply-to-registration-form bridge for specification fields.',
+    details:
+      'frontend: VehicleRegistrationModal.tsx, MasterZb1RegistrationDialog.tsx, VehicleIdentityP2Panel.tsx, zb1-registration-form-merge.util.ts, ONEAUTO_MASTER_SPEC_INTEGRATION.md; tests: zb1-registration-form-merge.util.test.ts, VehicleRegistrationModal.zb1-additive.test.tsx.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-10-29T12:00:00.000Z',
   },
   {
     id: 'vehicle-identity-p3-bridge-provenance-2026-10-27',

@@ -95,8 +95,10 @@ export class VehiclesController {
 
   @Get('admin/vehicles/operational/overview')
   @Roles('MASTER_ADMIN')
-  async vehiclesOperationalOverview() {
-    return this.vehiclesOperational.getOverview();
+  async vehiclesOperationalOverview(@Query('organizationId') organizationId?: string) {
+    return this.vehiclesOperational.getOverview(
+      organizationId?.trim() ? { organizationId: organizationId.trim() } : undefined,
+    );
   }
 
   @Get('admin/vehicles/operational/attention-queue')

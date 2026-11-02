@@ -328,6 +328,7 @@ export class VsiSignalProfileMaterializationService {
         priorProvenStrictSourceAdvanceAt:
           existingProfile?.lastProvenStrictSourceAdvanceAt ?? null,
         dtcConfirmedComplete,
+        fuelType: vehicle.fuelType,
       },
       this.declaredCatalog,
     );

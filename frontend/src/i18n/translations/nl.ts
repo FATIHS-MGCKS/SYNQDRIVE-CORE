@@ -8,8 +8,10 @@ import { masterPlatformOpsDiS4Nl } from './master.platformOps.diS4.nl';
 import { batteryV2HvInspectionNL } from './battery-v2-hv-inspection.nl';
 import { tireWearV3Nl } from './tire.wearV3.nl';
 import { masterPhysicalDeviceInventoryNl } from './master.physicalDeviceInventory.nl';
+import { masterIntelligenceNl } from './master.intelligence.nl';
 import { masterMotionPhysicsNl } from './master.motionPhysics.nl';
 import { masterVehicleIdentityNl } from './master.vehicleIdentity.nl';
+import { masterOneAutoNl } from './master.oneAuto.nl';
 import { masterCvTechnicalSpecsNl } from './master.cv.technicalSpecs.nl';
 
 // Dutch translations - start with English as base, override with Dutch
@@ -60,6 +62,16 @@ export const nl = {
   'settings.accountInfo': 'Accountgegevens', 'settings.companyProfile': 'Bedrijfsprofiel', 'settings.stationsBranches': 'Stations en filialen', 'settings.usersRoles': 'Gebruikers en rollen', 'settings.billingSubscription': 'Facturering en abonnement', 'settings.firmLogo': 'Bedrijfslogo', 'settings.documents': 'Documenten', 'settings.createNewLocation': 'Nieuwe locatie aanmaken', 'settings.inviteUser': 'Gebruiker uitnodigen', 'settings.paymentMethod': 'Betaalmethode', 'settings.subscriptionSummary': 'Abonnementsoverzicht', 'settings.invoiceHistory': 'Factuurgeschiedenis', 'settings.vehicles': 'Voertuigen', 'settings.connectedVehicles': 'Verbonden voertuigen', 'settings.dataSync': 'Gegevenssynchronisatie',
 
   // ─── Master — Connected Vehicles offboard (VO5C-P2A) ───
+  // ─── Master — Vehicle registration spec contract (V3) ───
+  'master.registration.lvBatteryConstructionType.label': 'LV-bouwtype',
+  'master.registration.lvBatteryConstructionType.leadAcid': 'Loodzuur (nat)',
+  'master.registration.lvBatteryChemistryHint.label': 'Chemie (alleen AI-hint)',
+  'master.registration.lvBatteryChemistryHint.placeholder': 'Wordt niet opgeslagen — gebruik LV-bouwtype',
+  'master.registration.lvBatteryChemistryHint.title': 'Materiaalchemie wordt niet opgeslagen; Battery Health gebruikt het LV-bouwtype.',
+  'master.registration.lvBatteryType.legacyLabel': 'Opgeslagen legacy-waarde (kies type om bij te werken)',
+  'master.registration.lvBatteryType.lvBatteryTypeRequiredForNumbers': 'Kies een ondersteund LV-bouwtype voordat u capaciteit of spanning invult.',
+  'master.registration.lvBatteryType.lvBatteryTypeInvalid': 'Niet-ondersteund LV-bouwtype. Kies AGM, EFB, loodzuur of lithium.',
+
   'master.cv.registryLifecycle.active': 'Actief',
   'master.cv.registryLifecycle.offboarded': 'Uit actief bestand',
   'master.cv.registryLifecycle.archived': 'Gearchiveerd',
@@ -69,6 +81,22 @@ export const nl = {
   'master.cv.registryLifecycle.filter.archived': 'Gearchiveerd',
   'master.cv.registryLifecycle.filter.all': 'Alle levenscycli',
   'master.cv.registryLifecycle.filter.ariaLabel': 'Filteren op registerlevenscyclus',
+  'master.cv.overview.telemetryNoSignal': 'Geen signaal',
+  'master.cv.overview.telemetrySignalDelayed': 'Signaal vertraagd',
+  'master.cv.overview.openPlatformHealth': 'Platformstatus openen',
+  'master.cv.overview.platformDimoDegradedBody':
+    'Globale DIMO-storing — voertuigtelemetrie kan verouderd zijn. Geen dubbele waarschuwing per voertuig.',
+  'master.cv.overview.platformDimoDegradedTitle': 'DIMO-platform beperkt',
+  'master.cv.overview.unavailableTitle': 'Overzicht niet beschikbaar',
+  'master.cv.overview.noAttention': 'Geen open governance-items.',
+  'master.cv.overview.showAll': 'Alles tonen',
+  'master.cv.overview.attentionQueue': 'Aandachtswachtrij',
+  'master.cv.overview.telemetryDistribution': 'Telemetrieverdeling',
+  'master.cv.overview.dimoLinked': 'DIMO gekoppeld (actief)',
+  'master.cv.overview.withAttention': 'Vereist aandacht',
+  'master.cv.overview.unregistered': 'Niet toegewezen',
+  'master.cv.overview.registeredActive': 'Actieve vloot',
+  'master.cv.overview.registeredAllHint': 'Alle records: {total} (uitgefaseerd {offboarded}, gearchiveerd {archived})',
   'master.cv.mapping.mirrorProvider': 'DIMO-spiegel (provider)',
   'master.cv.mapping.effectiveSynqDriveAccess': 'SynqDrive-toegang (effectief)',
   'master.cv.offboard.action': 'Uit actief bestand verwijderen',
@@ -158,7 +186,7 @@ export const nl = {
   'newBooking.title': 'Nieuwe boeking', 'newBooking.selectCustomer': 'Klant selecteren', 'newBooking.selectVehicle': 'Voertuig selecteren', 'newBooking.timePeriod': 'Periode en ophaling', 'newBooking.mileagePackages': 'Kilometerpakketten', 'newBooking.insurancePackages': 'Verzekeringspakketten', 'newBooking.extras': 'Extra\'s', 'newBooking.invoice': 'Factuur', 'newBooking.rentalContract': 'Huurovereenkomst', 'newBooking.createCustomer': 'Nieuwe klant aanmaken', 'newBooking.bookingCreated': 'Boeking aangemaakt!',
   'newTaskModal.title': 'Nieuwe taak', 'newTaskModal.basicInfo': 'Basisgegevens', 'newTaskModal.vehicleAssignment': 'Voertuig en toewijzing', 'newTaskModal.scheduling': 'Planning',
   'trips.tripHistory': 'Ritgeschiedenis', 'trips.noTrips': 'Geen ritten gevonden', 'trips.tryAdjusting': 'Probeer de filters aan te passen', 'trips.frequency': 'Frequentie', 'trips.low': 'Laag', 'trips.medium': 'Gemiddeld', 'trips.high': 'Hoog', 'trips.distance': 'Afstand', 'trips.duration': 'Duur', 'trips.alerts': 'Waarschuwingen', 'trips.drivingScore': 'Rijscore', 'trips.start': 'Start', 'trips.destination': 'Bestemming',
-  'health.aiHealthCare': 'AI-gezondheidszorg', 'health.poweredByAi': 'Aangedreven door AI', 'health.errorCodes': 'Foutcodes', 'health.noActiveErrors': 'Geen actieve foutcodes', 'health.timeline': 'Tijdlijn', 'health.battery': 'Batterij', 'health.voltage': 'Spanning', 'health.lastCheck': 'Laatste controle', 'health.temperature': 'Temperatuur', 'health.estimatedCapacity': 'Geschatte capaciteit', 'health.serviceInfo': 'Service-info', 'health.nextService': 'Volgende service', 'health.serviceHistory': 'Servicegeschiedenis', 'health.brakes': 'Remmen', 'health.changeHistory': 'Wisselgeschiedenis', 'health.tires': 'Banden', 'health.usageDistribution': 'Gebruiksverdeling', 'health.city': 'Stad', 'health.highway': 'Snelweg', 'health.countryRoad': 'Buitenweg', 'health.engineOil': 'Motorolie', 'health.lastChange': 'Laatste wissel', 'health.oilChangeHistory': 'Olieverversingsgeschiedenis', 'health.tireRotation': 'Bandenrotatie', 'health.tireChange': 'Bandwissel',
+  'health.aiHealthCare': 'AI-gezondheidszorg', 'health.aiTireSpec.applyFailed': 'AI-bandenspecificatie toepassen mislukt.', 'health.aiTireSpec.applySuccess': 'AI-bandenspecificatie toegepast.', 'health.aiTireSpec.seasonMismatchWarning': 'AI-bandenspecificatie opgeslagen. Setup-seizoen is niet gewijzigd en wijkt af van het AI-seizoen.', 'health.aiTireSpec.staleBinding': 'Bandensetup gewijzigd na AI-ophaling. Haal de AI-spec opnieuw op.', 'health.aiTireSpec.missingGenerationBinding': 'Toepassen zonder generatiebinding. Haal AI-bandenspec opnieuw op.', 'health.aiTireSpec.missingActiveSetup': 'Geen actieve bandensetup gevonden.', 'health.aiTireSpec.identityMismatch': 'Identiteit van AI-bandenspec komt niet overeen met setup of ophaalverzoek.', 'health.poweredByAi': 'Aangedreven door AI', 'health.errorCodes': 'Foutcodes', 'health.noActiveErrors': 'Geen actieve foutcodes', 'health.timeline': 'Tijdlijn', 'health.battery': 'Batterij', 'health.voltage': 'Spanning', 'health.lastCheck': 'Laatste controle', 'health.temperature': 'Temperatuur', 'health.estimatedCapacity': 'Geschatte capaciteit', 'health.serviceInfo': 'Service-info', 'health.nextService': 'Volgende service', 'health.serviceHistory': 'Servicegeschiedenis', 'health.brakes': 'Remmen', 'health.changeHistory': 'Wisselgeschiedenis', 'health.tires': 'Banden', 'health.usageDistribution': 'Gebruiksverdeling', 'health.city': 'Stad', 'health.highway': 'Snelweg', 'health.countryRoad': 'Buitenweg', 'health.engineOil': 'Motorolie', 'health.lastChange': 'Laatste wissel', 'health.oilChangeHistory': 'Olieverversingsgeschiedenis', 'health.tireRotation': 'Bandenrotatie', 'health.tireChange': 'Bandwissel',
   'damages.totalDamages': 'Totaal schades', 'damages.activeDamages': 'Actieve schades', 'damages.vehicleDamageMap': 'Voertuig schadekaart', 'damages.damageHistory': 'Schadegeschiedenis',
   'documents.vehicleDocuments': 'Voertuigdocumenten', 'documents.monthlyFixedCosts': 'Maandelijkse vaste kosten',
   'customerDetail.title': 'Klantdetails', 'customerDetail.customerDocuments': 'Klantdocumenten', 'customerDetail.customerAlerts': 'Klantwaarschuwingen', 'customerDetail.customerNotes': 'Klantnotities',   'customerDetail.drivingScore': 'Rijscore',
@@ -177,8 +205,10 @@ export const nl = {
   'trips.drivingImpact.quality.unavailable': 'Geen betrouwbare voertuigbelasting-evaluatie beschikbaar.',
   'trips.drivingImpact.quality.r1Contained': 'Voertuigbelasting tijdelijk niet beschikbaar (R1-tijdsbeperking).',
   ...masterPhysicalDeviceInventoryNl,
+  ...masterIntelligenceNl,
   ...masterMotionPhysicsNl,
 ...masterVehicleIdentityNl,
+  ...masterOneAutoNl,
   ...masterCvTechnicalSpecsNl,
   ...batteryV2HvInspectionNL,
   ...tireWearV3Nl,

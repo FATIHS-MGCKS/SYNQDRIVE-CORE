@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
+import type { Ds4LongitudinalLoadObservablesV1 } from './ds4-longitudinal-load-observables.v1.contract';
+import { projectDs4LongitudinalLoadObservablesV1FromPersistedAssessmentV1 } from './ds4-longitudinal-load-observables.v1';
+import { loadDs4LongitudinalEvidenceQualityContextV1 } from './ds4-longitudinal-evidence-quality-context.loader.v1';
+import type { Ds4SpeedAuthorityPartitionV1, Ds4TripAssessmentStatusV1 } from './ds4-trip-assessment-v1.contract';
 import { Ds4TripAssessmentRepositoryV1 } from './ds4-trip-assessment.repository.v1';
 
 export type Ds4AssessmentInternalReadDtoV1 = {
@@ -30,6 +34,8 @@ export type Ds4AssessmentInternalReadDtoV1 = {
     operationalLoad: unknown;
     computedAt: string;
   } | null;
+  /** Deterministic Layer-2 projection from persisted assessment (AP1 kernel); not a customer score. */
+  longitudinalLoadObservablesV1: Ds4LongitudinalLoadObservablesV1 | null;
 };
 
 @Injectable()
@@ -48,6 +54,25 @@ export class Ds4AssessmentReadServiceV1 {
     const bundle = await this.repo.readLatestBundleForTrip(scope);
     if (!bundle?.assessment) return null;
     const { assessment, impact } = bundle;
+
+    const evidenceQualityContext = await loadDs4LongitudinalEvidenceQualityContextV1(
+      this.prisma as unknown as PrismaClient,
+      {
+        organizationId: scope.organizationId,
+        tripId: scope.tripId,
+        pinnedSnapshotHash: assessment.pinnedSnapshotHash,
+        sparseChannelOutcome: assessment.evidenceQuality,
+      },
+    );
+
+    const longitudinalLoadObservablesV1 = projectDs4LongitudinalLoadObservablesV1FromPersistedAssessmentV1({
+      assessmentStatus: assessment.assessmentStatus as Ds4TripAssessmentStatusV1,
+      evidenceQuality: assessment.evidenceQuality,
+      speedAuthority: assessment.speedAuthority as Ds4SpeedAuthorityPartitionV1 | null,
+      eventSummariesJson: assessment.eventSummariesJson,
+      evidenceQualityContext,
+    });
+
     return {
       assessment: {
         assessmentVersion: assessment.assessmentVersion,
@@ -77,6 +102,7 @@ export class Ds4AssessmentReadServiceV1 {
             computedAt: impact.computedAt.toISOString(),
           }
         : null,
+      longitudinalLoadObservablesV1,
     };
   }
 }

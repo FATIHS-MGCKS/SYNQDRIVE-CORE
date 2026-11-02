@@ -61,8 +61,10 @@ import { masterPlatformOpsDiS4En } from './master.platformOps.diS4.en';
 import { batteryV2HvInspectionEN } from './battery-v2-hv-inspection.en';
 import { tireWearV3En } from './tire.wearV3.en';
 import { masterPhysicalDeviceInventoryEn } from './master.physicalDeviceInventory.en';
+import { masterIntelligenceEn } from './master.intelligence.en';
 import { masterMotionPhysicsEn } from './master.motionPhysics.en';
 import { masterVehicleIdentityEn } from './master.vehicleIdentity.en';
+import { masterOneAutoEn } from './master.oneAuto.en';
 import { masterRegistrationBrakeEn } from './master.registration.brake.en';
 import { masterCvTechnicalSpecsEn } from './master.cv.technicalSpecs.en';
 
@@ -3293,6 +3295,16 @@ export const en = {
   'settings.dataSync': 'Data Sync',
 
   // ─── Master — Connected Vehicles offboard (VO5C-P2A) ───
+  // ─── Master — Vehicle registration spec contract (V3) ───
+  'master.registration.lvBatteryConstructionType.label': 'LV construction type',
+  'master.registration.lvBatteryConstructionType.leadAcid': 'Lead-acid (flooded)',
+  'master.registration.lvBatteryChemistryHint.label': 'Chemistry (AI hint only)',
+  'master.registration.lvBatteryChemistryHint.placeholder': 'Not saved — use LV construction type',
+  'master.registration.lvBatteryChemistryHint.title': 'Material chemistry is not persisted; Battery Health uses the LV construction type.',
+  'master.registration.lvBatteryType.legacyLabel': 'Stored legacy value (pick a type to update)',
+  'master.registration.lvBatteryType.lvBatteryTypeRequiredForNumbers': 'Select a supported LV construction type before entering capacity or voltage.',
+  'master.registration.lvBatteryType.lvBatteryTypeInvalid': 'Unsupported LV construction type. Choose AGM, EFB, lead-acid, or lithium.',
+
   'master.cv.registryLifecycle.active': 'Active',
   'master.cv.registryLifecycle.offboarded': 'Offboarded',
   'master.cv.registryLifecycle.archived': 'Archived',
@@ -3302,6 +3314,22 @@ export const en = {
   'master.cv.registryLifecycle.filter.archived': 'Archived',
   'master.cv.registryLifecycle.filter.all': 'All lifecycles',
   'master.cv.registryLifecycle.filter.ariaLabel': 'Filter by registry lifecycle',
+  'master.cv.overview.registeredActive': 'Active fleet',
+  'master.cv.overview.registeredAllHint': 'All records: {total} (offboarded {offboarded}, archived {archived})',
+  'master.cv.overview.unregistered': 'Unassigned',
+  'master.cv.overview.withAttention': 'Needs attention',
+  'master.cv.overview.dimoLinked': 'DIMO linked (active)',
+  'master.cv.overview.telemetryDistribution': 'Telemetry distribution',
+  'master.cv.overview.attentionQueue': 'Attention queue',
+  'master.cv.overview.showAll': 'Show all',
+  'master.cv.overview.noAttention': 'No open governance items.',
+  'master.cv.overview.unavailableTitle': 'Overview unavailable',
+  'master.cv.overview.platformDimoDegradedTitle': 'DIMO platform degraded',
+  'master.cv.overview.platformDimoDegradedBody':
+    'Global DIMO outage — vehicle telemetry may be stale. No per-vehicle duplicate warning.',
+  'master.cv.overview.openPlatformHealth': 'Open platform status',
+  'master.cv.overview.telemetrySignalDelayed': 'Signal delayed',
+  'master.cv.overview.telemetryNoSignal': 'No signal',
   'master.cv.mapping.mirrorProvider': 'DIMO mirror (provider)',
   'master.cv.mapping.effectiveSynqDriveAccess': 'SynqDrive access (effective)',
   'master.cv.offboard.action': 'Remove from active fleet',
@@ -3601,6 +3629,16 @@ export const en = {
 
   // ─── Health & Errors ───
   'health.aiHealthCare': 'AI Health Care',
+  'health.aiTireSpec.applyFailed': 'Failed to apply AI tire spec.',
+  'health.aiTireSpec.applySuccess': 'AI tire spec applied.',
+  'health.aiTireSpec.seasonMismatchWarning':
+    'AI tire spec was saved. Setup season was not changed — it still differs from the AI season suggestion.',
+  'health.aiTireSpec.staleBinding':
+    'Tire setup changed after the AI fetch. Please run AI tire spec again before applying.',
+  'health.aiTireSpec.missingGenerationBinding': 'Apply is missing generation binding. Fetch AI tire spec again.',
+  'health.aiTireSpec.missingActiveSetup': 'No active tire setup found.',
+  'health.aiTireSpec.identityMismatch':
+    'AI tire spec identity does not match the tire setup or the fetch request.',
   'health.poweredByAi': 'Powered by AI',
   'health.errorCodes': 'Error Codes',
   'health.noActiveErrors': 'No Active Error Codes',
@@ -5968,8 +6006,10 @@ export const en = {
   ...tripsM7aMapEN,
   ...masterPlatformOpsDiS4En,
   ...masterPhysicalDeviceInventoryEn,
+  ...masterIntelligenceEn,
   ...masterMotionPhysicsEn,
 ...masterVehicleIdentityEn,
+  ...masterOneAutoEn,
   ...masterRegistrationBrakeEn,
   ...masterCvTechnicalSpecsEn,
   ...batteryV2HvInspectionEN,

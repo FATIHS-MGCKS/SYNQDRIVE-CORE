@@ -1,4 +1,5 @@
 import { TripReconciliationService } from './trip-reconciliation.service';
+import { stubTripDiBoundaryAdmissionService } from './__tests__/trip-reconciliation-di-admission.stub';
 import { REPAIR_STATUS, REPAIR_TYPES } from './reconciliation.types';
 import { buildIntraTripGapSplitRepairAuditId } from './intra-trip-gap-split-repair-id.util';
 
@@ -193,6 +194,7 @@ function buildGapSplitHarness(options?: {
     {} as never,
     {} as never,
     {} as never,
+    stubTripDiBoundaryAdmissionService(),
     undefined as never,
     undefined as never,
     undefined as never,

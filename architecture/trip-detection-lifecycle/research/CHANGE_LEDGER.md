@@ -110,6 +110,7 @@ Append-only record for this authority directory.
 | 2026-10-16 | **P1B** EXP021 anchor PR #2051 @ `4b387d43…` (P22E_F semantic integrity); reference shadow semantics; P23 not blocking P1B; video excluded from runtime | Docs | same P1B evidence |
 | 2026-10-16 | **P1B.1** shadow-OFF legacy-only — gate before modality DB read; orchestration wiring tests; metric property `tripStartBoundaryAdmissionShadowDeltaSeconds` | PR #2057 | same P1B evidence |
 | 2026-10-22 | **P1B.9C** optional `TRIP_MID_GAP_TELEMETRY_SILENCE_HARDENING_ENABLED` (default off) + vehicle UUID allowlist; synthetic anchor / engine-idle mid-gap suppression; Tiguan 2026-10-21 false-split regression | Live FSM mid-gap only | `trip-mid-gap-detection.util.ts`, `trip-mid-gap-p1b9c-telemetry-silence.spec.ts` |
+| 2026-10-31 | **Tiguan S4 admission hardening (PR #2293)** — admission during retryable refresh requires `boundaryRefreshGenerationMatchesRepair` + row-aligned `boundaryRepair`; recovery via existing `retryPendingBoundaryRefreshes`; required Nest DI for `TripDiBoundaryAdmissionService` on reconciliation | Backend reconciliation + DI admission | same evidence doc + unit/postgres specs |
 
 ## Standard 1.0 phases
 

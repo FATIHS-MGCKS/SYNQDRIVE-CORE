@@ -2,7 +2,25 @@ import {
   MotionPhysicsEvidenceTier,
   MotionPhysicsReferenceSource,
 } from '@prisma/client';
-import { resolveMotionPhysicsEvidenceTierForCreate } from './motion-physics-reference.domain';
+import {
+  normalizeMotionSystemPowerDefinition,
+  resolveMotionPhysicsEvidenceTierForCreate,
+} from './motion-physics-reference.domain';
+
+describe('normalizeMotionSystemPowerDefinition', () => {
+  it('maps legacy OEM_RATED_ENGINE_KW to OEM_RATED_MOTOR_KW', () => {
+    expect(normalizeMotionSystemPowerDefinition('OEM_RATED_ENGINE_KW')).toBe('OEM_RATED_MOTOR_KW');
+    expect(normalizeMotionSystemPowerDefinition('oem_rated_engine_kw')).toBe('OEM_RATED_MOTOR_KW');
+  });
+
+  it('accepts canonical tokens unchanged', () => {
+    expect(normalizeMotionSystemPowerDefinition('OEM_RATED_SYSTEM_KW')).toBe('OEM_RATED_SYSTEM_KW');
+  });
+
+  it('returns null for unknown tokens (fail-closed)', () => {
+    expect(normalizeMotionSystemPowerDefinition('COMBINED_SYSTEM')).toBeNull();
+  });
+});
 
 describe('resolveMotionPhysicsEvidenceTierForCreate', () => {
   it('maps Mistral to ESTIMATED', () => {

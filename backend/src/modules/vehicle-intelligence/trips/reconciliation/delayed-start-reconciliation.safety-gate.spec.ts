@@ -1,5 +1,6 @@
 import { modelDelayedStartLiveBoundary } from '../start-boundary-window.util';
 import { TripReconciliationService } from './trip-reconciliation.service';
+import { stubTripDiBoundaryAdmissionService } from './__tests__/trip-reconciliation-di-admission.stub';
 import { TripOverlapDetector } from '../detectors/trip-overlap.detector';
 
 /**
@@ -90,6 +91,7 @@ function buildHarness(trips: Array<{ id: string; startMin: number; endMin: numbe
     {} as never,
     new TripOverlapDetector(prisma as never),
     {} as never,
+    stubTripDiBoundaryAdmissionService(),
     undefined as never,
     undefined as never,
     undefined as never,

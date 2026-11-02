@@ -56,6 +56,7 @@ export const VsiEmpiricalObservationStatus = {
   OBSERVED: 'OBSERVED',
   OBSERVED_STALE: 'OBSERVED_STALE',
   NOT_OBSERVED_IN_WINDOW: 'NOT_OBSERVED_IN_WINDOW',
+  NOT_APPLICABLE: 'NOT_APPLICABLE',
 } as const;
 
 export type VsiEmpiricalObservationStatus =

@@ -3,6 +3,7 @@ import { BoundaryRepairConcurrentMutationError } from '../decision/decision.type
 import { TripReconciliationService } from './trip-reconciliation.service';
 import { TripOverlapDetector } from '../detectors/trip-overlap.detector';
 import { BoundaryRefreshLifecycleService } from '../boundary-refresh-lifecycle.service';
+import { stubTripDiBoundaryAdmissionService } from './__tests__/trip-reconciliation-di-admission.stub';
 import { REPAIR_STATUS, REPAIR_TYPES, BOUNDARY_REFRESH_STATE } from './reconciliation.types';
 import { classifyPartialBoundaryRepair } from '../detectors/partial-boundary-classification.util';
 import {
@@ -207,6 +208,7 @@ describe('FINAL-3.1 boundary repair atomicity', () => {
       {} as never,
       new TripOverlapDetector(h.prisma as never),
       {} as never,
+      stubTripDiBoundaryAdmissionService(),
       undefined as never,
       undefined as never,
       undefined as never,
@@ -391,6 +393,7 @@ function buildReconciliationHarness() {
     {} as never,
     new TripOverlapDetector(h.prisma as never),
     {} as never,
+    stubTripDiBoundaryAdmissionService(),
     undefined as never,
     undefined as never,
     undefined as never,

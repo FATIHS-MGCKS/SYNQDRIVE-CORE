@@ -142,6 +142,15 @@ export function deriveOperatorV3EvidenceWarnings(
       id: 'v3-odo-unconfirmed',
       message: 'operator.tireMeasure.v3.odometerUnconfirmed',
     });
+  } else if (context.confirmOdometerKm || context.source === 'workshop') {
+    warnings.push({
+      id: 'v3-verification-one-point',
+      message: 'operator.tireMeasure.v3.verificationOnePoint',
+    });
+    warnings.push({
+      id: 'v3-rate-two-points',
+      message: 'operator.tireMeasure.v3.rateCalibrationTwoPoints',
+    });
   }
 
   const hasAnyTread = [tread.fl, tread.fr, tread.rl, tread.rr].some((v) => v.trim());
@@ -161,6 +170,11 @@ export type OperatorOdometerSourceKey =
   | 'fleetPrefill'
   | 'unconfirmed'
   | 'none';
+
+export function operatorTireMeasureV3BackendWarningKey(code: string): string | null {
+  if (!code.startsWith('V3_')) return null;
+  return `operator.tireMeasure.v3.backend.${code}`;
+}
 
 export function resolveOperatorOdometerSourceKey(
   context: OperatorTireContextForm,

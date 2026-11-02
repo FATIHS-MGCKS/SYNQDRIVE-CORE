@@ -5,8 +5,10 @@ import {
   resolveMotionCoreShadowEventRowContract,
 } from '../motion-core-shadow-worker/di-v0-motion-core-shadow-event-row.contract';
 import type { DiV0MotionCoreShadowPayloadV1 } from '../motion-core-shadow-worker/di-v0-motion-core-shadow.types';
+import { DS4_ASSESSMENT_L2_RULE_BINDINGS_V1 } from './ds4-assessment-rule-bindings.v1';
 import { DS4_ASSESSMENT_QUALITY_POLICY_V1_DEFAULT } from './ds4-assessment-quality-policy.v1';
 import { DS4_TRIP_ASSESSMENT_VERSION_V1 } from './ds4-trip-assessment-v1.contract';
+import type { Ds4AssessmentDiscoveryTerminalReasonCode } from './ds4-assessment-motion-discovery-eligibility.v1';
 
 export function computeDs4AssessmentInputFingerprint(input: {
   sourceMotionRunId: string;
@@ -20,6 +22,7 @@ export function computeDs4AssessmentInputFingerprint(input: {
   const payload = {
     assessmentVersion: input.assessmentVersion ?? DS4_TRIP_ASSESSMENT_VERSION_V1,
     qualityPolicyVersion: input.qualityPolicyVersion ?? DS4_ASSESSMENT_QUALITY_POLICY_V1_DEFAULT.policyVersion,
+    assessmentL2RuleBindings: DS4_ASSESSMENT_L2_RULE_BINDINGS_V1,
     sourceMotionRunId: input.sourceMotionRunId,
     pinnedSnapshotHash: input.pinnedSnapshotHash,
     combinedInputIdentity: input.combinedInputIdentity,
@@ -32,7 +35,7 @@ export function computeDs4AssessmentInputFingerprint(input: {
 export function computeDs4DiscoveryTerminalInputFingerprint(input: {
   sourceMotionRunId: string;
   assessmentVersion?: string;
-  reasonCode: 'DISCOVERY_PAYLOAD_REQUIRED' | 'DISCOVERY_SOURCE_IDENTITY_MISMATCH';
+  reasonCode: Ds4AssessmentDiscoveryTerminalReasonCode;
 }): string {
   const payload = {
     kind: 'DS4_DISCOVERY_TERMINAL_V1',

@@ -7,6 +7,8 @@ export const masterMotionPhysicsDe = {
   'master.motionPhysics.systemPowerDefinition.option.estimated': 'Geschätzte Systemleistung (KI / unsicher)',
   'master.motionPhysics.systemPowerDefinition.hint':
     'Motor-Nennleistung und Systemleistung nicht vermischen — besonders bei Elektro- und Hybridfahrzeugen.',
+  'master.motionPhysics.systemPowerDefinition.persistHint':
+    'Die Art der Leistungsangabe wird nicht mit „Änderungen speichern“ gespeichert. Nutzen Sie „Manuelle Werte bestätigen“, um die Auswahl in der Fahrphysik-Referenz zu persistieren.',
   'master.motionPhysics.systemMotorPowerKw.hintMotor': 'OEM-Motor-Nennleistung in kW eingeben.',
   'master.motionPhysics.systemMotorPowerKw.hintSystem': 'OEM-Systemleistung in kW (keine Radleistung).',
   'master.motionPhysics.accel0To100S': '0–100 km/h (s)',

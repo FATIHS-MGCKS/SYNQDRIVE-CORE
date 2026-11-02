@@ -211,4 +211,86 @@ describe('TireWearV3PriorService', () => {
     expect(fl?.evidenceLevel).toBe('L1');
     expect(fl?.wearRate.source).not.toBe('measurement_fused');
   });
+
+  it('ignores excluded ai_confirmed rows for rate fitting and projection anchor', async () => {
+    mockAnchoredSetup();
+    prisma.tireTripUsageLedger.findMany.mockResolvedValue([
+      {
+        id: 'led-1',
+        tripId: 't1',
+        distanceKm: 5000,
+        revisionNumber: 1,
+        sourceFingerprint: 'fp',
+        tripStartedAt: new Date('2026-02-01'),
+      },
+    ]);
+    prisma.vehicleTireTreadMeasurement.findMany.mockResolvedValue([
+      {
+        id: 'm-trusted',
+        measuredAt: new Date('2026-03-01'),
+        odometerAtMeasurement: 12000,
+        frontLeftMm: 7.5,
+        frontRightMm: 7.5,
+        rearLeftMm: 7.5,
+        rearRightMm: 7.5,
+        source: 'manual',
+        isCalibrationPoint: false,
+        evidenceSource: TireEvidenceSource.MANUAL_MEASUREMENT,
+      },
+      {
+        id: 'm-ai',
+        measuredAt: new Date('2026-09-01'),
+        odometerAtMeasurement: 20000,
+        frontLeftMm: 2,
+        frontRightMm: 2,
+        rearLeftMm: 2,
+        rearRightMm: 2,
+        source: 'ai_confirmed',
+        isCalibrationPoint: false,
+        evidenceSource: TireEvidenceSource.USER_CONFIRMED,
+      },
+    ]);
+
+    const result = await service.computeForSetup(setupId);
+    expect(result?.setupFlags).toContain('MEASUREMENTS_EXCLUDED_UNTRUSTED_NUMERICAL_SOURCE');
+    const fl = result?.wheels.find((w) => w.position === 'FL');
+    expect(fl?.wearRate.source).not.toBe('measurement_fused');
+    expect(fl?.estimatedTreadMm?.lo).toBeGreaterThan(6);
+  });
+
+  it('does not fuse wear rate from two spaced excluded-source measurements alone', async () => {
+    mockAnchoredSetup();
+    prisma.tireTripUsageLedger.findMany.mockResolvedValue([]);
+    prisma.vehicleTireTreadMeasurement.findMany.mockResolvedValue([
+      {
+        id: 'm1',
+        measuredAt: new Date('2026-03-01'),
+        odometerAtMeasurement: 11000,
+        frontLeftMm: 7,
+        frontRightMm: 7,
+        rearLeftMm: 7,
+        rearRightMm: 7,
+        source: 'ai_confirmed',
+        isCalibrationPoint: false,
+        evidenceSource: TireEvidenceSource.USER_CONFIRMED,
+      },
+      {
+        id: 'm2',
+        measuredAt: new Date('2026-08-01'),
+        odometerAtMeasurement: 18000,
+        frontLeftMm: 5,
+        frontRightMm: 5,
+        rearLeftMm: 5,
+        rearRightMm: 5,
+        source: 'ai_confirmed',
+        isCalibrationPoint: false,
+        evidenceSource: TireEvidenceSource.USER_CONFIRMED,
+      },
+    ]);
+
+    const result = await service.computeForSetup(setupId);
+    const fl = result?.wheels.find((w) => w.position === 'FL');
+    expect(fl?.wearRate.source).not.toBe('measurement_fused');
+    expect(result?.setupFlags).toContain('MEASUREMENTS_EXCLUDED_UNTRUSTED_NUMERICAL_SOURCE');
+  });
 });

@@ -11,6 +11,10 @@ on:
       - 'backend/scripts/test/synqdrive-nest-boot-check-ci.sh'
       - 'backend/scripts/test/ci-start-postgres.sh'
       - 'backend/scripts/test/ci-start-redis.sh'
+      - 'backend/scripts/test/vehicle-tech-spec-patch-postgres-ci.sh'
+      - 'backend/scripts/test/vehicle-tech-spec-patch-postgres-guard.contract.sh'
+      - 'backend/scripts/test/lib/vehicle-tech-spec-patch-postgres-guard.sh'
+      - 'backend/src/modules/vehicles/vehicle-technical-spec-patch.postgres.integration.spec.ts'
   workflow_dispatch:
   push:
     branches:
@@ -199,6 +203,57 @@ jobs:
           DATABASE_URL: postgresql://synqdrive:synqdrive@127.0.0.1:5432/synqdrive_ci_ephemeral?schema=public
           BOUNDARY_REPAIR_POSTGRES_INTEGRATION: '1'
 
+  backend-vehicle-tech-spec-patch-postgres:
+    name: Vehicle technical spec PATCH PostgreSQL
+    needs: install-lockfile
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: synqdrive
+          POSTGRES_PASSWORD: synqdrive
+          POSTGRES_DB: synqdrive_ci_ephemeral
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U synqdrive"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Enable PostGIS extension (Required CI spatial contract)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          export PGPASSWORD=synqdrive
+          for i in $(seq 1 30); do
+            if psql -h 127.0.0.1 -U synqdrive -d synqdrive_ci_ephemeral -c 'SELECT 1' >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          psql -h 127.0.0.1 -U synqdrive -d synqdrive_ci_ephemeral -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS postgis;'
+      - run: npm ci && npx prisma generate
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://synqdrive:synqdrive@127.0.0.1:5432/synqdrive_ci_ephemeral?schema=public
+      - name: Vehicle tech spec PATCH postgres guard contract
+        working-directory: backend
+        run: bash scripts/test/vehicle-tech-spec-patch-postgres-guard.contract.sh
+      - name: Vehicle technical spec PATCH PostgreSQL integration (7 tests)
+        working-directory: backend
+        run: bash scripts/test/vehicle-tech-spec-patch-postgres-ci.sh
+        env:
+          DATABASE_URL: postgresql://synqdrive:synqdrive@127.0.0.1:5432/synqdrive_ci_ephemeral?schema=public
+          VEHICLE_TECH_SPEC_PATCH_PG: '1'
+
   frontend-component:
     name: Frontend component tests
     needs: install-lockfile
@@ -349,6 +404,7 @@ jobs:
       - backend-ds4-motion-gap-bridge-safety
       - backend-security
       - backend-boundary-postgres
+      - backend-vehicle-tech-spec-patch-postgres
       - frontend-component
       - playwright-e2e
       - accessibility
