@@ -92,6 +92,11 @@ export function TireCalibrationInventoryPanel({
       defaultValue: status,
     });
 
+  const attributionLabel = (status: string) =>
+    t(`master.intelligence.tireCalibration.inventory.attribution.${status}` as never, {
+      defaultValue: status,
+    });
+
   return (
     <>
       {error ? (
@@ -243,37 +248,70 @@ export function TireCalibrationInventoryPanel({
                 <thead className="border-b border-border/60 bg-muted/30 text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2">{t('master.intelligence.tireCalibration.col.wheel' as never)}</th>
-                    <th className="px-3 py-2">{t('master.intelligence.tireCalibration.col.physicalTire' as never)}</th>
-                    <th className="px-3 py-2">{t('master.intelligence.tireCalibration.inventory.col.tread' as never)}</th>
-                    <th className="px-3 py-2">{t('master.intelligence.tireCalibration.inventory.col.measuredAt' as never)}</th>
+                    <th className="px-3 py-2">
+                      {t('master.intelligence.tireCalibration.inventory.col.currentMountedTire' as never)}
+                    </th>
+                    <th className="px-3 py-2">
+                      {t(
+                        'master.intelligence.tireCalibration.inventory.col.latestMeasurementAtPosition' as never,
+                      )}
+                    </th>
+                    <th className="px-3 py-2">
+                      {t('master.intelligence.tireCalibration.inventory.col.measurementTime' as never)}
+                    </th>
                     <th className="px-3 py-2">{t('master.intelligence.tireCalibration.inventory.col.provenance' as never)}</th>
+                    <th className="px-3 py-2">
+                      {t('master.intelligence.tireCalibration.inventory.col.measurementAttribution' as never)}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {detail.wheels.map((w) => (
-                    <tr key={w.wheelPosition} className="border-b border-border/40">
-                      <td className="px-3 py-2 font-mono">{w.wheelPosition}</td>
-                      <td className="px-3 py-2">
-                        <span className="block font-mono text-[10px]">{w.physicalTireId ?? '—'}</span>
-                        <span className="text-muted-foreground">{identityLabel(w.physicalIdentityStatus)}</span>
-                      </td>
-                      <td className="px-3 py-2 tabular-nums">
-                        {w.latestMeasurement.treadDepthMm != null
-                          ? w.latestMeasurement.treadDepthMm.toFixed(2)
-                          : t('master.intelligence.tireCalibration.inventory.measurement.none' as never)}
-                      </td>
-                      <td className="px-3 py-2 tabular-nums">
-                        {w.latestMeasurement.measuredAt
-                          ? new Date(w.latestMeasurement.measuredAt).toLocaleString(locale)
-                          : '—'}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-[10px]">
-                        {[w.latestMeasurement.evidenceSource, w.latestMeasurement.source]
-                          .filter(Boolean)
-                          .join(' · ') || '—'}
-                      </td>
-                    </tr>
-                  ))}
+                  {detail.wheels.map((w) => {
+                    const hist = w.historicalMeasurement;
+                    const cur = w.currentAssignment;
+                    const attr = w.measurementAttribution;
+                    return (
+                      <tr key={w.wheelPosition} className="border-b border-border/40 align-top">
+                        <td className="px-3 py-2 font-mono">{w.wheelPosition}</td>
+                        <td className="px-3 py-2">
+                          <span className="block font-mono text-[10px]">{cur.physicalTireId ?? '—'}</span>
+                          <span className="text-muted-foreground">
+                            {identityLabel(cur.physicalIdentityStatus)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 tabular-nums">
+                          {hist.treadDepthMm != null
+                            ? hist.treadDepthMm.toFixed(2)
+                            : t('master.intelligence.tireCalibration.inventory.measurement.none' as never)}
+                        </td>
+                        <td className="px-3 py-2 tabular-nums">
+                          {hist.measuredAt
+                            ? new Date(hist.measuredAt).toLocaleString(locale)
+                            : '—'}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-[10px]">
+                          {[hist.evidenceSource, hist.source].filter(Boolean).join(' · ') || '—'}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="block">{attributionLabel(attr.status)}</span>
+                          {attr.status === 'CONFIRMED' && attr.attributedPhysicalTireId ? (
+                            <span className="block font-mono text-[10px] text-muted-foreground">
+                              {attr.attributedPhysicalTireId}
+                            </span>
+                          ) : null}
+                          {!attr.linksMeasurementToCurrentMountedTire &&
+                          hist.treadDepthMm != null &&
+                          cur.physicalTireId ? (
+                            <span className="mt-1 block text-[10px] text-amber-700 dark:text-amber-400">
+                              {t(
+                                'master.intelligence.tireCalibration.inventory.attribution.notLinkedToCurrent' as never,
+                              )}
+                            </span>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

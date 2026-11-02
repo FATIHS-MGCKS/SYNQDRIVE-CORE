@@ -169,18 +169,28 @@ export type TireInventorySetupDetailDto = {
   measurementCount: number;
   wheels: Array<{
     wheelPosition: string;
-    physicalTireId: string | null;
-    physicalIdentityStatus: 'CONFIRMED' | 'UNCONFIRMED' | 'AMBIGUOUS';
-    tireBrand: string | null;
-    tireModel: string | null;
-    dotCode: string | null;
-    latestMeasurement: {
+    currentAssignment: {
+      wheelPosition: string;
+      physicalTireId: string | null;
+      physicalIdentityStatus: 'CONFIRMED' | 'UNCONFIRMED' | 'AMBIGUOUS';
+      tireBrand: string | null;
+      tireModel: string | null;
+      dotCode: string | null;
+    };
+    historicalMeasurement: {
+      wheelPosition: string;
+      tireSetupId: string;
       treadDepthMm: number | null;
       measuredAt: string | null;
       measurementId: string | null;
       evidenceSource: string | null;
       source: string | null;
       availability: string;
+    };
+    measurementAttribution: {
+      status: 'CONFIRMED' | 'NOT_ATTRIBUTABLE' | 'AMBIGUOUS';
+      attributedPhysicalTireId: string | null;
+      linksMeasurementToCurrentMountedTire: boolean;
     };
   }>;
   priorShadow: {

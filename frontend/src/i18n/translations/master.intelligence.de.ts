@@ -528,4 +528,14 @@ export const masterIntelligenceDe = {
   'master.intelligence.tireCalibration.inventory.identity.CONFIRMED': 'Physischer Reifen bestätigt',
   'master.intelligence.tireCalibration.inventory.identity.UNCONFIRMED': 'Unbestätigt',
   'master.intelligence.tireCalibration.inventory.identity.AMBIGUOUS': 'Mehrdeutige Zuordnung',
+  'master.intelligence.tireCalibration.inventory.col.currentMountedTire': 'Aktuell montierter Reifen',
+  'master.intelligence.tireCalibration.inventory.col.latestMeasurementAtPosition':
+    'Letzte Messung an dieser Radposition',
+  'master.intelligence.tireCalibration.inventory.col.measurementTime': 'Messzeitpunkt',
+  'master.intelligence.tireCalibration.inventory.col.measurementAttribution': 'Messungszuordnung',
+  'master.intelligence.tireCalibration.inventory.attribution.CONFIRMED': 'Bestätigt',
+  'master.intelligence.tireCalibration.inventory.attribution.NOT_ATTRIBUTABLE': 'Nicht zuordenbar',
+  'master.intelligence.tireCalibration.inventory.attribution.AMBIGUOUS': 'Mehrdeutig',
+  'master.intelligence.tireCalibration.inventory.attribution.notLinkedToCurrent':
+    'Die historische Messung ist dem aktuell montierten Reifen nicht zugeordnet.',
 } as const;

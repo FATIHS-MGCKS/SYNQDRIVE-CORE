@@ -16,12 +16,19 @@ import type {
   TireInventoryOrgRollupPageDto,
   TireInventoryPhysicalIdentityStatus,
   TireInventoryPriorShadowReadDto,
+  TireInventoryHistoricalTreadMeasurementDto,
   TireInventorySetupDetailDto,
   TireInventorySetupListDto,
   TireInventoryVehicleRollupPageDto,
-  TireInventoryWheelAssignmentDto,
+  TireInventoryWheelDetailDto,
   TireInventoryWheelMeasurementDto,
 } from './tire-wear-v3-calibration-center-inventory.types';
+import {
+  pickLatestSetupMeasurementForWheel,
+  resolveMeasurementToTireAttribution,
+  type InventoryPositionHistoryRow,
+  type InventoryTireMountRecord,
+} from './tire-wear-v3-calibration-center-inventory-temporal-attribution';
 import { TireWearV3CalibrationShadowWriterService } from './tire-wear-v3-calibration-shadow-writer.service';
 
 const WHEELS: WheelPos[] = ['FL', 'FR', 'RL', 'RR'];
@@ -75,6 +82,24 @@ function treadFromSetupMeasurement(
     evidenceSource: m.evidenceSource,
     source: m.source,
     availability: treadDepthMm != null ? 'AVAILABLE' : 'NOT_RECORDED',
+  };
+}
+
+function toHistoricalMeasurementDto(
+  tireSetupId: string,
+  m: Parameters<typeof treadFromSetupMeasurement>[0],
+  wheel: WheelPos,
+): TireInventoryHistoricalTreadMeasurementDto {
+  const row = treadFromSetupMeasurement(m, wheel);
+  return {
+    wheelPosition: row.wheelPosition,
+    tireSetupId,
+    treadDepthMm: row.treadDepthMm,
+    measuredAt: row.measuredAt,
+    measurementId: row.measurementId,
+    evidenceSource: row.evidenceSource,
+    source: row.source,
+    availability: row.availability,
   };
 }
 
@@ -368,10 +393,12 @@ export class TireWearV3CalibrationCenterInventoryReadService {
       throw new NotFoundException('Tire setup not found for scoped organization and vehicle');
     }
 
-    const [latestMeasurement, activeTires, priorRow, ds4Agg, ds4Latest] = await Promise.all([
-      this.prisma.vehicleTireTreadMeasurement.findFirst({
+    const [setupMeasurements, mountTires, positionHistory, activeTires, priorRow, ds4Agg, ds4Latest] =
+      await Promise.all([
+      this.prisma.vehicleTireTreadMeasurement.findMany({
         where: { tireSetupId: setup.id, vehicleId: setup.vehicleId },
         orderBy: { measuredAt: 'desc' },
+        take: 64,
         select: {
           id: true,
           measuredAt: true,
@@ -382,6 +409,27 @@ export class TireWearV3CalibrationCenterInventoryReadService {
           rearLeftMm: true,
           rearRightMm: true,
         },
+      }),
+      this.prisma.tire.findMany({
+        where: {
+          tireSetId: setup.id,
+          organizationId: setup.organizationId!,
+        },
+        select: {
+          id: true,
+          mountedAt: true,
+          dismountedAt: true,
+          installedPosition: true,
+        },
+      }),
+      this.prisma.tirePositionHistory.findMany({
+        where: { tireSetId: setup.id },
+        select: {
+          tireId: true,
+          toPosition: true,
+          changedAt: true,
+        },
+        orderBy: { changedAt: 'asc' },
       }),
       this.prisma.tire.findMany({
         where: {
@@ -421,6 +469,21 @@ export class TireWearV3CalibrationCenterInventoryReadService {
       }),
     ]);
 
+    const tireMountRecords: InventoryTireMountRecord[] = mountTires
+      .filter((t) => t.mountedAt != null)
+      .map((t) => ({
+        id: t.id,
+        mountedAt: t.mountedAt!,
+        dismountedAt: t.dismountedAt,
+        installedPosition: t.installedPosition,
+      }));
+    const historyRows: InventoryPositionHistoryRow[] = positionHistory.map((row) => ({
+      tireId: row.tireId,
+      toPosition: row.toPosition,
+      changedAt: row.changedAt,
+    }));
+    const rotationEvents = historyRows.map((e) => ({ changedAt: e.changedAt }));
+
     const tiresByWheel = new Map<WheelPos, typeof activeTires>();
     for (const wheel of WHEELS) {
       tiresByWheel.set(wheel, []);
@@ -430,18 +493,55 @@ export class TireWearV3CalibrationCenterInventoryReadService {
       tiresByWheel.get(wheel)?.push(tire);
     }
 
-    const wheels: TireInventoryWheelAssignmentDto[] = WHEELS.map((wheel) => {
+    const wheels: TireInventoryWheelDetailDto[] = WHEELS.map((wheel) => {
       const atWheel = tiresByWheel.get(wheel) ?? [];
       const ambiguous = atWheel.length > 1;
       const chosen = atWheel.length === 1 ? atWheel[0]! : null;
+      const latestForWheel = pickLatestSetupMeasurementForWheel(setupMeasurements, wheel);
+      const measuredAt = latestForWheel?.measuredAt ?? null;
+      const mountPeriodAtMeasurement =
+        measuredAt != null
+          ? resolveActiveMountPeriod(setup.mountPeriods, measuredAt, {
+              installedAt: setup.installedAt,
+              removedAt: setup.removedAt,
+              installedOdometerKm: setup.installedOdometerKm,
+              odometerAnchorStatus: setup.odometerAnchorStatus,
+            })
+          : null;
+
+      const measurementAttribution =
+        measuredAt != null
+          ? resolveMeasurementToTireAttribution({
+              wheel,
+              measuredAt,
+              mountPeriodAtMeasurement,
+              rotationEvents,
+              positionHistory: historyRows,
+              tires: tireMountRecords,
+              currentPhysicalTireId: chosen?.id ?? null,
+            })
+          : {
+              status: 'NOT_ATTRIBUTABLE' as const,
+              attributedPhysicalTireId: null,
+              linksMeasurementToCurrentMountedTire: false,
+            };
+
       return {
         wheelPosition: wheel,
-        physicalTireId: chosen?.id ?? null,
-        physicalIdentityStatus: wheelPhysicalStatus(chosen?.id ?? null, ambiguous),
-        tireBrand: chosen?.brand ?? null,
-        tireModel: chosen?.tireModel ?? null,
-        dotCode: chosen?.dotCode ?? null,
-        latestMeasurement: treadFromSetupMeasurement(latestMeasurement, wheel),
+        currentAssignment: {
+          wheelPosition: wheel,
+          physicalTireId: chosen?.id ?? null,
+          physicalIdentityStatus: wheelPhysicalStatus(chosen?.id ?? null, ambiguous),
+          tireBrand: chosen?.brand ?? null,
+          tireModel: chosen?.tireModel ?? null,
+          dotCode: chosen?.dotCode ?? null,
+        },
+        historicalMeasurement: toHistoricalMeasurementDto(
+          setup.id,
+          latestForWheel,
+          wheel,
+        ),
+        measurementAttribution,
       };
     });
 

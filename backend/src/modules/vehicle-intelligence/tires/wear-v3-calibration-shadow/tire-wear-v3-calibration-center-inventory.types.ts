@@ -78,15 +78,46 @@ export type TireInventoryWheelMeasurementDto = {
   availability: 'AVAILABLE' | 'NOT_RECORDED' | 'UNKNOWN';
 };
 
-export type TireInventoryWheelAssignmentDto = {
+export type TireInventoryMeasurementToTireAttributionStatus =
+  | 'CONFIRMED'
+  | 'NOT_ATTRIBUTABLE'
+  | 'AMBIGUOUS';
+
+export type TireInventoryCurrentWheelAssignmentDto = {
   wheelPosition: WheelPos;
   physicalTireId: string | null;
   physicalIdentityStatus: TireInventoryPhysicalIdentityStatus;
   tireBrand: string | null;
   tireModel: string | null;
   dotCode: string | null;
-  latestMeasurement: TireInventoryWheelMeasurementDto;
 };
+
+export type TireInventoryHistoricalTreadMeasurementDto = {
+  wheelPosition: WheelPos;
+  tireSetupId: string;
+  treadDepthMm: number | null;
+  measuredAt: string | null;
+  measurementId: string | null;
+  evidenceSource: string | null;
+  source: string | null;
+  availability: 'AVAILABLE' | 'NOT_RECORDED' | 'UNKNOWN';
+};
+
+export type TireInventoryMeasurementAttributionDto = {
+  status: TireInventoryMeasurementToTireAttributionStatus;
+  attributedPhysicalTireId: string | null;
+  linksMeasurementToCurrentMountedTire: boolean;
+};
+
+export type TireInventoryWheelDetailDto = {
+  wheelPosition: WheelPos;
+  currentAssignment: TireInventoryCurrentWheelAssignmentDto;
+  historicalMeasurement: TireInventoryHistoricalTreadMeasurementDto;
+  measurementAttribution: TireInventoryMeasurementAttributionDto;
+};
+
+/** @deprecated Use TireInventoryWheelDetailDto — retained for import stability during P3.2 */
+export type TireInventoryWheelAssignmentDto = TireInventoryWheelDetailDto;
 
 export type TireInventoryPriorShadowReadDto = {
   availability: 'AVAILABLE' | 'NOT_PERSISTED';
@@ -139,7 +170,7 @@ export type TireInventorySetupDetailDto = {
   odometerAnchorStatus: string | null;
   snapshotCount: number;
   measurementCount: number;
-  wheels: TireInventoryWheelAssignmentDto[];
+  wheels: TireInventoryWheelDetailDto[];
   priorShadow: TireInventoryPriorShadowReadDto;
   ds4: TireInventoryDs4ReadDto;
   calibrationEligibility: TireInventoryCalibrationEligibilityReadDto;

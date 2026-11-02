@@ -530,6 +530,16 @@ export const masterIntelligenceEn = {
   'master.intelligence.tireCalibration.inventory.identity.CONFIRMED': 'Confirmed physical tire',
   'master.intelligence.tireCalibration.inventory.identity.UNCONFIRMED': 'Unconfirmed',
   'master.intelligence.tireCalibration.inventory.identity.AMBIGUOUS': 'Ambiguous assignment',
+  'master.intelligence.tireCalibration.inventory.col.currentMountedTire': 'Currently mounted tire',
+  'master.intelligence.tireCalibration.inventory.col.latestMeasurementAtPosition':
+    'Latest measurement at this wheel position',
+  'master.intelligence.tireCalibration.inventory.col.measurementTime': 'Measurement time',
+  'master.intelligence.tireCalibration.inventory.col.measurementAttribution': 'Measurement attribution',
+  'master.intelligence.tireCalibration.inventory.attribution.CONFIRMED': 'Confirmed',
+  'master.intelligence.tireCalibration.inventory.attribution.NOT_ATTRIBUTABLE': 'Not attributable',
+  'master.intelligence.tireCalibration.inventory.attribution.AMBIGUOUS': 'Ambiguous',
+  'master.intelligence.tireCalibration.inventory.attribution.notLinkedToCurrent':
+    'Historical measurement is not attributed to the currently mounted tire.',
 } as const;
 
 export type MasterIntelligenceTranslationKey = keyof typeof masterIntelligenceEn;

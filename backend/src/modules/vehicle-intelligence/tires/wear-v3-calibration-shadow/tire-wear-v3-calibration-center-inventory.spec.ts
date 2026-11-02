@@ -1,7 +1,35 @@
 import { NotFoundException } from '@nestjs/common';
+import { TirePosition } from '@prisma/client';
 import { TireWearV3CalibrationCenterInventoryReadService } from './tire-wear-v3-calibration-center-inventory-read.service';
 import { TireWearV3CalibrationEligibilityService } from './tire-wear-v3-calibration-eligibility.service';
 import { TireWearV3CalibrationShadowWriterService } from './tire-wear-v3-calibration-shadow-writer.service';
+
+const baseSetup = {
+  id: 'setup-1',
+  organizationId: 'org-1',
+  vehicleId: 'veh-1',
+  name: 'Winter',
+  status: 'ACTIVE',
+  tireSeason: 'WINTER',
+  frontDimension: '225/45R17',
+  rearDimension: null,
+  brandModelFront: null,
+  brandModelRear: null,
+  installedAt: new Date('2026-01-01T00:00:00.000Z'),
+  removedAt: null,
+  installedOdometerKm: 1000,
+  odometerAnchorStatus: 'CONFIRMED',
+  mountPeriods: [
+    {
+      id: 'mp-1',
+      installedAt: new Date('2026-01-01T00:00:00.000Z'),
+      removedAt: null,
+      installedOdometerKm: 1000,
+      odometerAnchorStatus: 'CONFIRMED',
+    },
+  ],
+  _count: { measurements: 1, wearV3CalibrationSnapshots: 0 },
+};
 
 describe('TireWearV3CalibrationCenterInventoryReadService', () => {
   const writer = {
@@ -20,9 +48,10 @@ describe('TireWearV3CalibrationCenterInventoryReadService', () => {
       findFirst: jest.fn(),
     },
     tire: { findMany: jest.fn() },
+    tirePositionHistory: { findMany: jest.fn() },
     tireWearV3PriorShadowV1: { groupBy: jest.fn(), findFirst: jest.fn() },
     tireWearV3CalibrationSnapshotV1: { groupBy: jest.fn(), count: jest.fn() },
-    vehicleTireTreadMeasurement: { findFirst: jest.fn() },
+    vehicleTireTreadMeasurement: { findMany: jest.fn() },
     tireDs4MotionShadowInputV1: { count: jest.fn(), findFirst: jest.fn() },
     vehicle: { findFirst: jest.fn() },
   };
@@ -36,6 +65,24 @@ describe('TireWearV3CalibrationCenterInventoryReadService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
+
+  function mockSetupDetailReads(options: {
+    measurements?: unknown[];
+    mountTires?: unknown[];
+    activeTires?: unknown[];
+    positionHistory?: unknown[];
+  }) {
+    prisma.vehicleTireSetup.findFirst.mockResolvedValue(baseSetup);
+    prisma.vehicleTireTreadMeasurement.findMany.mockResolvedValue(options.measurements ?? []);
+    prisma.tire.findMany
+      .mockResolvedValueOnce(options.mountTires ?? [])
+      .mockResolvedValueOnce(options.activeTires ?? []);
+    prisma.tirePositionHistory.findMany.mockResolvedValue(options.positionHistory ?? []);
+    prisma.tireWearV3PriorShadowV1.findFirst.mockResolvedValue(null);
+    prisma.tireDs4MotionShadowInputV1.count.mockResolvedValue(0);
+    prisma.tireDs4MotionShadowInputV1.findFirst.mockResolvedValue(null);
+    (eligibility.resolveForSetup as jest.Mock).mockResolvedValue(null);
+  }
 
   it('returns global inventory summary without enabling writer', async () => {
     prisma.vehicleTireSetup.groupBy.mockResolvedValueOnce([{ organizationId: 'org-1' }]);
@@ -71,45 +118,24 @@ describe('TireWearV3CalibrationCenterInventoryReadService', () => {
   });
 
   it('marks ambiguous physical identity when multiple tires share a wheel', async () => {
-    prisma.vehicleTireSetup.findFirst.mockResolvedValue({
-      id: 'setup-1',
-      organizationId: 'org-1',
-      vehicleId: 'veh-1',
-      name: 'Winter',
-      status: 'ACTIVE',
-      tireSeason: 'WINTER',
-      frontDimension: '225/45R17',
-      rearDimension: null,
-      brandModelFront: null,
-      brandModelRear: null,
-      installedAt: new Date('2026-01-01T00:00:00.000Z'),
-      removedAt: null,
-      installedOdometerKm: 1000,
-      odometerAnchorStatus: 'CONFIRMED',
-      mountPeriods: [],
-      _count: { measurements: 1, wearV3CalibrationSnapshots: 0 },
+    mockSetupDetailReads({
+      activeTires: [
+        {
+          id: 't1',
+          currentPosition: 'FRONT_LEFT',
+          brand: 'Michelin',
+          tireModel: 'X',
+          dotCode: null,
+        },
+        {
+          id: 't2',
+          currentPosition: 'FRONT_LEFT',
+          brand: 'Michelin',
+          tireModel: 'Y',
+          dotCode: null,
+        },
+      ],
     });
-    prisma.vehicleTireTreadMeasurement.findFirst.mockResolvedValue(null);
-    prisma.tire.findMany.mockResolvedValue([
-      {
-        id: 't1',
-        currentPosition: 'FRONT_LEFT',
-        brand: 'Michelin',
-        tireModel: 'X',
-        dotCode: null,
-      },
-      {
-        id: 't2',
-        currentPosition: 'FRONT_LEFT',
-        brand: 'Michelin',
-        tireModel: 'Y',
-        dotCode: null,
-      },
-    ]);
-    prisma.tireWearV3PriorShadowV1.findFirst.mockResolvedValue(null);
-    prisma.tireDs4MotionShadowInputV1.count.mockResolvedValue(0);
-    prisma.tireDs4MotionShadowInputV1.findFirst.mockResolvedValue(null);
-    (eligibility.resolveForSetup as jest.Mock).mockResolvedValue(null);
 
     const detail = await service.getSetupDetail({
       organizationId: 'org-1',
@@ -118,8 +144,127 @@ describe('TireWearV3CalibrationCenterInventoryReadService', () => {
     });
 
     const fl = detail.wheels.find((w) => w.wheelPosition === 'FL');
-    expect(fl?.physicalIdentityStatus).toBe('AMBIGUOUS');
-    expect(fl?.physicalTireId).toBeNull();
+    expect(fl?.currentAssignment.physicalIdentityStatus).toBe('AMBIGUOUS');
+    expect(fl?.currentAssignment.physicalTireId).toBeNull();
+  });
+
+  it('preserves tread values but does not link to current tire after replacement', async () => {
+    const measuredAt = new Date('2026-02-01T00:00:00.000Z');
+    const replaceAt = new Date('2026-04-01T00:00:00.000Z');
+    mockSetupDetailReads({
+      measurements: [
+        {
+          id: 'm1',
+          measuredAt,
+          evidenceSource: 'WORKSHOP',
+          source: 'manual',
+          frontLeftMm: 5.1,
+          frontRightMm: null,
+          rearLeftMm: null,
+          rearRightMm: null,
+        },
+      ],
+      mountTires: [
+        {
+          id: 'tire-old',
+          mountedAt: new Date('2026-01-01T00:00:00.000Z'),
+          dismountedAt: replaceAt,
+          installedPosition: TirePosition.FRONT_LEFT,
+        },
+        {
+          id: 'tire-new',
+          mountedAt: replaceAt,
+          dismountedAt: null,
+          installedPosition: TirePosition.FRONT_LEFT,
+        },
+      ],
+      activeTires: [
+        {
+          id: 'tire-new',
+          currentPosition: TirePosition.FRONT_LEFT,
+          brand: null,
+          tireModel: null,
+          dotCode: null,
+        },
+      ],
+      positionHistory: [
+        {
+          tireId: 'tire-old',
+          toPosition: TirePosition.FRONT_LEFT,
+          changedAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+        {
+          tireId: 'tire-new',
+          toPosition: TirePosition.FRONT_LEFT,
+          changedAt: replaceAt,
+        },
+      ],
+    });
+
+    const detail = await service.getSetupDetail({
+      organizationId: 'org-1',
+      vehicleId: 'veh-1',
+      tireSetupId: 'setup-1',
+    });
+    const fl = detail.wheels.find((w) => w.wheelPosition === 'FL')!;
+    expect(fl.historicalMeasurement.treadDepthMm).toBe(5.1);
+    expect(fl.measurementAttribution.status).toBe('CONFIRMED');
+    expect(fl.measurementAttribution.attributedPhysicalTireId).toBe('tire-old');
+    expect(fl.measurementAttribution.linksMeasurementToCurrentMountedTire).toBe(false);
+    expect(fl.currentAssignment.physicalTireId).toBe('tire-new');
+  });
+
+  it('keeps measurements visible with NOT_ATTRIBUTABLE when pre-mount', async () => {
+    mockSetupDetailReads({
+      measurements: [
+        {
+          id: 'm-pre',
+          measuredAt: new Date('2025-12-01T00:00:00.000Z'),
+          evidenceSource: null,
+          source: 'import',
+          frontLeftMm: 4.0,
+          frontRightMm: null,
+          rearLeftMm: null,
+          rearRightMm: null,
+        },
+      ],
+      mountTires: [
+        {
+          id: 'tire-a',
+          mountedAt: new Date('2026-01-01T00:00:00.000Z'),
+          dismountedAt: null,
+          installedPosition: TirePosition.FRONT_LEFT,
+        },
+      ],
+      activeTires: [
+        {
+          id: 'tire-a',
+          currentPosition: TirePosition.FRONT_LEFT,
+          brand: null,
+          tireModel: null,
+          dotCode: null,
+        },
+      ],
+    });
+
+    const detail = await service.getSetupDetail({
+      organizationId: 'org-1',
+      vehicleId: 'veh-1',
+      tireSetupId: 'setup-1',
+    });
+    const fl = detail.wheels.find((w) => w.wheelPosition === 'FL')!;
+    expect(fl.historicalMeasurement.treadDepthMm).toBe(4.0);
+    expect(fl.measurementAttribution.status).toBe('NOT_ATTRIBUTABLE');
+  });
+
+  it('reports zero calibration snapshots in detail', async () => {
+    mockSetupDetailReads({});
+    const detail = await service.getSetupDetail({
+      organizationId: 'org-1',
+      vehicleId: 'veh-1',
+      tireSetupId: 'setup-1',
+    });
+    expect(detail.snapshotCount).toBe(0);
   });
 
   it('paginates setup list with bounded limit', async () => {

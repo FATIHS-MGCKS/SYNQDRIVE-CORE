@@ -349,3 +349,14 @@ Newest entry last. Never rewrite or delete entries.
 | EXPECTED_EFFECT | Drilldown org → vehicle → setup → wheel with explicit UNCONFIRMED/AMBIGUOUS physical identity; snapshot count may be 0 |
 | VALIDATION | Jest inventory + master-read security specs; frontend vitest URL tab; `npm run i18n:check` |
 | NON_EFFECTS | No migrations; writer OFF; no new Tire V3 computation; measurements not labeled validated calibration pairs |
+
+### Tire V3 Calibration Center P3.2 — inventory temporal attribution hardening (2026-11-02)
+
+| Event | Detail |
+|-------|--------|
+| BEFORE | Inventory setup detail coupled setup-level latest tread with current physical tire identity on the same wheel row |
+| WHY | Final safety audit required explicit temporal attribution before merge |
+| CHANGE | `tire-wear-v3-calibration-center-inventory-temporal-attribution.ts`; wheel DTO split into current assignment, historical measurement, measurement attribution; UI columns + 9-locale keys; Jest temporal + eligibility read-only specs |
+| EXPECTED_EFFECT | Historical measurements remain visible; `linksMeasurementToCurrentMountedTire` only when history proves identity at `measuredAt` |
+| VALIDATION | Jest inventory/temporal/eligibility-readonly + master-read security; frontend vitest; `npm run i18n:check` |
+| NON_EFFECTS | No writer; no Tire V3 recompute; no migrations |
