@@ -55,3 +55,17 @@ Operator responsibility: delete local capture artifacts within **90 days** unles
 - No vehicle specification writes
 - No polling/callbacks
 - No additional provider requests beyond the single attestation GET
+
+## Live CLI handoff (post-capture)
+
+If shareable attestation evidence construction fails **after** a successful capture write, the runner emits **fallback fingerprint evidence** (`nonJsonBody`) and notes `Evidence build fallback: …` — **no second provider GET**.
+
+CLI exit codes (live production):
+
+| Code | Meaning |
+|------|---------|
+| `0` | Qualified attestation; evidence emitted |
+| `2` | Attestation not qualified |
+| `3` | Capture written + qualified attestation, but evidence build fallback and/or stdout emit failed — inspect stderr line `ONEAUTO_ATTESTATION_CLI_HANDOFF=…` (`exitCode`, `captureWritten`, `attemptedOutboundRequests`; no secrets) |
+
+Stderr handoff JSON includes: `captureWritten`, `attestationQualified`, `attemptedOutboundRequests` (must stay `1`), `exitPhase`, `evidenceBuildFailed`, `stdoutEmitFailed`, `exitCode`. If both full and redacted evidence builds throw after capture commit, runner returns minimal handoff evidence (still no second GET).

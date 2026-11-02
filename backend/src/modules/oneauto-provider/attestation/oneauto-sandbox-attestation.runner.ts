@@ -20,6 +20,11 @@ import {
   getSandboxAttestationFixture,
   ONEAUTO_SANDBOX_ATTESTATION_FIXTURES,
 } from './oneauto-sandbox-attestation-fixtures';
+import {
+  buildCapturePreservingHandoffEvidence,
+  errorCodeFromUnknown,
+  redactOutcomeForShareableEvidence,
+} from './oneauto-sandbox-attestation-live-cli-handoff.util';
 import { classifySandboxAttestationOutcome } from './oneauto-sandbox-attestation-evaluate.util';
 import type {
   OneAutoSandboxAttestationEvidence,
@@ -267,9 +272,9 @@ export async function runLiveProductionAttestation(input: {
     notes.push(`Result capture not written: ${resultCapture.rejectCode}`);
   }
 
-  return buildSandboxAttestationEvidence({
-    mode: 'live-production',
-    attestationEnvironment: 'PRODUCTION',
+  const evidenceInput = {
+    mode: 'live-production' as const,
+    attestationEnvironment: 'PRODUCTION' as const,
     targetHostname: productionEvidenceHostname(),
     fixtureId: null,
     contract,
@@ -279,7 +284,41 @@ export async function runLiveProductionAttestation(input: {
     categoryOverride: category,
     resultCapture,
     notes,
-  });
+  };
+
+  try {
+    return buildSandboxAttestationEvidence(evidenceInput);
+  } catch (err: unknown) {
+    const errorCode = errorCodeFromUnknown(err);
+    const fallbackNotes = [
+      ...notes,
+      'Share-safe evidence fingerprint only (capture artifact holds redacted vehicle fields)',
+      `Evidence build fallback: ${errorCode}`,
+    ];
+    try {
+      return buildSandboxAttestationEvidence({
+        ...evidenceInput,
+        outcome: redactOutcomeForShareableEvidence(outcome),
+        notes: fallbackNotes,
+      });
+    } catch (fallbackErr: unknown) {
+      const fallbackCode = errorCodeFromUnknown(fallbackErr);
+      return buildCapturePreservingHandoffEvidence({
+        targetHostname: productionEvidenceHostname(),
+        outcome,
+        attemptedOutboundRequests: budget.attemptedCount,
+        vinForFingerprint: input.authorization.vin,
+        diagnosticCategory: category,
+        resultCapture,
+        notes: [
+          ...notes,
+          'Capture artifact committed; shareable evidence build exhausted',
+          `Evidence build fallback: ${errorCode}`,
+          `Evidence build fallback: ${fallbackCode}`,
+        ],
+      });
+    }
+  }
 }
 
 export function resolveProductionAttestationAuthorization(

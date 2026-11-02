@@ -12,6 +12,12 @@ import {
   resolveProductionAttestationAuthorization,
 } from '../../src/modules/oneauto-provider/attestation/oneauto-sandbox-attestation.runner';
 import type { OneAutoSandboxAttestationEvidence } from '../../src/modules/oneauto-provider/attestation/oneauto-sandbox-attestation.types';
+import {
+  buildLiveCliHandoffMetadata,
+  emitLiveCliHandoffMetadata,
+  evidenceBuildFailedFromNotes,
+  primaryEvidenceBuildErrorFromNotes,
+} from '../../src/modules/oneauto-provider/attestation/oneauto-sandbox-attestation-live-cli-handoff.util';
 
 function parseArgs(argv: string[]): {
   liveProduction: boolean;
@@ -62,8 +68,25 @@ async function main(): Promise<void> {
       authorization,
       captureRedactedResult: args.captureRedactedResult,
     });
-    emit(evidence, args.json);
-    process.exit(evidence.attestationQualified ? 0 : 2);
+    let stdoutEmitFailed = false;
+    try {
+      emit(evidence, args.json);
+    } catch {
+      stdoutEmitFailed = true;
+    }
+    const evidenceBuildFailed = evidenceBuildFailedFromNotes(evidence.notes);
+    const handoff = buildLiveCliHandoffMetadata({
+      evidence,
+      evidenceBuildFailed,
+      evidenceBuildErrorCode: evidenceBuildFailed
+        ? primaryEvidenceBuildErrorFromNotes(evidence.notes)
+        : null,
+      stdoutEmitFailed,
+    });
+    if (handoff.exitPhase !== 'OK') {
+      emitLiveCliHandoffMetadata(handoff);
+    }
+    process.exit(handoff.exitCode);
   }
 
   if (args.allFixtures) {

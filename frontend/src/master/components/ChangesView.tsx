@@ -524,6 +524,25 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-11-02T13:30:00.000Z',
   },
   {
+    id: 'oneauto-p25e-p1-live-cli-handoff-2026-11-02',
+    version: '4.9.5010',
+    title: 'One Auto API — P2.5E-P1 live CLI handoff after secure capture',
+    summary: [
+      'Live attestation CLI preserves successful capture when shareable evidence build or stdout emit fails; stderr emits sanitized ONEAUTO_ATTESTATION_CLI_HANDOFF metadata.',
+      'Exit code 3 signals capture+qualified attestation with handoff degradation — not a provider retry hint; attemptedOutboundRequests remains 1.',
+      'Offline regression tests cover evidence-build fallback and no-clobber capture protection.',
+    ],
+    reason:
+      'E3 capture succeeded but CLI aborted (exit 134) after atomic capture write when full evidence JSON could not be emitted safely.',
+    previousBehavior:
+      'Evidence build failure after capture could terminate the CLI without operator-safe handoff metadata.',
+    details:
+      'backend: oneauto-sandbox-attestation-live-cli-handoff.util.ts, runner fallback fingerprint, oneauto-p25e-c-sandbox-attestation.ts exit mapping; tests: oneauto-p25e-p1-live-cli-handoff.spec.ts; architecture P25E_P1_SECURE_RESULT_CAPTURE.md handoff section.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-02T20:45:00.000Z',
+  },
+  {
     id: 'oneauto-p2-master-admin-ui-2026-11-01',
     version: '4.9.5003',
     title: 'One Auto API — Master Admin service dialog (frontend P2)',
