@@ -36,6 +36,25 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'oneauto-p4-pr1-vin-lookup-async-contract-2026-11-03',
+    version: '4.9.5022',
+    title: 'One Auto P4 PR-1 — OE_VIN_LOOKUP_EU async-capable contract correction',
+    summary: [
+      'Corrects execution-verified registry: `ASYNC_CAPABLE` / `asyncCapability: ASYNC_CAPABLE` (P3 `SYNC_ONLY` superseded); E2 HTTP 200 documented as cached retrieval after E1 HTTP 202.',
+      'Preserves `asyncPollSameUrlWithoutNewCharge=false` and `http206CompleteSuccessAllowed=false`; bumps `pricingSourceVersion` to `synqdrive-p4-vin-lookup-async-capable-v1`.',
+      'Evidence: `P4_VIN_LOOKUP_ASYNC_CONTRACT_CORRECTION.md`, `P4_CROSS_VEHICLE_ROOT_CAUSE.md`; tests `oneauto-p4-vin-lookup-contract-classification.spec.ts`.',
+    ],
+    reason:
+      'P4 forensics proved VIN lookup is async-first on production host; misclassifying E2 as sync caused `ONEAUTO_ASYNC_POLL_UNVERIFIED` on fresh VINs after activation.',
+    previousBehavior:
+      'P3 registry treated live E2 single GET HTTP 200 as sync-first (`catalogExecutionMode: SYNC`, `SYNC_ONLY`).',
+    details:
+      'backend: oneauto-execution-verified-registry.ts, evidence docs, P1_CHANGE_RECORD.md, VERIFIED_PROVIDER_CONTRACTS.md. No runtime 202 lifecycle change in PR-1; no production env activation.',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-11-03T21:30:00.000Z',
+  },
+  {
     id: 'oneauto-p3-vin-lookup-execution-verified-2026-11-03',
     version: '4.9.5021',
     title: 'One Auto P3 — OE_VIN_LOOKUP_EU execution-verified (sync 200 only)',
