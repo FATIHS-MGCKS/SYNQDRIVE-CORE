@@ -36,6 +36,8 @@ type Props = {
   vehicleId: string;
   vehicleLabel: string;
   vin: string | null | undefined;
+  /** When true, stack above VehicleRegistrationModal (z-[100]) full-screen shell. */
+  nestedInRegistrationModal?: boolean;
 };
 
 const MFA_ACTION = 'MASTER_ONEAUTO_PROVIDER_EXECUTE';
@@ -48,6 +50,7 @@ export function OneAutoServiceDialog({
   vehicleId,
   vehicleLabel,
   vin,
+  nestedInRegistrationModal = false,
 }: Props) {
   const { t } = useLanguage();
   const [phase, setPhase] = useState<DialogPhase>('catalog');
@@ -296,7 +299,12 @@ export function OneAutoServiceDialog({
 
   return (
     <>
-      <AppDialog open={open} onOpenChange={onOpenChange} maxWidthClassName="sm:max-w-2xl">
+      <AppDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        maxWidthClassName="sm:max-w-2xl"
+        stackLayer={nestedInRegistrationModal ? 'aboveRegistrationShell' : 'default'}
+      >
         <div className="flex flex-col max-h-[min(90vh,100dvh)]">
           <div className="border-b border-border px-6 py-4 pr-12">
             <DialogPrimitive.Title className="text-lg font-semibold">
@@ -564,7 +572,12 @@ export function OneAutoServiceDialog({
           </div>
 
           <div className="border-t border-border px-6 py-3 flex justify-end">
-            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="secondary"
+              data-testid="oneauto-dialog-footer-close"
+              onClick={() => onOpenChange(false)}
+            >
               {t('master.oneAuto.close' as never)}
             </Button>
           </div>

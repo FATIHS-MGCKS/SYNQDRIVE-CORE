@@ -96,7 +96,12 @@ export { DetailDrawer } from './detail-drawer';
 export type { DetailDrawerProps } from './detail-drawer';
 
 export { AppDialog, FormDialog, ConfirmDialog } from './app-dialog';
-export type { AppDialogProps, FormDialogProps, ConfirmDialogProps } from './app-dialog';
+export type {
+  AppDialogProps,
+  AppDialogStackLayer,
+  FormDialogProps,
+  ConfirmDialogProps,
+} from './app-dialog';
 
 export { Timeline } from './timeline';
 export type { TimelineProps, TimelineItem } from './timeline';
