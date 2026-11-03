@@ -55,6 +55,26 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-11-03T18:30:00.000Z',
   },
   {
+    id: 'vsi-hf-negative-evidence-semantics-p1-2026-11-03',
+    version: '4.9.5021',
+    title: 'VSI HF historical tri-state semantics — union-key negative evidence (P1)',
+    summary: [
+      'Historical axis no longer reuses snapshot-only `SNAPSHOT_EXTRACTOR_NOT_RUN`; HF-specific NOT_EVALUATED reasons and union evaluation over persisted snapshot keys ∪ bounded ClickHouse names (32 cap).',
+      '`EVALUATED_NOT_OBSERVED` only after complete attributable trip queries; mixed SUCCESS/EMPTY/QUERY_FAILED fail-closed without false absence claims.',
+      'Merge retains prior historical `EVALUATED_OBSERVED` when a newer HF refresh fails; failure reason surfaced via `entry.ingestionLimitations` (no JSONB schema change).',
+      'Operational inventory CAS + semantic profile fingerprint unchanged; reconciliation flag still OFF.',
+    ],
+    reason:
+      'Production HF activation left 36 historical rows with misleading snapshot-era placeholders; HF loader omitted snapshot-native keys from evaluation.',
+    previousBehavior:
+      'HF materialization wrote CH aggregate keys only; historical placeholders stayed `SNAPSHOT_EXTRACTOR_NOT_RUN`; failed refresh could replace OBSERVED historical evaluation.',
+    details:
+      'backend: vsi-hf-native-discovery.*, vsi-native-discovery-inventory-merge.util.ts, vsi-profile-materialization.service.ts, vsi-native-signal-discovery-evaluation-state.ts; evidence: architecture/vehicle-signal-intelligence/evidence/VSI_HF_NEGATIVE_EVIDENCE_SEMANTICS_P1.md; PR #2323.',
+    affectsArchitecture: true,
+    module: 'Vehicle Intelligence',
+    createdAt: '2026-11-03T18:15:00.000Z',
+  },
+  {
     id: 'oneauto-nested-modal-stacking-fix-2026-11-03',
     version: '4.9.5020',
     title: 'Master Edit Vehicle — nested One Auto / ZB-I dialog stacking fix',
