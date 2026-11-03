@@ -73,6 +73,9 @@ describe('VehiclesService.update — OEM optimistic concurrency', () => {
           organizationId: 'org-1',
           updatedAt: staleUpdatedAt,
         }),
+        data: expect.objectContaining({
+          updatedAt: expect.any(Date),
+        }),
       }),
     );
     expect(prisma.vehicle.update).not.toHaveBeenCalled();

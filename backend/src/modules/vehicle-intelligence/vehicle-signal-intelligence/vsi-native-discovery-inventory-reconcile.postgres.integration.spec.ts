@@ -14,6 +14,10 @@ import { VsiSignalProfileMaterializationService } from './vsi-profile-materializ
 import { VsiProfileLifecycleOutboxRepository } from './vsi-profile-lifecycle-outbox.repository';
 import { VsiProfileLifecycleEnqueueService } from './vsi-profile-lifecycle-enqueue.service';
 import { VsiProfileLifecycleOutboxProcessor } from './vsi-profile-lifecycle.processor';
+import { VsiProfileLifecycleOutboxWorker } from './vsi-profile-lifecycle.worker';
+import { resolveNativeDiscoveryInventorySweepOutboxAnchor } from './vsi-native-discovery-inventory-sweep-anchor.util';
+import { RuntimeStatusRegistry } from '@modules/observability/runtime-status.registry';
+import { VehicleRegistryLifecycle } from '@prisma/client';
 import {
   createLegacyDimoLinkFixture,
   createLegacyReconcileOrg,
@@ -489,5 +493,178 @@ async function seedProfileWithEmptyInventory(
     expect(snapshot.inventoryMissing).toBeGreaterThanOrEqual(1);
 
     await cleanupOrg(organizationId);
+  });
+
+  it('resolves sweep outbox anchor from first ACTIVE vehicle fleet-wide (skips empty/inactive-only orgs)', async () => {
+    const orgEmpty = await createLegacyReconcileOrg(prisma);
+    const orgInactive = await createLegacyReconcileOrg(prisma);
+    const orgActive = await createLegacyReconcileOrg(prisma);
+
+    await createLegacyDimoLinkFixture(prisma, {
+      organizationId: orgInactive,
+      externalId: `0x${randomUUID().replace(/-/g, '')}`,
+      rawJson: RUPTELA_RAW_JSON,
+      registryLifecycle: VehicleRegistryLifecycle.OFFBOARDED,
+      linkActive: true,
+    });
+
+    const activeFixture = await createLegacyDimoLinkFixture(prisma, {
+      organizationId: orgActive,
+      externalId: `0x${randomUUID().replace(/-/g, '')}`,
+      rawJson: RUPTELA_RAW_JSON,
+    });
+
+    const anchor = await resolveNativeDiscoveryInventorySweepOutboxAnchor(prisma);
+    expect(anchor).not.toBeNull();
+    expect(anchor!.organizationId).toBe(orgActive);
+    expect(anchor!.vehicleId).toBe(activeFixture.vehicleId);
+    expect(anchor!.organizationId).not.toBe(orgEmpty);
+
+    await cleanupOrg(orgEmpty);
+    await cleanupOrg(orgInactive);
+    await cleanupOrg(orgActive);
+  });
+
+  it('sweep continuation crosses org boundaries with idempotent tick and restart on new bucket', async () => {
+    const orgA = await createLegacyReconcileOrg(prisma);
+    const orgB = await createLegacyReconcileOrg(prisma);
+    const fixtureA = await createLegacyDimoLinkFixture(prisma, {
+      organizationId: orgA,
+      externalId: `0x${randomUUID().replace(/-/g, '')}`,
+      rawJson: RUPTELA_RAW_JSON,
+    });
+    const fixtureB = await createLegacyDimoLinkFixture(prisma, {
+      organizationId: orgB,
+      externalId: `0x${randomUUID().replace(/-/g, '')}`,
+      rawJson: RUPTELA_RAW_JSON,
+    });
+    await seedProfileWithEmptyInventory(prisma, {
+      organizationId: orgA,
+      vehicleId: fixtureA.vehicleId,
+      linkId: fixtureA.linkId,
+      fingerprint: 'fp-sweep-a',
+    });
+    await seedProfileWithEmptyInventory(prisma, {
+      organizationId: orgB,
+      vehicleId: fixtureB.vehicleId,
+      linkId: fixtureB.linkId,
+      fingerprint: 'fp-sweep-b',
+    });
+
+    const firstPlan = await planNativeDiscoveryInventoryReconcileSweep({
+      prisma,
+      maxLinks: 1,
+    });
+    expect(firstPlan.candidates).toHaveLength(1);
+    expect(firstPlan.nextCursor).toBeTruthy();
+
+    const anchor = await resolveNativeDiscoveryInventorySweepOutboxAnchor(prisma);
+    expect(anchor).not.toBeNull();
+
+    const tickBucket = 424242;
+    await enqueue.enqueueNativeDiscoveryInventorySweepTick({
+      organizationId: anchor!.organizationId,
+      vehicleId: anchor!.vehicleId,
+      occurredAt: new Date(),
+      tickBucket,
+    });
+    await enqueue.enqueueNativeDiscoveryInventorySweepTick({
+      organizationId: anchor!.organizationId,
+      vehicleId: anchor!.vehicleId,
+      occurredAt: new Date(),
+      tickBucket,
+    });
+    expect(
+      await prisma.vsiProfileLifecycleOutbox.count({
+        where: { idempotencyKey: `vsi-p3a:INVENTORY_SWEEP_TICK:${tickBucket}` },
+      }),
+    ).toBe(1);
+
+    await enqueue.enqueueNativeDiscoveryInventorySweepContinuation({
+      organizationId: anchor!.organizationId,
+      vehicleId: anchor!.vehicleId,
+      cursor: firstPlan.nextCursor!,
+      occurredAt: new Date(),
+    });
+    await enqueue.enqueueNativeDiscoveryInventorySweepContinuation({
+      organizationId: anchor!.organizationId,
+      vehicleId: anchor!.vehicleId,
+      cursor: firstPlan.nextCursor!,
+      occurredAt: new Date(),
+    });
+    const continuationKey = `vsi-p3a:INVENTORY_SWEEP:${firstPlan.nextCursor!.organizationId}:${firstPlan.nextCursor!.providerSourceLinkId}`;
+    expect(
+      await prisma.vsiProfileLifecycleOutbox.count({
+        where: { idempotencyKey: continuationKey },
+      }),
+    ).toBe(1);
+
+    await processor.processPendingBatch(25);
+
+    const reconcileRows = await prisma.vsiProfileLifecycleOutbox.findMany({
+      where: { eventType: 'NATIVE_DISCOVERY_INVENTORY_RECONCILE' },
+    });
+    const orgsTouched = new Set(reconcileRows.map((r) => r.organizationId));
+    expect(orgsTouched.has(orgA)).toBe(true);
+    expect(orgsTouched.has(orgB)).toBe(true);
+
+    const restartBucket = tickBucket + 1;
+    await enqueue.enqueueNativeDiscoveryInventorySweepTick({
+      organizationId: anchor!.organizationId,
+      vehicleId: anchor!.vehicleId,
+      occurredAt: new Date(),
+      tickBucket: restartBucket,
+    });
+    expect(
+      await prisma.vsiProfileLifecycleOutbox.count({
+        where: { idempotencyKey: `vsi-p3a:INVENTORY_SWEEP_TICK:${restartBucket}` },
+      }),
+    ).toBe(1);
+
+    await cleanupOrg(orgA);
+    await cleanupOrg(orgB);
+  });
+
+  it('feature OFF creates no sweep events and leaves lifecycle outbox usable', async () => {
+    process.env.VSI_DISCOVERY_INVENTORY_RECONCILE_ENABLED = 'false';
+    const organizationId = await createLegacyReconcileOrg(prisma);
+    const fixture = await createLegacyDimoLinkFixture(prisma, {
+      organizationId,
+      externalId: `0x${randomUUID().replace(/-/g, '')}`,
+      rawJson: RUPTELA_RAW_JSON,
+    });
+    await seedDrivingCapability(prisma, organizationId, fixture.vehicleId);
+
+    const leaderGuard = { shouldRun: () => true } as never;
+    const worker = new VsiProfileLifecycleOutboxWorker(
+      processor,
+      leaderGuard,
+      enqueue,
+      prisma as never,
+    );
+    RuntimeStatusRegistry.setWorkersEnabled(true);
+    await worker.runInventorySweepSchedulerTick();
+
+    const sweepCount = await prisma.vsiProfileLifecycleOutbox.count({
+      where: { eventType: 'NATIVE_DISCOVERY_INVENTORY_SWEEP' },
+    });
+    expect(sweepCount).toBe(0);
+
+    await enqueue.enqueueSourceLinkActivated({
+      organizationId,
+      vehicleId: fixture.vehicleId,
+      providerSourceLinkId: fixture.linkId,
+      occurredAt: new Date(),
+    });
+    await processor.processPendingBatch(5);
+    const activatedRows = await prisma.vsiProfileLifecycleOutbox.findMany({
+      where: { organizationId, eventType: 'SOURCE_LINK_ACTIVATED' },
+    });
+    expect(activatedRows.some((r) => r.status === VsiProfileLifecycleOutboxStatus.COMPLETED)).toBe(
+      true,
+    );
+
+    await cleanupOrg(organizationId);
+    process.env.VSI_DISCOVERY_INVENTORY_RECONCILE_ENABLED = 'true';
   });
 });

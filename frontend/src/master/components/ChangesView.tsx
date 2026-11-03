@@ -600,6 +600,24 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-11-03T00:00:00.000Z',
   },
   {
+    id: 'vehicle-oem-spec-optimistic-concurrency-fix-2026-11-03',
+    version: '4.9.5017',
+    title: 'OEM PATCH — fix optimistic concurrency lost update',
+    summary: [
+      'Conditional `vehicle.updateMany` OEM saves now set `updatedAt` explicitly so stale writers lose the CAS predicate (Prisma bulk update did not advance `@updatedAt`).',
+      'PostgreSQL integration adds dual-connection repeated race regression (7 tests); conflict contract unchanged (`VEHICLE_OEM_SPEC_SAVE_CONFLICT`).',
+    ],
+    reason:
+      'Concurrent Master OEM saves could both succeed against the same read `updatedAt`, overwriting each other without conflict.',
+    previousBehavior:
+      'Optimistic WHERE used read `updatedAt` but row timestamp often unchanged after `updateMany`, so second writer still matched.',
+    details:
+      'backend: vehicles.service.ts optimistic save path; vehicle-oem-specification-patch.postgres.integration.spec.ts; vehicles.service.oem-update.spec.ts; CI scripts expect 7 OEM PG tests; architecture ONEAUTO_OEM_SPEC_PRB_MASTER_API_UI.md.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-03T10:30:00.000Z',
+  },
+  {
     id: 'oneauto-oem-spec-prc1-normalizer-2026-11-03',
     version: '4.9.5016',
     title: 'One Auto OEM spec PR-C1 — VIN lookup normalizer & comparison',

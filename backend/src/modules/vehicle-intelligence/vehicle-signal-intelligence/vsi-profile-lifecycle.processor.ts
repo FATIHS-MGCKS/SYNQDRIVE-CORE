@@ -18,6 +18,7 @@ import { planActiveVehicleProfileBackfill } from './vsi-profile-lifecycle.backfi
 import { VsiProfileLifecycleEnqueueService } from './vsi-profile-lifecycle-enqueue.service';
 import { planNativeDiscoveryInventoryReconcileSweep } from './vsi-native-discovery-inventory-reconcile.planner';
 import { isVsiDiscoveryInventoryReconcileEnabled } from './vsi-discovery-inventory-reconcile.config';
+import { resolveNativeDiscoveryInventorySweepOutboxAnchor } from './vsi-native-discovery-inventory-sweep-anchor.util';
 
 export type VsiProfileLifecycleProcessOutcome =
   | 'completed'
@@ -257,9 +258,13 @@ export class VsiProfileLifecycleOutboxProcessor {
       });
     }
     if (nextCursor) {
+      const anchor = await resolveNativeDiscoveryInventorySweepOutboxAnchor(this.prisma);
+      if (!anchor) {
+        return;
+      }
       await this.enqueue.enqueueNativeDiscoveryInventorySweepContinuation({
-        organizationId: row.organizationId,
-        vehicleId: row.vehicleId,
+        organizationId: anchor.organizationId,
+        vehicleId: anchor.vehicleId,
         cursor: nextCursor,
         occurredAt,
       });

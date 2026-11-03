@@ -8,6 +8,7 @@ import {
   DriveType,
   FuelType,
   HealthStatus,
+  Prisma,
   PrismaClient,
   ProductSlug,
   VehicleStatus,
@@ -147,36 +148,81 @@ async function serviceUpdate(
   });
 
   it('returns conflict when two concurrent OEM writes race on the same updatedAt', async () => {
-    const base = {
-      technicalSpecificationSave: { confirmedFieldKeys: ['oemEngineCode'] as string[] },
-    };
-    const results = await Promise.allSettled([
-      serviceUpdate(prisma, organizationId, vehicleId, {
-        ...base,
-        oemEngineCode: 'RACE_A',
-      }),
-      serviceUpdate(prisma, organizationId, vehicleId, {
-        ...base,
-        oemEngineCode: 'RACE_B',
-      }),
-    ]);
+    const prismaB = new PrismaClient();
+    await prismaB.$connect();
+    try {
+      const base = {
+        technicalSpecificationSave: { confirmedFieldKeys: ['oemEngineCode'] as string[] },
+      };
+      const results = await Promise.allSettled([
+        serviceUpdate(prisma, organizationId, vehicleId, {
+          ...base,
+          oemEngineCode: 'RACE_A',
+        }),
+        serviceUpdate(prismaB, organizationId, vehicleId, {
+          ...base,
+          oemEngineCode: 'RACE_B',
+        }),
+      ]);
 
-    const fulfilled = results.filter((r) => r.status === 'fulfilled');
-    const rejected = results.filter((r) => r.status === 'rejected');
-    expect(fulfilled).toHaveLength(1);
-    expect(rejected).toHaveLength(1);
-    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(ConflictException);
-    expect((rejected[0] as PromiseRejectedResult).reason.response?.code).toBe(
-      'VEHICLE_OEM_SPEC_SAVE_CONFLICT',
-    );
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter((r) => r.status === 'rejected');
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(ConflictException);
+      expect((rejected[0] as PromiseRejectedResult).reason.response?.code).toBe(
+        'VEHICLE_OEM_SPEC_SAVE_CONFLICT',
+      );
 
-    const row = await prisma.vehicle.findUnique({
-      where: { id: vehicleId },
-      select: { oemEngineCode: true, registrationIdentityProvenance: true },
-    });
-    expect(['RACE_A', 'RACE_B']).toContain(row?.oemEngineCode);
-    const doc = parseRegistrationIdentityProvenance(row?.registrationIdentityProvenance);
-    expect(doc?.fields?.oemEngineCode?.value).toBe(row?.oemEngineCode);
+      const row = await prisma.vehicle.findUnique({
+        where: { id: vehicleId },
+        select: { oemEngineCode: true, registrationIdentityProvenance: true },
+      });
+      expect(['RACE_A', 'RACE_B']).toContain(row?.oemEngineCode);
+      const doc = parseRegistrationIdentityProvenance(row?.registrationIdentityProvenance);
+      expect(doc?.fields?.oemEngineCode?.value).toBe(row?.oemEngineCode);
+    } finally {
+      await prismaB.$disconnect();
+    }
+  });
+
+  it('deterministic concurrency: repeated dual-connection OEM races yield one conflict each', async () => {
+    const prismaB = new PrismaClient();
+    await prismaB.$connect();
+    try {
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const base = {
+          technicalSpecificationSave: { confirmedFieldKeys: ['oemEngineCode'] as string[] },
+        };
+        const results = await Promise.allSettled([
+          serviceUpdate(prisma, organizationId, vehicleId, {
+            ...base,
+            oemEngineCode: `RACE_A_${attempt}`,
+          }),
+          serviceUpdate(prismaB, organizationId, vehicleId, {
+            ...base,
+            oemEngineCode: `RACE_B_${attempt}`,
+          }),
+        ]);
+        const fulfilled = results.filter((r) => r.status === 'fulfilled');
+        const rejected = results.filter((r) => r.status === 'rejected');
+        expect(fulfilled).toHaveLength(1);
+        expect(rejected).toHaveLength(1);
+        expect((rejected[0] as PromiseRejectedResult).reason.response?.code).toBe(
+          'VEHICLE_OEM_SPEC_SAVE_CONFLICT',
+        );
+        await prisma.vehicle.updateMany({
+          where: { id: vehicleId },
+          data: {
+            oemEngineCode: null,
+            registrationIdentityProvenance: Prisma.DbNull,
+            updatedAt: new Date(),
+          },
+        });
+      }
+    } finally {
+      await prismaB.$disconnect();
+    }
   });
 
   it('does not apply OEM PATCH when vehicleId is resolved under a different organizationId', async () => {

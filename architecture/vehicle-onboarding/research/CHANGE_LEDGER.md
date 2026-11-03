@@ -2,8 +2,9 @@
 
 | Date | Change | Authority impact |
 |------|--------|------------------|
+| 2026-11-03 | **OEM PATCH optimistic concurrency fix** — explicit `updatedAt` on conditional `updateMany` (lost-update when `@updatedAt` skipped on bulk update); dual-connection PG regression (7 tests) | Master PATCH; evidence `ONEAUTO_OEM_SPEC_PRB_MASTER_API_UI.md` |
 | 2026-11-03 | **One Auto OEM spec PR-C2 idempotency hardening** — materialization compares stored snapshots with `isDeepStrictEqual` (jsonb key order); `snapshotCreatedAt` tied to `responseFetchedAt` for stable normalized payloads | Same module; evidence `ONEAUTO_OEM_SPEC_PRC2_SNAPSHOT.md` |
-| 2026-11-03 | **One Auto OEM spec PR-C2 blocker repair** — scheduler registry entry `oneauto_oem_suggestion_snapshot_cleanup`; bounded recovery batch for missing snapshots; CI script runs OneAuto PG before OEM PATCH 6; evidence `ONEAUTO_OEM_SPEC_PRC2_SNAPSHOT.md` updated | Same module; no auto-confirm |
+| 2026-11-03 | **One Auto OEM spec PR-C2 blocker repair** — scheduler registry entry `oneauto_oem_suggestion_snapshot_cleanup`; bounded recovery batch for missing snapshots; CI script runs OneAuto PG before OEM PATCH 7-pack; evidence `ONEAUTO_OEM_SPEC_PRC2_SNAPSHOT.md` updated | Same module; no auto-confirm |
 | 2026-11-03 | **One Auto OEM spec PR-C1 (normalizer + comparison)** — Pure `OE_VIN_LOOKUP_EU` result → six desc suggestions + field-level MATCH/MISSING/CONFLICT/NOT_COMPARABLE; Audi A4 offline fixture; evidence `ONEAUTO_OEM_SPEC_PRC1_NORMALIZER.md` | No persistence/API/UI; module remains `AUDIT_IN_PROGRESS` |
 | 2026-11-02 | **One Auto OEM spec PR-B CI/governance split** — OEM spec PostgreSQL integration wired into Vehicle Detail CI; inventory authority split out of product PR to satisfy i18n mixed-change policy | Evidence `ONEAUTO_OEM_SPEC_PRB_MASTER_API_UI.md` |
 | 2026-11-02 | **One Auto OEM spec PR-B hardening** — Master Admin server-side gate for OEM PATCH bodies; optimistic concurrency on all OEM writes; `VEHICLE_OEM_SPEC_SAVE_CONFLICT`; security + postgres integration tests | Same PR-B slice; evidence `ONEAUTO_OEM_SPEC_PRB_MASTER_API_UI.md` updated |
