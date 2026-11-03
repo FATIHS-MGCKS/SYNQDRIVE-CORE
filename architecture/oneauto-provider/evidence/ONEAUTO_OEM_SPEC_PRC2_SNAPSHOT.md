@@ -24,7 +24,7 @@ Gates (all required):
 2. Job status `SUCCEEDED`
 3. Job not expired (`expiresAt` present and in the future)
 4. `serviceSku === OE_VIN_LOOKUP_EU`
-- Envelope gate uses **documented** OpenAPI contract (not execution-verified registry — no provider HTTP in this path)
+5. Latest stored HTTP 200 response passes documented OpenAPI `SUCCESS_RESULT_ERROR` envelope + non-null `result` object (not execution-verified registry)
 6. Full VIN binding: normalized job `vinSnapshot` === vehicle VIN === provider `vehicle_identification_number` when present
 7. Org/vehicle binding: vehicle row exists for `(organizationId, vehicleId)`
 
