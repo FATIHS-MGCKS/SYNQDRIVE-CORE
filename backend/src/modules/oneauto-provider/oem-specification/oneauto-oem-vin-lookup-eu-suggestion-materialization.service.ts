@@ -153,7 +153,7 @@ export class OneAutoOemVinLookupEuSuggestionMaterializationService {
       }
 
       const fetchedAtIso = successResponse.fetchedAt.toISOString();
-      const snapshotCreatedAtIso = new Date().toISOString();
+      const snapshotCreatedAtIso = fetchedAtIso;
       const normalized = normalizeOemVinLookupEuSuggestions({
         providerResult,
         fetchedAt: fetchedAtIso,
