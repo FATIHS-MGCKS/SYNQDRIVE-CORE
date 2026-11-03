@@ -50,7 +50,7 @@ describe('OneAutoProviderService cost and idempotency', () => {
       await service.executeConfirmed({
         orgId: 'org1',
         vehicleId: 'v1',
-        serviceSku: 'OE_VIN_LOOKUP_EU',
+        serviceSku: 'OE_SERVICE_HISTORY_EU',
         idempotencyKey: 'key-1',
         confirmedPriceMinor: 150,
         pricingSourceVersion: 'synqdrive-catalog-v1',

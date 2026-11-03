@@ -13,6 +13,7 @@ import {
   ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS,
   buildOneAutoContractGateReport,
 } from './catalog/oneauto-verified-contracts';
+import { seedOneAutoExecutionVerifiedRegistry } from './catalog/oneauto-execution-verified-registry';
 import {
   assertOneAutoAllowlistedPath,
   isOneAutoPathAllowlisted,
@@ -69,11 +70,17 @@ describe('OneAuto P2.5A documented contracts', () => {
     }
   });
 
-  it('marks documented SKUs not executable in gate report', () => {
-    const gate = buildOneAutoContractGateReport('OE_VIN_LOOKUP_EU');
+  it('marks non-promoted documented SKUs not executable in gate report', () => {
+    const gate = buildOneAutoContractGateReport('OE_SERVICE_HISTORY_EU');
     expect(gate.executable).toBe(false);
     expect(gate.reason).toBe('DOCUMENTED_NOT_EXECUTABLE');
     expect(gate.documentationState).toBe('DOCUMENTED');
+  });
+
+  it('marks P3-promoted VIN lookup executable in gate report', () => {
+    const gate = buildOneAutoContractGateReport('OE_VIN_LOOKUP_EU');
+    expect(gate.executable).toBe(true);
+    expect(gate.reason).toBe('EXECUTABLE');
   });
 
   it('maps async capabilities per audit', () => {
@@ -96,11 +103,11 @@ describe('OneAuto catalog (P2 compatibility)', () => {
     expect(ONEAUTO_SERVICE_CATALOG[0].providerPathTemplate).not.toMatch(/^oe\//);
   });
 
-  it('marks runtime CONTRACT_UNVERIFIED when execution registry empty', () => {
-    const entry = ONEAUTO_SERVICE_CATALOG[0];
+  it('keeps non-VIN SKUs CONTRACT_UNVERIFIED when only VIN lookup is execution-verified', () => {
+    const entry = ONEAUTO_SERVICE_CATALOG.find((e) => e.serviceSku === 'OE_SERVICE_HISTORY_EU')!;
     const resolved = resolveCatalogEntryForRuntime(entry, {
       providerEnabled: true,
-      indicativePriceMinorBySku: { [entry.serviceSku]: 100 },
+      indicativePriceMinorBySku: { OE_SERVICE_HISTORY_EU: 300 },
       pricingCatalogVersion: 'v1',
     });
     expect(resolved.availabilityStatus).toBe('CONTRACT_UNVERIFIED');
@@ -124,10 +131,11 @@ describe('OneAuto DE PrePay reference prices', () => {
 
 describe('OneAuto allowlist', () => {
   afterEach(() => {
-    ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.clear();
+    seedOneAutoExecutionVerifiedRegistry(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS);
   });
 
-  it('rejects all documented paths when execution registry empty', () => {
+  it('rejects documented paths when execution registry cleared for isolation', () => {
+    ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.clear();
     expect(listAllowlistedMethodPathKeys()).toHaveLength(0);
     for (const doc of listDocumentedOneAutoContracts()) {
       expect(isOneAutoPathAllowlisted('GET', doc.providerPathTemplate)).toBe(false);
@@ -162,7 +170,7 @@ describe('OneAutoHttpClient contract-driven HTTP', () => {
   } as unknown as ConfigService;
 
   afterEach(() => {
-    ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.clear();
+    seedOneAutoExecutionVerifiedRegistry(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS);
     delete process.env.ONEAUTO_API_KEY;
   });
 
@@ -207,10 +215,11 @@ describe('OneAutoHttpClient contract-driven HTTP', () => {
 
   it('rejects unsupported path when not allowlisted', async () => {
     process.env.ONEAUTO_API_KEY = 'test-key-redacted';
+    ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.clear();
     const client = new OneAutoHttpClient(config);
     await expect(
       client.executeProviderGet({
-        contract: executionVerifiedFixture('OE_VIN_LOOKUP_EU'),
+        contract: executionVerifiedFixture('OE_SERVICE_HISTORY_EU'),
         vin: TEST_VIN,
       }),
     ).rejects.toMatchObject({ code: 'CONTRACT_UNVERIFIED' });
@@ -276,7 +285,7 @@ describe('OneAutoHttpClient contract-driven HTTP', () => {
 
 describe('OneAutoProviderExecutionService async and 206 policy', () => {
   afterEach(() => {
-    ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.clear();
+    seedOneAutoExecutionVerifiedRegistry(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS);
   });
 
   function buildService(http: { executeProviderGet: jest.Mock }) {
@@ -310,6 +319,7 @@ describe('OneAutoProviderExecutionService async and 206 policy', () => {
   }
 
   it('does not call HTTP when execution registry empty', async () => {
+    ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.clear();
     const http = { executeProviderGet: jest.fn() };
     const { svc, prisma } = buildService(http);
     prisma.oneAutoProviderJob.findUnique.mockResolvedValue({

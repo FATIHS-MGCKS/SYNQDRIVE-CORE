@@ -36,6 +36,25 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'oneauto-p3-vin-lookup-execution-verified-2026-11-03',
+    version: '4.9.5021',
+    title: 'One Auto P3 — OE_VIN_LOOKUP_EU execution-verified (sync 200 only)',
+    summary: [
+      'Seeds `ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS` with `OE_VIN_LOOKUP_EU` only from existing E1/E2 attestation evidence; `asyncPollSameUrlWithoutNewCharge=false` (no 202 polling).',
+      'Catalog runtime shows `executionMode: SYNC` for verified VIN lookup; service history and other SKUs stay non-executable.',
+      'Evidence: `architecture/oneauto-provider/evidence/P3_VIN_LOOKUP_EXECUTION_VERIFIED.md`; tests `oneauto-p3-vin-lookup-execution-verified-registry.spec.ts`.',
+    ],
+    reason:
+      'Master Admin quote/execute path requires EXECUTION_VERIFIED registry entry before any live VIN lookup job; attested behavior is single GET → HTTP 200 success only.',
+    previousBehavior:
+      'Empty execution-verified registry — all SKUs `CONTRACT_UNVERIFIED` despite documented paths.',
+    details:
+      'backend: oneauto-execution-verified-registry.ts, oneauto-verified-contracts.ts, oneauto-service-catalog.ts, P1_CHANGE_RECORD.md. No production env activation in this change.',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-11-03T18:30:00.000Z',
+  },
+  {
     id: 'vsi-hf-negative-evidence-semantics-p1-2026-11-03',
     version: '4.9.5021',
     title: 'VSI HF historical tri-state semantics — union-key negative evidence (P1)',
