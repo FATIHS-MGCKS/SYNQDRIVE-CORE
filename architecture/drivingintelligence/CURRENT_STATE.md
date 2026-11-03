@@ -67,6 +67,7 @@ Do **not** say "HF Recovery V2 not deployed" — say **code deployed, feature di
 | **Vehicle spec idle/max** | **IMPLEMENTED** — `vehicles.idle_rpm` / `max_rpm` + provenance; **not** wired into V1B admission today |
 | **RPM Reference Intelligence** | **IMPLEMENTED (Phase 5A library + Phase 5B V1B attach)** — `rpm-reference-intelligence-v1/`; optional `rpmReferenceIntelligenceV1` on V1B `summary_json` when `DS4_RPM_REF_INTEL_V1_V1B_ATTACH_ENABLED=true` (default OFF); **no** DS4 consumer; ADR [`design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md`](design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md) (`DI-DEC-RPM-REF-INTEL-001`) |
 | **DS4 consumes RPM reference metrics** | **NOT YET IMPLEMENTED** — future versioned optional interface only |
+| **DS4 × RPM shadow correlation harness V1** | **IMPLEMENTED (Phase 0 research library + CLI)** — `ds4-rpm-shadow-correlation/`; fixture replay only; evidence [`evidence/DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md`](evidence/DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md); **no** production/DB loader in v1 |
 
 ## Production path today (CONFIRMED)
 
