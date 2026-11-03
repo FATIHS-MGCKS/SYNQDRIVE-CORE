@@ -77,6 +77,14 @@
 - **Evidence cross-ref:** `architecture/vehicle-onboarding/evidence/ONEAUTO_OEM_SPEC_PRA_SCHEMA_PROVENANCE.md`
 - **Non-effects:** `ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS` unchanged; attestation capture still local-only; no job→Vehicle writes; OpenAPI capture mapping unchanged until product PR.
 
+## P3 — OE_VIN_LOOKUP_EU execution-verified registry (2026-11-03)
+
+- **Scope:** Seed `ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS` with **OE_VIN_LOOKUP_EU** only — sync HTTP 200 path (live E2); async poll **disabled** (live E1 HTTP 202, no polling attestation).
+- **Evidence:** `architecture/oneauto-provider/evidence/P3_VIN_LOOKUP_EXECUTION_VERIFIED.md` (reuses P25E-E1/E2 + P25E-P1 capture contract; no new provider calls in PR).
+- **Code:** `catalog/oneauto-execution-verified-registry.ts`; catalog runtime `executionMode` override → `SYNC` when verified.
+- **Non-effects:** `OE_SERVICE_HISTORY_EU` and other SKUs remain DOCUMENTED-only; no `ONEAUTO_ENABLED` / production env activation in PR; quote/MFA/budget/idempotency/no-retry unchanged.
+- **Tests:** `oneauto-p3-vin-lookup-execution-verified-registry.spec.ts`; attestation/P2.5 regression expectations updated for single-SKU registry.
+
 ## P2.5E-P1 hardening — capture field coverage & safe publish (2026-11-02)
 
 - **Field coverage:** `bodyType` / `interiorTrim` from `oem_body_type_desc` / `oem_interior_trim_desc`; regression asserts **17** non-VIN OpenAPI result keys mapped.

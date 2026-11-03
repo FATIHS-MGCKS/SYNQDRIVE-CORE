@@ -1,6 +1,6 @@
 # One Auto API — provider contracts (SynqDrive)
 
-Last updated: **2026-11-01** (P2.5B OpenAPI evidence alignment). No live paid provider calls from this workstream.
+Last updated: **2026-11-03** (P3 VIN lookup execution-verified registry). No live paid provider calls from this workstream.
 
 ## OpenAPI evidence (P2.5B)
 
@@ -16,7 +16,7 @@ Regression: `oneauto-p25b-openapi-contract-alignment.spec.ts`.
 | **EXECUTION_VERIFIED** | Async poll billing, HTTP 206, pricing, and parsing attested on registry entry | Allowlisted only | Allowed when flag + env price |
 
 **DOCUMENTED ≠ EXECUTABLE.** Documented contracts live in `catalog/oneauto-documented-contracts.ts`.  
-Execution registry `ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS` remains **empty** until a follow-up attestation PR.
+Execution registry is seeded from `catalog/oneauto-execution-verified-registry.ts` (P3: VIN lookup only).
 
 ## Official references
 
@@ -46,7 +46,11 @@ Service page URLs are listed on each entry in `oneauto-documented-contracts.ts` 
 
 ## EXECUTION_VERIFIED registry
 
-**Empty.** No SKU may call the provider until an entry is added with:
+**P3 (2026-11-03):** `OE_VIN_LOOKUP_EU` only — sync HTTP **200** completion attested (live E2); **async poll disabled** (`asyncPollSameUrlWithoutNewCharge: false`) per live E1 (HTTP 202, single GET). See `architecture/oneauto-provider/evidence/P3_VIN_LOOKUP_EXECUTION_VERIFIED.md`.
+
+**All other SKUs (including `OE_SERVICE_HISTORY_EU`) remain non-executable** until separate attestation PRs.
+
+Each execution-verified entry requires:
 
 - `evidenceState: 'EXECUTION_VERIFIED'`
 - Explicit `asyncPollSameUrlWithoutNewCharge` (required `true` to enable same-URL polling after 202)

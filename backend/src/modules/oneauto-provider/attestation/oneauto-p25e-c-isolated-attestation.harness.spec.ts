@@ -28,8 +28,10 @@ import { formatAttestationEvidenceMarkdown } from './oneauto-sandbox-attestation
 describe('OneAuto P2.5E-C isolated attestation harness', () => {
   const doc = () => getDocumentedOneAutoContract('OE_VIN_LOOKUP_EU')!;
 
-  it('keeps production EXECUTION_VERIFIED registry empty', () => {
-    expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.size).toBe(0);
+  it('P3 registry: VIN lookup execution-verified; attestation harness does not mutate registry', () => {
+    expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_VIN_LOOKUP_EU')).toBe(true);
+    expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.get('OE_VIN_LOOKUP_EU')!
+      .asyncPollSameUrlWithoutNewCharge).toBe(false);
   });
 
   describe('offline fixtures', () => {

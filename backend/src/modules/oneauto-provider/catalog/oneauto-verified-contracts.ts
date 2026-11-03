@@ -2,6 +2,7 @@ import {
   getDocumentedOneAutoContract,
   isOneAutoSkuDocumented,
 } from './oneauto-documented-contracts';
+import { seedOneAutoExecutionVerifiedRegistry } from './oneauto-execution-verified-registry';
 import type { OneAutoExecutionVerifiedProviderContract } from './oneauto-contract-types';
 
 export type {
@@ -14,13 +15,15 @@ export type {
 export type VerifiedOneAutoProviderContract = OneAutoExecutionVerifiedProviderContract;
 
 /**
- * Execution-verified registry — empty until async/billing attestation PRs land.
- * DOCUMENTED contracts alone must never be inserted here.
+ * Execution-verified registry — populated only from `oneauto-execution-verified-registry.ts`.
+ * DOCUMENTED contracts alone must never be inserted here ad hoc.
  */
 export const ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS: Map<
   string,
   OneAutoExecutionVerifiedProviderContract
 > = new Map();
+
+seedOneAutoExecutionVerifiedRegistry(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS);
 
 /** Back-compat alias (same map reference). */
 export const ONEAUTO_VERIFIED_PROVIDER_CONTRACTS = ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS;
