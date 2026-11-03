@@ -79,6 +79,9 @@ export class OneAutoHttpClient {
   async executeProviderGet(input: {
     contract: OneAutoProviderHttpContract;
     vin: string;
+    optionalQueryParameters?: Partial<
+      Record<'callback_url' | 'return_data_in_callback', string | boolean>
+    >;
   }): Promise<OneAutoHttpResult> {
     this.assertOutboundAllowed();
     const contract = input.contract;
@@ -107,7 +110,21 @@ export class OneAutoHttpClient {
 
     const path = contract.providerPathTemplate.replace(/^\/+/, '');
     const vinParam = contract.vinQueryParameter;
-    const url = `${base}/${path}?${encodeURIComponent(vinParam)}=${encodeURIComponent(validatedVin)}`;
+    const params = new URLSearchParams();
+    params.set(vinParam, validatedVin);
+    const optional = input.optionalQueryParameters;
+    if (optional?.callback_url != null && String(optional.callback_url).trim()) {
+      params.set('callback_url', String(optional.callback_url).trim());
+    }
+    if (optional?.return_data_in_callback != null) {
+      params.set(
+        'return_data_in_callback',
+        optional.return_data_in_callback === true || optional.return_data_in_callback === 'true'
+          ? 'true'
+          : 'false',
+      );
+    }
+    const url = `${base}/${path}?${params.toString()}`;
 
     const apiKey = process.env.ONEAUTO_API_KEY?.trim();
     if (!apiKey) {

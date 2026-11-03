@@ -46,6 +46,8 @@ const PUBLIC_PATH_PREFIXES: string[] = [
   // ElevenLabs post-call and conversation webhooks — org-scoped path, HMAC verified in controller
   '/api/v1/webhooks/elevenlabs/post-call',
   '/api/v1/webhooks/elevenlabs/conversation',
+  // One Auto provider async callbacks — token in path (no vendor HMAC documented)
+  '/api/v1/webhooks/oneauto/provider-callback/',
 ];
 
 @Injectable()

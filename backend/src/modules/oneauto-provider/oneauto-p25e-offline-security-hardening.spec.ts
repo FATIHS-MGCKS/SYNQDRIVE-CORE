@@ -29,6 +29,7 @@ function executionVerifiedFixture(): OneAutoExecutionVerifiedProviderContract {
     evidenceState: 'EXECUTION_VERIFIED',
     asyncPollSameUrlWithoutNewCharge: false,
     http206CompleteSuccessAllowed: false,
+    asyncCompletionMode: 'NONE',
     pricingSourceVersion: 'p25e-offline-only',
   };
 }

@@ -35,6 +35,7 @@ function executionVerifiedFixture(
     evidenceState: 'EXECUTION_VERIFIED',
     asyncPollSameUrlWithoutNewCharge: false,
     http206CompleteSuccessAllowed: false,
+    asyncCompletionMode: 'NONE',
     pricingSourceVersion: 'p25c-offline-harness-only',
     ...overrides,
   };

@@ -36,6 +36,7 @@ function executionVerifiedFixture(
     pricingSourceVersion: 'test-attestation-v1',
     catalogExecutionMode: 'ASYNC_CAPABLE',
     asyncCapability: 'ASYNC_CAPABLE',
+    asyncCompletionMode: 'NONE' as const,
     ...overrides,
   };
 }

@@ -25,6 +25,13 @@ export type OneAutoAsyncCapability =
   | 'ASYNC_CAPABLE'
   | 'ASYNC_UNVERIFIED';
 
+/** Verified async completion path — default NONE until E4 attestation updates registry. */
+export type OneAutoAsyncCompletionMode =
+  | 'NONE'
+  | 'CALLBACK_NOTIFY_THEN_GET'
+  | 'CALLBACK_FULL_DATA'
+  | 'POLL_SAME_URL';
+
 /**
  * Evidence axis — DOCUMENTED ≠ executable.
  * EXECUTION_VERIFIED is required for outbound HTTP and Master Admin execute.
@@ -65,6 +72,8 @@ export type OneAutoExecutionVerifiedProviderContract = Omit<
   evidenceState: 'EXECUTION_VERIFIED';
   asyncPollSameUrlWithoutNewCharge: boolean;
   http206CompleteSuccessAllowed: boolean;
+  /** Post-202 completion — NONE until attestation promotes CALLBACK_* or POLL. */
+  asyncCompletionMode: OneAutoAsyncCompletionMode;
   pricingSourceVersion: string;
 };
 

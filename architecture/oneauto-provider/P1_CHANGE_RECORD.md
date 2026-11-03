@@ -101,6 +101,14 @@
 - **Non-effects:** No provider poll/callback/retry/recovery GET; budget reservation semantics preserved; vendor charge remains `actualChargeKnown=false`.
 - **Tests:** `oneauto-p4-async-job-lifecycle.spec.ts`, `oneauto-provider-result-retention.util.spec.ts`
 
+## P4 PR-3 — callback notify-then-retrieval scaffold (2026-11-03, draft)
+
+- **Scope:** Optional `callback_url` on initial dispatch; public callback ingress; inbox persistence; BullMQ `retrieval` phase (single GET); registry `asyncCompletionMode` default **`NONE`**.
+- **Evidence:** `architecture/oneauto-provider/evidence/P4_PR3_CALLBACK_COMPLETION.md`
+- **Flags (default OFF):** `ONEAUTO_CALLBACK_ENABLED`, `ONEAUTO_CALLBACK_RETRIEVAL_GET_ENABLED`, `ONEAUTO_CALLBACK_RETURN_DATA_IN_CALLBACK`
+- **Non-effects:** No live activation without E4 + registry promotion; Service History remains non-executable; no merge/deploy in PR-3 draft.
+- **Tests:** `oneauto-p4-pr3-callback-completion.spec.ts`
+
 ## P2.5E-P1 hardening — capture field coverage & safe publish (2026-11-02)
 
 - **Field coverage:** `bodyType` / `interiorTrim` from `oem_body_type_desc` / `oem_interior_trim_desc`; regression asserts **17** non-VIN OpenAPI result keys mapped.
