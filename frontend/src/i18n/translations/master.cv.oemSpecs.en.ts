@@ -28,4 +28,34 @@ export const masterCvOemSpecsEn = {
   'master.cv.oemSpecs.confirmation.userConfirmed': 'Confirmed',
   'master.cv.oemSpecs.confirmation.suggested': 'Suggested',
   'master.cv.oemSpecs.confirmation.unconfirmed': 'Not confirmed',
+  'master.cv.oemSpecs.suggestions.title': 'One Auto OEM suggestions',
+  'master.cv.oemSpecs.suggestions.hint':
+    'Read-only comparison from stored provider snapshots. Apply only selected fields with explicit confirmation — never bulk accept.',
+  'master.cv.oemSpecs.suggestions.loading': 'Loading OEM suggestions…',
+  'master.cv.oemSpecs.suggestions.loadError': 'OEM suggestions could not be loaded.',
+  'master.cv.oemSpecs.suggestions.mfaRequired':
+    'Multi-factor step-up is required before viewing One Auto OEM suggestions.',
+  'master.cv.oemSpecs.suggestions.accessDenied': 'You do not have access to OEM suggestions for this tenant.',
+  'master.cv.oemSpecs.suggestions.featureDisabled': 'OEM suggestions are disabled on this environment.',
+  'master.cv.oemSpecs.suggestions.empty': 'No active OEM suggestion snapshot for this vehicle.',
+  'master.cv.oemSpecs.suggestions.canonicalColumn': 'Canonical (vehicle)',
+  'master.cv.oemSpecs.suggestions.suggestedColumn': 'Suggested (One Auto)',
+  'master.cv.oemSpecs.suggestions.state.match': 'Match',
+  'master.cv.oemSpecs.suggestions.state.missing': 'Missing on vehicle',
+  'master.cv.oemSpecs.suggestions.state.conflict': 'Conflict',
+  'master.cv.oemSpecs.suggestions.state.notComparable': 'Not comparable',
+  'master.cv.oemSpecs.suggestions.providerUpdatedAt': 'Provider data updated',
+  'master.cv.oemSpecs.suggestions.fetchedAt': 'Response fetched',
+  'master.cv.oemSpecs.suggestions.snapshotAt': 'Snapshot recorded',
+  'master.cv.oemSpecs.suggestions.vinPrefix': 'VIN hash prefix',
+  'master.cv.oemSpecs.suggestions.applySuggestion': 'Apply suggestion with confirmation',
+  'master.cv.oemSpecs.suggestions.confirmApplyCheckbox': 'I confirm applying this suggested value',
+  'master.cv.oemSpecs.suggestions.userConfirmedWarning':
+    'This replaces a user-confirmed canonical value. Review carefully before applying.',
+  'master.cv.oemSpecs.suggestions.saveConflict':
+    'Another save updated this vehicle. Canonical values were reloaded — review and try again.',
+  'master.cv.oemSpecs.suggestions.dismissConflict': 'Dismiss',
+  'master.cv.oemSpecs.suggestions.notApplicable':
+    'This field is not provided by the vinlookup suggestion snapshot.',
+  'master.cv.oemSpecs.suggestions.alreadyMatches': 'Suggested value already matches the canonical field.',
 };

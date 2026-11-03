@@ -28,4 +28,35 @@ export const masterCvOemSpecsNl = {
   'master.cv.oemSpecs.confirmation.userConfirmed': 'Bevestigd',
   'master.cv.oemSpecs.confirmation.suggested': 'Voorgesteld',
   'master.cv.oemSpecs.confirmation.unconfirmed': 'Niet bevestigd',
+  'master.cv.oemSpecs.suggestions.title': 'One Auto OEM-suggesties',
+  'master.cv.oemSpecs.suggestions.hint':
+    'Alleen-lezen vergelijking uit opgeslagen snapshots. Pas alleen geselecteerde velden toe met expliciete bevestiging — geen bulkacceptatie.',
+  'master.cv.oemSpecs.suggestions.loading': 'OEM-suggesties laden…',
+  'master.cv.oemSpecs.suggestions.loadError': 'OEM-suggesties konden niet worden geladen.',
+  'master.cv.oemSpecs.suggestions.mfaRequired':
+    'MFA step-up is vereist om One Auto OEM-suggesties te bekijken.',
+  'master.cv.oemSpecs.suggestions.accessDenied': 'Geen toegang tot OEM-suggesties voor deze tenant.',
+  'master.cv.oemSpecs.suggestions.featureDisabled': 'OEM-suggesties zijn uitgeschakeld in deze omgeving.',
+  'master.cv.oemSpecs.suggestions.empty': 'Geen actieve OEM-suggestiesnapshot voor dit voertuig.',
+  'master.cv.oemSpecs.suggestions.canonicalColumn': 'Canoniek (voertuig)',
+  'master.cv.oemSpecs.suggestions.suggestedColumn': 'Suggestie (One Auto)',
+  'master.cv.oemSpecs.suggestions.state.match': 'Overeenkomst',
+  'master.cv.oemSpecs.suggestions.state.missing': 'Ontbreekt op voertuig',
+  'master.cv.oemSpecs.suggestions.state.conflict': 'Conflict',
+  'master.cv.oemSpecs.suggestions.state.notComparable': 'Niet vergelijkbaar',
+  'master.cv.oemSpecs.suggestions.providerUpdatedAt': 'Providergegevens bijgewerkt',
+  'master.cv.oemSpecs.suggestions.fetchedAt': 'Antwoord opgehaald',
+  'master.cv.oemSpecs.suggestions.snapshotAt': 'Snapshot vastgelegd',
+  'master.cv.oemSpecs.suggestions.vinPrefix': 'VIN-hashprefix',
+  'master.cv.oemSpecs.suggestions.applySuggestion': 'Suggestie toepassen met bevestiging',
+  'master.cv.oemSpecs.suggestions.confirmApplyCheckbox': 'Ik bevestig het toepassen van deze suggestie',
+  'master.cv.oemSpecs.suggestions.userConfirmedWarning':
+    'Dit vervangt een door de gebruiker bevestigde canonieke waarde. Controleer zorgvuldig.',
+  'master.cv.oemSpecs.suggestions.saveConflict':
+    'Een andere save heeft het voertuig bijgewerkt. Canonieke waarden zijn herladen.',
+  'master.cv.oemSpecs.suggestions.dismissConflict': 'Sluiten',
+  'master.cv.oemSpecs.suggestions.notApplicable':
+    'Dit veld is niet opgenomen in de vinlookup-suggestiesnapshot.',
+  'master.cv.oemSpecs.suggestions.alreadyMatches':
+    'De suggestie komt al overeen met het canonieke veld.',
 };

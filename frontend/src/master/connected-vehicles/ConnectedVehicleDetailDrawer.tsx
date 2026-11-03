@@ -104,6 +104,13 @@ export function ConnectedVehicleDetailDrawer({
     savingFieldKey: oemSavingFieldKey,
     refresh: refreshOemSpecs,
     saveField: saveOemField,
+    suggestionsLoading: oemSuggestionsLoading,
+    suggestions: oemSuggestions,
+    suggestionsSaveConflict: oemSuggestionsSaveConflict,
+    applyingFieldKey: oemApplyingFieldKey,
+    applySuggestedField: applyOemSuggestedField,
+    clearSuggestionsSaveConflict: clearOemSuggestionsSaveConflict,
+    refreshSuggestions: refreshOemSuggestions,
   } = useConnectedVehicleOemSpecifications(
     vehicleId,
     detail?.organizationId ?? null,
@@ -252,6 +259,13 @@ export function ConnectedVehicleDetailDrawer({
                 savingFieldKey={oemSavingFieldKey}
                 onSaveField={saveOemField}
                 onRetry={() => void refreshOemSpecs()}
+                suggestionsLoading={oemSuggestionsLoading}
+                suggestions={oemSuggestions}
+                suggestionsSaveConflict={oemSuggestionsSaveConflict}
+                applyingFieldKey={oemApplyingFieldKey}
+                onApplySuggestedField={applyOemSuggestedField}
+                onRetrySuggestions={() => void refreshOemSuggestions()}
+                onDismissSaveConflict={clearOemSuggestionsSaveConflict}
               />
             ) : null}
 

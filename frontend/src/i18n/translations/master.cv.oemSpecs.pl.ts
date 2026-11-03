@@ -28,4 +28,34 @@ export const masterCvOemSpecsPl = {
   'master.cv.oemSpecs.confirmation.userConfirmed': 'Potwierdzone',
   'master.cv.oemSpecs.confirmation.suggested': 'Sugerowane',
   'master.cv.oemSpecs.confirmation.unconfirmed': 'Niepotwierdzone',
+  'master.cv.oemSpecs.suggestions.title': 'Sugestie OEM One Auto',
+  'master.cv.oemSpecs.suggestions.hint':
+    'Porównanie tylko do odczytu ze zapisanych snapshotów. Stosuj wybrane pola wyłącznie z jawnym potwierdzeniem — bez zbiorczego akceptowania.',
+  'master.cv.oemSpecs.suggestions.loading': 'Ładowanie sugestii OEM…',
+  'master.cv.oemSpecs.suggestions.loadError': 'Nie udało się załadować sugestii OEM.',
+  'master.cv.oemSpecs.suggestions.mfaRequired':
+    'Wymagane dodatkowe uwierzytelnienie MFA, aby wyświetlić sugestie One Auto.',
+  'master.cv.oemSpecs.suggestions.accessDenied': 'Brak dostępu do sugestii OEM dla tego tenantu.',
+  'master.cv.oemSpecs.suggestions.featureDisabled': 'Sugestie OEM są wyłączone w tym środowisku.',
+  'master.cv.oemSpecs.suggestions.empty': 'Brak aktywnego snapshotu sugestii OEM dla tego pojazdu.',
+  'master.cv.oemSpecs.suggestions.canonicalColumn': 'Kanon (pojazd)',
+  'master.cv.oemSpecs.suggestions.suggestedColumn': 'Sugestia (One Auto)',
+  'master.cv.oemSpecs.suggestions.state.match': 'Zgodność',
+  'master.cv.oemSpecs.suggestions.state.missing': 'Brak na pojeździe',
+  'master.cv.oemSpecs.suggestions.state.conflict': 'Konflikt',
+  'master.cv.oemSpecs.suggestions.state.notComparable': 'Nieporównywalne',
+  'master.cv.oemSpecs.suggestions.providerUpdatedAt': 'Aktualizacja danych dostawcy',
+  'master.cv.oemSpecs.suggestions.fetchedAt': 'Pobranie odpowiedzi',
+  'master.cv.oemSpecs.suggestions.snapshotAt': 'Zapis snapshotu',
+  'master.cv.oemSpecs.suggestions.vinPrefix': 'Prefiks skrótu VIN',
+  'master.cv.oemSpecs.suggestions.applySuggestion': 'Zastosuj sugestię z potwierdzeniem',
+  'master.cv.oemSpecs.suggestions.confirmApplyCheckbox': 'Potwierdzam zastosowanie tej sugestii',
+  'master.cv.oemSpecs.suggestions.userConfirmedWarning':
+    'To zastąpi potwierdzoną przez użytkownika wartość kanoniczną. Sprawdź uważnie.',
+  'master.cv.oemSpecs.suggestions.saveConflict':
+    'Inny zapis zaktualizował pojazd. Wartości kanoniczne zostały odświeżone.',
+  'master.cv.oemSpecs.suggestions.dismissConflict': 'Zamknij',
+  'master.cv.oemSpecs.suggestions.notApplicable':
+    'To pole nie występuje w snapshocie sugestii vinlookup.',
+  'master.cv.oemSpecs.suggestions.alreadyMatches': 'Sugestia już odpowiada polu kanonicznemu.',
 };
