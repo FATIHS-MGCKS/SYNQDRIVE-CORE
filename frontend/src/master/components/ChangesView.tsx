@@ -637,6 +637,25 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-11-03T05:45:00.000Z',
   },
   {
+    id: 'oneauto-oem-spec-prc2-snapshot-2026-11-03',
+    version: '4.9.5017',
+    title: 'One Auto OEM spec PR-C2 — suggestion snapshots & Master read',
+    summary: [
+      'Additive Postgres snapshot per successful OE_VIN_LOOKUP_EU job when ONEAUTO_OEM_SUGGESTIONS_ENABLED (default OFF).',
+      'Post-success materialization is idempotent and immutable; errors never downgrade SUCCEEDED jobs or re-call the provider.',
+      'Master GET …/oem-specification-suggestions returns safe DTO with read-time OEM comparison; 13 PostgreSQL integration tests in Vehicle Detail CI.',
+    ],
+    reason:
+      'Persist paid vinlookup suggestions for Master review without auto-applying to Vehicle OEM columns.',
+    previousBehavior:
+      'Successful One Auto jobs stored raw provider responses only; no structured OEM suggestion list API.',
+    details:
+      'backend: oneauto-oem-vin-lookup-eu-suggestion.*, migration 20261103120000_oneauto_oem_vin_lookup_eu_suggestion_snapshot_prc2; architecture ONEAUTO_OEM_SPEC_PRC2_SNAPSHOT.md.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-03T06:30:00.000Z',
+  },
+  {
     id: 'oneauto-p2-master-admin-ui-2026-11-01',
     version: '4.9.5003',
     title: 'One Auto API — Master Admin service dialog (frontend P2)',

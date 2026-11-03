@@ -55,6 +55,15 @@
 - **Tests:** `oneauto-vin-lookup-oem-suggestion.spec.ts` (Audi A4 sanitized fixture).
 - **Non-effects:** EXECUTION_VERIFIED registry empty; no job→Vehicle bridge; attestation capture unchanged.
 
+## OEM specification PR-C2 — suggestion snapshot + Master read (2026-11-03, draft)
+
+- **Scope:** Additive Prisma snapshot per successful `OE_VIN_LOOKUP_EU` job; post-success materialization hook; bounded leader-safe recovery batch; Master GET with read-time comparison; expired snapshot cleanup.
+- **Feature flag:** `ONEAUTO_OEM_SUGGESTIONS_ENABLED=false` (default OFF).
+- **Scheduler registry:** `oneauto_oem_suggestion_snapshot_cleanup` in `SINGLETON_GLOBAL_SCHEDULER_NAMES`.
+- **Evidence:** `architecture/oneauto-provider/evidence/ONEAUTO_OEM_SPEC_PRC2_SNAPSHOT.md`
+- **Tests:** `oneauto-oem-vin-lookup-eu-suggestion.postgres.integration.spec.ts` (22 cases via extended `vehicle-tech-spec-patch-postgres-ci.sh`).
+- **Non-effects:** No automatic OEM confirmation; no Vehicle writes; no provider re-execution; job expiry unchanged.
+
 ## OEM specification PRA — schema alignment (2026-11-02, draft PR)
 
 - **Scope:** Shared nullable `Vehicle` OEM columns + provenance registry for future Master confirm/import (Vehicle Onboarding authority).

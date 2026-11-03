@@ -272,6 +272,7 @@ describe('OneAuto P2.5C OE_VIN_LOOKUP_EU offline contract harness', () => {
           http as never,
           config,
           queue as never,
+          { tryMaterializeFromSucceededJob: jest.fn() } as never,
         ),
         prisma,
         queue,
