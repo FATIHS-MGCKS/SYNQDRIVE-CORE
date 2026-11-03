@@ -49,6 +49,7 @@ describe('OneAuto P4 async job lifecycle (offline)', () => {
     const prisma = {
       oneAutoProviderJob: {
         findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         update: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
@@ -221,6 +222,24 @@ describe('OneAuto P4 async job lifecycle (offline)', () => {
     );
     prisma.oneAutoProviderJob.updateMany.mockResolvedValueOnce({ count: 0 });
     await svc.expireProviderResultIfDue('j-exp');
+  });
+
+  it('batch-expires due AWAITING jobs without getJob (scheduler path)', async () => {
+    const http = { executeProviderGet: jest.fn() };
+    const { svc, prisma } = buildExecutionService(http);
+    prisma.oneAutoProviderJob.findMany.mockResolvedValue([{ id: 'j-batch-1' }, { id: 'j-batch-2' }]);
+    prisma.oneAutoProviderJob.updateMany.mockResolvedValue({ count: 2 });
+    const count = await svc.expireDueAwaitingProviderJobsBatch(50);
+    expect(count).toBe(2);
+    expect(http.executeProviderGet).not.toHaveBeenCalled();
+    expect(prisma.oneAutoProviderJob.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: OneAutoProviderJobStatus.EXPIRED,
+          lastErrorCode: 'ONEAUTO_PROVIDER_RESULT_EXPIRED',
+        }),
+      }),
+    );
   });
 
   it('blocks duplicate execute for same org/vehicle/sku while pending', async () => {

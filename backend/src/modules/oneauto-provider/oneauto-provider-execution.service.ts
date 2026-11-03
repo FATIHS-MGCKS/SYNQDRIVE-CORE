@@ -83,6 +83,41 @@ export class OneAutoProviderExecutionService {
     });
   }
 
+  /**
+   * Leader-scheduled batch expiry — does not depend on Master UI polling or getJob reads.
+   */
+  async expireDueAwaitingProviderJobsBatch(batchSize = 50): Promise<number> {
+    const now = new Date();
+    const due = await this.prisma.oneAutoProviderJob.findMany({
+      where: {
+        status: OneAutoProviderJobStatus.AWAITING_PROVIDER,
+        OR: [
+          { providerResultExpiresAt: { lte: now } },
+          {
+            AND: [{ providerResultExpiresAt: null }, { expiresAt: { lte: now } }],
+          },
+        ],
+      },
+      select: { id: true },
+      take: batchSize,
+    });
+    if (due.length === 0) return 0;
+    const result = await this.prisma.oneAutoProviderJob.updateMany({
+      where: {
+        id: { in: due.map((row) => row.id) },
+        status: OneAutoProviderJobStatus.AWAITING_PROVIDER,
+      },
+      data: {
+        status: OneAutoProviderJobStatus.EXPIRED,
+        lastErrorCode: 'ONEAUTO_PROVIDER_RESULT_EXPIRED',
+        lastErrorMessageRedacted: redactOneAutoErrorMessage(
+          'Provider result retention elapsed — internal reservation released; vendor charge remains unknown',
+        ),
+      },
+    });
+    return result.count;
+  }
+
   async processJob(jobId: string, phase: OneAutoProviderJobPayload['phase'] = 'initial'): Promise<void> {
     const job = await this.prisma.oneAutoProviderJob.findUnique({ where: { id: jobId } });
     if (!job) return;

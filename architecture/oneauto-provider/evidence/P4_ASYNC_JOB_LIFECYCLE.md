@@ -19,8 +19,13 @@
 ## Budget
 
 - `budgetReservedMinor` remains counted while `AWAITING_PROVIDER` (same as CREATED/QUEUED/RUNNING).
-- On `EXPIRED` (`ONEAUTO_PROVIDER_RESULT_EXPIRED`), job drops out of daily budget sum — **does not** imply vendor refund.
-- Duplicate execute for same org + vehicle + SKU blocked (`ONEAUTO_JOB_IN_FLIGHT`) unless same idempotency key returns existing row.
+- **`EXPIRED` and `FAILED` jobs remain in the org daily budget sum** for `costConfirmedAt` on the same UTC day — expiry releases the in-flight duplicate guard only; it does **not** recycle daily cap for another paid dispatch.
+- On `EXPIRED` (`ONEAUTO_PROVIDER_RESULT_EXPIRED`), `budgetReservedMinor` is **retained on the row** for audit; `actualChargeKnown` stays false (no vendor refund implied).
+
+## Scheduled expiry (PR-2 review)
+
+- `OneAutoProviderJobExpiryScheduler` (`oneauto_provider_job_expiry`) runs **every minute** on scheduler leader when `ONEAUTO_ENABLED=true`.
+- `expireDueAwaitingProviderJobsBatch` — no provider HTTP; independent of Master UI `getJob` polling.
 
 ## Explicitly **not** in PR-2
 

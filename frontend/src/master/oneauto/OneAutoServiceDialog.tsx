@@ -203,6 +203,11 @@ export function OneAutoServiceDialog({
           setJob(next);
           if (isTerminalJobStatus(next.status)) {
             stopPolling();
+            if (next.status === 'FAILED' || next.status === 'EXPIRED') {
+              setExecuteError(
+                errorLabel(next.lastErrorCode ?? undefined, statusLabel(next.status)),
+              );
+            }
             if (next.status === 'SUCCEEDED' && selectedSku) {
               clearStoredIdempotencyKey(organizationId, vehicleId, selectedSku);
             }
@@ -470,8 +475,10 @@ export function OneAutoServiceDialog({
             {phase === 'job' && job ? (
               <div className="space-y-3" data-testid="oneauto-job-status">
                 <div className="flex items-center gap-2">
-                  {isTerminalJobStatus(job.status) && job.status === 'SUCCEEDED' ? (
+                  {job.status === 'SUCCEEDED' ? (
                     <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  ) : job.status === 'FAILED' || job.status === 'EXPIRED' ? (
+                    <AlertCircle className="h-5 w-5 text-destructive" />
                   ) : job.status === 'AWAITING_PROVIDER' ? (
                     <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
                   ) : (

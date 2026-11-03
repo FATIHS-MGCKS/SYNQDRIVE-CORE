@@ -314,6 +314,9 @@ export class OneAutoProviderService {
             OneAutoProviderJobStatus.RUNNING,
             OneAutoProviderJobStatus.AWAITING_PROVIDER,
             OneAutoProviderJobStatus.SUCCEEDED,
+            /** Count terminal jobs with reserved budget so expiry does not recycle daily cap. */
+            OneAutoProviderJobStatus.EXPIRED,
+            OneAutoProviderJobStatus.FAILED,
           ],
         },
       },
