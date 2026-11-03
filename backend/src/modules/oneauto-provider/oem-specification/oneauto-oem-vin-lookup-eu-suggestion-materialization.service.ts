@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OneAutoProviderJobStatus, Prisma } from '@prisma/client';
+import { isDeepStrictEqual } from 'node:util';
 import { PrismaService } from '@shared/database/prisma.service';
 import { vinSha256Prefix } from '../attestation/oneauto-sandbox-attestation-evidence.util';
 import { normalizeOemVinLookupEuSuggestions } from './oneauto-vin-lookup-oem-suggestion.normalizer';
@@ -174,9 +175,9 @@ export class OneAutoOemVinLookupEuSuggestionMaterializationService {
         select: { id: true, normalizedSnapshotJson: true },
       });
       if (existing) {
-        const prior = JSON.stringify(existing.normalizedSnapshotJson);
-        const next = JSON.stringify(normalized.snapshot as unknown as Prisma.JsonValue);
-        if (prior !== next) {
+        const prior = existing.normalizedSnapshotJson;
+        const next = normalized.snapshot as unknown as Prisma.JsonValue;
+        if (!isDeepStrictEqual(prior, next)) {
           const evidence = {
             ...base,
             outcome: 'IMMUTABLE_CONFLICT' as const,
