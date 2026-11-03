@@ -36,6 +36,25 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'oneauto-nested-modal-stacking-fix-2026-11-03',
+    version: '4.9.5020',
+    title: 'Master Edit Vehicle — nested One Auto / ZB-I dialog stacking fix',
+    summary: [
+      '`AppDialog` optional `stackLayer="aboveRegistrationShell"` (z-[110] overlay + content) for dialogs opened inside `VehicleRegistrationModal` (z-[100]).',
+      '`OneAutoServiceDialog` and `MasterZb1RegistrationDialog` receive `nestedInRegistrationModal` from the registration modal only; default AppDialog z-[80] unchanged elsewhere.',
+      'Regression tests: `app-dialog.stack-layer.test.tsx`, `VehicleRegistrationModal.nested-dialog-stacking.test.tsx` (real dialogs, mocked catalog).',
+    ],
+    reason:
+      'One Auto API button opened Radix dialog behind the registration scrim, trapping focus and freezing the visible edit form.',
+    previousBehavior:
+      'Nested AppDialog at z-[80] rendered under VehicleRegistrationModal z-[100].',
+    details:
+      'frontend: app-dialog.tsx, OneAutoServiceDialog.tsx, MasterZb1RegistrationDialog.tsx, VehicleRegistrationModal.tsx.',
+    affectsArchitecture: false,
+    module: 'Master Admin',
+    createdAt: '2026-11-03T15:45:00.000Z',
+  },
+  {
     id: 'rpm-reference-intelligence-v1-v1b-attach-phase5b-2026-10-30',
     version: '4.9.5019',
     title: 'RPM Reference Intelligence V1 — V1B shadow attach (Phase 5B, flag OFF)',

@@ -2388,6 +2388,7 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
         <MasterZb1RegistrationDialog
           open={zb1DialogOpen}
           onOpenChange={setZb1DialogOpen}
+          nestedInRegistrationModal
           isDarkMode={isDarkMode}
           organizationId={organizationId}
           vehicleId={existingVehicle.id}
@@ -2403,6 +2404,7 @@ export function VehicleRegistrationModal({ isDarkMode, isOpen, onClose, dimoVehi
         <OneAutoServiceDialog
           open={oneAutoDialogOpen}
           onOpenChange={setOneAutoDialogOpen}
+          nestedInRegistrationModal
           organizationId={organizationId}
           organizationName={orgName}
           vehicleId={existingVehicle.id}

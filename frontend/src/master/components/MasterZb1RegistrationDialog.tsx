@@ -14,6 +14,8 @@ type Props = {
   vehicleId: string;
   registrationFormCurrent: Zb1RegistrationFormCurrent;
   onApplyToRegistrationForm: (patch: Zb1RegistrationFormPatch) => void;
+  /** When true, stack above VehicleRegistrationModal (z-[100]) full-screen shell. */
+  nestedInRegistrationModal?: boolean;
 };
 
 export function MasterZb1RegistrationDialog({
@@ -24,6 +26,7 @@ export function MasterZb1RegistrationDialog({
   vehicleId,
   registrationFormCurrent,
   onApplyToRegistrationForm,
+  nestedInRegistrationModal = false,
 }: Props) {
   const { t } = useLanguage();
 
@@ -31,6 +34,7 @@ export function MasterZb1RegistrationDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
+      stackLayer={nestedInRegistrationModal ? 'aboveRegistrationShell' : 'default'}
       title={t('master.vehicleIdentity.zb1DialogTitle' as never)}
       description={t('master.vehicleIdentity.zb1DialogDescription' as never)}
       maxWidthClassName="sm:max-w-3xl"
