@@ -13,6 +13,7 @@ import { masterMotionPhysicsCs } from './master.motionPhysics.cs';
 import { masterVehicleIdentityCs } from './master.vehicleIdentity.cs';
 import { masterOneAutoCs } from './master.oneAuto.cs';
 import { masterCvTechnicalSpecsCs } from './master.cv.technicalSpecs.cs';
+import { masterCvOemSpecsCs } from './master.cv.oemSpecs.cs';
 
 export const cs = {
   'dashboard.welcomeBack': 'Vítejte zpět, {name}',
@@ -209,6 +210,7 @@ export const cs = {
 ...masterVehicleIdentityCs,
   ...masterOneAutoCs,
   ...masterCvTechnicalSpecsCs,
+  ...masterCvOemSpecsCs,
   ...batteryV2HvInspectionCS,
   ...tireWearV3Cs,
 } satisfies PartialTranslationDictionary;

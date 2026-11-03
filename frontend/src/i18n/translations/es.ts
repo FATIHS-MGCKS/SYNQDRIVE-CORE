@@ -13,6 +13,7 @@ import { masterMotionPhysicsEs } from './master.motionPhysics.es';
 import { masterVehicleIdentityEs } from './master.vehicleIdentity.es';
 import { masterOneAutoEs } from './master.oneAuto.es';
 import { masterCvTechnicalSpecsEs } from './master.cv.technicalSpecs.es';
+import { masterCvOemSpecsEs } from './master.cv.oemSpecs.es';
 
 export const es = {
   'dashboard.welcomeBack': 'Bienvenido de nuevo, {name}',
@@ -209,6 +210,7 @@ export const es = {
 ...masterVehicleIdentityEs,
   ...masterOneAutoEs,
   ...masterCvTechnicalSpecsEs,
+  ...masterCvOemSpecsEs,
   ...batteryV2HvInspectionES,
   ...tireWearV3Es,
 } satisfies PartialTranslationDictionary;

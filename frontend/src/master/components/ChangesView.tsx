@@ -562,6 +562,44 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-11-02T22:00:00.000Z',
   },
   {
+    id: 'oneauto-oem-spec-prb-master-api-ui-2026-11-02',
+    version: '4.9.5012',
+    title: 'One Auto OEM spec PR-B — Master Admin GET/PATCH + OEM UI',
+    summary: [
+      'Master Admin vehicle GET returns ten nullable OEM fields; PATCH reuses `technicalSpecificationSave.confirmedFieldKeys` for explicit OEM confirmation.',
+      'Connected Vehicle detail adds OEM specifications section with per-field edit + user confirmation; provenance shown per field.',
+      'OEM save upgrades legacy provenance v1→v2 in memory while preserving existing P3 USER_CONFIRMED entries.',
+    ],
+    reason:
+      'Expose optional OEM build identity to Master operators only after schema slice (PR-A) without provider auto-apply.',
+    previousBehavior:
+      'OEM columns existed in schema but had no Master read/write surface or UI.',
+    details:
+      'backend: vehicle-oem-specification-patch.util.ts, vehicles.service update/mapToRegisteredVehicle; frontend: ConnectedVehicleOemSpecificationsSection, master.cv.oemSpecs.* i18n (9 locales); architecture ONEAUTO_OEM_SPEC_PRB_MASTER_API_UI.md; tests: vehicle-oem-specification-patch.util.spec.ts + frontend OEM util tests.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-02T23:00:00.000Z',
+  },
+  {
+    id: 'oneauto-oem-spec-prb-governance-pg-ci-2026-11-03',
+    version: '4.9.5015',
+    title: 'One Auto OEM spec PR-B — i18n governance split + OEM PostgreSQL CI',
+    summary: [
+      'Product PR drops `hardcoded-copy-inventory.json` so i18n gates avoid mixed authority/product classification; inventory refresh moves to a separate authority-only PR (merge after product).',
+      'Vehicle Detail CI runs six OEM spec PATCH PostgreSQL integration tests on disposable `synqdrive_ci_ephemeral` via extended `vehicle-tech-spec-patch-postgres-ci.sh` (`VEHICLE_OEM_SPEC_PATCH_PG=1`).',
+      'Cross-tenant org scope negative added to OEM postgres integration suite.',
+    ],
+    reason:
+      'Unblock PR #2314 without weakening i18n mixed-change policy or skipping concurrency/security postgres coverage.',
+    previousBehavior:
+      'Inventory updates shipped in the same PR as OEM UI; OEM postgres tests were manual-only (`describe.skip` without env).',
+    details:
+      'backend: vehicle-oem-spec-patch-postgres-ci.sh + guard contract; vehicle-detail-production-readiness.yml; vehicle-oem-specification-patch.postgres.integration.spec.ts; architecture ONEAUTO_OEM_SPEC_PRB_MASTER_API_UI.md.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-03T00:00:00.000Z',
+  },
+  {
     id: 'oneauto-p2-master-admin-ui-2026-11-01',
     version: '4.9.5003',
     title: 'One Auto API — Master Admin service dialog (frontend P2)',

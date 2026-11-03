@@ -69,6 +69,7 @@ import { masterVehicleIdentityDe } from './master.vehicleIdentity.de';
 import { masterOneAutoDe } from './master.oneAuto.de';
 import { masterRegistrationBrakeDe } from './master.registration.brake.de';
 import { masterCvTechnicalSpecsDe } from './master.cv.technicalSpecs.de';
+import { masterCvOemSpecsDe } from './master.cv.oemSpecs.de';
 
 export const de: Record<TranslationKey, string> = {
   // ─── Navigation / Sidebar ───
@@ -6023,6 +6024,7 @@ export const de: Record<TranslationKey, string> = {
   ...masterOneAutoDe,
   ...masterRegistrationBrakeDe,
   ...masterCvTechnicalSpecsDe,
+  ...masterCvOemSpecsDe,
   ...batteryV2HvInspectionDE,
   ...tireWearV3De,
 } satisfies CompleteTranslationDictionary;

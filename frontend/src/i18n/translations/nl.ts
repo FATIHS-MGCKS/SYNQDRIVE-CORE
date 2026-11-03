@@ -13,6 +13,7 @@ import { masterMotionPhysicsNl } from './master.motionPhysics.nl';
 import { masterVehicleIdentityNl } from './master.vehicleIdentity.nl';
 import { masterOneAutoNl } from './master.oneAuto.nl';
 import { masterCvTechnicalSpecsNl } from './master.cv.technicalSpecs.nl';
+import { masterCvOemSpecsNl } from './master.cv.oemSpecs.nl';
 
 // Dutch translations - start with English as base, override with Dutch
 export const nl = {
@@ -210,6 +211,7 @@ export const nl = {
 ...masterVehicleIdentityNl,
   ...masterOneAutoNl,
   ...masterCvTechnicalSpecsNl,
+  ...masterCvOemSpecsNl,
   ...batteryV2HvInspectionNL,
   ...tireWearV3Nl,
 } satisfies PartialTranslationDictionary;

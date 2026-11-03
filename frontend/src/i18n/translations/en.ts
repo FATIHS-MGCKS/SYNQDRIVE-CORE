@@ -67,6 +67,7 @@ import { masterVehicleIdentityEn } from './master.vehicleIdentity.en';
 import { masterOneAutoEn } from './master.oneAuto.en';
 import { masterRegistrationBrakeEn } from './master.registration.brake.en';
 import { masterCvTechnicalSpecsEn } from './master.cv.technicalSpecs.en';
+import { masterCvOemSpecsEn } from './master.cv.oemSpecs.en';
 
 export const en = {
   // ─── Navigation / Sidebar ───
@@ -6012,6 +6013,7 @@ export const en = {
   ...masterOneAutoEn,
   ...masterRegistrationBrakeEn,
   ...masterCvTechnicalSpecsEn,
+  ...masterCvOemSpecsEn,
   ...batteryV2HvInspectionEN,
   ...tireWearV3En,
 } as const;
