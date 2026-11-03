@@ -6,6 +6,7 @@ import {
 import {
   ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS,
 } from './catalog/oneauto-verified-contracts';
+import { seedOneAutoExecutionVerifiedRegistry } from './catalog/oneauto-execution-verified-registry';
 import type { OneAutoExecutionVerifiedProviderContract } from './catalog/oneauto-contract-types';
 import { OneAutoHttpClient } from './client/oneauto-http.client';
 import { isValidVin, normalizeVin } from './client/oneauto-vin.util';
@@ -50,7 +51,7 @@ function enabledSandboxConfig(overrides: Record<string, unknown> = {}): ConfigSe
 
 describe('OneAuto P2.5E offline security hardening', () => {
   afterEach(() => {
-    ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.clear();
+    seedOneAutoExecutionVerifiedRegistry(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS);
     delete process.env.ONEAUTO_API_KEY;
   });
 
@@ -269,8 +270,11 @@ describe('OneAuto P2.5E offline security hardening', () => {
   });
 
   describe('production fences unchanged', () => {
-    it('keeps EXECUTION_VERIFIED registry empty in module map', () => {
-      expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.size).toBe(0);
+    it('seeds P3 VIN lookup only; service history remains non-executable', () => {
+      expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_VIN_LOOKUP_EU')).toBe(true);
+      expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_SERVICE_HISTORY_EU')).toBe(
+        false,
+      );
     });
   });
 });

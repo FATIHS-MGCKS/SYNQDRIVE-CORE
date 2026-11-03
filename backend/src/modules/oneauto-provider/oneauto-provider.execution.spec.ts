@@ -3,7 +3,7 @@ import { OneAutoProviderJobStatus } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 
 describe('OneAutoProviderExecutionService dispatch safety', () => {
-  it('does not call HTTP when contract unverified', async () => {
+  it('does not call HTTP when contract unverified (non-promoted SKU)', async () => {
     const prisma = {
       oneAutoProviderJob: {
         findUnique: jest.fn().mockResolvedValue({
@@ -11,7 +11,7 @@ describe('OneAutoProviderExecutionService dispatch safety', () => {
           organizationId: 'org1',
           vehicleId: 'v1',
           vinSnapshot: 'WBA12345678901234',
-          serviceSku: 'OE_VIN_LOOKUP_EU',
+          serviceSku: 'OE_SERVICE_HISTORY_EU',
           status: OneAutoProviderJobStatus.QUEUED,
           pollAttemptCount: 0,
           expiresAt: new Date(Date.now() + 60_000),

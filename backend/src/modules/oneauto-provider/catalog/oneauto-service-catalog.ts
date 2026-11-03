@@ -1,4 +1,7 @@
-import { isOneAutoSkuExecutionVerified } from './oneauto-verified-contracts';
+import {
+  getExecutionVerifiedOneAutoContract,
+  isOneAutoSkuExecutionVerified,
+} from './oneauto-verified-contracts';
 import {
   listDocumentedOneAutoContracts,
 } from './oneauto-documented-contracts';
@@ -103,8 +106,10 @@ export function resolveCatalogEntryForRuntime(
   else if (!isOneAutoSkuExecutionVerified(entry.serviceSku)) availabilityStatus = 'CONTRACT_UNVERIFIED';
   else if (configuredPrice == null) availabilityStatus = 'PRICE_NOT_CONFIGURED';
   else availabilityStatus = 'AVAILABLE';
+  const verified = getExecutionVerifiedOneAutoContract(entry.serviceSku);
   return {
     ...entry,
+    executionMode: verified?.catalogExecutionMode ?? entry.executionMode,
     indicativePriceMinor: configuredPrice,
     pricingSourceVersion: opts.pricingCatalogVersion,
     availabilityStatus,

@@ -14,6 +14,7 @@ import {
   ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS,
   buildOneAutoContractGateReport,
 } from './catalog/oneauto-verified-contracts';
+import { seedOneAutoExecutionVerifiedRegistry } from './catalog/oneauto-execution-verified-registry';
 import { OneAutoHttpClient } from './client/oneauto-http.client';
 import { isValidVin, normalizeVin } from './client/oneauto-vin.util';
 import { OneAutoProviderExecutionService } from './oneauto-provider-execution.service';
@@ -56,7 +57,7 @@ function sandboxEnabledConfig(): ConfigService {
 
 describe('OneAuto P2.5C OE_VIN_LOOKUP_EU offline contract harness', () => {
   afterEach(() => {
-    ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.clear();
+    seedOneAutoExecutionVerifiedRegistry(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS);
     delete process.env.ONEAUTO_API_KEY;
   });
 
@@ -95,11 +96,13 @@ describe('OneAuto P2.5C OE_VIN_LOOKUP_EU offline contract harness', () => {
       expect(doc.asyncPollSameUrlWithoutNewCharge).toBe(false);
     });
 
-    it('keeps production execution registry empty', () => {
-      expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.size).toBe(0);
+    it('keeps OE_VIN_LOOKUP_EU execution-verified with async poll disabled (P3)', () => {
+      expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_VIN_LOOKUP_EU')).toBe(true);
       const gate = buildOneAutoContractGateReport(SKU);
-      expect(gate.executable).toBe(false);
-      expect(gate.reason).toBe('DOCUMENTED_NOT_EXECUTABLE');
+      expect(gate.executable).toBe(true);
+      expect(gate.reason).toBe('EXECUTABLE');
+      const verified = ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.get(SKU)!;
+      expect(verified.asyncPollSameUrlWithoutNewCharge).toBe(false);
     });
   });
 
