@@ -48,6 +48,13 @@
 - **Tests:** `oneauto-p25e-p1-secure-result-capture.spec.ts` (mocked fetch only).
 - **Non-effects:** Default attestation remains fingerprint-only; no Prisma/DB; no vehicle apply; registry unchanged.
 
+## OEM specification PR-C1 — VIN lookup normalizer (2026-11-03, draft)
+
+- **Scope:** Pure normalize + compare for six documented `OE_VIN_LOOKUP_EU` desc fields; four code columns unmapped.
+- **Evidence:** `architecture/oneauto-provider/evidence/ONEAUTO_OEM_SPEC_PRC1_NORMALIZER.md`
+- **Tests:** `oneauto-vin-lookup-oem-suggestion.spec.ts` (Audi A4 sanitized fixture).
+- **Non-effects:** EXECUTION_VERIFIED registry empty; no job→Vehicle bridge; attestation capture unchanged.
+
 ## OEM specification PRA — schema alignment (2026-11-02, draft PR)
 
 - **Scope:** Shared nullable `Vehicle` OEM columns + provenance registry for future Master confirm/import (Vehicle Onboarding authority).
