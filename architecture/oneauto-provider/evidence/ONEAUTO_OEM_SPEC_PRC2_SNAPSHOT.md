@@ -31,6 +31,7 @@ Gates (all required):
 Behavior:
 
 - **Idempotent** create; existing row → `ALREADY_EXISTS`
+- Normalized JSON `timestamps.snapshotCreatedAt` and column `snapshot_created_at` use **`responseFetchedAt`** (not wall-clock per attempt) so retry/recovery paths produce identical payloads
 - **Immutable**: differing normalized payload vs existing row → `IMMUTABLE_CONFLICT` (no silent overwrite)
 - Errors **never** flip job to `FAILED` and **never** re-run provider execution
 - Sanitized operational evidence via structured log event `ONEAUTO_OEM_SUGGESTION_MATERIALIZATION`
