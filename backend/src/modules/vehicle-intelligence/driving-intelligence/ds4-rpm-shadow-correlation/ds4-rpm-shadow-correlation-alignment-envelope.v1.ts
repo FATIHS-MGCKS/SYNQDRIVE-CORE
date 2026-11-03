@@ -162,11 +162,34 @@ export function computeAlignmentClassificationStability(input: {
       directionSignEnvelopeStability: 'NOT_ASSESSABLE',
     };
   }
+  const allOffsetsAssessable = assessable.length === input.diagnostics.length;
   const directions = new Set(assessable.map((d) => d.robustDirectionSign));
-  const directionStable = directions.size === 1;
+  const assessableSignsAgree = directions.size === 1;
+
+  if (allOffsetsAssessable && assessableSignsAgree) {
+    return {
+      classificationStableAcrossEnvelope: classifications.size === 1,
+      directionSignStableAcrossEnvelope: true,
+      directionSignEnvelopeStability: 'STABLE_ASSESSED',
+    };
+  }
+  if (allOffsetsAssessable && !assessableSignsAgree) {
+    return {
+      classificationStableAcrossEnvelope: classifications.size === 1,
+      directionSignStableAcrossEnvelope: false,
+      directionSignEnvelopeStability: 'UNSTABLE_ASSESSED',
+    };
+  }
+  if (!allOffsetsAssessable && assessableSignsAgree) {
+    return {
+      classificationStableAcrossEnvelope: classifications.size === 1,
+      directionSignStableAcrossEnvelope: false,
+      directionSignEnvelopeStability: 'PARTIALLY_ASSESSED_STABLE',
+    };
+  }
   return {
     classificationStableAcrossEnvelope: classifications.size === 1,
-    directionSignStableAcrossEnvelope: directionStable,
-    directionSignEnvelopeStability: directionStable ? 'STABLE_ASSESSED' : 'UNSTABLE_ASSESSED',
+    directionSignStableAcrossEnvelope: false,
+    directionSignEnvelopeStability: 'PARTIALLY_ASSESSED_UNSTABLE',
   };
 }

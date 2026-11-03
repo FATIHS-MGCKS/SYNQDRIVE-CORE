@@ -84,9 +84,14 @@ export const DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS =
 export const DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_METHOD =
   'THEIL_SEN_PAIRWISE_SLOPE_SIGN_V1' as const;
 
+export const DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_VALIDATION =
+  'UNCALIBRATED_RESEARCH_DIAGNOSTIC_NOT_VALIDATED_TRANSIENT_BEHAVIOR' as const;
+
 export type Ds4RpmShadowCorrelationDirectionSignEnvelopeStability =
   | 'STABLE_ASSESSED'
   | 'UNSTABLE_ASSESSED'
+  | 'PARTIALLY_ASSESSED_STABLE'
+  | 'PARTIALLY_ASSESSED_UNSTABLE'
   | 'NOT_ASSESSABLE';
 
 export const DS4_RPM_SHADOW_CORRELATION_GAP_DEFICIENCY_ZERO_SEMANTICS =
@@ -98,6 +103,7 @@ export const DS4_RPM_SHADOW_CORRELATION_MISSING_INTERVAL_ALIAS_SEMANTICS =
 export type Ds4RpmShadowCorrelationDescriptiveRpmStatsV1 = {
   orderStatisticsSemantics: typeof DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS;
   directionEstimateMethod: typeof DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_METHOD;
+  directionEstimateValidation: typeof DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_VALIDATION;
   rpmFirstObserved: number | null;
   rpmLastObserved: number | null;
   /** Time-ordered endpoint delta (rpm); not a transient-response proof. */
@@ -119,7 +125,7 @@ export type Ds4RpmShadowCorrelationAlignmentEnvelopeV1 = {
   offsetSecondsProbed: readonly number[];
   offsetDerivationNote: string;
   classificationStableAcrossEnvelope: boolean;
-  /** True only when ≥1 offset yields a non-ABSTAIN direction sign and all such signs agree. */
+  /** True only when every probed offset is assessable (non-ABSTAIN) and direction signs agree. */
   directionSignStableAcrossEnvelope: boolean;
   directionSignEnvelopeStability: Ds4RpmShadowCorrelationDirectionSignEnvelopeStability;
 };

@@ -8,6 +8,7 @@ import {
   localEventCadenceCoarserThanVsiTierNominal,
   parseHalfOpenEventWindowMs,
 } from '../ds4-rpm-shadow-correlation-event-temporal-support.v1';
+import { DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_VALIDATION } from '../ds4-rpm-shadow-correlation-v1.contract';
 
 function iso(sec: number): string {
   return new Date(sec * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -118,6 +119,11 @@ describe('ds4-rpm-shadow-correlation PR2328 scientific hardening', () => {
   });
 
   describe('Theil–Sen direction semantics', () => {
+    it('labels direction as uncalibrated research diagnostic in join output', () => {
+      expect(DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_VALIDATION).toContain(
+        'NOT_VALIDATED',
+      );
+    });
     it('endpoint outlier at start does not flip median slope sign', () => {
       const series = [
         { tMs: 0, valueRpm: 500 },
@@ -159,6 +165,70 @@ describe('ds4-rpm-shadow-correlation PR2328 scientific hardening', () => {
       });
       expect(stability.directionSignStableAcrossEnvelope).toBe(false);
       expect(stability.directionSignEnvelopeStability).toBe('NOT_ASSESSABLE');
+    });
+
+    it('does not report STABLE_ASSESSED when only one offset is assessable', () => {
+      const stability = computeAlignmentClassificationStability({
+        diagnostics: [
+          {
+            offsetSeconds: 0,
+            classification: 'AVAILABLE',
+            robustDirectionSign: 'INCREASING',
+          },
+          {
+            offsetSeconds: 1,
+            classification: 'UNAVAILABLE',
+            robustDirectionSign: 'ABSTAIN_INSUFFICIENT_SUPPORT',
+          },
+          {
+            offsetSeconds: -1,
+            classification: 'PARTIAL',
+            robustDirectionSign: 'ABSTAIN_INSUFFICIENT_SUPPORT',
+          },
+        ],
+      });
+      expect(stability.directionSignStableAcrossEnvelope).toBe(false);
+      expect(stability.directionSignEnvelopeStability).toBe('PARTIALLY_ASSESSED_STABLE');
+    });
+
+    it('reports STABLE_ASSESSED only when every offset is assessable and agrees', () => {
+      const stability = computeAlignmentClassificationStability({
+        diagnostics: [
+          { offsetSeconds: -1, classification: 'AVAILABLE', robustDirectionSign: 'INCREASING' },
+          { offsetSeconds: 0, classification: 'AVAILABLE', robustDirectionSign: 'INCREASING' },
+          { offsetSeconds: 1, classification: 'AVAILABLE', robustDirectionSign: 'INCREASING' },
+        ],
+      });
+      expect(stability.directionSignStableAcrossEnvelope).toBe(true);
+      expect(stability.directionSignEnvelopeStability).toBe('STABLE_ASSESSED');
+    });
+
+    it('reports UNSTABLE_ASSESSED when all assessable but signs disagree', () => {
+      const stability = computeAlignmentClassificationStability({
+        diagnostics: [
+          { offsetSeconds: -1, classification: 'PARTIAL', robustDirectionSign: 'INCREASING' },
+          { offsetSeconds: 0, classification: 'PARTIAL', robustDirectionSign: 'DECREASING' },
+          { offsetSeconds: 1, classification: 'PARTIAL', robustDirectionSign: 'INCREASING' },
+        ],
+      });
+      expect(stability.directionSignStableAcrossEnvelope).toBe(false);
+      expect(stability.directionSignEnvelopeStability).toBe('UNSTABLE_ASSESSED');
+    });
+
+    it('reports PARTIALLY_ASSESSED_UNSTABLE when assessable offsets disagree and others abstain', () => {
+      const stability = computeAlignmentClassificationStability({
+        diagnostics: [
+          { offsetSeconds: 0, classification: 'PARTIAL', robustDirectionSign: 'INCREASING' },
+          { offsetSeconds: 1, classification: 'PARTIAL', robustDirectionSign: 'DECREASING' },
+          {
+            offsetSeconds: 2,
+            classification: 'UNAVAILABLE',
+            robustDirectionSign: 'ABSTAIN_INSUFFICIENT_SUPPORT',
+          },
+        ],
+      });
+      expect(stability.directionSignStableAcrossEnvelope).toBe(false);
+      expect(stability.directionSignEnvelopeStability).toBe('PARTIALLY_ASSESSED_UNSTABLE');
     });
   });
 

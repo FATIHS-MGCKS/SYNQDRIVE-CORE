@@ -37,6 +37,7 @@ import { validateDs4RpmShadowCorrelationProvenanceGate } from './ds4-rpm-shadow-
 import { DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS } from './ds4-rpm-shadow-correlation-v1.contract';
 import {
   DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_METHOD,
+  DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_VALIDATION,
   DS4_RPM_SHADOW_CORRELATION_GAP_DEFICIENCY_ZERO_SEMANTICS,
   DS4_RPM_SHADOW_CORRELATION_MISSING_INTERVAL_ALIAS_SEMANTICS,
 } from './ds4-rpm-shadow-correlation-v1.contract';
@@ -83,6 +84,7 @@ function emptyDescriptiveStats(): Ds4RpmShadowCorrelationDescriptiveRpmStatsV1 {
   return {
     orderStatisticsSemantics: DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS,
     directionEstimateMethod: DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_METHOD,
+    directionEstimateValidation: DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_VALIDATION,
     rpmFirstObserved: null,
     rpmLastObserved: null,
     rpmEndpointDelta: null,
@@ -119,6 +121,7 @@ function buildDescriptiveStats(input: {
     return {
       orderStatisticsSemantics: DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS,
       directionEstimateMethod: DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_METHOD,
+      directionEstimateValidation: DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_VALIDATION,
       rpmFirstObserved: null,
       rpmLastObserved: null,
       rpmEndpointDelta: null,
@@ -132,6 +135,7 @@ function buildDescriptiveStats(input: {
   return {
     orderStatisticsSemantics: DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS,
     directionEstimateMethod: DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_METHOD,
+    directionEstimateValidation: DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_VALIDATION,
     rpmFirstObserved: first,
     rpmLastObserved: last,
     rpmEndpointDelta: last - first,
