@@ -28,4 +28,37 @@ export const masterCvOemSpecsIt = {
   'master.cv.oemSpecs.confirmation.userConfirmed': 'Confermato',
   'master.cv.oemSpecs.confirmation.suggested': 'Suggerito',
   'master.cv.oemSpecs.confirmation.unconfirmed': 'Non confermato',
+  'master.cv.oemSpecs.suggestions.title': 'Suggerimenti OEM One Auto',
+  'master.cv.oemSpecs.suggestions.hint':
+    'Confronto in sola lettura da snapshot memorizzati. Applica solo i campi selezionati con conferma esplicita — nessuna accettazione massiva.',
+  'master.cv.oemSpecs.suggestions.loading': 'Caricamento suggerimenti OEM…',
+  'master.cv.oemSpecs.suggestions.loadError': 'Impossibile caricare i suggerimenti OEM.',
+  'master.cv.oemSpecs.suggestions.mfaRequired':
+    'È richiesto lo step-up MFA per visualizzare i suggerimenti OEM One Auto.',
+  'master.cv.oemSpecs.suggestions.accessDenied':
+    'Accesso negato ai suggerimenti OEM per questo tenant.',
+  'master.cv.oemSpecs.suggestions.featureDisabled':
+    'I suggerimenti OEM sono disabilitati in questo ambiente.',
+  'master.cv.oemSpecs.suggestions.empty': 'Nessuno snapshot attivo di suggerimenti OEM per questo veicolo.',
+  'master.cv.oemSpecs.suggestions.canonicalColumn': 'Canonico (veicolo)',
+  'master.cv.oemSpecs.suggestions.suggestedColumn': 'Suggerito (One Auto)',
+  'master.cv.oemSpecs.suggestions.state.match': 'Corrispondenza',
+  'master.cv.oemSpecs.suggestions.state.missing': 'Assente sul veicolo',
+  'master.cv.oemSpecs.suggestions.state.conflict': 'Conflitto',
+  'master.cv.oemSpecs.suggestions.state.notComparable': 'Non comparabile',
+  'master.cv.oemSpecs.suggestions.providerUpdatedAt': 'Dati fornitore aggiornati',
+  'master.cv.oemSpecs.suggestions.fetchedAt': 'Risposta recuperata',
+  'master.cv.oemSpecs.suggestions.snapshotAt': 'Snapshot registrato',
+  'master.cv.oemSpecs.suggestions.vinPrefix': 'Prefisso hash VIN',
+  'master.cv.oemSpecs.suggestions.applySuggestion': 'Applica suggerimento con conferma',
+  'master.cv.oemSpecs.suggestions.confirmApplyCheckbox': 'Confermo di applicare questo suggerimento',
+  'master.cv.oemSpecs.suggestions.userConfirmedWarning':
+    'Sostituisce un valore canonico confermato dall’utente. Controllare attentamente.',
+  'master.cv.oemSpecs.suggestions.saveConflict':
+    'Un altro salvataggio ha aggiornato il veicolo. I valori canonici sono stati ricaricati.',
+  'master.cv.oemSpecs.suggestions.dismissConflict': 'Chiudi',
+  'master.cv.oemSpecs.suggestions.notApplicable':
+    'Questo campo non è presente nello snapshot suggerimenti vinlookup.',
+  'master.cv.oemSpecs.suggestions.alreadyMatches':
+    'Il suggerimento corrisponde già al campo canonico.',
 };

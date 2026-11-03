@@ -64,6 +64,13 @@
 - **Tests:** `oneauto-oem-vin-lookup-eu-suggestion.postgres.integration.spec.ts` (22 cases via extended `vehicle-tech-spec-patch-postgres-ci.sh`).
 - **Non-effects:** No automatic OEM confirmation; no Vehicle writes; no provider re-execution; job expiry unchanged.
 
+## OEM specification PR-C3 — Master Admin suggestion UI (2026-11-03, draft)
+
+- **Scope:** Connected Vehicle OEM section — read-only suggestion panel + per-field confirmed apply via existing PATCH; nine-locale `master.cv.oemSpecs.suggestions.*`.
+- **Evidence:** `architecture/oneauto-provider/evidence/ONEAUTO_OEM_SPEC_PRC3_MASTER_UI.md`
+- **Tests:** `connected-vehicle-oem-suggestions.util.test.ts`, `ConnectedVehicleOemSpecificationsSection.suggestions.test.tsx`
+- **Non-effects:** No backend provider lifecycle changes; no migrations; flag default OFF; no bulk accept.
+
 ## OEM specification PRA — schema alignment (2026-11-02, draft PR)
 
 - **Scope:** Shared nullable `Vehicle` OEM columns + provenance registry for future Master confirm/import (Vehicle Onboarding authority).

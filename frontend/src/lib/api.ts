@@ -4411,6 +4411,10 @@ export const api = {
       get<FleetMapVehicleResponse[]>(`/organizations/${orgId}/fleet-map`),
     create: (orgId: string, data: any) => post<any>(`/organizations/${orgId}/vehicles`, data),
     update: (orgId: string, id: string, data: any) => patch<any>(`/organizations/${orgId}/vehicles/${id}`, data),
+    getOemSpecificationSuggestions: (orgId: string, vehicleId: string) =>
+      get<Record<string, unknown>>(
+        `/admin/organizations/${encodeURIComponent(orgId)}/vehicles/${encodeURIComponent(vehicleId)}/oem-specification-suggestions`,
+      ),
     delete: (orgId: string, id: string) => del<void>(`/organizations/${orgId}/vehicles/${id}`),
     upsertTires: (orgId: string, vehicleId: string, data: {
       frontDimension?: string | null; rearDimension?: string | null;

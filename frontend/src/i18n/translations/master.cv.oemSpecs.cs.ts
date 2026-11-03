@@ -28,4 +28,34 @@ export const masterCvOemSpecsCs = {
   'master.cv.oemSpecs.confirmation.userConfirmed': 'Potvrzeno',
   'master.cv.oemSpecs.confirmation.suggested': 'Navrženo',
   'master.cv.oemSpecs.confirmation.unconfirmed': 'Nepotvrzeno',
+  'master.cv.oemSpecs.suggestions.title': 'Návrhy OEM One Auto',
+  'master.cv.oemSpecs.suggestions.hint':
+    'Porovnání pouze ke čtení z uložených snapshotů. Používejte jen vybraná pole s explicitním potvrzením — bez hromadného přijetí.',
+  'master.cv.oemSpecs.suggestions.loading': 'Načítání návrhů OEM…',
+  'master.cv.oemSpecs.suggestions.loadError': 'Návrhy OEM se nepodařilo načíst.',
+  'master.cv.oemSpecs.suggestions.mfaRequired':
+    'Pro zobrazení návrhů One Auto je vyžadováno MFA step-up.',
+  'master.cv.oemSpecs.suggestions.accessDenied': 'Nemáte přístup k návrhům OEM pro tohoto tenanta.',
+  'master.cv.oemSpecs.suggestions.featureDisabled': 'Návrhy OEM jsou v tomto prostředí vypnuté.',
+  'master.cv.oemSpecs.suggestions.empty': 'Pro toto vozidlo není aktivní snapshot návrhu OEM.',
+  'master.cv.oemSpecs.suggestions.canonicalColumn': 'Kanonické (vozidlo)',
+  'master.cv.oemSpecs.suggestions.suggestedColumn': 'Návrh (One Auto)',
+  'master.cv.oemSpecs.suggestions.state.match': 'Shoda',
+  'master.cv.oemSpecs.suggestions.state.missing': 'Chybí na vozidle',
+  'master.cv.oemSpecs.suggestions.state.conflict': 'Konflikt',
+  'master.cv.oemSpecs.suggestions.state.notComparable': 'Nelze porovnat',
+  'master.cv.oemSpecs.suggestions.providerUpdatedAt': 'Aktualizace dat poskytovatele',
+  'master.cv.oemSpecs.suggestions.fetchedAt': 'Načtení odpovědi',
+  'master.cv.oemSpecs.suggestions.snapshotAt': 'Záznam snapshotu',
+  'master.cv.oemSpecs.suggestions.vinPrefix': 'Prefix hash VIN',
+  'master.cv.oemSpecs.suggestions.applySuggestion': 'Použít návrh s potvrzením',
+  'master.cv.oemSpecs.suggestions.confirmApplyCheckbox': 'Potvrzuji použití tohoto návrhu',
+  'master.cv.oemSpecs.suggestions.userConfirmedWarning':
+    'Tím nahradíte uživatelsky potvrzenou kanonickou hodnotu. Pečlivě zkontrolujte.',
+  'master.cv.oemSpecs.suggestions.saveConflict':
+    'Jiné uložení aktualizovalo vozidlo. Kanonické hodnoty byly znovu načteny.',
+  'master.cv.oemSpecs.suggestions.dismissConflict': 'Zavřít',
+  'master.cv.oemSpecs.suggestions.notApplicable':
+    'Toto pole není ve snapshotu návrhu vinlookup k dispozici.',
+  'master.cv.oemSpecs.suggestions.alreadyMatches': 'Návrh již odpovídá kanonickému poli.',
 };

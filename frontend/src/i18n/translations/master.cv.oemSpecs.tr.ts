@@ -28,4 +28,34 @@ export const masterCvOemSpecsTr = {
   'master.cv.oemSpecs.confirmation.userConfirmed': 'Onaylandı',
   'master.cv.oemSpecs.confirmation.suggested': 'Önerildi',
   'master.cv.oemSpecs.confirmation.unconfirmed': 'Onaylanmadı',
+  'master.cv.oemSpecs.suggestions.title': 'One Auto OEM önerileri',
+  'master.cv.oemSpecs.suggestions.hint':
+    'Kayıtlı snapshot’lardan salt okunur karşılaştırma. Yalnızca seçili alanları açık onayla uygulayın — toplu kabul yok.',
+  'master.cv.oemSpecs.suggestions.loading': 'OEM önerileri yükleniyor…',
+  'master.cv.oemSpecs.suggestions.loadError': 'OEM önerileri yüklenemedi.',
+  'master.cv.oemSpecs.suggestions.mfaRequired':
+    'One Auto OEM önerilerini görmek için MFA step-up gerekli.',
+  'master.cv.oemSpecs.suggestions.accessDenied': 'Bu tenant için OEM önerilerine erişim yok.',
+  'master.cv.oemSpecs.suggestions.featureDisabled': 'OEM önerileri bu ortamda kapalı.',
+  'master.cv.oemSpecs.suggestions.empty': 'Bu araç için aktif OEM öneri snapshot’ı yok.',
+  'master.cv.oemSpecs.suggestions.canonicalColumn': 'Kanonik (araç)',
+  'master.cv.oemSpecs.suggestions.suggestedColumn': 'Öneri (One Auto)',
+  'master.cv.oemSpecs.suggestions.state.match': 'Eşleşme',
+  'master.cv.oemSpecs.suggestions.state.missing': 'Araçta eksik',
+  'master.cv.oemSpecs.suggestions.state.conflict': 'Çakışma',
+  'master.cv.oemSpecs.suggestions.state.notComparable': 'Karşılaştırılamaz',
+  'master.cv.oemSpecs.suggestions.providerUpdatedAt': 'Sağlayıcı verisi güncellendi',
+  'master.cv.oemSpecs.suggestions.fetchedAt': 'Yanıt alındı',
+  'master.cv.oemSpecs.suggestions.snapshotAt': 'Snapshot kaydedildi',
+  'master.cv.oemSpecs.suggestions.vinPrefix': 'VIN hash öneki',
+  'master.cv.oemSpecs.suggestions.applySuggestion': 'Öneriyi onayla uygula',
+  'master.cv.oemSpecs.suggestions.confirmApplyCheckbox': 'Bu öneriyi uygulamayı onaylıyorum',
+  'master.cv.oemSpecs.suggestions.userConfirmedWarning':
+    'Bu, kullanıcı onaylı kanonik değeri değiştirir. Dikkatle inceleyin.',
+  'master.cv.oemSpecs.suggestions.saveConflict':
+    'Başka bir kayıt aracı güncelledi. Kanonik değerler yeniden yüklendi.',
+  'master.cv.oemSpecs.suggestions.dismissConflict': 'Kapat',
+  'master.cv.oemSpecs.suggestions.notApplicable':
+    'Bu alan vinlookup öneri snapshot’ında yok.',
+  'master.cv.oemSpecs.suggestions.alreadyMatches': 'Öneri zaten kanonik alanla eşleşiyor.',
 };

@@ -28,4 +28,36 @@ export const masterCvOemSpecsEs = {
   'master.cv.oemSpecs.confirmation.userConfirmed': 'Confirmado',
   'master.cv.oemSpecs.confirmation.suggested': 'Sugerido',
   'master.cv.oemSpecs.confirmation.unconfirmed': 'Sin confirmar',
+  'master.cv.oemSpecs.suggestions.title': 'Sugerencias OEM de One Auto',
+  'master.cv.oemSpecs.suggestions.hint':
+    'Comparación de solo lectura desde instantáneas almacenadas. Aplique solo campos seleccionados con confirmación explícita — sin aceptación masiva.',
+  'master.cv.oemSpecs.suggestions.loading': 'Cargando sugerencias OEM…',
+  'master.cv.oemSpecs.suggestions.loadError': 'No se pudieron cargar las sugerencias OEM.',
+  'master.cv.oemSpecs.suggestions.mfaRequired':
+    'Se requiere step-up MFA para ver sugerencias OEM de One Auto.',
+  'master.cv.oemSpecs.suggestions.accessDenied': 'Sin acceso a sugerencias OEM para este tenant.',
+  'master.cv.oemSpecs.suggestions.featureDisabled':
+    'Las sugerencias OEM están desactivadas en este entorno.',
+  'master.cv.oemSpecs.suggestions.empty': 'No hay instantánea activa de sugerencias OEM para este vehículo.',
+  'master.cv.oemSpecs.suggestions.canonicalColumn': 'Canónico (vehículo)',
+  'master.cv.oemSpecs.suggestions.suggestedColumn': 'Sugerido (One Auto)',
+  'master.cv.oemSpecs.suggestions.state.match': 'Coincidencia',
+  'master.cv.oemSpecs.suggestions.state.missing': 'Falta en el vehículo',
+  'master.cv.oemSpecs.suggestions.state.conflict': 'Conflicto',
+  'master.cv.oemSpecs.suggestions.state.notComparable': 'No comparable',
+  'master.cv.oemSpecs.suggestions.providerUpdatedAt': 'Datos del proveedor actualizados',
+  'master.cv.oemSpecs.suggestions.fetchedAt': 'Respuesta obtenida',
+  'master.cv.oemSpecs.suggestions.snapshotAt': 'Instantánea registrada',
+  'master.cv.oemSpecs.suggestions.vinPrefix': 'Prefijo hash VIN',
+  'master.cv.oemSpecs.suggestions.applySuggestion': 'Aplicar sugerencia con confirmación',
+  'master.cv.oemSpecs.suggestions.confirmApplyCheckbox': 'Confirmo aplicar este valor sugerido',
+  'master.cv.oemSpecs.suggestions.userConfirmedWarning':
+    'Esto reemplaza un valor canónico confirmado por el usuario. Revise con cuidado.',
+  'master.cv.oemSpecs.suggestions.saveConflict':
+    'Otro guardado actualizó el vehículo. Se recargaron los valores canónicos.',
+  'master.cv.oemSpecs.suggestions.dismissConflict': 'Cerrar',
+  'master.cv.oemSpecs.suggestions.notApplicable':
+    'Este campo no está en la instantánea de sugerencia vinlookup.',
+  'master.cv.oemSpecs.suggestions.alreadyMatches':
+    'La sugerencia ya coincide con el campo canónico.',
 };

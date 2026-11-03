@@ -656,6 +656,25 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-11-03T06:30:00.000Z',
   },
   {
+    id: 'oneauto-oem-spec-prc3-master-ui-2026-11-03',
+    version: '4.9.5018',
+    title: 'One Auto OEM spec PR-C3 — Master suggestion UI',
+    summary: [
+      'Connected Vehicle OEM section loads MFA-gated suggestion GET alongside canonical OEM fields.',
+      'Side-by-side MATCH/MISSING/CONFLICT/NOT_COMPARABLE with timestamps; per-field apply reuses PATCH confirmedFieldKeys (no bulk accept).',
+      'Save conflict reloads canonical + suggestions; nine-locale master.cv.oemSpecs.suggestions.* keys.',
+    ],
+    reason:
+      'Let Master operators review stored vinlookup suggestions and confirm selected fields without provider calls or auto-apply.',
+    previousBehavior:
+      'PR-C2 read API existed but Master drawer showed canonical OEM edit only.',
+    details:
+      'frontend: ConnectedVehicleOemSpecificationsSection, useConnectedVehicleOemSpecifications, connected-vehicle-oem-suggestions.*; api.vehicles.getOemSpecificationSuggestions; architecture ONEAUTO_OEM_SPEC_PRC3_MASTER_UI.md.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-03T12:30:00.000Z',
+  },
+  {
     id: 'oneauto-p2-master-admin-ui-2026-11-01',
     version: '4.9.5003',
     title: 'One Auto API — Master Admin service dialog (frontend P2)',
