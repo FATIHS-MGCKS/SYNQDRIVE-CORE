@@ -50,7 +50,7 @@ export VEHICLE_OEM_SPEC_PATCH_PG=1
 vehicle_oem_spec_patch_assert_pg_flag
 vehicle_oem_spec_patch_assert_ci_local_database_url
 
-log "Running vehicle-oem-specification-patch.postgres.integration (expect 6 executed tests)"
+log "Running vehicle-oem-specification-patch.postgres.integration (expect 7 executed tests)"
 OEM_JEST_OUT="$(mktemp)"
 set +e
 npm test -- --testPathPatterns='vehicle-oem-specification-patch.postgres.integration' --runInBand --verbose 2>&1 | tee "$OEM_JEST_OUT"
@@ -67,8 +67,8 @@ if grep -Eq 'Tests:[[:space:]]+0 passed' "$OEM_JEST_OUT" || grep -Eq 'Test Suite
   exit 1
 fi
 
-if ! grep -Eq 'Tests:[[:space:]]+6 passed' "$OEM_JEST_OUT"; then
-  log "FAIL: expected exactly 6 passing tests in vehicle-oem-specification-patch.postgres.integration"
+if ! grep -Eq 'Tests:[[:space:]]+7 passed' "$OEM_JEST_OUT"; then
+  log "FAIL: expected exactly 7 passing tests in vehicle-oem-specification-patch.postgres.integration"
   grep 'Tests:' "$OEM_JEST_OUT" || true
   exit 1
 fi
