@@ -44,6 +44,37 @@ fi
 
 log "vehicle-technical-spec-patch.postgres.integration OK (10/10)"
 
+# shellcheck source=lib/oneauto-oem-suggestion-postgres-guard.sh
+source "${SCRIPT_DIR}/lib/oneauto-oem-suggestion-postgres-guard.sh"
+export ONEAUTO_OEM_SUGGESTIONS_PG=1
+vehicle_oem_suggestion_assert_pg_flag
+vehicle_oem_suggestion_assert_ci_local_database_url
+
+log "Running oneauto-oem-vin-lookup-eu-suggestion.postgres.integration (expect 22 executed tests)"
+ONEAUTO_JEST_OUT="$(mktemp)"
+set +e
+npm test -- --testPathPatterns='oneauto-oem-vin-lookup-eu-suggestion.postgres.integration' --runInBand --verbose 2>&1 | tee "$ONEAUTO_JEST_OUT"
+ONEAUTO_JEST_RC=${PIPESTATUS[0]}
+set -e
+
+if [[ "$ONEAUTO_JEST_RC" -ne 0 ]]; then
+  log "OneAuto OEM suggestion Jest failed with exit code ${ONEAUTO_JEST_RC}"
+  exit "$ONEAUTO_JEST_RC"
+fi
+
+if grep -Eq 'Tests:[[:space:]]+0 passed' "$ONEAUTO_JEST_OUT" || grep -Eq 'Test Suites:[[:space:]]+1 skipped' "$ONEAUTO_JEST_OUT"; then
+  log "FAIL: OneAuto OEM suggestion integration suite skipped or zero tests executed"
+  exit 1
+fi
+
+if ! grep -Eq 'Tests:[[:space:]]+22 passed' "$ONEAUTO_JEST_OUT"; then
+  log "FAIL: expected exactly 22 passing tests in oneauto-oem-vin-lookup-eu-suggestion.postgres.integration"
+  grep 'Tests:' "$ONEAUTO_JEST_OUT" || true
+  exit 1
+fi
+
+log "oneauto-oem-vin-lookup-eu-suggestion.postgres.integration OK (22/22)"
+
 # shellcheck source=lib/vehicle-oem-spec-patch-postgres-guard.sh
 source "${SCRIPT_DIR}/lib/vehicle-oem-spec-patch-postgres-guard.sh"
 export VEHICLE_OEM_SPEC_PATCH_PG=1
@@ -73,35 +104,4 @@ if ! grep -Eq 'Tests:[[:space:]]+6 passed' "$OEM_JEST_OUT"; then
   exit 1
 fi
 
-log "vehicle-tech-spec-patch-postgres-ci completed successfully (technical 10/10 + OEM 6/6)"
-
-# shellcheck source=lib/oneauto-oem-suggestion-postgres-guard.sh
-source "${SCRIPT_DIR}/lib/oneauto-oem-suggestion-postgres-guard.sh"
-export ONEAUTO_OEM_SUGGESTIONS_PG=1
-vehicle_oem_suggestion_assert_pg_flag
-vehicle_oem_suggestion_assert_ci_local_database_url
-
-log "Running oneauto-oem-vin-lookup-eu-suggestion.postgres.integration (expect 13 executed tests)"
-ONEAUTO_JEST_OUT="$(mktemp)"
-set +e
-npm test -- --testPathPatterns='oneauto-oem-vin-lookup-eu-suggestion.postgres.integration' --runInBand --verbose 2>&1 | tee "$ONEAUTO_JEST_OUT"
-ONEAUTO_JEST_RC=${PIPESTATUS[0]}
-set -e
-
-if [[ "$ONEAUTO_JEST_RC" -ne 0 ]]; then
-  log "OneAuto OEM suggestion Jest failed with exit code ${ONEAUTO_JEST_RC}"
-  exit "$ONEAUTO_JEST_RC"
-fi
-
-if grep -Eq 'Tests:[[:space:]]+0 passed' "$ONEAUTO_JEST_OUT" || grep -Eq 'Test Suites:[[:space:]]+1 skipped' "$ONEAUTO_JEST_OUT"; then
-  log "FAIL: OneAuto OEM suggestion integration suite skipped or zero tests executed"
-  exit 1
-fi
-
-if ! grep -Eq 'Tests:[[:space:]]+13 passed' "$ONEAUTO_JEST_OUT"; then
-  log "FAIL: expected exactly 13 passing tests in oneauto-oem-vin-lookup-eu-suggestion.postgres.integration"
-  grep 'Tests:' "$ONEAUTO_JEST_OUT" || true
-  exit 1
-fi
-
-log "vehicle-tech-spec-patch-postgres-ci completed (technical 10/10 + OEM 6/6 + OneAuto OEM suggestions 13/13)"
+log "vehicle-tech-spec-patch-postgres-ci completed (technical 10/10 + OneAuto OEM 22/22 + OEM patch 6/6)"

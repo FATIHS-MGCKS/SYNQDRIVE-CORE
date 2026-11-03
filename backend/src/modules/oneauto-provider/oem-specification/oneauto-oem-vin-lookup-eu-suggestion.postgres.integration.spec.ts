@@ -19,6 +19,7 @@ import { ONEAUTO_OEM_VIN_LOOKUP_EU_AUDI_A4_SANITIZED_RESULT } from '@modules/one
 import { OneAutoOemVinLookupEuSuggestionMaterializationService } from '@modules/oneauto-provider/oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
 import { OneAutoOemVinLookupEuSuggestionReadService } from '@modules/oneauto-provider/oem-specification/oneauto-oem-vin-lookup-eu-suggestion-read.service';
 import { OneAutoOemVinLookupEuSuggestionCleanupService } from '@modules/oneauto-provider/oem-specification/oneauto-oem-vin-lookup-eu-suggestion-cleanup.service';
+import { OneAutoOemVinLookupEuSuggestionRecoveryService } from '@modules/oneauto-provider/oem-specification/oneauto-oem-vin-lookup-eu-suggestion-recovery.service';
 import { assertSafeOemSuggestionListDto } from '@modules/oneauto-provider/oem-specification/oneauto-oem-vin-lookup-eu-suggestion.dto';
 
 const LIVE = process.env.ONEAUTO_OEM_SUGGESTIONS_PG === '1';
@@ -132,6 +133,7 @@ async function createSucceededVinLookupJob(
   let materialization: OneAutoOemVinLookupEuSuggestionMaterializationService;
   let readService: OneAutoOemVinLookupEuSuggestionReadService;
   let cleanup: OneAutoOemVinLookupEuSuggestionCleanupService;
+  let recovery: OneAutoOemVinLookupEuSuggestionRecoveryService;
 
   beforeAll(async () => {
     assertDisposableDatabaseUrl();
@@ -141,6 +143,7 @@ async function createSucceededVinLookupJob(
     materialization = new OneAutoOemVinLookupEuSuggestionMaterializationService(prisma as never, cfg);
     readService = new OneAutoOemVinLookupEuSuggestionReadService(prisma as never, cfg);
     cleanup = new OneAutoOemVinLookupEuSuggestionCleanupService(prisma as never, cfg);
+    recovery = new OneAutoOemVinLookupEuSuggestionRecoveryService(prisma as never, cfg, materialization);
   });
 
   afterAll(async () => {
@@ -426,5 +429,154 @@ async function createSucceededVinLookupJob(
     await prisma.oneAutoProviderJob.deleteMany({ where: { id: jobId } });
     await prisma.vehicle.deleteMany({ where: { id: ctx.vehicleId } });
     await prisma.organization.deleteMany({ where: { id: ctx.organizationId } });
+  });
+
+  describe('bounded snapshot recovery', () => {
+    it('recovers after simulated post-SUCCEEDED crash (missing snapshot)', async () => {
+      const ctx = await createOrgVehicle(prisma);
+      const jobId = await createSucceededVinLookupJob(prisma, {
+        ...ctx,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      const report = await recovery.recoverMissingSnapshotsBatch();
+      expect(report.disabled).toBe(false);
+      expect(report.candidates).toBeGreaterThanOrEqual(1);
+      expect(report.outcomes.CREATED ?? 0).toBeGreaterThanOrEqual(1);
+      const job = await prisma.oneAutoProviderJob.findUnique({ where: { id: jobId } });
+      expect(job?.status).toBe(OneAutoProviderJobStatus.SUCCEEDED);
+      await prisma.oneAutoOemVinLookupEuSuggestionSnapshot.deleteMany({ where: { providerJobId: jobId } });
+      await prisma.oneAutoProviderResponse.deleteMany({ where: { jobId } });
+      await prisma.oneAutoProviderJob.deleteMany({ where: { id: jobId } });
+      await prisma.vehicle.deleteMany({ where: { id: ctx.vehicleId } });
+      await prisma.organization.deleteMany({ where: { id: ctx.organizationId } });
+    });
+
+    it('recovery skips jobs that already have snapshots', async () => {
+      const ctx = await createOrgVehicle(prisma);
+      const jobId = await createSucceededVinLookupJob(prisma, {
+        ...ctx,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      await materialization.tryMaterializeFromSucceededJob(jobId);
+      const report = await recovery.recoverMissingSnapshotsBatch();
+      expect(report.candidates).toBe(0);
+      await prisma.oneAutoOemVinLookupEuSuggestionSnapshot.deleteMany({ where: { providerJobId: jobId } });
+      await prisma.oneAutoProviderResponse.deleteMany({ where: { jobId } });
+      await prisma.oneAutoProviderJob.deleteMany({ where: { id: jobId } });
+      await prisma.vehicle.deleteMany({ where: { id: ctx.vehicleId } });
+      await prisma.organization.deleteMany({ where: { id: ctx.organizationId } });
+    });
+
+    it('recovery does not scan expired succeeded jobs', async () => {
+      const ctx = await createOrgVehicle(prisma);
+      const jobId = await createSucceededVinLookupJob(prisma, {
+        ...ctx,
+        expiresAt: new Date(Date.now() - 60_000),
+      });
+      const report = await recovery.recoverMissingSnapshotsBatch();
+      expect(report.candidates).toBe(0);
+      await prisma.oneAutoProviderResponse.deleteMany({ where: { jobId } });
+      await prisma.oneAutoProviderJob.deleteMany({ where: { id: jobId } });
+      await prisma.vehicle.deleteMany({ where: { id: ctx.vehicleId } });
+      await prisma.organization.deleteMany({ where: { id: ctx.organizationId } });
+    });
+
+    it('recovery is disabled when feature flag is off', async () => {
+      const disabledCfg = {
+        get: (key: string) => {
+          if (key === 'oneautoProvider') {
+            return { oemSuggestionsEnabled: false, oemSuggestionsRecoveryBatchSize: 25 };
+          }
+          return {};
+        },
+      } as unknown as ConfigService;
+      const disabledRecovery = new OneAutoOemVinLookupEuSuggestionRecoveryService(
+        prisma as never,
+        disabledCfg,
+        materialization,
+      );
+      const report = await disabledRecovery.recoverMissingSnapshotsBatch();
+      expect(report.disabled).toBe(true);
+      expect(report.attempted).toBe(0);
+    });
+
+    it('recovery reports binding failures without mutating job status', async () => {
+      const ctx = await createOrgVehicle(prisma, { vin: TEST_VIN });
+      const jobId = await createSucceededVinLookupJob(prisma, {
+        ...ctx,
+        vin: 'WBA00000000000000',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      const report = await recovery.recoverMissingSnapshotsBatch();
+      expect(report.outcomes.SKIPPED_BINDING ?? 0).toBeGreaterThanOrEqual(1);
+      const job = await prisma.oneAutoProviderJob.findUnique({ where: { id: jobId } });
+      expect(job?.status).toBe(OneAutoProviderJobStatus.SUCCEEDED);
+      await prisma.oneAutoProviderResponse.deleteMany({ where: { jobId } });
+      await prisma.oneAutoProviderJob.deleteMany({ where: { id: jobId } });
+      await prisma.vehicle.deleteMany({ where: { id: ctx.vehicleId } });
+      await prisma.organization.deleteMany({ where: { id: ctx.organizationId } });
+    });
+
+    it('recovery does not write Vehicle OEM columns', async () => {
+      const ctx = await createOrgVehicle(prisma);
+      const jobId = await createSucceededVinLookupJob(prisma, {
+        ...ctx,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      const before = await prisma.vehicle.findUnique({ where: { id: ctx.vehicleId } });
+      await recovery.recoverMissingSnapshotsBatch();
+      const after = await prisma.vehicle.findUnique({ where: { id: ctx.vehicleId } });
+      expect(after?.oemEngineDesc).toBeNull();
+      expect(after?.updatedAt?.toISOString()).toBe(before?.updatedAt?.toISOString());
+      await prisma.oneAutoOemVinLookupEuSuggestionSnapshot.deleteMany({ where: { providerJobId: jobId } });
+      await prisma.oneAutoProviderResponse.deleteMany({ where: { jobId } });
+      await prisma.oneAutoProviderJob.deleteMany({ where: { id: jobId } });
+      await prisma.vehicle.deleteMany({ where: { id: ctx.vehicleId } });
+      await prisma.organization.deleteMany({ where: { id: ctx.organizationId } });
+    });
+
+    it('recovery reuses materialization without provider HTTP', async () => {
+      const ctx = await createOrgVehicle(prisma);
+      const jobId = await createSucceededVinLookupJob(prisma, {
+        ...ctx,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      const spy = jest.spyOn(materialization, 'tryMaterializeFromSucceededJob');
+      await recovery.recoverMissingSnapshotsBatch();
+      expect(spy).toHaveBeenCalled();
+      spy.mockRestore();
+      await prisma.oneAutoOemVinLookupEuSuggestionSnapshot.deleteMany({ where: { providerJobId: jobId } });
+      await prisma.oneAutoProviderResponse.deleteMany({ where: { jobId } });
+      await prisma.oneAutoProviderJob.deleteMany({ where: { id: jobId } });
+      await prisma.vehicle.deleteMany({ where: { id: ctx.vehicleId } });
+      await prisma.organization.deleteMany({ where: { id: ctx.organizationId } });
+    });
+
+    it('recovery preserves immutable snapshots on retry', async () => {
+      const ctx = await createOrgVehicle(prisma);
+      const jobId = await createSucceededVinLookupJob(prisma, {
+        ...ctx,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      await materialization.tryMaterializeFromSucceededJob(jobId);
+      await prisma.oneAutoOemVinLookupEuSuggestionSnapshot.updateMany({
+        where: { providerJobId: jobId },
+        data: { normalizedSnapshotJson: { tampered: true } },
+      });
+      const report = await recovery.recoverMissingSnapshotsBatch();
+      expect(report.candidates).toBe(0);
+      await prisma.oneAutoOemVinLookupEuSuggestionSnapshot.deleteMany({ where: { providerJobId: jobId } });
+      await prisma.oneAutoProviderResponse.deleteMany({ where: { jobId } });
+      await prisma.oneAutoProviderJob.deleteMany({ where: { id: jobId } });
+      await prisma.vehicle.deleteMany({ where: { id: ctx.vehicleId } });
+      await prisma.organization.deleteMany({ where: { id: ctx.organizationId } });
+    });
+
+    it('recovery skips overlapping batch runs', async () => {
+      const first = recovery.recoverMissingSnapshotsBatch();
+      const second = recovery.recoverMissingSnapshotsBatch();
+      const [a, b] = await Promise.all([first, second]);
+      expect(a.skippedConcurrent || b.skippedConcurrent).toBe(true);
+    });
   });
 });

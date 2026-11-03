@@ -2,7 +2,7 @@
 
 | Date | Change | Authority impact |
 |------|--------|------------------|
-| 2026-11-03 | **One Auto OEM spec PR-C2 (snapshot persistence + Master read)** — Immutable `one_auto_oem_vin_lookup_eu_suggestion_snapshots` per successful `OE_VIN_LOOKUP_EU` job; materialization after job `SUCCEEDED` when `ONEAUTO_OEM_SUGGESTIONS_ENABLED`; Master GET `…/oem-specification-suggestions` with MFA + read-time comparison; expired snapshot cleanup; evidence `ONEAUTO_OEM_SPEC_PRC2_SNAPSHOT.md` | No auto-confirm to Vehicle OEM columns; module remains `AUDIT_IN_PROGRESS` |
+| 2026-11-03 | **One Auto OEM spec PR-C2 blocker repair** — scheduler registry entry `oneauto_oem_suggestion_snapshot_cleanup`; bounded recovery batch for missing snapshots; CI script runs OneAuto PG before OEM PATCH 6; evidence `ONEAUTO_OEM_SPEC_PRC2_SNAPSHOT.md` updated | Same module; no auto-confirm |
 | 2026-11-03 | **One Auto OEM spec PR-C1 (normalizer + comparison)** — Pure `OE_VIN_LOOKUP_EU` result → six desc suggestions + field-level MATCH/MISSING/CONFLICT/NOT_COMPARABLE; Audi A4 offline fixture; evidence `ONEAUTO_OEM_SPEC_PRC1_NORMALIZER.md` | No persistence/API/UI; module remains `AUDIT_IN_PROGRESS` |
 | 2026-11-02 | **One Auto OEM spec PR-B CI/governance split** — OEM spec PostgreSQL integration wired into Vehicle Detail CI; inventory authority split out of product PR to satisfy i18n mixed-change policy | Evidence `ONEAUTO_OEM_SPEC_PRB_MASTER_API_UI.md` |
 | 2026-11-02 | **One Auto OEM spec PR-B hardening** — Master Admin server-side gate for OEM PATCH bodies; optimistic concurrency on all OEM writes; `VEHICLE_OEM_SPEC_SAVE_CONFLICT`; security + postgres integration tests | Same PR-B slice; evidence `ONEAUTO_OEM_SPEC_PRB_MASTER_API_UI.md` updated |

@@ -14,6 +14,7 @@ import { OneAutoOemVinLookupEuSuggestionController } from './oem-specification/o
 import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
 import { OneAutoOemVinLookupEuSuggestionReadService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-read.service';
 import { OneAutoOemVinLookupEuSuggestionCleanupService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-cleanup.service';
+import { OneAutoOemVinLookupEuSuggestionRecoveryService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-recovery.service';
 import { OneAutoOemVinLookupEuSuggestionCleanupScheduler } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-cleanup.scheduler';
 
 @Module({
@@ -32,6 +33,7 @@ import { OneAutoOemVinLookupEuSuggestionCleanupScheduler } from './oem-specifica
     OneAutoOemVinLookupEuSuggestionMaterializationService,
     OneAutoOemVinLookupEuSuggestionReadService,
     OneAutoOemVinLookupEuSuggestionCleanupService,
+    OneAutoOemVinLookupEuSuggestionRecoveryService,
     OneAutoOemVinLookupEuSuggestionCleanupScheduler,
   ],
   exports: [
@@ -41,6 +43,7 @@ import { OneAutoOemVinLookupEuSuggestionCleanupScheduler } from './oem-specifica
     OneAutoOemVinLookupEuSuggestionMaterializationService,
     OneAutoOemVinLookupEuSuggestionReadService,
     OneAutoOemVinLookupEuSuggestionCleanupService,
+    OneAutoOemVinLookupEuSuggestionRecoveryService,
   ],
 })
 export class OneAutoProviderModule {}

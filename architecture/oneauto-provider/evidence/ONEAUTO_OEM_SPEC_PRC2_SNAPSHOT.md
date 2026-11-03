@@ -48,14 +48,26 @@ Behavior:
 
 ## Retention cleanup
 
-- Cron scheduler with `SchedulerLeaderGuardService` (`oneauto_oem_suggestion_snapshot_cleanup`)
+- Cron scheduler with `SchedulerLeaderGuardService` (`oneauto_oem_suggestion_snapshot_cleanup` registered in `SINGLETON_GLOBAL_SCHEDULER_NAMES`)
 - Bounded batch delete (`ONEAUTO_OEM_SUGGESTIONS_CLEANUP_BATCH_SIZE`, default 100)
 - Idempotent; no provider calls; no Vehicle mutation
 
+## Bounded recovery (post-SUCCEEDED / crash window)
+
+- `OneAutoOemVinLookupEuSuggestionRecoveryService.recoverMissingSnapshotsBatch()` — leader-guarded via same scheduler name
+- Cron: every 10 minutes + before daily cleanup
+- Discovers at most `ONEAUTO_OEM_SUGGESTIONS_RECOVERY_BATCH_SIZE` (default 25, cap 200) **SUCCEEDED** `OE_VIN_LOOKUP_EU` jobs with `expiresAt > now` and **no** snapshot row
+- Each candidate calls `tryMaterializeFromSucceededJob` (persisted response only; no HTTP)
+- In-process `running` guard prevents overlapping recovery batches on one replica
+
 ## Tests
 
-- `oneauto-oem-vin-lookup-eu-suggestion.postgres.integration.spec.ts` (13 cases, `ONEAUTO_OEM_SUGGESTIONS_PG=1`)
-- Wired into `backend/scripts/test/vehicle-tech-spec-patch-postgres-ci.sh` (Vehicle Detail critical CI chain)
+- `oneauto-oem-vin-lookup-eu-suggestion.postgres.integration.spec.ts` (22 cases incl. recovery, `ONEAUTO_OEM_SUGGESTIONS_PG=1`)
+- Wired into `backend/scripts/test/vehicle-tech-spec-patch-postgres-ci.sh` **before** OEM PATCH 6-pack so PR-C2 PG always executes on CI
+
+## CI baseline note (OEM PATCH 6)
+
+- `vehicle-oem-specification-patch.postgres.integration` concurrent OEM race test is **identical on `main`**; can flake when both updates serialize (both fulfill). Not introduced by PR-C2. Track separately if Vehicle Detail CI fails after OneAuto block passes.
 
 ## Code map
 

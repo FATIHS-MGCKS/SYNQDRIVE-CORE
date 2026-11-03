@@ -47,4 +47,5 @@ export default registerAs('oneautoProvider', () => ({
   /** PR-C2: persist immutable OEM vinlookup suggestion snapshots after successful OE_VIN_LOOKUP_EU jobs. */
   oemSuggestionsEnabled: (process.env.ONEAUTO_OEM_SUGGESTIONS_ENABLED ?? 'false') === 'true',
   oemSuggestionsCleanupBatchSize: intEnv('ONEAUTO_OEM_SUGGESTIONS_CLEANUP_BATCH_SIZE', 100),
+  oemSuggestionsRecoveryBatchSize: intEnv('ONEAUTO_OEM_SUGGESTIONS_RECOVERY_BATCH_SIZE', 25),
 }));
