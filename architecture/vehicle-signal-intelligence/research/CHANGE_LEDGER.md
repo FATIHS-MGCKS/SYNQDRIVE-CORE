@@ -2,6 +2,9 @@
 
 Append-only architecture change record.
 
+| Date | Change | Phase | Evidence |
+|------|--------|-------|----------|
+| 2026-11-03 | **P3A scheduler sweep anchor safety** — fleet-wide ACTIVE vehicle anchor for sweep outbox rows (skips empty/inactive-only orgs); continuation re-resolves anchor; tick/continuation idempotency regression tests | P3 discovery | `vsi-native-discovery-inventory-sweep-anchor.util.ts`, `vsi-profile-lifecycle.worker.ts`, `vsi-profile-lifecycle.processor.ts` |
 | 2026-11-03 | **P3A native discovery inventory reconciliation** — bounded lifecycle outbox sweep + per-link inventory-only refresh via existing materialization CAS paths; `VSI_DISCOVERY_INVENTORY_RECONCILE_ENABLED` default OFF; read-only coverage snapshot; disposable PG integration tests | P3 discovery | `vsi-native-discovery-inventory-reconcile.*`, `vsi-profile-lifecycle.processor.ts`, migration `20261103103000_vsi_p3a_inventory_reconcile_outbox` |
 | 2026-10-31 | **P2-F3 APDS URL context hygiene** — destination-specific context sanitization for VSI/APDS/PDI/Vehicle cross-nav; strip APDS/VSI foreign params; no auto physicalDeviceId on APDS/VSI; no auto-first provider link on VSI; stale link rejection; browser history regression tests | P2 UX | `master-intelligence-context-hygiene.util.ts`, `master-intelligence-url.ts`, `MasterIntelligenceContextProvider.tsx`, `ApdsMasterIntelligenceView.tsx`, `VsiMasterIntelligenceView.tsx` |
 | 2026-10-31 | **P2-F2 PDI provider bindings UI + cross-navigation** — Master PDI panel lists `providerBindings` with explicit multi-binding selection; rejects stale selection and cross-org mismatch; VSI overview/ledger, APDS, Vehicle Detail nav via P2-F1 URL helpers (no `crossLinkContext.providerSourceLinkId` auto-first); 9-locale i18n; frontend-only | P2 UX | `PdiProviderBindingsSection.tsx`, `pdi-provider-binding.utils.ts`, `PhysicalDeviceIntelligencePanel.tsx`, `pdi-provider-binding.test.ts` |
