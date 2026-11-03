@@ -16,6 +16,10 @@ import {
 } from './oneauto-response-envelope.util';
 import { redactOneAutoErrorMessage, redactProviderResponseBody } from './oneauto-provider-redact.util';
 import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
+import {
+  computeOneAutoProviderResultExpiresAt,
+  isOneAutoAsyncCapableWithoutVerifiedPoll,
+} from './oneauto-provider-result-retention.util';
 
 export type OneAutoProviderJobPayload = {
   jobId: string;
@@ -55,6 +59,30 @@ export class OneAutoProviderExecutionService {
     );
   }
 
+  /** Idempotent: expires AWAITING_PROVIDER jobs past provider/SynqDrive retention windows. */
+  async expireProviderResultIfDue(jobId: string): Promise<void> {
+    const now = new Date();
+    await this.prisma.oneAutoProviderJob.updateMany({
+      where: {
+        id: jobId,
+        status: OneAutoProviderJobStatus.AWAITING_PROVIDER,
+        OR: [
+          { providerResultExpiresAt: { lte: now } },
+          {
+            AND: [{ providerResultExpiresAt: null }, { expiresAt: { lte: now } }],
+          },
+        ],
+      },
+      data: {
+        status: OneAutoProviderJobStatus.EXPIRED,
+        lastErrorCode: 'ONEAUTO_PROVIDER_RESULT_EXPIRED',
+        lastErrorMessageRedacted: redactOneAutoErrorMessage(
+          'Provider result retention elapsed — internal reservation released; vendor charge remains unknown',
+        ),
+      },
+    });
+  }
+
   async processJob(jobId: string, phase: OneAutoProviderJobPayload['phase'] = 'initial'): Promise<void> {
     const job = await this.prisma.oneAutoProviderJob.findUnique({ where: { id: jobId } });
     if (!job) return;
@@ -64,6 +92,11 @@ export class OneAutoProviderExecutionService {
       job.status === OneAutoProviderJobStatus.FAILED ||
       job.status === OneAutoProviderJobStatus.EXPIRED
     ) {
+      return;
+    }
+
+    if (job.status === OneAutoProviderJobStatus.AWAITING_PROVIDER && phase === 'initial') {
+      await this.expireProviderResultIfDue(jobId);
       return;
     }
 
@@ -142,16 +175,23 @@ export class OneAutoProviderExecutionService {
             status: { in: [OneAutoProviderJobStatus.QUEUED, OneAutoProviderJobStatus.CREATED] },
           };
 
+    const initialDispatchAt =
+      phase === 'initial' ? new Date() : (job.initialProviderDispatchAt ?? undefined);
+
     const claim = await this.prisma.oneAutoProviderJob.updateMany({
       where: claimWhere,
       data: {
         status: OneAutoProviderJobStatus.RUNNING,
-        ...(phase === 'initial' ? { initialProviderDispatchAt: new Date() } : {}),
+        ...(phase === 'initial' && initialDispatchAt
+          ? { initialProviderDispatchAt: initialDispatchAt }
+          : {}),
       },
     });
     if (claim.count === 0) {
       return;
     }
+
+    const dispatchMarker = initialDispatchAt ?? job.initialProviderDispatchAt ?? new Date();
 
     try {
       const result = await this.http.executeProviderGet({
@@ -213,6 +253,23 @@ export class OneAutoProviderExecutionService {
       }
 
       if (AWAITING.has(result.httpStatus)) {
+        if (isOneAutoAsyncCapableWithoutVerifiedPoll(contract)) {
+          const cfg = this.config.get<{ providerResultRetentionMs?: number }>('oneautoProvider');
+          const retentionMs = cfg?.providerResultRetentionMs;
+          const providerResultExpiresAt = computeOneAutoProviderResultExpiresAt(
+            dispatchMarker,
+            retentionMs,
+          );
+          await this.prisma.oneAutoProviderJob.update({
+            where: { id: jobId },
+            data: {
+              status: OneAutoProviderJobStatus.AWAITING_PROVIDER,
+              providerResultExpiresAt,
+              actualChargeKnown: false,
+            },
+          });
+          return;
+        }
         if (!contract.asyncPollSameUrlWithoutNewCharge) {
           await this.failJob(
             jobId,

@@ -3243,6 +3243,8 @@ model OneAutoProviderJob {
   lastErrorCode               String?                  @map("last_error_code")
   lastErrorMessageRedacted    String?                  @map("last_error_message_redacted")
   expiresAt                   DateTime?                @map("expires_at")
+  /// Provider async result retention (KB 24h) from initial dispatch — internal SynqDrive window only.
+  providerResultExpiresAt     DateTime?                @map("provider_result_expires_at")
   createdAt                   DateTime                 @default(now()) @map("created_at")
   updatedAt                   DateTime                 @updatedAt @map("updated_at")
 

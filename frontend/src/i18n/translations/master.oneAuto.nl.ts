@@ -25,6 +25,7 @@ export const masterOneAutoNl = {
   'master.oneAuto.jobSubmitted': 'Submitted',
   'master.oneAuto.jobLastUpdate': 'Last update',
   'master.oneAuto.jobRequestRef': 'Request reference',
+  'master.oneAuto.providerResultExpires': 'Einde venster providerresultaat',
   'master.oneAuto.safeError': 'Error',
   'master.oneAuto.billingStatus': 'Billing',
   'master.oneAuto.billingKnown': 'Known charge recorded',
@@ -47,7 +48,9 @@ export const masterOneAutoNl = {
   'master.oneAuto.status.CREATED': 'Created',
   'master.oneAuto.status.QUEUED': 'Queued',
   'master.oneAuto.status.RUNNING': 'Running',
-  'master.oneAuto.status.AWAITING_PROVIDER': 'Awaiting provider',
+  'master.oneAuto.status.AWAITING_PROVIDER': 'Wachten op provider',
+  'master.oneAuto.statusMessage.AWAITING_PROVIDER':
+    'Provider heeft het verzoek geaccepteerd; resultaat ophalen is in behandeling.',
   'master.oneAuto.status.SUCCEEDED': 'Succeeded',
   'master.oneAuto.status.FAILED': 'Failed',
   'master.oneAuto.status.EXPIRED': 'Expired',
@@ -64,6 +67,10 @@ export const masterOneAutoNl = {
   'master.oneAuto.error.ONEAUTO_COST_CONFIRMATION_REQUIRED': 'Explicit cost confirmation is required.',
   'master.oneAuto.error.STEP_UP_REQUIRED': 'MFA step-up required before execution.',
   'master.oneAuto.error.ONEAUTO_JOB_POLL_TIMEOUT': 'Status polling stopped — check job later.',
+  'master.oneAuto.error.ONEAUTO_JOB_IN_FLIGHT':
+    'Er is al een verzoek voor dit voertuig en deze dienst actief.',
+  'master.oneAuto.error.ONEAUTO_PROVIDER_RESULT_EXPIRED':
+    'Bewaartermijn providerresultaat verstreken. Interne reservering vrijgegeven; providerkosten onbekend.',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.name': 'OE Service History EU',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.description':
     'Manufacturer service history (EU) — external provider payload only.',

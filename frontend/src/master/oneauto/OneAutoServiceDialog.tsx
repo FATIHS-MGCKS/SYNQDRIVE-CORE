@@ -472,11 +472,27 @@ export function OneAutoServiceDialog({
                 <div className="flex items-center gap-2">
                   {isTerminalJobStatus(job.status) && job.status === 'SUCCEEDED' ? (
                     <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  ) : job.status === 'AWAITING_PROVIDER' ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
                   ) : (
                     <Loader2 className="h-5 w-5 animate-spin text-primary" />
                   )}
                   <span className="font-semibold">{statusLabel(job.status)}</span>
                 </div>
+                {job.status === 'AWAITING_PROVIDER' ? (
+                  <p
+                    className="text-sm text-muted-foreground"
+                    data-testid="oneauto-awaiting-provider-message"
+                  >
+                    {t('master.oneAuto.statusMessage.AWAITING_PROVIDER' as never)}
+                  </p>
+                ) : null}
+                {job.providerResultExpiresAt ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t('master.oneAuto.providerResultExpires' as never)}:{' '}
+                    {new Date(job.providerResultExpiresAt).toLocaleString()}
+                  </p>
+                ) : null}
                 <dl className="text-sm space-y-1">
                   <div>
                     <dt className="text-muted-foreground inline">

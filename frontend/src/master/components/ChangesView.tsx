@@ -36,6 +36,25 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'oneauto-p4-pr2-awaiting-provider-lifecycle-2026-11-03',
+    version: '4.9.5023',
+    title: 'One Auto P4 PR-2 — AWAITING_PROVIDER async job lifecycle',
+    summary: [
+      'HTTP 202 on async-capable OE_VIN_LOOKUP_EU → AWAITING_PROVIDER (not FAILED); persists acceptance response; no provider poll/callback/retry.',
+      'Adds providerResultExpiresAt (24h conservative KB default) with idempotent ONEAUTO_PROVIDER_RESULT_EXPIRED expiry; blocks duplicate in-flight execute per org/vehicle/SKU.',
+      'Master One Auto dialog shows localized pending message across 9 locales; API exposes providerResultExpiresAt.',
+    ],
+    reason:
+      'After P4 PR-1 reclassification, production VIN lookups need a safe parked state until attested retrieval (callback/re-query) ships in a later PR.',
+    previousBehavior:
+      'HTTP 202 with asyncPollSameUrlWithoutNewCharge=false immediately FAILED with ONEAUTO_ASYNC_POLL_UNVERIFIED after one GET.',
+    details:
+      'backend: execution + service layers, prisma migration 20261103213000_oneauto_provider_result_expires_at, config ONEAUTO_PROVIDER_RESULT_RETENTION_MS; frontend: OneAutoServiceDialog + master.oneAuto.* i18n; evidence P4_ASYNC_JOB_LIFECYCLE.md. Stacks on PR-1 (#2326).',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-11-03T22:00:00.000Z',
+  },
+  {
     id: 'oneauto-p4-pr1-vin-lookup-async-contract-2026-11-03',
     version: '4.9.5022',
     title: 'One Auto P4 PR-1 — OE_VIN_LOOKUP_EU async-capable contract correction',

@@ -93,6 +93,14 @@
 - **Non-effects:** No runtime 202 handling change in PR-1; no poll/callback; `OE_SERVICE_HISTORY_EU` non-executable; no production env activation.
 - **Tests:** `oneauto-p3-vin-lookup-execution-verified-registry.spec.ts`, `oneauto-p4-vin-lookup-contract-classification.spec.ts` (never `SYNC_ONLY` from HTTP 200 alone).
 
+## P4 PR-2 — AWAITING_PROVIDER async job lifecycle (2026-11-03)
+
+- **Scope:** HTTP 202 on async-capable `OE_VIN_LOOKUP_EU` → `AWAITING_PROVIDER` with persisted acceptance response; `providerResultExpiresAt` (default 24h KB assumption); idempotent expiry; duplicate in-flight execute guard; Master UI pending messaging (9 locales).
+- **Evidence:** `architecture/oneauto-provider/evidence/P4_ASYNC_JOB_LIFECYCLE.md`
+- **Code:** `oneauto-provider-execution.service.ts`, `oneauto-provider.service.ts`, Prisma `provider_result_expires_at`, `ONEAUTO_PROVIDER_RESULT_RETENTION_MS` config.
+- **Non-effects:** No provider poll/callback/retry/recovery GET; budget reservation semantics preserved; vendor charge remains `actualChargeKnown=false`.
+- **Tests:** `oneauto-p4-async-job-lifecycle.spec.ts`, `oneauto-provider-result-retention.util.spec.ts`
+
 ## P2.5E-P1 hardening — capture field coverage & safe publish (2026-11-02)
 
 - **Field coverage:** `bodyType` / `interiorTrim` from `oem_body_type_desc` / `oem_interior_trim_desc`; regression asserts **17** non-VIN OpenAPI result keys mapped.

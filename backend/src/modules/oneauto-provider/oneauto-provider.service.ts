@@ -20,6 +20,7 @@ import {
   oneAutoCrossTenantException,
   oneAutoDisabledException,
   oneAutoInvalidVinException,
+  oneAutoJobInFlightException,
   oneAutoJobNotFoundException,
   oneAutoPriceMismatchException,
   oneAutoQuoteExpiredException,
@@ -154,6 +155,26 @@ export class OneAutoProviderService {
       return this.toJobDto(existing);
     }
 
+    const inflight = await this.prisma.oneAutoProviderJob.findFirst({
+      where: {
+        organizationId: input.orgId,
+        vehicleId: input.vehicleId,
+        serviceSku: input.serviceSku,
+        status: {
+          in: [
+            OneAutoProviderJobStatus.CREATED,
+            OneAutoProviderJobStatus.QUEUED,
+            OneAutoProviderJobStatus.RUNNING,
+            OneAutoProviderJobStatus.AWAITING_PROVIDER,
+          ],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (inflight) {
+      throw oneAutoJobInFlightException();
+    }
+
     try {
       assertOneAutoSkuExecutable(input.serviceSku);
     } catch {
@@ -218,6 +239,7 @@ export class OneAutoProviderService {
   }
 
   async getJob(orgId: string, jobId: string) {
+    await this.execution.expireProviderResultIfDue(jobId);
     const job = await this.prisma.oneAutoProviderJob.findFirst({
       where: { id: jobId, organizationId: orgId },
     });
@@ -226,6 +248,7 @@ export class OneAutoProviderService {
   }
 
   async getJobResult(orgId: string, jobId: string) {
+    await this.execution.expireProviderResultIfDue(jobId);
     const job = await this.prisma.oneAutoProviderJob.findFirst({
       where: { id: jobId, organizationId: orgId },
       include: {
@@ -320,6 +343,7 @@ export class OneAutoProviderService {
     lastErrorCode: string | null;
     initialProviderDispatchAt: Date | null;
     expiresAt: Date | null;
+    providerResultExpiresAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
   }) {
@@ -343,6 +367,7 @@ export class OneAutoProviderService {
       lastErrorCode: job.lastErrorCode,
       initialProviderDispatchAt: job.initialProviderDispatchAt,
       expiresAt: job.expiresAt,
+      providerResultExpiresAt: job.providerResultExpiresAt,
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
     };
