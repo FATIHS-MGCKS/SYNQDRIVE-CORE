@@ -47,16 +47,29 @@ function axisNeedsRefresh(
   if (inventory.entries.length === 0) {
     return true;
   }
+  const snapshotRefreshReasons = new Set<string>([
+    VsiEvidenceAxisNotEvaluatedReason.INVENTORY_NOT_REFRESHED,
+    VsiEvidenceAxisNotEvaluatedReason.SNAPSHOT_EXTRACTOR_NOT_RUN,
+    VsiEvidenceAxisNotEvaluatedReason.DISCOVERY_FEATURE_DISABLED,
+  ]);
+  const historicalRefreshReasons = new Set<string>([
+    VsiEvidenceAxisNotEvaluatedReason.INVENTORY_NOT_REFRESHED,
+    VsiEvidenceAxisNotEvaluatedReason.DISCOVERY_FEATURE_DISABLED,
+    VsiEvidenceAxisNotEvaluatedReason.HF_HISTORICAL_NOT_ATTEMPTED,
+    VsiEvidenceAxisNotEvaluatedReason.SNAPSHOT_EXTRACTOR_NOT_RUN,
+    VsiEvidenceAxisNotEvaluatedReason.HF_MIRROR_INCOMPLETE,
+    VsiEvidenceAxisNotEvaluatedReason.HF_READ_FAILED,
+    VsiEvidenceAxisNotEvaluatedReason.HF_QUERY_TIMEOUT,
+    VsiEvidenceAxisNotEvaluatedReason.HF_UNION_SIGNAL_CAP_OMITTED,
+  ]);
+  const refreshReasons =
+    axis === 'snapshot' ? snapshotRefreshReasons : historicalRefreshReasons;
   for (const entry of inventory.entries) {
     const evaluation =
       axis === 'snapshot' ? entry.snapshot.evaluation : entry.historical.evaluation;
     if (evaluation.state === VsiEvidenceAxisEvaluationState.NOT_EVALUATED) {
       const reason = evaluation.notEvaluatedReason ?? '';
-      if (
-        reason === VsiEvidenceAxisNotEvaluatedReason.INVENTORY_NOT_REFRESHED ||
-        reason === VsiEvidenceAxisNotEvaluatedReason.SNAPSHOT_EXTRACTOR_NOT_RUN ||
-        reason === VsiEvidenceAxisNotEvaluatedReason.DISCOVERY_FEATURE_DISABLED
-      ) {
+      if (refreshReasons.has(reason)) {
         return true;
       }
     }

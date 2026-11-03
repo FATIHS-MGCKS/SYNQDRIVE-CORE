@@ -38,6 +38,39 @@ describe('mergeNativeDiscoveryInventoryEntryAxes', () => {
     ingestionLimitations: [] as string[],
   };
 
+  it('HF merge replaces legacy historical SNAPSHOT_EXTRACTOR_NOT_RUN placeholder', () => {
+    const persisted = {
+      ...baseEntry,
+      historical: {
+        ...baseEntry.historical,
+        evaluation: {
+          state: VsiEvidenceAxisEvaluationState.NOT_EVALUATED,
+          notEvaluatedReason: VsiEvidenceAxisNotEvaluatedReason.SNAPSHOT_EXTRACTOR_NOT_RUN,
+        },
+      },
+    };
+    const incoming = {
+      ...baseEntry,
+      historical: {
+        evaluation: { state: VsiEvidenceAxisEvaluationState.EVALUATED_NOT_OBSERVED },
+        firstSeenAt: null,
+        lastSeenAt: null,
+        sampleMetadata: {
+          windowStartAt: '2026-10-20T00:00:00.000Z',
+          windowEndAt: '2026-10-28T00:00:00.000Z',
+          pointCount: 0,
+          tripCountWithPoints: 0,
+          readCapApplied: 12000,
+        },
+      },
+    };
+    const merged = mergeNativeDiscoveryInventoryEntryAxes(persisted, incoming);
+    expect(merged.historical.evaluation.state).toBe(
+      VsiEvidenceAxisEvaluationState.EVALUATED_NOT_OBSERVED,
+    );
+    expect(merged.historical.evaluation.notEvaluatedReason).toBeUndefined();
+  });
+
   it('preserves snapshot when HF update carries P1b snapshot placeholder', () => {
     const incoming = {
       ...baseEntry,
@@ -106,7 +139,7 @@ describe('mergeNativeDiscoveryInventoryEntryAxes', () => {
     expect(merged.historical.lastSeenAt).toBe('2026-09-15T00:00:00.000Z');
   });
 
-  it('failed HF read with fresher window replaces obsolete OBSERVED evaluation', () => {
+  it('failed HF read with fresher window retains OBSERVED and records refresh failure separately', () => {
     const persisted = {
       ...baseEntry,
       historical: {
@@ -142,9 +175,12 @@ describe('mergeNativeDiscoveryInventoryEntryAxes', () => {
     };
     const merged = mergeNativeDiscoveryInventoryEntryAxes(persisted, incoming);
     expect(merged.historical.evaluation.state).toBe(
-      VsiEvidenceAxisEvaluationState.NOT_EVALUATED,
+      VsiEvidenceAxisEvaluationState.EVALUATED_OBSERVED,
     );
     expect(merged.historical.firstSeenAt).toBe('2026-09-01T00:00:00.000Z');
+    expect(merged.ingestionLimitations).toContain(
+      VsiEvidenceAxisNotEvaluatedReason.HF_READ_FAILED,
+    );
   });
 
   it('stale worker with older window does not downgrade fresher NOT_OBSERVED', () => {

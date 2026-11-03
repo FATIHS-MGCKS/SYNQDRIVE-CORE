@@ -1,6 +1,8 @@
 import {
   VsiEvidenceAxisEvaluationState,
   VsiEvidenceAxisNotEvaluatedReason,
+  isHistoricalHfRefreshFailureEvaluation,
+  isHistoricalHfReplaceablePlaceholder,
   type VsiEvidenceAxisEvaluationV1,
 } from './vsi-native-signal-discovery-evaluation-state';
 import type {
@@ -13,11 +15,7 @@ import { truncateNativeSignalDiscoveryInventory } from './vsi-native-signal-disc
 import { stableNativeDiscoveryInventoryJson } from './vsi-native-discovery-inventory.db.util';
 
 function isP1bSnapshotHistoricalPlaceholder(historical: VsiNativeDiscoveryHistoricalAxisV1): boolean {
-  return (
-    historical.evaluation.state === VsiEvidenceAxisEvaluationState.NOT_EVALUATED &&
-    historical.evaluation.notEvaluatedReason ===
-      VsiEvidenceAxisNotEvaluatedReason.SNAPSHOT_EXTRACTOR_NOT_RUN
-  );
+  return isHistoricalHfReplaceablePlaceholder(historical.evaluation);
 }
 
 function isP1bSnapshotAxisPlaceholder(snapshot: VsiNativeDiscoverySnapshotAxisV1): boolean {
@@ -77,6 +75,12 @@ function pickHistoricalEvaluationAxis(
   const incomingEnd = historicalWindowEndMs(incoming);
 
   if (incomingEnd > persistedEnd) {
+    if (
+      isHistoricalHfRefreshFailureEvaluation(incoming.evaluation) &&
+      persisted.evaluation.state === VsiEvidenceAxisEvaluationState.EVALUATED_OBSERVED
+    ) {
+      return persisted;
+    }
     return incoming;
   }
   if (incomingEnd < persistedEnd) {
@@ -164,14 +168,27 @@ export function mergeNativeDiscoveryInventoryEntryAxes(
   persisted: VsiNativeSignalDiscoveryInventoryEntryV1,
   incoming: VsiNativeSignalDiscoveryInventoryEntryV1,
 ): VsiNativeSignalDiscoveryInventoryEntryV1 {
+  const historical = preferHistoricalAxis(persisted.historical, incoming.historical);
+  const retainedObservedDespiteRefreshFailure =
+    persisted.historical.evaluation.state === VsiEvidenceAxisEvaluationState.EVALUATED_OBSERVED &&
+    isHistoricalHfRefreshFailureEvaluation(incoming.historical.evaluation) &&
+    historical.evaluation.state === VsiEvidenceAxisEvaluationState.EVALUATED_OBSERVED;
+  const refreshFailureLimitation = retainedObservedDespiteRefreshFailure
+    ? (incoming.historical.evaluation.notEvaluatedReason ?? '').trim()
+    : '';
+
   return {
     providerNativeSignalName: incoming.providerNativeSignalName,
     aliasVerdict: incoming.aliasVerdict ?? persisted.aliasVerdict,
     canonicalSignalKey: incoming.canonicalSignalKey ?? persisted.canonicalSignalKey,
     snapshot: preferSnapshotAxis(persisted.snapshot, incoming.snapshot),
-    historical: preferHistoricalAxis(persisted.historical, incoming.historical),
+    historical,
     ingestionLimitations: [
-      ...new Set([...persisted.ingestionLimitations, ...incoming.ingestionLimitations]),
+      ...new Set([
+        ...persisted.ingestionLimitations,
+        ...incoming.ingestionLimitations,
+        ...(refreshFailureLimitation ? [refreshFailureLimitation] : []),
+      ]),
     ],
   };
 }

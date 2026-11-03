@@ -82,4 +82,52 @@ describe('assessNativeDiscoveryInventoryReconcileNeed', () => {
     expect(assessment.staleInventory).toBe(true);
     expect(assessment.needsReconcile).toBe(true);
   });
+
+  it('flags historical axis refresh for legacy SNAPSHOT placeholder on historical axis', () => {
+    process.env.VSI_DISCOVERY_HF_INVENTORY_ENABLED = 'true';
+    const assessment = assessNativeDiscoveryInventoryReconcileNeed({
+      ...baseProfile,
+      nativeSignalDiscoveryInventory: {
+        contractVersion: 'vsi-native-signal-discovery-v1',
+        scope: {
+          organizationId: 'org-1',
+          vehicleId: 'veh-1',
+          providerSourceLinkId: 'link-1',
+          providerIdentity: 'DIMO',
+        },
+        evaluatedAt: '2026-11-03T12:00:00.000Z',
+        entries: [
+          {
+            providerNativeSignalName: 'speed',
+            aliasVerdict: 'UNKNOWN_SIGNAL',
+            canonicalSignalKey: null,
+            snapshot: {
+              evaluation: { state: 'EVALUATED_OBSERVED' },
+              lastObservedAt: '2026-11-01T11:00:00.000Z',
+              lastSourceTimestamp: '2026-11-01T11:00:00.000Z',
+            },
+            historical: {
+              evaluation: {
+                state: 'NOT_EVALUATED',
+                notEvaluatedReason: 'SNAPSHOT_EXTRACTOR_NOT_RUN',
+              },
+              firstSeenAt: null,
+              lastSeenAt: null,
+              sampleMetadata: {
+                windowStartAt: null,
+                windowEndAt: null,
+                pointCount: null,
+                tripCountWithPoints: null,
+                readCapApplied: null,
+              },
+            },
+            ingestionLimitations: [],
+          },
+        ],
+        profileLimitations: [],
+      },
+    });
+    expect(assessment.hfAxisNeedsRefresh).toBe(true);
+    expect(assessment.snapshotAxisNeedsRefresh).toBe(false);
+  });
 });
