@@ -9,6 +9,10 @@ export type VsiProfileLifecycleOutboxPayloadV1 = {
   catalogCheckedAt?: string | null;
   supersededByLinkId?: string | null;
   backfillCursor?: string | null;
+  inventorySweepCursor?: {
+    organizationId: string;
+    providerSourceLinkId: string;
+  } | null;
 };
 
 export type VsiProfileLifecycleEnqueueInput = {

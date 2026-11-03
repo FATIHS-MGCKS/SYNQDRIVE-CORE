@@ -2,8 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { RuntimeStatusRegistry } from '@modules/observability/runtime-status.registry';
 import { SchedulerLeaderGuardService } from '@shared/scheduler-leader/scheduler-leader-guard.service';
-import { VSI_PROFILE_LIFECYCLE_OUTBOX_WORKER_INTERVAL_MS } from './vsi-profile-lifecycle.constants';
+import {
+  VSI_DISCOVERY_INVENTORY_SWEEP_INTERVAL_MS,
+  VSI_PROFILE_LIFECYCLE_OUTBOX_WORKER_INTERVAL_MS,
+} from './vsi-profile-lifecycle.constants';
 import { VsiProfileLifecycleOutboxProcessor } from './vsi-profile-lifecycle.processor';
+import { VsiProfileLifecycleEnqueueService } from './vsi-profile-lifecycle-enqueue.service';
+import { isVsiDiscoveryInventoryReconcileEnabled } from './vsi-discovery-inventory-reconcile.config';
+import { PrismaService } from '@shared/database/prisma.service';
 
 @Injectable()
 export class VsiProfileLifecycleOutboxWorker {
@@ -13,6 +19,8 @@ export class VsiProfileLifecycleOutboxWorker {
   constructor(
     private readonly processor: VsiProfileLifecycleOutboxProcessor,
     private readonly leaderGuard: SchedulerLeaderGuardService,
+    private readonly enqueue: VsiProfileLifecycleEnqueueService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Interval(VSI_PROFILE_LIFECYCLE_OUTBOX_WORKER_INTERVAL_MS)
@@ -37,5 +45,30 @@ export class VsiProfileLifecycleOutboxWorker {
     } finally {
       this.running = false;
     }
+  }
+
+  @Interval(VSI_DISCOVERY_INVENTORY_SWEEP_INTERVAL_MS)
+  async runInventorySweepSchedulerTick(): Promise<void> {
+    if (!isVsiDiscoveryInventoryReconcileEnabled()) return;
+    if (!this.leaderGuard.shouldRun('vsi_profile_lifecycle_outbox')) return;
+    if (!RuntimeStatusRegistry.getWorkersEnabled()) return;
+    const anchor = await this.prisma.organization.findFirst({
+      orderBy: { id: 'asc' },
+      select: { id: true },
+    });
+    if (!anchor) return;
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { organizationId: anchor.id, registryLifecycle: 'ACTIVE' },
+      orderBy: { id: 'asc' },
+      select: { id: true },
+    });
+    if (!vehicle) return;
+    const tickBucket = Math.floor(Date.now() / VSI_DISCOVERY_INVENTORY_SWEEP_INTERVAL_MS);
+    await this.enqueue.enqueueNativeDiscoveryInventorySweepTick({
+      organizationId: anchor.id,
+      vehicleId: vehicle.id,
+      occurredAt: new Date(),
+      tickBucket,
+    });
   }
 }

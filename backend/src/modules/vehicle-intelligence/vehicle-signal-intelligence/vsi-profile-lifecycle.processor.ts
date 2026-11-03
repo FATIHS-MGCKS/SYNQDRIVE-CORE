@@ -16,6 +16,8 @@ import {
 import type { VsiProfileLifecycleOutboxPayloadV1 } from './vsi-profile-lifecycle.types';
 import { planActiveVehicleProfileBackfill } from './vsi-profile-lifecycle.backfill';
 import { VsiProfileLifecycleEnqueueService } from './vsi-profile-lifecycle-enqueue.service';
+import { planNativeDiscoveryInventoryReconcileSweep } from './vsi-native-discovery-inventory-reconcile.planner';
+import { isVsiDiscoveryInventoryReconcileEnabled } from './vsi-discovery-inventory-reconcile.config';
 
 export type VsiProfileLifecycleProcessOutcome =
   | 'completed'
@@ -77,6 +79,12 @@ export class VsiProfileLifecycleOutboxProcessor {
           break;
         case 'ACTIVE_VEHICLE_BACKFILL_RECONCILE':
           await this.handleBackfillBatch(row, payload);
+          break;
+        case 'NATIVE_DISCOVERY_INVENTORY_SWEEP':
+          await this.handleNativeDiscoveryInventorySweep(row, payload);
+          break;
+        case 'NATIVE_DISCOVERY_INVENTORY_RECONCILE':
+          await this.handleNativeDiscoveryInventoryReconcile(row, payload);
           break;
         default:
           this.logger.warn(`VSI lifecycle unknown event type=${row.eventType}`);
@@ -224,5 +232,63 @@ export class VsiProfileLifecycleOutboxProcessor {
         occurredAt: new Date(),
       });
     }
+  }
+
+  private async handleNativeDiscoveryInventorySweep(
+    row: { organizationId: string; vehicleId: string },
+    payload: VsiProfileLifecycleOutboxPayloadV1,
+  ): Promise<void> {
+    if (!isVsiDiscoveryInventoryReconcileEnabled()) {
+      return;
+    }
+    const cursor = payload.inventorySweepCursor ?? null;
+    const { candidates, nextCursor } = await planNativeDiscoveryInventoryReconcileSweep({
+      prisma: this.prisma,
+      cursor,
+    });
+    const occurredAt = new Date();
+    for (const candidate of candidates) {
+      await this.enqueue.enqueueNativeDiscoveryInventoryReconcile({
+        organizationId: candidate.organizationId,
+        vehicleId: candidate.vehicleId,
+        providerSourceLinkId: candidate.providerSourceLinkId,
+        profileUpdatedAt: candidate.profileUpdatedAt,
+        occurredAt,
+      });
+    }
+    if (nextCursor) {
+      await this.enqueue.enqueueNativeDiscoveryInventorySweepContinuation({
+        organizationId: row.organizationId,
+        vehicleId: row.vehicleId,
+        cursor: nextCursor,
+        occurredAt,
+      });
+    }
+  }
+
+  private async handleNativeDiscoveryInventoryReconcile(
+    row: {
+      organizationId: string;
+      vehicleId: string;
+      providerSourceLinkId: string | null;
+    },
+    payload: VsiProfileLifecycleOutboxPayloadV1,
+  ): Promise<void> {
+    if (!isVsiDiscoveryInventoryReconcileEnabled()) {
+      return;
+    }
+    const linkId = row.providerSourceLinkId ?? payload.providerSourceLinkId;
+    if (!linkId) {
+      return;
+    }
+    const link = await this.loadScopedLink(row.organizationId, row.vehicleId, linkId);
+    if (!link?.isActive) {
+      return;
+    }
+    await this.materialization.reconcileNativeDiscoveryInventoryForActiveLink({
+      organizationId: row.organizationId,
+      vehicleId: row.vehicleId,
+      providerSourceLinkId: linkId,
+    });
   }
 }
