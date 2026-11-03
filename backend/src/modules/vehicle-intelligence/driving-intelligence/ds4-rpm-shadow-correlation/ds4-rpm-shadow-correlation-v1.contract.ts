@@ -1,3 +1,4 @@
+import type { TelemetrySourceFamily } from '../../telemetry-source-family';
 import type { Ds4RpmHfV1bShadowResultV1 } from '../rpm-hf-v1b/ds4-rpm-hf-v1b.contract';
 import type { Ds4RpmReferenceIntelligenceV1V1bShadowSummaryAttachmentV1 } from '../rpm-reference-intelligence-v1/ds4-rpm-reference-intelligence-v1-v1b-shadow-attach';
 import type { DiV0MotionCoreShadowPersistedEventRow } from '../motion-core-shadow-worker/di-v0-motion-core-shadow.types';
@@ -42,15 +43,62 @@ export type Ds4RpmShadowCorrelationReasonCode =
   | 'CONFLICTING_RPM_VALUES_IN_WINDOW'
   | 'AGGREGATE_ONLY_NO_POINT_RECONSTRUCTION'
   | 'REFERENCE_ATTACHMENT_UNAVAILABLE'
-  | 'DATASET_GAP';
+  | 'DATASET_GAP'
+  | 'ICE_RPM_NOT_APPLICABLE'
+  | 'ICE_RPM_EVENT_APPLICABILITY_UNKNOWN'
+  | 'R1_HISTORICAL_OBD_POINT_TIME_CORRELATION_PROHIBITED'
+  | 'SOURCE_FAMILY_BINDING_UNPROVEN'
+  | 'ZERO_RPM_OBSERVED_NOT_ENGINE_OFF_INFERENCE';
 
 export type Ds4RpmShadowCorrelationRpmSampleEvidenceV1 = {
   source: 'V1A_TRIP_INPUT' | 'PINNED_FIXTURE' | 'AUTHORIZED_CLICKHOUSE_READ';
   inputFingerprint: string;
   providerSourceLinkId: string | null;
+  /**
+   * Must be resolved from DIMO vehicle identity (`rawJson`) — never inferred from vehicle model.
+   * When absent on REAL_OBSERVATION evidence, source-family authority is unproven.
+   */
+  telemetrySourceFamily?: TelemetrySourceFamily | null;
+  sourceFamilyAttestation?: 'PROVEN_FROM_DIMO_IDENTITY' | 'UNPROVEN' | null;
   points: ReadonlyArray<{ recordedAtIso: string; valueRpm: number }>;
   invalidValueCount: number;
   duplicateTimestampCount: number;
+};
+
+export type Ds4RpmShadowCorrelationIceRpmEventApplicability =
+  | 'APPLICABLE'
+  | 'NOT_APPLICABLE'
+  | 'UNKNOWN';
+
+export type Ds4RpmShadowCorrelationRobustDirectionSign =
+  | 'INCREASING'
+  | 'DECREASING'
+  | 'FLAT'
+  | 'ABSTAIN_INSUFFICIENT_SUPPORT'
+  | 'ABSTAIN_CONFLICTING';
+
+export const DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS =
+  'DESCRIPTIVE_ORDER_STATISTICS_NOT_TRANSIENT_RESPONSE_PROOF' as const;
+
+export type Ds4RpmShadowCorrelationDescriptiveRpmStatsV1 = {
+  orderStatisticsSemantics: typeof DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS;
+  rpmFirstObserved: number | null;
+  rpmLastObserved: number | null;
+  rpmDelta: number | null;
+  robustDirectionSign: Ds4RpmShadowCorrelationRobustDirectionSign;
+  directionAbstainReason: string | null;
+};
+
+export type Ds4RpmShadowCorrelationAlignmentEnvelopeV1 = {
+  ds4LabelUncertaintySeconds: number;
+  ds4KernelHalfSupportSeconds: number;
+  rpmAggregationSupportWidthSeconds: 'UNKNOWN';
+  providerTimestampPhase: 'UNKNOWN';
+  ds4SideAlignmentBoundSeconds: number;
+  offsetSecondsProbed: readonly number[];
+  offsetDerivationNote: string;
+  classificationStableAcrossEnvelope: boolean;
+  directionSignStableAcrossEnvelope: boolean;
 };
 
 export type Ds4RpmShadowCorrelationMotionRunRefV1 = {
@@ -86,10 +134,18 @@ export type Ds4RpmShadowCorrelationAlignmentDiagnosticV1 = {
   offsetSeconds: number;
   observedPointCount: number;
   classification: Ds4RpmShadowCorrelationContextClassification;
+  gapDeficiencySeconds: number;
+  robustDirectionSign: Ds4RpmShadowCorrelationRobustDirectionSign;
   researchDiagnosticOnly: true;
 };
 
+export type Ds4RpmShadowCorrelationEffectiveCadenceSource =
+  | 'OBSERVED_MEDIAN_IN_WINDOW'
+  | 'INFERRED_FROM_VSI_TIER_NOMINAL'
+  | 'UNKNOWN';
+
 export type Ds4RpmShadowCorrelationEventTemporalSupportV1 = {
+  coverageModelVersion: 'ds4-rpm-shadow-window-relative-gap-v1';
   eventWindowHalfOpenNote: string;
   eventWindowDurationSeconds: number;
   observedPointCountInWindow: number;
@@ -97,11 +153,22 @@ export type Ds4RpmShadowCorrelationEventTemporalSupportV1 = {
   observedSampleSpanMs: number | null;
   supportedDurationMs: number | null;
   continuousSequenceCountInWindow: number;
+  /** Window-relative gap deficiency (translation invariant). Legacy alias semantics for `missingIntervalSecondsInWindow`. */
+  gapDeficiencySeconds: number;
+  leadGapSeconds: number;
+  trailGapSeconds: number;
+  maxInternalGapSeconds: number;
+  effectiveInterPointCadenceSeconds: number | null;
+  effectiveCadenceSource: Ds4RpmShadowCorrelationEffectiveCadenceSource;
+  /** Physical DIMO aggregation support width — not proven in Phase 0. */
+  rpmObservationSupportWidthSeconds: 'UNKNOWN';
+  /** @deprecated naming — equals `gapDeficiencySeconds` under window-relative model. */
   missingIntervalSecondsInWindow: number;
   sequenceGapRuleSeconds: number | null;
   candidateSequenceFromObservedSamples: true;
   v1bAdmittedEventSpanVerified: false;
   authoritativeCadenceTierForCoverage: 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null;
+  translationInvariantCoverage: true;
 };
 
 export type Ds4RpmShadowCorrelationTripLevelReferenceBandV1 = {
@@ -120,6 +187,7 @@ export type Ds4RpmShadowCorrelationEventResultV1 = {
   ds4MeanAccelMps2: number | null;
   ds4DurationS: number | null;
   contextClassification: Ds4RpmShadowCorrelationContextClassification;
+  iceRpmEventApplicability: Ds4RpmShadowCorrelationIceRpmEventApplicability;
   reasonCodes: Ds4RpmShadowCorrelationReasonCode[];
   cadenceTier: string | null;
   cadenceConfidence: string | null;
@@ -131,8 +199,10 @@ export type Ds4RpmShadowCorrelationEventResultV1 = {
   rpmMin: number | null;
   rpmMedian: number | null;
   rpmMax: number | null;
+  descriptiveRpmStats: Ds4RpmShadowCorrelationDescriptiveRpmStatsV1;
   observedSampleSpanMs: number | null;
   sourceTimestampPhase: Ds4RpmShadowCorrelationSourceTimestampPhase;
+  alignmentEnvelope: Ds4RpmShadowCorrelationAlignmentEnvelopeV1;
   alignmentSensitivity: Ds4RpmShadowCorrelationAlignmentDiagnosticV1[];
   speedOnlyBaselineNote: 'DS4_SPEED_INTENSITY_ONLY_NO_RPM_CLAIM';
 };

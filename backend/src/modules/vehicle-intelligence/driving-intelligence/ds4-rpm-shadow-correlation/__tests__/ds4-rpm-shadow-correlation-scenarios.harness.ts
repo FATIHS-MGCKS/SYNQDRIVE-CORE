@@ -172,6 +172,8 @@ export function replayDs4RpmShadowCorrelationScenario(
               source: 'PINNED_FIXTURE',
               inputFingerprint: fingerprint,
               providerSourceLinkId: tripInput.providerSourceLinkId,
+              telemetrySourceFamily: 'API_SYNTHETIC',
+              sourceFamilyAttestation: 'PROVEN_FROM_DIMO_IDENTITY',
               points: tripInput.rpmPoints,
               invalidValueCount: tripInput.dataQuality.invalidValueCount,
               duplicateTimestampCount: tripInput.dataQuality.duplicateTimestampCount,

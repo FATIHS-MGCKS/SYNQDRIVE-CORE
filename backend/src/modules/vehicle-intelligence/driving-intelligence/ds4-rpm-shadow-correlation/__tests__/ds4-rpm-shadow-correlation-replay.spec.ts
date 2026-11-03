@@ -34,6 +34,13 @@ describe('ds4-rpm-shadow-correlation replay cohort', () => {
     expect(shift.summary.byContextClassification.PARTIAL).toBe(0);
   });
 
+  it('EV_NOT_APPLICABLE uses first-class ICE_RPM_NOT_APPLICABLE', () => {
+    const report = replayDs4RpmShadowCorrelationScenario('EV_NOT_APPLICABLE', { codeSha });
+    expect(report.summary.byContextClassification.UNAVAILABLE).toBe(report.summary.totalEvents);
+    expect(report.events.every((e) => e.iceRpmEventApplicability === 'NOT_APPLICABLE')).toBe(true);
+    expect(report.events.every((e) => e.reasonCodes.includes('ICE_RPM_NOT_APPLICABLE'))).toBe(true);
+  });
+
   it('builds cohort summary with dataset gaps declared', () => {
     const tripReports = DS4_RPM_SHADOW_CORRELATION_SCENARIO_IDS.map((id) =>
       replayDs4RpmShadowCorrelationScenario(id, { codeSha }),

@@ -156,6 +156,15 @@ describe('ds4-rpm-shadow-correlation temporal join', () => {
     expect(joined[0]!.contextClassification).toBe('AVAILABLE');
     expect(joined[0]!.observedRpmPointCountInWindow).toBeGreaterThan(1);
     expect(joined[0]!.rpmMedian).not.toBeNull();
+    expect(joined[0]!.descriptiveRpmStats.rpmFirstObserved).not.toBeNull();
+    expect(joined[0]!.descriptiveRpmStats.orderStatisticsSemantics).toBe(
+      'DESCRIPTIVE_ORDER_STATISTICS_NOT_TRANSIENT_RESPONSE_PROOF',
+    );
+    expect(joined[0]!.iceRpmEventApplicability).toBe('APPLICABLE');
+    expect(joined[0]!.eventTemporalSupport.coverageModelVersion).toBe(
+      'ds4-rpm-shadow-window-relative-gap-v1',
+    );
+    expect(joined[0]!.alignmentEnvelope.offsetSecondsProbed.length).toBeGreaterThan(3);
     expect(joined[0]!.sourceTimestampPhase).toBe('UNKNOWN');
     expect(joined[0]!.eventTemporalSupport.v1bAdmittedEventSpanVerified).toBe(false);
     expect(joined[0]!.alignmentSensitivity.every((d) => d.researchDiagnosticOnly)).toBe(true);
@@ -351,7 +360,7 @@ describe('ds4-rpm-shadow-correlation adversarial validation', () => {
       ],
       cadenceTier: 'RPM_1S',
     });
-    expect(support.missingIntervalSecondsInWindow).toBeLessThanOrEqual(support.eventWindowDurationSeconds);
+    expect(support.continuousSequenceCountInWindow).toBeGreaterThan(1);
     const classification = classifyEventContextFromTemporalSupport({
       hasValueConflicts: false,
       hasDuplicateTimestamps: false,
@@ -360,5 +369,29 @@ describe('ds4-rpm-shadow-correlation adversarial validation', () => {
       defensibleCadenceAllowed: true,
     });
     expect(classification).toBe('PARTIAL');
+  });
+
+  it('blocks R1 historical OBD source family for point-time correlation', () => {
+    const { input } = buildInput({
+      rpmSamples: {
+        source: 'AUTHORIZED_CLICKHOUSE_READ',
+        inputFingerprint: 'placeholder-synced-in-test',
+        providerSourceLinkId: 'link-a',
+        telemetrySourceFamily: 'RUPTELA_R1',
+        sourceFamilyAttestation: 'PROVEN_FROM_DIMO_IDENTITY',
+        points: [{ recordedAtIso: '2026-01-01T00:00:06.000Z', valueRpm: 1500 }],
+        invalidValueCount: 0,
+        duplicateTimestampCount: 0,
+      },
+    });
+    const synced = attachCanonicalFingerprints(input);
+    const validation = validateDs4RpmShadowCorrelationProvenanceGate(synced.input, {
+      ...synced.joinOptions.provenanceGate,
+      evidenceKind: 'REAL_OBSERVATION',
+    });
+    expect(validation.ok).toBe(false);
+    if (!validation.ok) {
+      expect(validation.reasonCodes).toContain('R1_HISTORICAL_OBD_POINT_TIME_CORRELATION_PROHIBITED');
+    }
   });
 });

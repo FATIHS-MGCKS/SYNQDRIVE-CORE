@@ -1,15 +1,29 @@
 import { readPersistedMotionEventIntensityForPayload } from '../motion-core-shadow-worker/di-v0-motion-core-shadow-event-row.contract';
 import type { DiV0MotionCoreShadowPayloadV1 } from '../motion-core-shadow-worker/di-v0-motion-core-shadow.types';
+import {
+  buildAlignmentOffsetSecondsProbes,
+  buildDs4RpmShadowCorrelationAlignmentEnvelopeSemantics,
+  computeAlignmentClassificationStability,
+  computeRobustDirectionSign,
+} from './ds4-rpm-shadow-correlation-alignment-envelope.v1';
+import {
+  isIceRpmEventContextBlocked,
+  resolveIceRpmEventApplicability,
+} from './ds4-rpm-shadow-correlation-ice-applicability.v1';
 import type {
-  Ds4RpmShadowCorrelationAlignmentDiagnosticV1,
+  Ds4RpmShadowCorrelationAlignmentEnvelopeV1,
   Ds4RpmShadowCorrelationContextClassification,
+  Ds4RpmShadowCorrelationDescriptiveRpmStatsV1,
   Ds4RpmShadowCorrelationEventResultV1,
   Ds4RpmShadowCorrelationEventTemporalSupportV1,
   Ds4RpmShadowCorrelationInputV1,
   Ds4RpmShadowCorrelationReasonCode,
   Ds4RpmShadowCorrelationSourceTimestampPhase,
 } from './ds4-rpm-shadow-correlation-v1.contract';
-import { DS4_RPM_SHADOW_CORRELATION_EVENT_WINDOW_HALF_OPEN_NOTE } from './ds4-rpm-shadow-correlation-event-temporal-support.v1';
+import {
+  DS4_RPM_SHADOW_CORRELATION_EVENT_WINDOW_HALF_OPEN_NOTE,
+  DS4_RPM_SHADOW_CORRELATION_COVERAGE_MODEL_VERSION,
+} from './ds4-rpm-shadow-correlation-event-temporal-support.v1';
 import {
   classifyEventContextFromTemporalSupport,
   computeEventTemporalSupportV1,
@@ -19,6 +33,7 @@ import {
 } from './ds4-rpm-shadow-correlation-event-temporal-support.v1';
 import type { Ds4RpmShadowCorrelationProvenanceGateV1 } from './ds4-rpm-shadow-correlation-provenance-gate.v1';
 import { validateDs4RpmShadowCorrelationProvenanceGate } from './ds4-rpm-shadow-correlation-provenance-gate.v1';
+import { DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS } from './ds4-rpm-shadow-correlation-v1.contract';
 
 const SOURCE_TIMESTAMP_PHASE: Ds4RpmShadowCorrelationSourceTimestampPhase = 'UNKNOWN';
 
@@ -31,6 +46,7 @@ function median(values: number[]): number | null {
 
 function emptyTemporalSupport(): Ds4RpmShadowCorrelationEventTemporalSupportV1 {
   return {
+    coverageModelVersion: DS4_RPM_SHADOW_CORRELATION_COVERAGE_MODEL_VERSION,
     eventWindowHalfOpenNote: DS4_RPM_SHADOW_CORRELATION_EVENT_WINDOW_HALF_OPEN_NOTE,
     eventWindowDurationSeconds: 0,
     observedPointCountInWindow: 0,
@@ -38,11 +54,75 @@ function emptyTemporalSupport(): Ds4RpmShadowCorrelationEventTemporalSupportV1 {
     observedSampleSpanMs: null,
     supportedDurationMs: null,
     continuousSequenceCountInWindow: 0,
+    gapDeficiencySeconds: 0,
+    leadGapSeconds: 0,
+    trailGapSeconds: 0,
+    maxInternalGapSeconds: 0,
+    effectiveInterPointCadenceSeconds: null,
+    effectiveCadenceSource: 'UNKNOWN',
+    rpmObservationSupportWidthSeconds: 'UNKNOWN',
     missingIntervalSecondsInWindow: 0,
     sequenceGapRuleSeconds: null,
     candidateSequenceFromObservedSamples: true,
     v1bAdmittedEventSpanVerified: false,
     authoritativeCadenceTierForCoverage: null,
+    translationInvariantCoverage: true,
+  };
+}
+
+function emptyDescriptiveStats(): Ds4RpmShadowCorrelationDescriptiveRpmStatsV1 {
+  return {
+    orderStatisticsSemantics: DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS,
+    rpmFirstObserved: null,
+    rpmLastObserved: null,
+    rpmDelta: null,
+    robustDirectionSign: 'ABSTAIN_INSUFFICIENT_SUPPORT',
+    directionAbstainReason: 'INSUFFICIENT_OBSERVATIONS_FOR_DIRECTION',
+  };
+}
+
+function emptyAlignmentEnvelope(): Ds4RpmShadowCorrelationAlignmentEnvelopeV1 {
+  const semantics = buildDs4RpmShadowCorrelationAlignmentEnvelopeSemantics();
+  return {
+    ds4LabelUncertaintySeconds: semantics.ds4LabelUncertaintySeconds,
+    ds4KernelHalfSupportSeconds: semantics.ds4KernelHalfSupportSeconds,
+    rpmAggregationSupportWidthSeconds: 'UNKNOWN',
+    providerTimestampPhase: 'UNKNOWN',
+    ds4SideAlignmentBoundSeconds: semantics.ds4SideAlignmentBoundSeconds,
+    offsetSecondsProbed: [],
+    offsetDerivationNote: semantics.offsetDerivationNote,
+    classificationStableAcrossEnvelope: false,
+    directionSignStableAcrossEnvelope: false,
+  };
+}
+
+function buildDescriptiveStats(
+  authoritativeValues: number[],
+  hasValueConflicts: boolean,
+): Ds4RpmShadowCorrelationDescriptiveRpmStatsV1 {
+  const direction = computeRobustDirectionSign({
+    values: authoritativeValues,
+    hasValueConflicts,
+  });
+  if (authoritativeValues.length === 0) {
+    return {
+      orderStatisticsSemantics: DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS,
+      rpmFirstObserved: null,
+      rpmLastObserved: null,
+      rpmDelta: null,
+      robustDirectionSign: direction.robustDirectionSign,
+      directionAbstainReason: direction.directionAbstainReason,
+    };
+  }
+  const first = authoritativeValues[0]!;
+  const last = authoritativeValues[authoritativeValues.length - 1]!;
+  return {
+    orderStatisticsSemantics: DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS,
+    rpmFirstObserved: first,
+    rpmLastObserved: last,
+    rpmDelta: last - first,
+    robustDirectionSign: direction.robustDirectionSign,
+    directionAbstainReason: direction.directionAbstainReason,
   };
 }
 
@@ -60,12 +140,6 @@ function resolveAuthoritativeCadenceTierForJoin(
   return resolveAuthoritativeCadenceTierForCoverage(resolveCadenceTierLabel(input));
 }
 
-function nominalBucketWidthSeconds(tier: 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null): number {
-  if (tier === 'RPM_2S') return 2;
-  if (tier === 'RPM_3S') return 3;
-  return 1;
-}
-
 type WindowClassification = {
   classification: Ds4RpmShadowCorrelationContextClassification;
   reasonCodes: Ds4RpmShadowCorrelationReasonCode[];
@@ -73,6 +147,7 @@ type WindowClassification = {
   temporalSupport: Ds4RpmShadowCorrelationEventTemporalSupportV1;
   malformedTimestampCount: number;
   hasValueConflicts: boolean;
+  descriptiveRpmStats: Ds4RpmShadowCorrelationDescriptiveRpmStatsV1;
 };
 
 function classifyPointsInHalfOpenWindow(input: {
@@ -122,6 +197,7 @@ function classifyPointsInHalfOpenWindow(input: {
       temporalSupport,
       malformedTimestampCount,
       hasValueConflicts: false,
+      descriptiveRpmStats: emptyDescriptiveStats(),
     };
   }
 
@@ -151,6 +227,12 @@ function classifyPointsInHalfOpenWindow(input: {
     reasonCodes.push('TIMESTAMP_MALFORMED_IN_WINDOW');
   }
 
+  const zeroWhileMovingSuspect =
+    inWindow.some((p) => p.value === 0) && inWindow.length >= 2;
+  if (zeroWhileMovingSuspect) {
+    reasonCodes.push('ZERO_RPM_OBSERVED_NOT_ENGINE_OFF_INFERENCE');
+  }
+
   if (hasValueConflicts) {
     return {
       classification: 'AMBIGUOUS',
@@ -159,12 +241,14 @@ function classifyPointsInHalfOpenWindow(input: {
       temporalSupport,
       malformedTimestampCount,
       hasValueConflicts: true,
+      descriptiveRpmStats: buildDescriptiveStats([], true),
     };
   }
 
+  const sortedMs = [...byTs.keys()].sort((a, b) => a - b);
   const authoritativeValues: number[] = [];
-  for (const [, vals] of byTs) {
-    authoritativeValues.push(vals[0]!);
+  for (const ms of sortedMs) {
+    authoritativeValues.push(byTs.get(ms)![0]!);
   }
 
   let classification = classifyEventContextFromTemporalSupport({
@@ -194,21 +278,37 @@ function classifyPointsInHalfOpenWindow(input: {
     temporalSupport,
     malformedTimestampCount,
     hasValueConflicts: false,
+    descriptiveRpmStats: buildDescriptiveStats(authoritativeValues, false),
   };
 }
 
 function buildAlignmentSensitivity(input: {
   points: ReadonlyArray<{ recordedAtIso: string; valueRpm: number }>;
   window: { startMs: number; endExclusiveMs: number; durationMs: number };
-  bucketWidthSec: number;
   cadenceTier: 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null;
   defensibleCadenceAllowed: boolean;
-}): Ds4RpmShadowCorrelationAlignmentDiagnosticV1[] {
+  effectiveInterPointCadenceSeconds: number | null;
+}): {
+  diagnostics: Ds4RpmShadowCorrelationEventResultV1['alignmentSensitivity'];
+  envelope: Ds4RpmShadowCorrelationAlignmentEnvelopeV1;
+} {
+  const semantics = buildDs4RpmShadowCorrelationAlignmentEnvelopeSemantics();
+  const offsets = buildAlignmentOffsetSecondsProbes({
+    cadenceTier: input.cadenceTier,
+    effectiveInterPointCadenceSeconds: input.effectiveInterPointCadenceSeconds,
+  });
+
   if (input.cadenceTier == null) {
-    return [];
+    return {
+      diagnostics: [],
+      envelope: {
+        ...emptyAlignmentEnvelope(),
+        offsetDerivationNote: semantics.offsetDerivationNote,
+      },
+    };
   }
-  const offsets = [-input.bucketWidthSec, 0, input.bucketWidthSec];
-  return offsets.map((offsetSeconds) => {
+
+  const diagnostics = offsets.map((offsetSeconds) => {
     const r = classifyPointsInHalfOpenWindow({
       points: input.points,
       window: input.window,
@@ -220,9 +320,28 @@ function buildAlignmentSensitivity(input: {
       offsetSeconds,
       observedPointCount: r.temporalSupport.observedPointCountInWindow,
       classification: r.classification,
+      gapDeficiencySeconds: r.temporalSupport.gapDeficiencySeconds,
+      robustDirectionSign: r.descriptiveRpmStats.robustDirectionSign,
       researchDiagnosticOnly: true as const,
     };
   });
+
+  const stability = computeAlignmentClassificationStability({ diagnostics });
+
+  return {
+    diagnostics,
+    envelope: {
+      ds4LabelUncertaintySeconds: semantics.ds4LabelUncertaintySeconds,
+      ds4KernelHalfSupportSeconds: semantics.ds4KernelHalfSupportSeconds,
+      rpmAggregationSupportWidthSeconds: 'UNKNOWN',
+      providerTimestampPhase: 'UNKNOWN',
+      ds4SideAlignmentBoundSeconds: semantics.ds4SideAlignmentBoundSeconds,
+      offsetSecondsProbed: offsets,
+      offsetDerivationNote: semantics.offsetDerivationNote,
+      classificationStableAcrossEnvelope: stability.classificationStableAcrossEnvelope,
+      directionSignStableAcrossEnvelope: stability.directionSignStableAcrossEnvelope,
+    },
+  };
 }
 
 function buildUnavailableEvent(input: {
@@ -233,6 +352,7 @@ function buildUnavailableEvent(input: {
   authoritativeTier: 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null;
   intensity: { meanAccelMps2: number | null; durationS: number | null } | null;
   coverageNote: string;
+  iceRpmEventApplicability: Ds4RpmShadowCorrelationEventResultV1['iceRpmEventApplicability'];
 }): Ds4RpmShadowCorrelationEventResultV1 {
   const eventId = `motion-ev-${input.eventIndex}-${input.event.startLabel}`;
   return {
@@ -245,6 +365,7 @@ function buildUnavailableEvent(input: {
     ds4MeanAccelMps2: input.intensity?.meanAccelMps2 ?? null,
     ds4DurationS: input.intensity?.durationS ?? null,
     contextClassification: 'UNAVAILABLE',
+    iceRpmEventApplicability: input.iceRpmEventApplicability,
     reasonCodes: input.reasonCodes,
     cadenceTier: input.tierLabel,
     cadenceConfidence: null,
@@ -256,8 +377,10 @@ function buildUnavailableEvent(input: {
     rpmMin: null,
     rpmMedian: null,
     rpmMax: null,
+    descriptiveRpmStats: emptyDescriptiveStats(),
     observedSampleSpanMs: null,
     sourceTimestampPhase: SOURCE_TIMESTAMP_PHASE,
+    alignmentEnvelope: emptyAlignmentEnvelope(),
     alignmentSensitivity: [],
     speedOnlyBaselineNote: 'DS4_SPEED_INTENSITY_ONLY_NO_RPM_CLAIM',
   };
@@ -277,16 +400,16 @@ export function joinDs4EventsWithRpmEvidenceV1(
 
   const tierLabel = resolveCadenceTierLabel(input);
   const authoritativeTier = resolveAuthoritativeCadenceTierForJoin(input);
+  const iceRpmEventApplicability = resolveIceRpmEventApplicability(input);
   const defensibleCadenceAllowed = isDefensibleCadenceContext({
     authoritativeTier,
     analysisReadiness: input.v1b?.summary.admission.qualityExposure.analysisReadiness,
     tierAnalyticsReady: input.v1b?.summary.admission.qualityExposure.tierAnalyticsReady,
     processingAllowed: input.v1b?.summary.admission.processingAllowed,
   });
-  const bucketWidth = nominalBucketWidthSeconds(authoritativeTier);
   const points = input.rpmSamples?.points ?? [];
   const v1bCoverageNote = input.v1b?.summary.temporalCoverage.bucketSemanticsNote
-    ? `${input.v1b.summary.temporalCoverage.bucketSemanticsNote}; ${input.v1b.summary.temporalCoverage.gapInterpretationPolicy}; impliesFullTripCoverage=false; v1bAdmittedEventSpanVerified=false; sourceTimestampPhase=UNKNOWN`
+    ? `${input.v1b.summary.temporalCoverage.bucketSemanticsNote}; ${input.v1b.summary.temporalCoverage.gapInterpretationPolicy}; impliesFullTripCoverage=false; v1bAdmittedEventSpanVerified=false; sourceTimestampPhase=UNKNOWN; coverageModel=${DS4_RPM_SHADOW_CORRELATION_COVERAGE_MODEL_VERSION}`
     : 'V1B_QUALITY_UNKNOWN';
 
   if (input.events.length === 0) {
@@ -299,15 +422,46 @@ export function joinDs4EventsWithRpmEvidenceV1(
         ? readPersistedMotionEventIntensityForPayload(options.payloadForIntensity, event)
         : event.intensity ?? null;
 
-    if (globalFail) {
+    if (isIceRpmEventContextBlocked(iceRpmEventApplicability)) {
       return buildUnavailableEvent({
         eventIndex,
         event,
-        reasonCodes: globalFail,
+        reasonCodes: ['ICE_RPM_NOT_APPLICABLE'],
         tierLabel,
         authoritativeTier,
         intensity,
         coverageNote: v1bCoverageNote,
+        iceRpmEventApplicability,
+      });
+    }
+
+    if (globalFail) {
+      const reasonCodes = [...globalFail];
+      if (iceRpmEventApplicability === 'UNKNOWN') {
+        reasonCodes.push('ICE_RPM_EVENT_APPLICABILITY_UNKNOWN');
+      }
+      return buildUnavailableEvent({
+        eventIndex,
+        event,
+        reasonCodes,
+        tierLabel,
+        authoritativeTier,
+        intensity,
+        coverageNote: v1bCoverageNote,
+        iceRpmEventApplicability,
+      });
+    }
+
+    if (iceRpmEventApplicability === 'UNKNOWN') {
+      return buildUnavailableEvent({
+        eventIndex,
+        event,
+        reasonCodes: ['ICE_RPM_EVENT_APPLICABILITY_UNKNOWN'],
+        tierLabel,
+        authoritativeTier,
+        intensity,
+        coverageNote: v1bCoverageNote,
+        iceRpmEventApplicability,
       });
     }
 
@@ -321,6 +475,7 @@ export function joinDs4EventsWithRpmEvidenceV1(
         authoritativeTier,
         intensity,
         coverageNote: input.v1b!.summary.temporalCoverage.bucketSemanticsNote,
+        iceRpmEventApplicability,
       });
     }
 
@@ -331,12 +486,13 @@ export function joinDs4EventsWithRpmEvidenceV1(
       offsetSeconds: 0,
       defensibleCadenceAllowed,
     });
-    const sensitivity = buildAlignmentSensitivity({
+    const { diagnostics, envelope } = buildAlignmentSensitivity({
       points,
       window,
-      bucketWidthSec: bucketWidth,
       cadenceTier: authoritativeTier,
       defensibleCadenceAllowed,
+      effectiveInterPointCadenceSeconds:
+        primary.temporalSupport.effectiveInterPointCadenceSeconds,
     });
 
     const eventId = `motion-ev-${eventIndex}-${event.startLabel}`;
@@ -353,6 +509,7 @@ export function joinDs4EventsWithRpmEvidenceV1(
       ds4MeanAccelMps2: intensity?.meanAccelMps2 ?? null,
       ds4DurationS: intensity?.durationS ?? null,
       contextClassification: primary.classification,
+      iceRpmEventApplicability,
       reasonCodes: primary.reasonCodes,
       cadenceTier: tierLabel,
       cadenceConfidence: input.v1b!.summary.admission.qualityExposure.cadenceConfidence ?? null,
@@ -365,9 +522,11 @@ export function joinDs4EventsWithRpmEvidenceV1(
       rpmMin: statsValues.length ? Math.min(...statsValues) : null,
       rpmMedian: median(statsValues),
       rpmMax: statsValues.length ? Math.max(...statsValues) : null,
+      descriptiveRpmStats: primary.descriptiveRpmStats,
       observedSampleSpanMs: primary.temporalSupport.observedSampleSpanMs,
       sourceTimestampPhase: SOURCE_TIMESTAMP_PHASE,
-      alignmentSensitivity: sensitivity,
+      alignmentEnvelope: envelope,
+      alignmentSensitivity: diagnostics,
       speedOnlyBaselineNote: 'DS4_SPEED_INTENSITY_ONLY_NO_RPM_CLAIM',
     };
   });
