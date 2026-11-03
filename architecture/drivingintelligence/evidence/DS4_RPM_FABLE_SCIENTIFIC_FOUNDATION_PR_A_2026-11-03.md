@@ -93,6 +93,8 @@ cd backend && npx ts-node --transpile-only scripts/research/ds4-rpm-shadow-corre
 
 **Tests:** `test:di:ds4-rpm-shadow-correlation` **36/36** (includes `ds4-rpm-shadow-correlation-pr2328-hardening.spec.ts`).
 
+**Merge gate (2026-11-03):** Envelope stability requires **all** probed offsets assessable for `STABLE_ASSESSED`; mixed ABSTAIN → `PARTIALLY_ASSESSED_*`. Direction contract adds `directionEstimateValidation: UNCALIBRATED_RESEARCH_DIAGNOSTIC_NOT_VALIDATED_TRANSIENT_BEHAVIOR`.
+
 **Fixture cohort after hardening:** unchanged vs PR-A — **37.5% (6/16)**, **50% (6/12)** excl. negative-control scenarios.
 
 ## Non-effects
