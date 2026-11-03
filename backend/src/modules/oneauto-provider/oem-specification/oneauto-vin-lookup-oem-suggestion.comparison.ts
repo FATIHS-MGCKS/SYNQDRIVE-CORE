@@ -26,12 +26,11 @@ function normalizeCanonicalValue(value: string | null | undefined): string | nul
 }
 
 function compareMappedField(
-  canonicalFieldKey: keyof typeof ONEAUTO_VIN_LOOKUP_EU_MAPPED_PROVIDER_PATHS,
   canonicalValue: string | null,
   suggestedValue: string | null,
 ): OneAutoOemSuggestionComparisonState {
   if (suggestedValue == null) {
-    return 'MATCH';
+    return 'NOT_COMPARABLE';
   }
   if (canonicalValue == null) {
     return 'MISSING';
@@ -78,7 +77,7 @@ export function compareOemVinLookupEuSuggestions(
 
     fields.push({
       canonicalFieldKey,
-      comparisonState: compareMappedField(canonicalFieldKey, canonicalValue, suggestedValue),
+      comparisonState: compareMappedField(canonicalValue, suggestedValue),
       canonicalValue,
       suggestedValue,
       providerFieldPath,

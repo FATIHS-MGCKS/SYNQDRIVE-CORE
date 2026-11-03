@@ -214,4 +214,97 @@ describe('oneauto-vin-lookup-oem-suggestion.comparison', () => {
       comparison.fields.filter((f) => f.comparisonState === 'NOT_COMPARABLE'),
     ).toHaveLength(4);
   });
+
+  describe('absent provider suggestion (NOT_COMPARABLE regression)', () => {
+    function emptySnapshot() {
+      const result = normalizeOemVinLookupEuSuggestions({
+        providerResult: {},
+        fetchedAt: FETCHED_AT,
+        snapshotCreatedAt: SNAPSHOT_AT,
+      });
+      if (!result.ok) throw new Error(result.code);
+      return result.snapshot;
+    }
+
+    function rowFor(
+      comparison: ReturnType<typeof compareOemVinLookupEuSuggestions>,
+      key: keyof typeof ONEAUTO_VIN_LOOKUP_EU_MAPPED_PROVIDER_PATHS,
+    ) {
+      return comparison.fields.find((f) => f.canonicalFieldKey === key);
+    }
+
+    it('classifies mapped fields as NOT_COMPARABLE when provider property absent', () => {
+      const comparison = compareOemVinLookupEuSuggestions(emptySnapshot(), {});
+      expect(rowFor(comparison, 'oemEngineDesc')?.comparisonState).toBe('NOT_COMPARABLE');
+      expect(rowFor(comparison, 'oemEngineDesc')?.suggestedValue).toBeNull();
+    });
+
+    it('classifies NOT_COMPARABLE for null provider property', () => {
+      const snap = normalizeOemVinLookupEuSuggestions({
+        providerResult: { oem_engine_desc: null },
+        fetchedAt: FETCHED_AT,
+        snapshotCreatedAt: SNAPSHOT_AT,
+      });
+      if (!snap.ok) throw new Error(snap.code);
+      const comparison = compareOemVinLookupEuSuggestions(snap.snapshot, {});
+      expect(rowFor(comparison, 'oemEngineDesc')?.comparisonState).toBe('NOT_COMPARABLE');
+    });
+
+    it('classifies NOT_COMPARABLE for empty provider string', () => {
+      const snap = normalizeOemVinLookupEuSuggestions({
+        providerResult: { oem_engine_desc: '  ' },
+        fetchedAt: FETCHED_AT,
+        snapshotCreatedAt: SNAPSHOT_AT,
+      });
+      if (!snap.ok) throw new Error(snap.code);
+      const comparison = compareOemVinLookupEuSuggestions(snap.snapshot, {});
+      expect(rowFor(comparison, 'oemEngineDesc')?.comparisonState).toBe('NOT_COMPARABLE');
+    });
+
+    it('classifies NOT_COMPARABLE for invalid provider type', () => {
+      const snap = normalizeOemVinLookupEuSuggestions({
+        providerResult: { oem_engine_desc: 12345 },
+        fetchedAt: FETCHED_AT,
+        snapshotCreatedAt: SNAPSHOT_AT,
+      });
+      if (!snap.ok) throw new Error(snap.code);
+      const comparison = compareOemVinLookupEuSuggestions(snap.snapshot, {});
+      expect(rowFor(comparison, 'oemEngineDesc')?.comparisonState).toBe('NOT_COMPARABLE');
+    });
+
+    it('classifies NOT_COMPARABLE for overlong provider value', () => {
+      const snap = normalizeOemVinLookupEuSuggestions({
+        providerResult: { oem_engine_desc: 'x'.repeat(513) },
+        fetchedAt: FETCHED_AT,
+        snapshotCreatedAt: SNAPSHOT_AT,
+      });
+      if (!snap.ok) throw new Error(snap.code);
+      const comparison = compareOemVinLookupEuSuggestions(snap.snapshot, {});
+      expect(rowFor(comparison, 'oemEngineDesc')?.comparisonState).toBe('NOT_COMPARABLE');
+    });
+
+    it('classifies NOT_COMPARABLE when canonical present but provider suggestion absent', () => {
+      const comparison = compareOemVinLookupEuSuggestions(emptySnapshot(), {
+        oemEngineDesc: { value: 'CONFIRMED' },
+      });
+      const row = rowFor(comparison, 'oemEngineDesc');
+      expect(row?.comparisonState).toBe('NOT_COMPARABLE');
+      expect(row?.canonicalValue).toBe('CONFIRMED');
+      expect(row?.suggestedValue).toBeNull();
+    });
+
+    it('classifies NOT_COMPARABLE when both canonical and provider suggestion absent', () => {
+      const comparison = compareOemVinLookupEuSuggestions(emptySnapshot(), {
+        oemEngineDesc: { value: null },
+      });
+      expect(rowFor(comparison, 'oemEngineDesc')?.comparisonState).toBe('NOT_COMPARABLE');
+    });
+
+    it('never allows implicit confirmation when suggestion is NOT_COMPARABLE', () => {
+      const comparison = compareOemVinLookupEuSuggestions(emptySnapshot(), {});
+      for (const row of comparison.fields) {
+        expect(row.implicitConfirmationAllowed).toBe(false);
+      }
+    });
+  });
 });

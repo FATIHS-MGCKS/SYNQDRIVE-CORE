@@ -31,8 +31,9 @@
 
 ## Comparison contract
 
-- All ten registry keys compared; code keys always `NOT_COMPARABLE`.
-- Mapped keys: `MATCH` | `MISSING` | `CONFLICT` (no suggestion → `MATCH`).
+- All ten registry keys compared; four code keys always `NOT_COMPARABLE` (unmapped).
+- Mapped keys with a **valid** suggestion: `MATCH` | `MISSING` | `CONFLICT`.
+- Mapped keys **without** a valid suggestion (skipped/absent provider value): `NOT_COMPARABLE` (never false `MATCH`).
 - `confirmationStatus` orthogonal; protected `USER_CONFIRMED` conflicts remain `CONFLICT`, not `NOT_COMPARABLE`.
 - `implicitConfirmationAllowed` always `false`.
 
