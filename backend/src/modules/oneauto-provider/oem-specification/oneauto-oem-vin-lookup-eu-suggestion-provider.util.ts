@@ -1,4 +1,4 @@
-import { getVerifiedOneAutoContract } from '../catalog/oneauto-verified-contracts';
+import { getDocumentedOneAutoContract } from '../catalog/oneauto-documented-contracts';
 import { isValidVin, normalizeVin } from '../client/oneauto-vin.util';
 import { evaluateSuccessResultErrorEnvelope } from '../oneauto-response-envelope.util';
 import { extractProviderResultVin } from '../attestation/oneauto-sandbox-attestation-result-capture.util';
@@ -52,7 +52,7 @@ export function isSuccessfulOeVinLookupEuResponse(input: {
   body: unknown;
 }): boolean {
   if (input.httpStatus !== 200) return false;
-  const contract = getVerifiedOneAutoContract(ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU);
+  const contract = getDocumentedOneAutoContract(ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU);
   if (!contract) return false;
   const envelope = evaluateSuccessResultErrorEnvelope(input.httpStatus, input.body, contract);
   if (!envelope.ok) return false;
