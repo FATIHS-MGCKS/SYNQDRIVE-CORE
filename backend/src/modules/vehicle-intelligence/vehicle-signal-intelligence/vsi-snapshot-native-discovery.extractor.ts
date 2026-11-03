@@ -101,7 +101,7 @@ function buildHistoricalNotEvaluatedP1b(): {
   return {
     evaluation: {
       state: VsiEvidenceAxisEvaluationState.NOT_EVALUATED,
-      notEvaluatedReason: VsiEvidenceAxisNotEvaluatedReason.SNAPSHOT_EXTRACTOR_NOT_RUN,
+      notEvaluatedReason: VsiEvidenceAxisNotEvaluatedReason.HF_HISTORICAL_NOT_ATTEMPTED,
     },
     firstSeenAt: null,
     lastSeenAt: null,

@@ -26,14 +26,20 @@ import {
 } from './vsi-native-signal-discovery-inventory.contract';
 import {
   VsiEvidenceAxisEvaluationState,
-  VsiEvidenceAxisNotEvaluatedReason,
 } from './vsi-native-signal-discovery-evaluation-state';
 import { clipTripWindowsToLinkBounds } from './vsi-profile-cadence-stats.util';
 import {
   evaluateTripWindowSourceLinkAttributionV1,
+  VSI_RPM_HF_HISTORICAL_MULTI_LINK_AT_TRIP_WINDOW,
   type VsiSourceLinkIntervalV1,
 } from './vsi-rpm-hf-link-scoped-cadence-evidence.util';
 import { buildHistoricalNotEvaluatedP1bPlaceholderSnapshotAxis } from './vsi-hf-native-discovery.entry-builders';
+import {
+  buildHistoricalAxisForUnionNativeKey,
+  type VsiHfHistoricalEvaluationContextV1,
+} from './vsi-hf-native-discovery-negative-evidence';
+import { selectUnionNativeSignalNamesForHfEvaluation } from './vsi-hf-native-discovery.union-key';
+import type { VsiNativeSignalDiscoveryInventoryEntryV1 } from './vsi-native-signal-discovery-inventory.contract';
 
 export type VsiHfNativeDiscoveryLoadInput = {
   organizationId: string;
@@ -44,6 +50,8 @@ export type VsiHfNativeDiscoveryLoadInput = {
   linkActivatedAt: Date;
   linkDeactivatedAt: Date | null;
   clickHouseHf: ClickHouseHfService | undefined;
+  /** Head inventory before HF merge — enables union-key negative historical evaluation. */
+  persistedInventory?: VsiNativeSignalDiscoveryInventoryV1 | null;
 };
 
 type SignalAggregate = {
@@ -76,108 +84,6 @@ function resolveNativeAliasVerdictForDiscovery(nativeName: string): {
     return { verdict: 'EXPLICIT_PRIMARY_ALIAS', canonicalSignalKey: matched };
   }
   return { verdict: 'UNKNOWN_SIGNAL', canonicalSignalKey: null };
-}
-
-function buildHistoricalAxisFromAggregate(
-  aggregate: SignalAggregate | undefined,
-  evaluatedWindow: { start: Date; end: Date },
-  chUnavailable: boolean,
-  hadAttributableTrips: boolean,
-): VsiNativeSignalDiscoveryInventoryV1['entries'][number]['historical'] {
-  if (chUnavailable) {
-    return {
-      evaluation: {
-        state: VsiEvidenceAxisEvaluationState.NOT_EVALUATED,
-        notEvaluatedReason: VsiEvidenceAxisNotEvaluatedReason.HF_MIRROR_UNAVAILABLE,
-      },
-      firstSeenAt: null,
-      lastSeenAt: null,
-      sampleMetadata: {
-        windowStartAt: evaluatedWindow.start.toISOString(),
-        windowEndAt: evaluatedWindow.end.toISOString(),
-        pointCount: null,
-        tripCountWithPoints: null,
-        readCapApplied: null,
-      },
-    };
-  }
-  if (!hadAttributableTrips) {
-    return {
-      evaluation: {
-        state: VsiEvidenceAxisEvaluationState.NOT_EVALUATED,
-        notEvaluatedReason: VsiEvidenceAxisNotEvaluatedReason.LINK_ATTRIBUTION_AMBIGUOUS,
-      },
-      firstSeenAt: null,
-      lastSeenAt: null,
-      sampleMetadata: {
-        windowStartAt: evaluatedWindow.start.toISOString(),
-        windowEndAt: evaluatedWindow.end.toISOString(),
-        pointCount: null,
-        tripCountWithPoints: null,
-        readCapApplied: null,
-      },
-    };
-  }
-  if (!aggregate || aggregate.queryFailed) {
-    return {
-      evaluation: {
-        state: VsiEvidenceAxisEvaluationState.NOT_EVALUATED,
-        notEvaluatedReason: VsiEvidenceAxisNotEvaluatedReason.HF_READ_FAILED,
-      },
-      firstSeenAt: null,
-      lastSeenAt: null,
-      sampleMetadata: {
-        windowStartAt: evaluatedWindow.start.toISOString(),
-        windowEndAt: evaluatedWindow.end.toISOString(),
-        pointCount: null,
-        tripCountWithPoints: null,
-        readCapApplied: null,
-      },
-    };
-  }
-  if (aggregate.attributionLimitations.size > 0 && aggregate.pointCount === 0) {
-    return {
-      evaluation: {
-        state: VsiEvidenceAxisEvaluationState.NOT_EVALUATED,
-        notEvaluatedReason: VsiEvidenceAxisNotEvaluatedReason.LINK_ATTRIBUTION_AMBIGUOUS,
-      },
-      firstSeenAt: null,
-      lastSeenAt: null,
-      sampleMetadata: {
-        windowStartAt: evaluatedWindow.start.toISOString(),
-        windowEndAt: evaluatedWindow.end.toISOString(),
-        pointCount: 0,
-        tripCountWithPoints: 0,
-        readCapApplied: aggregate.readCapApplied,
-      },
-    };
-  }
-  if (aggregate.pointCount <= 0) {
-    return {
-      evaluation: { state: VsiEvidenceAxisEvaluationState.EVALUATED_NOT_OBSERVED },
-      firstSeenAt: null,
-      lastSeenAt: null,
-      sampleMetadata: {
-        windowStartAt: evaluatedWindow.start.toISOString(),
-        windowEndAt: evaluatedWindow.end.toISOString(),
-        pointCount: 0,
-        tripCountWithPoints: aggregate.tripCountWithPoints,
-        readCapApplied: aggregate.readCapApplied,
-      },
-    };
-  }
-  return {
-    evaluation: { state: VsiEvidenceAxisEvaluationState.EVALUATED_OBSERVED },
-    firstSeenAt: aggregate.firstSeenAt,
-    lastSeenAt: aggregate.lastSeenAt,
-    sampleMetadata: {
-      windowStartAt: aggregate.windowStartAt ?? evaluatedWindow.start.toISOString(),
-      windowEndAt: aggregate.windowEndAt ?? evaluatedWindow.end.toISOString(),
-      pointCount: aggregate.pointCount,
-      tripCountWithPoints: aggregate.tripCountWithPoints,
-      readCapApplied: aggregate.readCapApplied,
-    },
-  };
 }
 
 export async function buildHfNativeDiscoveryInventoryUpdate(
@@ -259,6 +165,10 @@ export async function buildHfNativeDiscoveryInventoryUpdate(
   let hadAttributableTrips = false;
   let chUnavailable = false;
   let hadTripQueryFailure = false;
+  let hadQueryTimeout = false;
+  let attributionAmbiguous = false;
+  let attributableTripCount = 0;
+  let successfulAttributableTripQueryCount = 0;
 
   for (const trip of tripWindows) {
     const attribution = evaluateTripWindowSourceLinkAttributionV1({
@@ -268,9 +178,13 @@ export async function buildHfNativeDiscoveryInventoryUpdate(
       tripEndMs: trip.endMs,
     });
     if (!attribution.attributable) {
+      if (attribution.limitation === VSI_RPM_HF_HISTORICAL_MULTI_LINK_AT_TRIP_WINDOW) {
+        attributionAmbiguous = true;
+      }
       continue;
     }
     hadAttributableTrips = true;
+    attributableTripCount += 1;
 
     const read = await input.clickHouseHf.getVsiDiscoveryTripHfSignalAggregates({
       orgId: input.organizationId,
@@ -293,6 +207,10 @@ export async function buildHfNativeDiscoveryInventoryUpdate(
     }
     if (read.status === 'QUERY_FAILED') {
       hadTripQueryFailure = true;
+      const degraded = (read as { degradedReason?: string }).degradedReason ?? '';
+      if (/timeout/i.test(degraded)) {
+        hadQueryTimeout = true;
+      }
       for (const row of read.signals) {
         const agg =
           aggregates.get(row.signalName) ??
@@ -312,6 +230,8 @@ export async function buildHfNativeDiscoveryInventoryUpdate(
       }
       continue;
     }
+
+    successfulAttributableTripQueryCount += 1;
 
     for (const row of read.signals) {
       if (
@@ -367,28 +287,62 @@ export async function buildHfNativeDiscoveryInventoryUpdate(
     profileLimitations.push('HF_DISCOVERY_TRIP_QUERY_FAILED');
   }
 
+  const attributableQueriesComplete =
+    attributableTripCount > 0 &&
+    !chUnavailable &&
+    !hadTripQueryFailure &&
+    successfulAttributableTripQueryCount === attributableTripCount;
+
+  const persistedByName = new Map<string, VsiNativeSignalDiscoveryInventoryEntryV1>();
+  for (const entry of input.persistedInventory?.entries ?? []) {
+    persistedByName.set(entry.providerNativeSignalName, entry);
+  }
+
+  const persistedNativeNames = [...persistedByName.keys()].sort((a, b) => a.localeCompare(b));
+  const clickHouseNativeNames = [...aggregates.keys()];
+  const union = selectUnionNativeSignalNamesForHfEvaluation({
+    persistedNativeNames,
+    clickHouseNativeNames,
+  });
+  const unionCapOmittedSet = new Set(union.omitted);
+
+  const evaluationContext: VsiHfHistoricalEvaluationContextV1 = {
+    evaluatedWindow: { start: evaluatedWindowStart, end: evaluatedWindowEnd },
+    hadAttributableTrips,
+    attributionAmbiguous,
+    chUnavailable,
+    hadTripQueryFailure,
+    attributableTripQueryCount: successfulAttributableTripQueryCount,
+    attributableQueriesComplete,
+    unionCapOmitted: false,
+    hadQueryTimeout,
+  };
+
   const snapshotPlaceholder = buildHistoricalNotEvaluatedP1bPlaceholderSnapshotAxis();
-  const entries = [...aggregates.keys()]
-    .sort((a, b) => a.localeCompare(b))
-    .map((nativeName) => {
-      const alias = resolveNativeAliasVerdictForDiscovery(nativeName);
-      const aggregate = aggregates.get(nativeName);
-      return {
-        providerNativeSignalName: nativeName,
-        aliasVerdict: alias.verdict,
-        canonicalSignalKey: alias.canonicalSignalKey,
-        snapshot: snapshotPlaceholder,
-        historical: buildHistoricalAxisFromAggregate(
-          aggregate,
-          { start: evaluatedWindowStart, end: evaluatedWindowEnd },
-          chUnavailable,
-          hadAttributableTrips,
-        ),
-        ingestionLimitations: aggregate
-          ? [...aggregate.attributionLimitations]
-          : ([] as string[]),
-      };
-    });
+  const allUnionNames = [...union.selected, ...union.omitted].sort((a, b) =>
+    a.localeCompare(b),
+  );
+
+  const entries = allUnionNames.map((nativeName) => {
+    const alias = resolveNativeAliasVerdictForDiscovery(nativeName);
+    const persistedEntry = persistedByName.get(nativeName);
+    const aggregate = aggregates.get(nativeName);
+    const unionCapOmitted = unionCapOmittedSet.has(nativeName);
+    return {
+      providerNativeSignalName: nativeName,
+      aliasVerdict: persistedEntry?.aliasVerdict ?? alias.verdict,
+      canonicalSignalKey: persistedEntry?.canonicalSignalKey ?? alias.canonicalSignalKey,
+      snapshot: persistedEntry?.snapshot ?? snapshotPlaceholder,
+      historical: buildHistoricalAxisForUnionNativeKey({
+        nativeName,
+        aggregate,
+        context: { ...evaluationContext, unionCapOmitted },
+      }),
+      ingestionLimitations: aggregate
+        ? [...aggregate.attributionLimitations]
+        : (persistedEntry?.ingestionLimitations ?? []),
+    };
+  });
 
   return {
     ...base,

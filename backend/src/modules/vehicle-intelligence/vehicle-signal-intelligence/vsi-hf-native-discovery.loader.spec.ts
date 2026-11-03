@@ -1,12 +1,18 @@
 import type { ClickHouseHfService } from '@modules/clickhouse/clickhouse-hf.service';
-import { VsiEvidenceAxisEvaluationState } from './vsi-native-signal-discovery-evaluation-state';
+import {
+  VsiEvidenceAxisEvaluationState,
+  VsiEvidenceAxisNotEvaluatedReason,
+} from './vsi-native-signal-discovery-evaluation-state';
 import { buildHfNativeDiscoveryInventoryUpdate } from './vsi-hf-native-discovery.loader';
 import {
   VSI_DISCOVERY_CH_MAX_FINALIZED_TRIPS,
   VSI_DISCOVERY_CH_MAX_INVENTORY_SIGNALS,
   VSI_DISCOVERY_CH_MAX_POINTS_PER_SIGNAL,
 } from './vsi-clickhouse-discovery-safety.contract';
-import { VsiNativeDiscoveryIngestionLimitation } from './vsi-native-signal-discovery-inventory.contract';
+import {
+  emptyNativeSignalDiscoveryInventory,
+  VsiNativeDiscoveryIngestionLimitation,
+} from './vsi-native-signal-discovery-inventory.contract';
 import {
   VSI_VERIFIED_PRODUCTION_ICE_CH_NATIVE_SIGNAL_NAMES,
   VSI_VERIFIED_PRODUCTION_TESLA_CH_NATIVE_SIGNAL_NAMES,
@@ -138,7 +144,72 @@ describe('buildHfNativeDiscoveryInventoryUpdate', () => {
     expect(inv.entries).toHaveLength(0);
   });
 
-  it('evaluated window with no qualifying points → empty entries (no exhaustive absence)', async () => {
+  it('evaluated window with no qualifying points and persisted keys → EVALUATED_NOT_OBSERVED', async () => {
+    const clickHouseHf = {
+      getVsiDiscoveryTripHfSignalAggregates: jest.fn().mockResolvedValue({
+        status: 'EMPTY',
+        signals: [],
+        tenantScopeViolation: false,
+      }),
+    } as unknown as ClickHouseHfService;
+
+    const persistedInventory = emptyNativeSignalDiscoveryInventory(
+      {
+        organizationId: 'org-1',
+        vehicleId: 'veh-1',
+        providerSourceLinkId: 'link-a',
+        providerIdentity: 'DIMO',
+      },
+      new Date('2026-10-28T00:00:00.000Z'),
+    );
+    persistedInventory.entries = [
+      {
+        providerNativeSignalName: 'speed',
+        aliasVerdict: 'UNKNOWN_SIGNAL',
+        canonicalSignalKey: null,
+        snapshot: {
+          evaluation: { state: VsiEvidenceAxisEvaluationState.EVALUATED_OBSERVED },
+          lastObservedAt: '2026-10-27T12:00:00.000Z',
+          lastSourceTimestamp: '2026-10-27T12:00:00.000Z',
+        },
+        historical: {
+          evaluation: {
+            state: VsiEvidenceAxisEvaluationState.NOT_EVALUATED,
+            notEvaluatedReason: VsiEvidenceAxisNotEvaluatedReason.SNAPSHOT_EXTRACTOR_NOT_RUN,
+          },
+          firstSeenAt: null,
+          lastSeenAt: null,
+          sampleMetadata: {
+            windowStartAt: null,
+            windowEndAt: null,
+            pointCount: null,
+            tripCountWithPoints: null,
+            readCapApplied: null,
+          },
+        },
+        ingestionLimitations: [],
+      },
+    ];
+
+    const inv = await buildHfNativeDiscoveryInventoryUpdate(prisma as never, {
+      organizationId: 'org-1',
+      vehicleId: 'veh-1',
+      providerSourceLinkId: 'link-a',
+      providerIdentity: 'DIMO',
+      projectionAsOf: new Date('2026-10-28T00:00:00.000Z'),
+      linkActivatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      linkDeactivatedAt: null,
+      clickHouseHf,
+      persistedInventory,
+    });
+    expect(inv.entries).toHaveLength(1);
+    expect(inv.entries[0].historical.evaluation.state).toBe(
+      VsiEvidenceAxisEvaluationState.EVALUATED_NOT_OBSERVED,
+    );
+    expect(inv.entries[0].historical.evaluation.notEvaluatedReason).toBeUndefined();
+  });
+
+  it('evaluated window with no qualifying points → empty entries without persisted union', async () => {
     const clickHouseHf = {
       getVsiDiscoveryTripHfSignalAggregates: jest.fn().mockResolvedValue({
         status: 'EMPTY',
@@ -183,6 +254,69 @@ describe('buildHfNativeDiscoveryInventoryUpdate', () => {
     expect(inv.profileLimitations).toContain('HF_DISCOVERY_TRIP_QUERY_FAILED');
   });
 
+  it('legacy historical SNAPSHOT placeholder migrates via union evaluation', async () => {
+    const clickHouseHf = {
+      getVsiDiscoveryTripHfSignalAggregates: jest.fn().mockResolvedValue({
+        status: 'EMPTY',
+        signals: [],
+        tenantScopeViolation: false,
+      }),
+    } as unknown as ClickHouseHfService;
+    const persistedInventory = emptyNativeSignalDiscoveryInventory(
+      {
+        organizationId: 'org-1',
+        vehicleId: 'veh-1',
+        providerSourceLinkId: 'link-a',
+        providerIdentity: 'DIMO',
+      },
+      new Date('2026-10-28T00:00:00.000Z'),
+    );
+    persistedInventory.entries = Array.from({ length: 3 }, (_, i) => ({
+      providerNativeSignalName: `signal_${i}`,
+      aliasVerdict: 'UNKNOWN_SIGNAL' as const,
+      canonicalSignalKey: null,
+      snapshot: {
+        evaluation: { state: VsiEvidenceAxisEvaluationState.EVALUATED_OBSERVED },
+        lastObservedAt: '2026-10-27T12:00:00.000Z',
+        lastSourceTimestamp: '2026-10-27T12:00:00.000Z',
+      },
+      historical: {
+        evaluation: {
+          state: VsiEvidenceAxisEvaluationState.NOT_EVALUATED,
+          notEvaluatedReason: VsiEvidenceAxisNotEvaluatedReason.SNAPSHOT_EXTRACTOR_NOT_RUN,
+        },
+        firstSeenAt: null,
+        lastSeenAt: null,
+        sampleMetadata: {
+          windowStartAt: null,
+          windowEndAt: null,
+          pointCount: null,
+          tripCountWithPoints: null,
+          readCapApplied: null,
+        },
+      },
+      ingestionLimitations: [],
+    }));
+
+    const inv = await buildHfNativeDiscoveryInventoryUpdate(prisma as never, {
+      organizationId: 'org-1',
+      vehicleId: 'veh-1',
+      providerSourceLinkId: 'link-a',
+      providerIdentity: 'DIMO',
+      projectionAsOf: new Date('2026-10-28T00:00:00.000Z'),
+      linkActivatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      linkDeactivatedAt: null,
+      clickHouseHf,
+      persistedInventory,
+    });
+    expect(inv.entries).toHaveLength(3);
+    for (const entry of inv.entries) {
+      expect(entry.historical.evaluation.notEvaluatedReason).not.toBe(
+        VsiEvidenceAxisNotEvaluatedReason.SNAPSHOT_EXTRACTOR_NOT_RUN,
+      );
+    }
+  });
+
   it('query failure on a known signal marks HF_READ_FAILED on that entry', async () => {
     const clickHouseHf = {
       getVsiDiscoveryTripHfSignalAggregates: jest.fn().mockResolvedValue({
@@ -205,6 +339,9 @@ describe('buildHfNativeDiscoveryInventoryUpdate', () => {
     expect(inv.entries).toHaveLength(1);
     expect(inv.entries[0].historical.evaluation.state).toBe(
       VsiEvidenceAxisEvaluationState.NOT_EVALUATED,
+    );
+    expect(inv.entries[0].historical.evaluation.notEvaluatedReason).toBe(
+      VsiEvidenceAxisNotEvaluatedReason.HF_READ_FAILED,
     );
   });
 

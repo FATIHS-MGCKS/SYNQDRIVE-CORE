@@ -1,6 +1,7 @@
 import {
   VsiEvidenceAxisEvaluationState,
   VsiEvidenceAxisNotEvaluatedReason,
+  isHistoricalHfReplaceablePlaceholder,
   type VsiEvidenceAxisEvaluationV1,
 } from './vsi-native-signal-discovery-evaluation-state';
 import type {
@@ -13,11 +14,7 @@ import { truncateNativeSignalDiscoveryInventory } from './vsi-native-signal-disc
 import { stableNativeDiscoveryInventoryJson } from './vsi-native-discovery-inventory.db.util';
 
 function isP1bSnapshotHistoricalPlaceholder(historical: VsiNativeDiscoveryHistoricalAxisV1): boolean {
-  return (
-    historical.evaluation.state === VsiEvidenceAxisEvaluationState.NOT_EVALUATED &&
-    historical.evaluation.notEvaluatedReason ===
-      VsiEvidenceAxisNotEvaluatedReason.SNAPSHOT_EXTRACTOR_NOT_RUN
-  );
+  return isHistoricalHfReplaceablePlaceholder(historical.evaluation);
 }
 
 function isP1bSnapshotAxisPlaceholder(snapshot: VsiNativeDiscoverySnapshotAxisV1): boolean {

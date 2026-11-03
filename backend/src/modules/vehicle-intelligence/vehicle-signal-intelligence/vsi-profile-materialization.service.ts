@@ -589,6 +589,26 @@ export class VsiSignalProfileMaterializationService {
       return;
     }
     try {
+      const profileRow = await this.prisma.vehicleSignalCapabilityProfile.findUnique({
+        where: {
+          organizationId_vehicleId_providerSourceLinkId: {
+            organizationId: input.organizationId,
+            vehicleId: input.vehicleId,
+            providerSourceLinkId: input.providerSourceLinkId,
+          },
+        },
+        select: {
+          nativeSignalDiscoveryInventory: true,
+          organizationId: true,
+          vehicleId: true,
+          providerSourceLinkId: true,
+          providerIdentity: true,
+          evaluatedAt: true,
+        },
+      });
+      const persistedInventory = profileRow
+        ? normalizeNativeSignalDiscoveryInventoryFromProfileRow(profileRow)
+        : null;
       const inventory = await buildHfNativeDiscoveryInventoryUpdate(this.prisma, {
         organizationId: input.organizationId,
         vehicleId: input.vehicleId,
@@ -598,6 +618,7 @@ export class VsiSignalProfileMaterializationService {
         linkActivatedAt: input.linkActivatedAt,
         linkDeactivatedAt: input.linkDeactivatedAt,
         clickHouseHf: this.clickHouseHf,
+        persistedInventory,
       });
       await this.persistNativeDiscoveryInventoryOperationalRefresh({
         organizationId: input.organizationId,
