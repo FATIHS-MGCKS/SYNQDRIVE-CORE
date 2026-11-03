@@ -60,7 +60,8 @@ For each selected union key, historical state is derived only after:
 ## Merge semantics
 
 - Snapshot axis: unchanged by HF updates; P1b snapshot placeholder still defers to persisted snapshot.
-- Historical axis: incoming HF evaluation replaces replaceable placeholders; `pickHistoricalEvaluationAxis` prevents downgrading stronger prior `EVALUATED_OBSERVED` on incomplete later runs.
+- Historical axis: incoming HF evaluation replaces replaceable placeholders; `pickHistoricalEvaluationAxis` prevents downgrading stronger prior `EVALUATED_OBSERVED` on incomplete later runs **within the same window**.
+- **Refresh failure retention (P1 hardening):** when a newer HF pass fails closed (`HF_READ_FAILED`, `HF_MIRROR_INCOMPLETE`, `HF_QUERY_TIMEOUT`, `HF_MIRROR_UNAVAILABLE`) but persisted historical axis is `EVALUATED_OBSERVED`, merge **keeps** the verified positive evaluation and timestamps; the failure reason is recorded on `entry.ingestionLimitations` (no schema change).
 - HF-only keys keep snapshot placeholder until snapshot evaluation runs.
 
 ## Before / after (illustrative)

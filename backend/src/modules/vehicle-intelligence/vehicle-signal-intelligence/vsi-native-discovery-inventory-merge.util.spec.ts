@@ -139,7 +139,7 @@ describe('mergeNativeDiscoveryInventoryEntryAxes', () => {
     expect(merged.historical.lastSeenAt).toBe('2026-09-15T00:00:00.000Z');
   });
 
-  it('failed HF read with fresher window replaces obsolete OBSERVED evaluation', () => {
+  it('failed HF read with fresher window retains OBSERVED and records refresh failure separately', () => {
     const persisted = {
       ...baseEntry,
       historical: {
@@ -175,9 +175,12 @@ describe('mergeNativeDiscoveryInventoryEntryAxes', () => {
     };
     const merged = mergeNativeDiscoveryInventoryEntryAxes(persisted, incoming);
     expect(merged.historical.evaluation.state).toBe(
-      VsiEvidenceAxisEvaluationState.NOT_EVALUATED,
+      VsiEvidenceAxisEvaluationState.EVALUATED_OBSERVED,
     );
     expect(merged.historical.firstSeenAt).toBe('2026-09-01T00:00:00.000Z');
+    expect(merged.ingestionLimitations).toContain(
+      VsiEvidenceAxisNotEvaluatedReason.HF_READ_FAILED,
+    );
   });
 
   it('stale worker with older window does not downgrade fresher NOT_OBSERVED', () => {

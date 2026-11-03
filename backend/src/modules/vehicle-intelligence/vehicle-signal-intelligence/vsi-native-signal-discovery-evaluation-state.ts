@@ -54,6 +54,23 @@ export function isHistoricalHfReplaceablePlaceholder(
   );
 }
 
+/** Incomplete HF refresh outcomes that must not erase prior EVALUATED_OBSERVED historical claims. */
+export const VSI_HISTORICAL_HF_REFRESH_FAILURE_REASONS = new Set<string>([
+  VsiEvidenceAxisNotEvaluatedReason.HF_READ_FAILED,
+  VsiEvidenceAxisNotEvaluatedReason.HF_MIRROR_INCOMPLETE,
+  VsiEvidenceAxisNotEvaluatedReason.HF_QUERY_TIMEOUT,
+  VsiEvidenceAxisNotEvaluatedReason.HF_MIRROR_UNAVAILABLE,
+]);
+
+export function isHistoricalHfRefreshFailureEvaluation(
+  evaluation: VsiEvidenceAxisEvaluationV1,
+): boolean {
+  return (
+    evaluation.state === VsiEvidenceAxisEvaluationState.NOT_EVALUATED &&
+    VSI_HISTORICAL_HF_REFRESH_FAILURE_REASONS.has(evaluation.notEvaluatedReason ?? '')
+  );
+}
+
 export type VsiEvidenceAxisNotEvaluatedReason =
   (typeof VsiEvidenceAxisNotEvaluatedReason)[keyof typeof VsiEvidenceAxisNotEvaluatedReason];
 
