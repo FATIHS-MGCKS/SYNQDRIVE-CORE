@@ -2472,9 +2472,15 @@ export class VehiclesService {
       if (organizationId) {
         optimisticWhere.organizationId = organizationId;
       }
+      const persistedAt = new Date();
       const writeResult = await this.prisma.vehicle.updateMany({
         where: optimisticWhere,
-        data: merged,
+        data: {
+          ...merged,
+          // Prisma updateMany does not reliably advance @updatedAt; without a bump the
+          // optimistic updatedAt predicate stays satisfied and concurrent writers both win.
+          updatedAt: persistedAt,
+        },
       });
       if (writeResult.count !== 1) {
         throw new ConflictException({
