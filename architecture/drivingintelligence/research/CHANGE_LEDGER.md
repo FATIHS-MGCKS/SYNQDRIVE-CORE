@@ -2613,10 +2613,18 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** production writes/deploy; **no** motion-core/admission/P2 CSV changes; **no** peak reconstruction |
 | REMAINING | Empirical 129-event sidecar from Production DB requires operator `DATABASE_URL` CLI run; peaks remain unavailable until contract extension |
 
-### 2026-10-31 — Tiguan partial boundary extension → DI admission release (trips reconciliation hook)
+### 2026-11-03 — DS4 × RPM HF shadow correlation harness V1 (Phase 0 research)
 
 | Field | Detail |
 |-------|--------|
+| CHANGE | Pure library `ds4-rpm-shadow-correlation/` — temporal join, validation, trip/cohort reports, fixture replay scenarios, CLI `scripts/research/ds4-rpm-shadow-correlation-harness.cli.ts`; shared motion synthetic harness fixture |
+| WHY | P0 audit Phase 0 — reproducible fail-closed join of DS4 manoeuvre windows with admitted RPM sample evidence (V1A-shaped); no competing tier/motion logic |
+| VALIDATION | `npm run test:di:ds4-rpm-shadow-correlation`; CLI writes `/opt/cursor/artifacts/ds4-rpm-shadow-correlation/`; regression: `test:di:ds4-assessment`, V1B temporal/tier, VSI cadence tier |
+| OBSERVED | Fixture `RPM_1S_ALIGNED`: defensible context on manoeuvre events; negative controls `TENANT_MISMATCH`, timestamp shift fail closed |
+| NON_EFFECTS | **No** production/flags/schema/API/UI/score changes; **no** DS4 event count or L2 eligibility mutation |
+| REMAINING | DB/CH-backed loader with fingerprint attestation; Audi/Arteon frozen cohort; Fable alignment tolerance |
+| EVIDENCE | [DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md](../evidence/DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md) |
+
 | CHANGE | Trips module releases `diV0BoundaryAdmissionV1` after committed `PARTIAL_TRIP_BOUNDARY_EXTENSION`; S4 discovery eligibility unchanged (still requires matching admission revision) |
 | WHY | Post-repair `boundaryRefresh` PENDING blocked `canRelease`; Tiguan canonical trip never received admission via boundary-scanned release path |
 | VALIDATION | `trip-di-boundary-admission.unit.spec.ts`; postgres harness when live |
