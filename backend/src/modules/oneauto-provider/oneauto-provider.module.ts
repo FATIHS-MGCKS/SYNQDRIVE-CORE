@@ -6,19 +6,41 @@ import { AuthModule } from '@shared/auth/auth.module';
 import { IamMfaModule } from '@modules/iam-mfa/iam-mfa.module';
 import { QUEUE_NAMES } from '../../workers/queues/queue-names';
 import { OneAutoHttpClient } from './client/oneauto-http.client';
+import { SchedulerLeaderElectionModule } from '@shared/scheduler-leader/scheduler-leader-election.module';
 import { OneAutoProviderController } from './oneauto-provider.controller';
 import { OneAutoProviderExecutionService } from './oneauto-provider-execution.service';
 import { OneAutoProviderService } from './oneauto-provider.service';
+import { OneAutoOemVinLookupEuSuggestionController } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion.controller';
+import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
+import { OneAutoOemVinLookupEuSuggestionReadService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-read.service';
+import { OneAutoOemVinLookupEuSuggestionCleanupService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-cleanup.service';
+import { OneAutoOemVinLookupEuSuggestionCleanupScheduler } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-cleanup.scheduler';
 
 @Module({
   imports: [
     ConfigModule.forFeature(oneautoProviderConfig),
     AuthModule,
     IamMfaModule,
+    SchedulerLeaderElectionModule,
     BullModule.registerQueue({ name: QUEUE_NAMES.ONEAUTO_PROVIDER }),
   ],
-  controllers: [OneAutoProviderController],
-  providers: [OneAutoHttpClient, OneAutoProviderService, OneAutoProviderExecutionService],
-  exports: [OneAutoProviderService, OneAutoProviderExecutionService, OneAutoHttpClient],
+  controllers: [OneAutoProviderController, OneAutoOemVinLookupEuSuggestionController],
+  providers: [
+    OneAutoHttpClient,
+    OneAutoProviderService,
+    OneAutoProviderExecutionService,
+    OneAutoOemVinLookupEuSuggestionMaterializationService,
+    OneAutoOemVinLookupEuSuggestionReadService,
+    OneAutoOemVinLookupEuSuggestionCleanupService,
+    OneAutoOemVinLookupEuSuggestionCleanupScheduler,
+  ],
+  exports: [
+    OneAutoProviderService,
+    OneAutoProviderExecutionService,
+    OneAutoHttpClient,
+    OneAutoOemVinLookupEuSuggestionMaterializationService,
+    OneAutoOemVinLookupEuSuggestionReadService,
+    OneAutoOemVinLookupEuSuggestionCleanupService,
+  ],
 })
 export class OneAutoProviderModule {}

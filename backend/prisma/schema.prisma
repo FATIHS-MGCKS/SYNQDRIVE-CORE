@@ -1658,6 +1658,7 @@ model Organization {
   vehicleStationTransfers                                   VehicleStationTransfer[]
   vehicles                                                  Vehicle[]
   oneAutoProviderJobs                                       OneAutoProviderJob[]
+  oneAutoOemVinLookupEuSuggestionSnapshots                  OneAutoOemVinLookupEuSuggestionSnapshot[]
   physicalDevices                                           PhysicalDevice[]
   physicalDeviceAssignments                                 PhysicalDeviceAssignment[]
   vehicleProviderSourceObservations                         VehicleProviderSourceObservation[]
@@ -3193,6 +3194,7 @@ model Vehicle {
   completedOnboardingCases               VehicleOnboardingCase[]         @relation("OnboardingCaseCompletedVehicle")
   registryLifecycleOutboxEvents          VehicleRegistryLifecycleOutbox[]
   oneAutoProviderJobs                    OneAutoProviderJob[]
+  oneAutoOemVinLookupEuSuggestionSnapshots OneAutoOemVinLookupEuSuggestionSnapshot[]
 
   @@unique([vin, organizationId])
   @@index([organizationId])
@@ -3247,6 +3249,7 @@ model OneAutoProviderJob {
   organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vehicle      Vehicle                   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   responses    OneAutoProviderResponse[]
+  oemVinLookupEuSuggestionSnapshot OneAutoOemVinLookupEuSuggestionSnapshot?
 
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, vehicleId])
@@ -3268,6 +3271,29 @@ model OneAutoProviderResponse {
 
   @@index([jobId])
   @@map("one_auto_provider_responses")
+}
+
+/// Immutable OEM desc suggestion snapshot for one successful OE_VIN_LOOKUP_EU provider job (PR-C2).
+model OneAutoOemVinLookupEuSuggestionSnapshot {
+  id                     String   @id @default(cuid())
+  organizationId         String   @map("organization_id")
+  vehicleId              String   @map("vehicle_id")
+  providerJobId          String   @unique @map("provider_job_id")
+  vinSha256Prefix        String   @map("vin_sha256_prefix")
+  normalizedSnapshotJson Json     @map("normalized_snapshot_json")
+  responseFetchedAt      DateTime @map("response_fetched_at")
+  snapshotCreatedAt      DateTime @map("snapshot_created_at")
+  providerDataUpdatedAt  DateTime? @map("provider_data_updated_at")
+  expiresAt              DateTime @map("expires_at")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  providerJob  OneAutoProviderJob @relation(fields: [providerJobId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, vehicleId])
+  @@index([expiresAt])
+  @@map("one_auto_oem_vin_lookup_eu_suggestion_snapshots")
 }
 
 enum ComplaintUrgency {

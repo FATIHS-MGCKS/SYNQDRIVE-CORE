@@ -44,4 +44,7 @@ export default registerAs('oneautoProvider', () => ({
   pollIntervalMs: intEnv('ONEAUTO_POLL_INTERVAL_MS', 5_000),
   /** Hard cap on provider response bytes read into memory (fail closed when exceeded). */
   maxResponseBytes: intEnv('ONEAUTO_MAX_RESPONSE_BYTES', 1_048_576),
+  /** PR-C2: persist immutable OEM vinlookup suggestion snapshots after successful OE_VIN_LOOKUP_EU jobs. */
+  oemSuggestionsEnabled: (process.env.ONEAUTO_OEM_SUGGESTIONS_ENABLED ?? 'false') === 'true',
+  oemSuggestionsCleanupBatchSize: intEnv('ONEAUTO_OEM_SUGGESTIONS_CLEANUP_BATCH_SIZE', 100),
 }));

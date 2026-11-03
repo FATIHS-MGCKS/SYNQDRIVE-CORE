@@ -15,6 +15,7 @@ import {
   mergeEnvelopeDiagnostic,
 } from './oneauto-response-envelope.util';
 import { redactOneAutoErrorMessage, redactProviderResponseBody } from './oneauto-provider-redact.util';
+import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
 
 export type OneAutoProviderJobPayload = {
   jobId: string;
@@ -39,6 +40,7 @@ export class OneAutoProviderExecutionService {
     private readonly http: OneAutoHttpClient,
     private readonly config: ConfigService,
     @InjectQueue(QUEUE_NAMES.ONEAUTO_PROVIDER) private readonly queue: Queue<OneAutoProviderJobPayload>,
+    private readonly oemSuggestionMaterialization: OneAutoOemVinLookupEuSuggestionMaterializationService,
   ) {}
 
   async enqueueExecution(jobId: string): Promise<void> {
@@ -206,6 +208,7 @@ export class OneAutoProviderExecutionService {
             actualChargeMinor: null,
           },
         });
+        await this.oemSuggestionMaterialization.tryMaterializeFromSucceededJob(jobId);
         return;
       }
 

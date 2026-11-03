@@ -298,11 +298,13 @@ describe('OneAutoProviderExecutionService async and 206 policy', () => {
           : { enabled: true, orgDailyBudgetMinor: 500 },
     } as unknown as ConfigService;
     const queue = { add: jest.fn() };
+    const oemMaterialization = { tryMaterializeFromSucceededJob: jest.fn() };
     const svc = new OneAutoProviderExecutionService(
       prisma as never,
       http as never,
       config,
       queue as never,
+      oemMaterialization as never,
     );
     return { svc, prisma, queue, http };
   }

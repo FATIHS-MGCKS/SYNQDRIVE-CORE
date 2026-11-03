@@ -26,11 +26,13 @@ describe('OneAutoProviderExecutionService dispatch safety', () => {
     const http = { executeProviderGet: jest.fn() };
     const config = { get: () => ({ enabled: true }) } as unknown as ConfigService;
     const queue = { add: jest.fn() };
+    const oemMaterialization = { tryMaterializeFromSucceededJob: jest.fn() };
     const svc = new OneAutoProviderExecutionService(
       prisma as never,
       http as never,
       config,
       queue as never,
+      oemMaterialization as never,
     );
     await svc.processJob('j1', 'initial');
     expect(http.executeProviderGet).not.toHaveBeenCalled();
