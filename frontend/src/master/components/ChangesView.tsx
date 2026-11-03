@@ -600,6 +600,25 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     createdAt: '2026-11-03T00:00:00.000Z',
   },
   {
+    id: 'oneauto-oem-spec-prc1-normalizer-2026-11-03',
+    version: '4.9.5016',
+    title: 'One Auto OEM spec PR-C1 — VIN lookup normalizer & comparison',
+    summary: [
+      'Pure OE_VIN_LOOKUP_EU result normalizer maps six OpenAPI desc fields to Vehicle OEM desc columns; four code columns stay unmapped.',
+      'Field-level comparison: MATCH, MISSING, CONFLICT, NOT_COMPARABLE with confirmation status orthogonal to comparison.',
+      'Offline Audi A4 sanitized fixture tests; no API, DB, UI, or provider activation.',
+    ],
+    reason:
+      'Prepare PR-C suggestion preview pipeline with deterministic, fail-closed parsing before snapshot persistence.',
+    previousBehavior:
+      'No structured mapping from One Auto vinlookup results to OEM specification comparison states.',
+    details:
+      'backend: oneauto-provider/oem-specification/oneauto-vin-lookup-oem-suggestion.*; architecture ONEAUTO_OEM_SPEC_PRC1_NORMALIZER.md.',
+    affectsArchitecture: true,
+    module: 'Vehicle Onboarding',
+    createdAt: '2026-11-03T05:45:00.000Z',
+  },
+  {
     id: 'oneauto-p2-master-admin-ui-2026-11-01',
     version: '4.9.5003',
     title: 'One Auto API — Master Admin service dialog (frontend P2)',
