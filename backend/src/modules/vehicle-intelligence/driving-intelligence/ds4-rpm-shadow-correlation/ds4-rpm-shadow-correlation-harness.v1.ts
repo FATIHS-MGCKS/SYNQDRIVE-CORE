@@ -10,12 +10,11 @@ import type {
   Ds4RpmShadowCorrelationRpmSampleEvidenceV1,
   Ds4RpmShadowCorrelationTripReportV1,
 } from './ds4-rpm-shadow-correlation-v1.contract';
-import { validateDs4RpmShadowCorrelationInput } from './ds4-rpm-shadow-correlation-input-validation.v1';
 import { joinDs4EventsWithRpmEvidenceV1 } from './ds4-rpm-shadow-correlation-temporal-join.v1';
+import { validateDs4RpmShadowCorrelationProvenanceGate } from './ds4-rpm-shadow-correlation-provenance-gate.v1';
 import {
   buildDs4RpmShadowCorrelationProvenanceManifest,
   buildDs4RpmShadowCorrelationTripReport,
-  buildTripLevelReferenceBandFromV1bAttach,
 } from './ds4-rpm-shadow-correlation-report.v1';
 
 export type Ds4RpmShadowCorrelationHarnessExecuteInput = {
@@ -57,6 +56,10 @@ export function executeDs4RpmShadowCorrelationHarness(
   const generatedAt = input.generatedAt ?? new Date('2026-11-03T12:00:00.000Z');
   const recomputedFingerprint = computeDs4RpmHfV1bTierAwareInputFingerprint(input.tripInput);
 
+  const persistedSummaryFingerprint = input.v1bResult?.inputFingerprint ?? null;
+  const suppliedRunFingerprint = input.v1bInputFingerprint;
+  const suppliedSampleFingerprint = input.rpmSamples?.inputFingerprint ?? null;
+
   const correlationInput: Ds4RpmShadowCorrelationInputV1 = {
     contractVersion: 'ds4-rpm-shadow-correlation-v1',
     organizationId: input.organizationId,
@@ -72,43 +75,25 @@ export function executeDs4RpmShadowCorrelationHarness(
       ? {
           runId: input.v1bRunId,
           engineVersion: input.v1bResult.engineVersion,
-          inputFingerprint: recomputedFingerprint,
-          summary: {
-            ...input.v1bResult,
-            inputFingerprint: recomputedFingerprint,
-          },
+          inputFingerprint: suppliedRunFingerprint,
+          summary: input.v1bResult,
         }
       : null,
-    rpmSamples:
-      input.rpmSamples != null
-        ? {
-            ...input.rpmSamples,
-            inputFingerprint: recomputedFingerprint,
-          }
-        : null,
+    rpmSamples: input.rpmSamples,
   };
 
-  validateDs4RpmShadowCorrelationInput(correlationInput, {
+  const provenanceGate = {
     recomputedV1bInputFingerprint: recomputedFingerprint,
-  });
+    evidenceKind: input.evidenceKind,
+    canonicalTripRpmPoints: input.tripInput.rpmPoints.map((p) => ({ ...p })),
+  };
 
-  if (input.v1bInputFingerprint !== recomputedFingerprint) {
-    throw new Error(
-      'Harness v1bInputFingerprint must match computeDs4RpmHfV1bTierAwareInputFingerprint(tripInput)',
-    );
-  }
+  const validation = validateDs4RpmShadowCorrelationProvenanceGate(correlationInput, provenanceGate);
 
   const joined = joinDs4EventsWithRpmEvidenceV1(correlationInput, {
     payloadForIntensity: input.motionPayload,
+    provenanceGate,
   });
-
-  const refAttach = correlationInput.v1b?.rpmReferenceIntelligenceV1;
-  const bandShares = refAttach?.payload.metrics?.operatingBands?.timeShareByBand;
-  const refProv =
-    refAttach != null
-      ? `${refAttach.referenceSnapshotUsed.idleRpmProvenance}/${refAttach.referenceSnapshotUsed.maxRpmProvenance}`
-      : null;
-  const tripLevelReferenceBand = buildTripLevelReferenceBandFromV1bAttach(bandShares, refProv);
 
   const provenance = buildDs4RpmShadowCorrelationProvenanceManifest({
     codeSha: input.codeSha,
@@ -117,16 +102,22 @@ export function executeDs4RpmShadowCorrelationHarness(
     motionRunId: input.motionRunId,
     motionSnapshotHashAttested: null,
     v1bRunId: input.v1bResult ? input.v1bRunId : null,
-    v1bInputFingerprint: recomputedFingerprint,
-    rpmSampleInputFingerprint: input.rpmSamples ? recomputedFingerprint : null,
+    v1bInputFingerprint: persistedSummaryFingerprint ?? suppliedRunFingerprint,
+    rpmSampleInputFingerprint: suppliedSampleFingerprint,
     rpmSampleSource: input.rpmSamples?.source ?? null,
     v1bEngineVersion: input.v1bResult?.engineVersion ?? null,
     omissions: [
       'V1B_PERSISTENCE_AGGREGATES_ONLY_NO_RAW_IN_DB',
       'MOTION_SNAPSHOT_HASH_NOT_INDEPENDENTLY_ATTESTED_IN_FIXTURE_REPLAY',
+      'REFERENCE_ATTACHMENT_UNAVAILABLE',
       ...(input.omissions ?? []),
     ],
-    unknowns: input.unknowns ?? ['PRODUCTION_MAIN_DRIFT_NOT_EVALUATED_IN_FIXTURE_REPLAY'],
+    unknowns: [
+      ...(validation.ok
+        ? []
+        : [`PROVENANCE_GATE_FAILED:${validation.reasonCodes.join(',')}`]),
+      ...(input.unknowns ?? ['PRODUCTION_MAIN_DRIFT_NOT_EVALUATED_IN_FIXTURE_REPLAY']),
+    ],
   });
 
   return buildDs4RpmShadowCorrelationTripReport({
@@ -136,7 +127,8 @@ export function executeDs4RpmShadowCorrelationHarness(
     scenarioId: input.scenarioId,
     evidenceKind: input.evidenceKind,
     events: joined,
-    tripLevelReferenceBand,
+    tripLevelReferenceBand: null,
+    referenceAttachmentStatus: 'UNAVAILABLE',
     provenance,
   });
 }

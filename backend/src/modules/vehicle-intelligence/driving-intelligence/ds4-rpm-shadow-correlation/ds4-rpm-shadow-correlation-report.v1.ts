@@ -137,6 +137,7 @@ export function buildDs4RpmShadowCorrelationTripReport(input: {
   evidenceKind: Ds4RpmShadowCorrelationEvidenceKind;
   events: Ds4RpmShadowCorrelationEventResultV1[];
   tripLevelReferenceBand: Ds4RpmShadowCorrelationTripLevelReferenceBandV1 | null;
+  referenceAttachmentStatus: 'UNAVAILABLE' | 'FIXTURE_VERIFIED';
   provenance: Ds4RpmShadowCorrelationProvenanceManifestV1;
 }): Ds4RpmShadowCorrelationTripReportV1 {
   return {
@@ -148,6 +149,7 @@ export function buildDs4RpmShadowCorrelationTripReport(input: {
     evidenceKind: input.evidenceKind,
     events: input.events,
     tripLevelReferenceBand: input.tripLevelReferenceBand,
+    referenceAttachmentStatus: input.referenceAttachmentStatus,
     summary: summarizeEvents(input.events),
     ds4OnlyBaseline: {
       eventCount: input.events.length,

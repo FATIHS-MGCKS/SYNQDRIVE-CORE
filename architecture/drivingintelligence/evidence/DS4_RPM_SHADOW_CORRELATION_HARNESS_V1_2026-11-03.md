@@ -89,6 +89,23 @@ bash architecture/scripts/validate-module-registry.sh
 - Source timestamp phase vs DIMO bucket labels remains **UNKNOWN**.
 - Descriptive coverage only — no accuracy uplift or fleet prevalence claims from fixtures.
 
+## P0_FINAL_REVIEW_FIX (2026-11-03, PR #2325)
+
+### Resolved
+
+| ID | Fix |
+|----|-----|
+| P0-1 | Preserve original V1B persisted + sample fingerprints; independent triple compare vs `computeDs4RpmHfV1bTierAwareInputFingerprint`; mandatory `provenanceGate` on join; reject unverified REAL_OBSERVATION / CH source under SYNTHETIC_FIXTURE |
+| P0-2 | No RPM_1S default for SPARSE/UNKNOWN tiers; `V1B_CADENCE_TIER_NOT_AUTHORITATIVE`; candidate sequences labeled `candidateSequenceFromObservedSamples` with `v1bAdmittedEventSpanVerified=false`; overlap-aware missing interval accounting capped to event duration |
+| P1 ref | `referenceAttachmentStatus: UNAVAILABLE` (no event-measured band) |
+| P1 empty | Zero manoeuvres → valid empty join (not failed motion run) |
+
+### Fixture cohort (post P0-final)
+
+- Defensible share (all events): **31.25%** (5/16)
+- Defensible share (excl. negative controls): **41.67%** (5/12)
+- Reference attachment: **UNAVAILABLE** on all fixture trips
+
 ## NON_EFFECTS
 
 - No Trip FSM, Driving Impact V1, Tire/Battery/Brakes, map DTO, Nest flags, migrations, or production writes.

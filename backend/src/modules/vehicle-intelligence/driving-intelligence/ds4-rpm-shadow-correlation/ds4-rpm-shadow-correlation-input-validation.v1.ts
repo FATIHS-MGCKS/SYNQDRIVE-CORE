@@ -20,10 +20,6 @@ export function validateDs4RpmShadowCorrelationInput(
     reasonCodes.push('MOTION_RUN_BINDING_UNPROVEN');
   }
 
-  if (input.events.length === 0) {
-    reasonCodes.push('MOTION_RUN_NO_MANOEUVRES');
-  }
-
   if (!input.v1b) {
     reasonCodes.push('V1B_RUN_MISSING');
   } else {

@@ -2637,6 +2637,15 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | REMAINING | Authorized loader + attested motion snapshot hash; timestamp phase research; live cohort replay |
 | EVIDENCE | Same evidence doc — **REVIEW_HARDENING** section |
 
+### 2026-11-03 — DS4 × RPM shadow correlation P0 final review fix (PR #2325)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Provenance gate module; mandatory join gate; fingerprint integrity without overwriting persisted summary; tier authority (no SPARSE→1S); reference attachment UNAVAILABLE; empty manoeuvre valid result |
+| VALIDATION | `test:di:ds4-rpm-shadow-correlation` 19/19; ds4-assessment / rpm-ref-intel / V1B / VSI regression; backend tsc |
+| OBSERVED | Fixture cohort unchanged at 41.67% defensible excl. negative controls |
+| EVIDENCE | `DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md` — **P0_FINAL_REVIEW_FIX** |
+
 | CHANGE | Trips module releases `diV0BoundaryAdmissionV1` after committed `PARTIAL_TRIP_BOUNDARY_EXTENSION`; S4 discovery eligibility unchanged (still requires matching admission revision) |
 | WHY | Post-repair `boundaryRefresh` PENDING blocked `canRelease`; Tiguan canonical trip never received admission via boundary-scanned release path |
 | VALIDATION | `trip-di-boundary-admission.unit.spec.ts`; postgres harness when live |

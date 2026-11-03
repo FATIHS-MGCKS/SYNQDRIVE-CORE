@@ -31,6 +31,10 @@ export type Ds4RpmShadowCorrelationReasonCode =
   | 'V1B_ADMISSION_DENIED'
   | 'RPM_SAMPLE_EVIDENCE_MISSING'
   | 'RPM_SAMPLE_FINGERPRINT_MISMATCH'
+  | 'RPM_SAMPLE_POINTS_DIGEST_MISMATCH'
+  | 'UNVERIFIED_EVIDENCE_SOURCE_CLAIM'
+  | 'V1B_CADENCE_TIER_NOT_AUTHORITATIVE'
+  | 'SOURCE_LINK_BINDING_UNPROVEN'
   | 'SOURCE_LINK_MISMATCH'
   | 'EVENT_WINDOW_INVALID'
   | 'NO_TEMPORAL_OVERLAP'
@@ -87,13 +91,17 @@ export type Ds4RpmShadowCorrelationAlignmentDiagnosticV1 = {
 
 export type Ds4RpmShadowCorrelationEventTemporalSupportV1 = {
   eventWindowHalfOpenNote: string;
+  eventWindowDurationSeconds: number;
   observedPointCountInWindow: number;
   admittedPointCountInLongestSequence: number;
   observedSampleSpanMs: number | null;
   supportedDurationMs: number | null;
   continuousSequenceCountInWindow: number;
   missingIntervalSecondsInWindow: number;
-  sequenceGapRuleSeconds: number;
+  sequenceGapRuleSeconds: number | null;
+  candidateSequenceFromObservedSamples: true;
+  v1bAdmittedEventSpanVerified: false;
+  authoritativeCadenceTierForCoverage: 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null;
 };
 
 export type Ds4RpmShadowCorrelationTripLevelReferenceBandV1 = {
@@ -138,6 +146,7 @@ export type Ds4RpmShadowCorrelationTripReportV1 = {
   evidenceKind: Ds4RpmShadowCorrelationEvidenceKind;
   events: Ds4RpmShadowCorrelationEventResultV1[];
   tripLevelReferenceBand: Ds4RpmShadowCorrelationTripLevelReferenceBandV1 | null;
+  referenceAttachmentStatus: 'UNAVAILABLE' | 'FIXTURE_VERIFIED';
   summary: {
     totalEvents: number;
     eventsWithDefensibleContext: number;

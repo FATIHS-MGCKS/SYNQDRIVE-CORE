@@ -38,6 +38,8 @@ describe('ds4-rpm-shadow-correlation replay cohort', () => {
     const tripReports = DS4_RPM_SHADOW_CORRELATION_SCENARIO_IDS.map((id) =>
       replayDs4RpmShadowCorrelationScenario(id, { codeSha }),
     );
+    expect(tripReports.every((r) => r.referenceAttachmentStatus === 'UNAVAILABLE')).toBe(true);
+    expect(tripReports.every((r) => r.evidenceKind === 'SYNTHETIC_FIXTURE')).toBe(true);
     const cohort = buildDs4RpmShadowCorrelationCohortReport({
       cohortId: 'fixture-cohort',
       tripReports,

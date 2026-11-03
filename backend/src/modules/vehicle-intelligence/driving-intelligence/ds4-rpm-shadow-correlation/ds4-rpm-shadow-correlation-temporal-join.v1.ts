@@ -13,9 +13,12 @@ import { DS4_RPM_SHADOW_CORRELATION_EVENT_WINDOW_HALF_OPEN_NOTE } from './ds4-rp
 import {
   classifyEventContextFromTemporalSupport,
   computeEventTemporalSupportV1,
+  isDefensibleCadenceContext,
   parseHalfOpenEventWindowMs,
+  resolveAuthoritativeCadenceTierForCoverage,
 } from './ds4-rpm-shadow-correlation-event-temporal-support.v1';
-import { validateDs4RpmShadowCorrelationInput } from './ds4-rpm-shadow-correlation-input-validation.v1';
+import type { Ds4RpmShadowCorrelationProvenanceGateV1 } from './ds4-rpm-shadow-correlation-provenance-gate.v1';
+import { validateDs4RpmShadowCorrelationProvenanceGate } from './ds4-rpm-shadow-correlation-provenance-gate.v1';
 
 const SOURCE_TIMESTAMP_PHASE: Ds4RpmShadowCorrelationSourceTimestampPhase = 'UNKNOWN';
 
@@ -29,25 +32,32 @@ function median(values: number[]): number | null {
 function emptyTemporalSupport(): Ds4RpmShadowCorrelationEventTemporalSupportV1 {
   return {
     eventWindowHalfOpenNote: DS4_RPM_SHADOW_CORRELATION_EVENT_WINDOW_HALF_OPEN_NOTE,
+    eventWindowDurationSeconds: 0,
     observedPointCountInWindow: 0,
     admittedPointCountInLongestSequence: 0,
     observedSampleSpanMs: null,
     supportedDurationMs: null,
     continuousSequenceCountInWindow: 0,
     missingIntervalSecondsInWindow: 0,
-    sequenceGapRuleSeconds: 2,
+    sequenceGapRuleSeconds: null,
+    candidateSequenceFromObservedSamples: true,
+    v1bAdmittedEventSpanVerified: false,
+    authoritativeCadenceTierForCoverage: null,
   };
 }
 
-function resolveCadenceTierForJoin(
-  input: Ds4RpmShadowCorrelationInputV1,
-): 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null {
-  const raw =
+function resolveCadenceTierLabel(input: Ds4RpmShadowCorrelationInputV1): string | null {
+  return (
     input.v1b?.summary.admission.qualityExposure.cadenceTier ??
     input.v1b?.summary.tierEvidence?.tier ??
-    null;
-  if (raw === 'RPM_1S' || raw === 'RPM_2S' || raw === 'RPM_3S') return raw;
-  return null;
+    null
+  );
+}
+
+function resolveAuthoritativeCadenceTierForJoin(
+  input: Ds4RpmShadowCorrelationInputV1,
+): 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null {
+  return resolveAuthoritativeCadenceTierForCoverage(resolveCadenceTierLabel(input));
 }
 
 function nominalBucketWidthSeconds(tier: 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null): number {
@@ -70,6 +80,7 @@ function classifyPointsInHalfOpenWindow(input: {
   window: { startMs: number; endExclusiveMs: number; durationMs: number };
   cadenceTier: 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null;
   offsetSeconds: number;
+  defensibleCadenceAllowed: boolean;
 }): WindowClassification {
   const shiftMs = input.offsetSeconds * 1000;
   const winStart = input.window.startMs + shiftMs;
@@ -161,7 +172,16 @@ function classifyPointsInHalfOpenWindow(input: {
     hasDuplicateTimestamps,
     temporalSupport,
     eventDurationMs: shiftedWindow.durationMs,
+    defensibleCadenceAllowed: input.defensibleCadenceAllowed,
   });
+
+  if (!input.defensibleCadenceAllowed && classification === 'AVAILABLE') {
+    classification = 'PARTIAL';
+  }
+
+  if (!input.defensibleCadenceAllowed && temporalSupport.observedPointCountInWindow > 0) {
+    reasonCodes.push('V1B_CADENCE_TIER_NOT_AUTHORITATIVE');
+  }
 
   if (classification === 'PARTIAL') {
     reasonCodes.push('INSUFFICIENT_ADMITTED_TEMPORAL_SUPPORT');
@@ -182,7 +202,11 @@ function buildAlignmentSensitivity(input: {
   window: { startMs: number; endExclusiveMs: number; durationMs: number };
   bucketWidthSec: number;
   cadenceTier: 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null;
+  defensibleCadenceAllowed: boolean;
 }): Ds4RpmShadowCorrelationAlignmentDiagnosticV1[] {
+  if (input.cadenceTier == null) {
+    return [];
+  }
   const offsets = [-input.bucketWidthSec, 0, input.bucketWidthSec];
   return offsets.map((offsetSeconds) => {
     const r = classifyPointsInHalfOpenWindow({
@@ -190,6 +214,7 @@ function buildAlignmentSensitivity(input: {
       window: input.window,
       cadenceTier: input.cadenceTier,
       offsetSeconds,
+      defensibleCadenceAllowed: input.defensibleCadenceAllowed,
     });
     return {
       offsetSeconds,
@@ -204,7 +229,8 @@ function buildUnavailableEvent(input: {
   eventIndex: number;
   event: Ds4RpmShadowCorrelationInputV1['events'][number];
   reasonCodes: Ds4RpmShadowCorrelationReasonCode[];
-  tier: 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null;
+  tierLabel: string | null;
+  authoritativeTier: 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null;
   intensity: { meanAccelMps2: number | null; durationS: number | null } | null;
   coverageNote: string;
 }): Ds4RpmShadowCorrelationEventResultV1 {
@@ -220,7 +246,7 @@ function buildUnavailableEvent(input: {
     ds4DurationS: input.intensity?.durationS ?? null,
     contextClassification: 'UNAVAILABLE',
     reasonCodes: input.reasonCodes,
-    cadenceTier: input.tier,
+    cadenceTier: input.tierLabel,
     cadenceConfidence: null,
     analysisReadiness: null,
     qualityExposureContractVersion: null,
@@ -237,19 +263,35 @@ function buildUnavailableEvent(input: {
   };
 }
 
+export type Ds4RpmShadowCorrelationJoinOptionsV1 = {
+  payloadForIntensity?: DiV0MotionCoreShadowPayloadV1 | null;
+  provenanceGate: Ds4RpmShadowCorrelationProvenanceGateV1;
+};
+
 export function joinDs4EventsWithRpmEvidenceV1(
   input: Ds4RpmShadowCorrelationInputV1,
-  options?: { payloadForIntensity?: DiV0MotionCoreShadowPayloadV1 | null },
+  options: Ds4RpmShadowCorrelationJoinOptionsV1,
 ): Ds4RpmShadowCorrelationEventResultV1[] {
-  const validation = validateDs4RpmShadowCorrelationInput(input);
+  const validation = validateDs4RpmShadowCorrelationProvenanceGate(input, options.provenanceGate);
   const globalFail = !validation.ok ? validation.reasonCodes : null;
 
-  const tier = resolveCadenceTierForJoin(input);
-  const bucketWidth = nominalBucketWidthSeconds(tier);
+  const tierLabel = resolveCadenceTierLabel(input);
+  const authoritativeTier = resolveAuthoritativeCadenceTierForJoin(input);
+  const defensibleCadenceAllowed = isDefensibleCadenceContext({
+    authoritativeTier,
+    analysisReadiness: input.v1b?.summary.admission.qualityExposure.analysisReadiness,
+    tierAnalyticsReady: input.v1b?.summary.admission.qualityExposure.tierAnalyticsReady,
+    processingAllowed: input.v1b?.summary.admission.processingAllowed,
+  });
+  const bucketWidth = nominalBucketWidthSeconds(authoritativeTier);
   const points = input.rpmSamples?.points ?? [];
   const v1bCoverageNote = input.v1b?.summary.temporalCoverage.bucketSemanticsNote
-    ? `${input.v1b.summary.temporalCoverage.bucketSemanticsNote}; ${input.v1b.summary.temporalCoverage.gapInterpretationPolicy}; impliesFullTripCoverage=false`
+    ? `${input.v1b.summary.temporalCoverage.bucketSemanticsNote}; ${input.v1b.summary.temporalCoverage.gapInterpretationPolicy}; impliesFullTripCoverage=false; v1bAdmittedEventSpanVerified=false; sourceTimestampPhase=UNKNOWN`
     : 'V1B_QUALITY_UNKNOWN';
+
+  if (input.events.length === 0) {
+    return [];
+  }
 
   return input.events.map((event, eventIndex) => {
     const intensity =
@@ -262,7 +304,8 @@ export function joinDs4EventsWithRpmEvidenceV1(
         eventIndex,
         event,
         reasonCodes: globalFail,
-        tier,
+        tierLabel,
+        authoritativeTier,
         intensity,
         coverageNote: v1bCoverageNote,
       });
@@ -274,7 +317,8 @@ export function joinDs4EventsWithRpmEvidenceV1(
         eventIndex,
         event,
         reasonCodes: ['EVENT_WINDOW_INVALID'],
-        tier,
+        tierLabel,
+        authoritativeTier,
         intensity,
         coverageNote: input.v1b!.summary.temporalCoverage.bucketSemanticsNote,
       });
@@ -283,14 +327,16 @@ export function joinDs4EventsWithRpmEvidenceV1(
     const primary = classifyPointsInHalfOpenWindow({
       points,
       window,
-      cadenceTier: tier,
+      cadenceTier: authoritativeTier,
       offsetSeconds: 0,
+      defensibleCadenceAllowed,
     });
     const sensitivity = buildAlignmentSensitivity({
       points,
       window,
       bucketWidthSec: bucketWidth,
-      cadenceTier: tier,
+      cadenceTier: authoritativeTier,
+      defensibleCadenceAllowed,
     });
 
     const eventId = `motion-ev-${eventIndex}-${event.startLabel}`;
@@ -308,7 +354,7 @@ export function joinDs4EventsWithRpmEvidenceV1(
       ds4DurationS: intensity?.durationS ?? null,
       contextClassification: primary.classification,
       reasonCodes: primary.reasonCodes,
-      cadenceTier: tier,
+      cadenceTier: tierLabel,
       cadenceConfidence: input.v1b!.summary.admission.qualityExposure.cadenceConfidence ?? null,
       analysisReadiness: input.v1b!.summary.admission.qualityExposure.analysisReadiness ?? null,
       qualityExposureContractVersion:
