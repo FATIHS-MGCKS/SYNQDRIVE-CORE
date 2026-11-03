@@ -120,7 +120,7 @@ export function replayDs4RpmShadowCorrelationScenario(
   scenarioId: Ds4RpmShadowCorrelationScenarioId,
   options: { codeSha: string; generatedAt?: Date },
 ): Ds4RpmShadowCorrelationTripReportV1 {
-  const { payload, runId } = buildDefaultSyntheticMotionPayload();
+  const { payload, runId } = buildDefaultSyntheticMotionPayload(scenarioId);
   const motionStart = payload.speeds[0]?.bucketLabelUtc ?? syntheticDriveLabel(0);
   const tripInput = buildTripInputForScenario(scenarioId, motionStart);
   const generatedAt = options.generatedAt ?? new Date('2026-11-03T12:00:00.000Z');
@@ -155,6 +155,8 @@ export function replayDs4RpmShadowCorrelationScenario(
     tripInput,
     v1bResult,
     v1bInputFingerprint: fingerprint,
+    v1bRunId: `synthetic-fixture-v1b-run:${scenarioId}`,
+    evidenceKind: 'SYNTHETIC_FIXTURE',
     rpmSamples:
       scenarioId === 'MISSING_HF'
         ? {

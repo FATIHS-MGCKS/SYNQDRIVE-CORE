@@ -2625,6 +2625,18 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | REMAINING | DB/CH-backed loader with fingerprint attestation; Audi/Arteon frozen cohort; Fable alignment tolerance |
 | EVIDENCE | [DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md](../evidence/DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md) |
 
+### 2026-11-03 — DS4 × RPM shadow correlation harness V1 review hardening (PR #2325)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Hardened temporal join (half-open windows, admitted-sequence support metrics), conflict-safe stats, provenance/fingerprint recompute validation, trip-level reference band scope, cohort negative-control exclusion, adversarial unit tests |
+| WHY | Orchestrator review on Phase 0 harness — prevent authoritative claims from weak overlap, aggregate-only PARTIAL, or unattested fixture identities |
+| VALIDATION | `npm run test:di:ds4-rpm-shadow-correlation` (15 tests); regression ds4-assessment / rpm-ref-intel / V1B temporal / VSI cadence; CLI cohort refresh |
+| OBSERVED | Fixture prevalence excl. negative controls **41.67%** AVAILABLE share (5/12 events); all negative-control events **UNAVAILABLE** |
+| NON_EFFECTS | **No** motion-core/V1B engine/score/API/UI/schema/production flag changes |
+| REMAINING | Authorized loader + attested motion snapshot hash; timestamp phase research; live cohort replay |
+| EVIDENCE | Same evidence doc — **REVIEW_HARDENING** section |
+
 | CHANGE | Trips module releases `diV0BoundaryAdmissionV1` after committed `PARTIAL_TRIP_BOUNDARY_EXTENSION`; S4 discovery eligibility unchanged (still requires matching admission revision) |
 | WHY | Post-repair `boundaryRefresh` PENDING blocked `canRelease`; Tiguan canonical trip never received admission via boundary-scanned release path |
 | VALIDATION | `trip-di-boundary-admission.unit.spec.ts`; postgres harness when live |

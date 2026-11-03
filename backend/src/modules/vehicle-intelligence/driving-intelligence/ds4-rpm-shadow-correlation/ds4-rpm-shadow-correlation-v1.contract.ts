@@ -11,11 +11,21 @@ export type Ds4RpmShadowCorrelationContextClassification =
   | 'AMBIGUOUS'
   | 'UNAVAILABLE';
 
+export type Ds4RpmShadowCorrelationEvidenceKind = 'SYNTHETIC_FIXTURE' | 'REAL_OBSERVATION';
+
+export type Ds4RpmShadowCorrelationSourceTimestampPhase = 'UNKNOWN';
+
 export type Ds4RpmShadowCorrelationReasonCode =
   | 'OK'
   | 'TENANCY_MISMATCH'
   | 'TRIP_ID_MISMATCH'
   | 'MOTION_RUN_MISSING'
+  | 'MOTION_RUN_NO_MANOEUVRES'
+  | 'MOTION_RUN_BINDING_UNPROVEN'
+  | 'V1B_RUN_BINDING_UNPROVEN'
+  | 'RPM_SAMPLE_BINDING_UNPROVEN'
+  | 'TIMESTAMP_MALFORMED_IN_WINDOW'
+  | 'INSUFFICIENT_ADMITTED_TEMPORAL_SUPPORT'
   | 'V1B_RUN_MISSING'
   | 'V1B_NOT_SUCCEEDED'
   | 'V1B_ADMISSION_DENIED'
@@ -43,7 +53,9 @@ export type Ds4RpmShadowCorrelationMotionRunRefV1 = {
   runId: string;
   workItemId?: string | null;
   intentKey?: string | null;
+  /** Attested motion input identity when independently proven — not algorithm bundle version. */
   inputFingerprint?: string | null;
+  /** Attested motion snapshot hash when independently proven — null when unproven. */
   pinnedSnapshotHash?: string | null;
 };
 
@@ -70,6 +82,24 @@ export type Ds4RpmShadowCorrelationAlignmentDiagnosticV1 = {
   offsetSeconds: number;
   observedPointCount: number;
   classification: Ds4RpmShadowCorrelationContextClassification;
+  researchDiagnosticOnly: true;
+};
+
+export type Ds4RpmShadowCorrelationEventTemporalSupportV1 = {
+  eventWindowHalfOpenNote: string;
+  observedPointCountInWindow: number;
+  admittedPointCountInLongestSequence: number;
+  observedSampleSpanMs: number | null;
+  supportedDurationMs: number | null;
+  continuousSequenceCountInWindow: number;
+  missingIntervalSecondsInWindow: number;
+  sequenceGapRuleSeconds: number;
+};
+
+export type Ds4RpmShadowCorrelationTripLevelReferenceBandV1 = {
+  dominantOperatingBand: string | null;
+  provenanceSummary: string | null;
+  scopeNote: 'TRIP_LEVEL_AGGREGATE_NOT_EVENT_MEASURED';
 };
 
 export type Ds4RpmShadowCorrelationEventResultV1 = {
@@ -88,13 +118,13 @@ export type Ds4RpmShadowCorrelationEventResultV1 = {
   analysisReadiness: string | null;
   qualityExposureContractVersion: string | null;
   observedRpmPointCountInWindow: number;
+  eventTemporalSupport: Ds4RpmShadowCorrelationEventTemporalSupportV1;
   admittedWindowCoverageNote: string;
   rpmMin: number | null;
   rpmMedian: number | null;
   rpmMax: number | null;
-  alignmentUncertaintyMs: number | null;
-  referenceOperatingBand: string | null;
-  referenceProvenanceSummary: string | null;
+  observedSampleSpanMs: number | null;
+  sourceTimestampPhase: Ds4RpmShadowCorrelationSourceTimestampPhase;
   alignmentSensitivity: Ds4RpmShadowCorrelationAlignmentDiagnosticV1[];
   speedOnlyBaselineNote: 'DS4_SPEED_INTENSITY_ONLY_NO_RPM_CLAIM';
 };
@@ -105,7 +135,9 @@ export type Ds4RpmShadowCorrelationTripReportV1 = {
   vehicleId: string;
   tripId: string;
   scenarioId: string | null;
+  evidenceKind: Ds4RpmShadowCorrelationEvidenceKind;
   events: Ds4RpmShadowCorrelationEventResultV1[];
+  tripLevelReferenceBand: Ds4RpmShadowCorrelationTripLevelReferenceBandV1 | null;
   summary: {
     totalEvents: number;
     eventsWithDefensibleContext: number;
@@ -123,9 +155,12 @@ export type Ds4RpmShadowCorrelationTripReportV1 = {
 export type Ds4RpmShadowCorrelationProvenanceManifestV1 = {
   codeSha: string;
   generatedAtIso: string;
+  evidenceKind: Ds4RpmShadowCorrelationEvidenceKind;
   motionRunId: string;
+  motionSnapshotHashAttested: string | null;
   v1bRunId: string | null;
   v1bInputFingerprint: string | null;
+  v1bInputFingerprintRecomputeMethod: string | null;
   rpmSampleInputFingerprint: string | null;
   rpmSampleSource: string | null;
   v1bEngineVersion: string | null;
@@ -133,6 +168,8 @@ export type Ds4RpmShadowCorrelationProvenanceManifestV1 = {
   qualityScope: string | null;
   bucketSemanticsNote: string;
   gapInterpretationPolicy: string;
+  eventWindowSemanticsNote: string;
+  sourceTimestampPhase: Ds4RpmShadowCorrelationSourceTimestampPhase;
   omissions: string[];
   unknowns: string[];
 };
@@ -144,8 +181,15 @@ export type Ds4RpmShadowCorrelationCohortReportV1 = {
   aggregate: {
     tripCount: number;
     datasetGaps: string[];
+    evidenceKind: Ds4RpmShadowCorrelationEvidenceKind;
     defensibleContextShareAcrossEvents: number | null;
+    defensibleContextShareFixtureScenariosExcludingNegativeControls: number | null;
+    negativeControlScenarioIdsExcludedFromPrevalence: string[];
     byTier: Record<
+      string,
+      { trips: number; defensibleShare: number | null; eventCount: number }
+    >;
+    byTierFixtureScenariosExcludingNegativeControls: Record<
       string,
       { trips: number; defensibleShare: number | null; eventCount: number }
     >;

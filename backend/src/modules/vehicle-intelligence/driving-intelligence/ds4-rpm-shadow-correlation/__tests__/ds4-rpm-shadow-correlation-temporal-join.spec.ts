@@ -3,6 +3,11 @@ import type { Ds4RpmShadowCorrelationInputV1 } from '../ds4-rpm-shadow-correlati
 import type { Ds4RpmHfV1bShadowResultV1 } from '../../rpm-hf-v1b/ds4-rpm-hf-v1b.contract';
 import { DS4_RPM_HF_V1B_CONTRACT_VERSION } from '../../rpm-hf-v1b/ds4-rpm-hf-v1b.contract';
 import { validateDs4RpmShadowCorrelationInput } from '../ds4-rpm-shadow-correlation-input-validation.v1';
+import {
+  classifyEventContextFromTemporalSupport,
+  computeEventTemporalSupportV1,
+  parseHalfOpenEventWindowMs,
+} from '../ds4-rpm-shadow-correlation-event-temporal-support.v1';
 
 const baseV1bSummary: Ds4RpmHfV1bShadowResultV1 = {
   contractVersion: DS4_RPM_HF_V1B_CONTRACT_VERSION,
@@ -86,41 +91,55 @@ const baseV1bSummary: Ds4RpmHfV1bShadowResultV1 = {
   productionActivationForbidden: true as const,
 };
 
+function buildInput(
+  overrides: Partial<Ds4RpmShadowCorrelationInputV1> & {
+    rpmPoints?: Array<{ recordedAtIso: string; valueRpm: number }>;
+  } = {},
+): Ds4RpmShadowCorrelationInputV1 {
+  return {
+    contractVersion: 'ds4-rpm-shadow-correlation-v1',
+    organizationId: 'org-a',
+    vehicleId: 'veh-a',
+    tripId: 'trip-a',
+    motion: { runId: 'm1', ...(overrides.motion ?? {}) },
+    events: overrides.events ?? [
+      {
+        kind: 'ACCELERATION',
+        startLabel: '2026-01-01T00:00:05.000Z',
+        endLabel: '2026-01-01T00:00:08.000Z',
+        startSpeedKmh: 10,
+        endSpeedKmh: 20,
+        deltaKmh: 10,
+        quality: 'OK',
+        flags: [],
+      },
+    ],
+    v1b: overrides.v1b ?? {
+      runId: 'r1',
+      engineVersion: 'ds4-rpm-hf-v1b-engine-v1-tier-aware',
+      inputFingerprint: 'fp-1',
+      summary: baseV1bSummary,
+    },
+    rpmSamples: overrides.rpmSamples ?? {
+      source: 'PINNED_FIXTURE',
+      inputFingerprint: 'fp-1',
+      providerSourceLinkId: 'link-a',
+      points: overrides.rpmPoints ?? [
+        { recordedAtIso: '2026-01-01T00:00:05.000Z', valueRpm: 1400 },
+        { recordedAtIso: '2026-01-01T00:00:06.000Z', valueRpm: 1500 },
+        { recordedAtIso: '2026-01-01T00:00:07.000Z', valueRpm: 1600 },
+        { recordedAtIso: '2026-01-01T00:00:08.000Z', valueRpm: 1700 },
+      ],
+      invalidValueCount: 0,
+      duplicateTimestampCount: 0,
+    },
+    ...overrides,
+  };
+}
+
 describe('ds4-rpm-shadow-correlation temporal join', () => {
   it('fail-closed on tenancy mismatch', () => {
-    const input: Ds4RpmShadowCorrelationInputV1 = {
-      contractVersion: 'ds4-rpm-shadow-correlation-v1',
-      organizationId: 'org-b',
-      vehicleId: 'veh-a',
-      tripId: 'trip-a',
-      motion: { runId: 'm1' },
-      events: [
-        {
-          kind: 'ACCELERATION',
-          startLabel: '2026-01-01T00:00:05.000Z',
-          endLabel: '2026-01-01T00:00:08.000Z',
-          startSpeedKmh: 10,
-          endSpeedKmh: 20,
-          deltaKmh: 10,
-          quality: 'OK',
-          flags: [],
-        },
-      ],
-      v1b: {
-        runId: 'r1',
-        engineVersion: 'ds4-rpm-hf-v1b-engine-v1-tier-aware',
-        inputFingerprint: 'fp-1',
-        summary: baseV1bSummary,
-      },
-      rpmSamples: {
-        source: 'PINNED_FIXTURE',
-        inputFingerprint: 'fp-1',
-        providerSourceLinkId: 'link-a',
-        points: [{ recordedAtIso: '2026-01-01T00:00:06.000Z', valueRpm: 1500 }],
-        invalidValueCount: 0,
-        duplicateTimestampCount: 0,
-      },
-    };
+    const input = buildInput({ organizationId: 'org-b' });
     const validation = validateDs4RpmShadowCorrelationInput(input);
     expect(validation.ok).toBe(false);
     const joined = joinDs4EventsWithRpmEvidenceV1(input);
@@ -128,57 +147,84 @@ describe('ds4-rpm-shadow-correlation temporal join', () => {
     expect(joined[0]!.reasonCodes).toContain('TENANCY_MISMATCH');
   });
 
-  it('marks AVAILABLE when RPM points overlap DS4 event window', () => {
-    const input: Ds4RpmShadowCorrelationInputV1 = {
-      contractVersion: 'ds4-rpm-shadow-correlation-v1',
-      organizationId: 'org-a',
-      vehicleId: 'veh-a',
-      tripId: 'trip-a',
-      motion: { runId: 'm1' },
-      events: [
-        {
-          kind: 'ACCELERATION',
-          startLabel: '2026-01-01T00:00:05.000Z',
-          endLabel: '2026-01-01T00:00:08.000Z',
-          startSpeedKmh: 10,
-          endSpeedKmh: 20,
-          deltaKmh: 10,
-          quality: 'OK',
-          flags: [],
-        },
-      ],
-      v1b: {
-        runId: 'r1',
-        engineVersion: 'ds4-rpm-hf-v1b-engine-v1-tier-aware',
-        inputFingerprint: 'fp-1',
-        summary: baseV1bSummary,
-      },
-      rpmSamples: {
-        source: 'PINNED_FIXTURE',
-        inputFingerprint: 'fp-1',
-        providerSourceLinkId: 'link-a',
-        points: [
+  it('marks AVAILABLE when admitted RPM sequence covers event window', () => {
+    const joined = joinDs4EventsWithRpmEvidenceV1(buildInput());
+    expect(joined[0]!.contextClassification).toBe('AVAILABLE');
+    expect(joined[0]!.observedRpmPointCountInWindow).toBeGreaterThan(1);
+    expect(joined[0]!.rpmMedian).not.toBeNull();
+    expect(joined[0]!.sourceTimestampPhase).toBe('UNKNOWN');
+    expect(joined[0]!.alignmentSensitivity.every((d) => d.researchDiagnosticOnly)).toBe(true);
+  });
+
+  it('single RPM point in window is PARTIAL not AVAILABLE', () => {
+    const joined = joinDs4EventsWithRpmEvidenceV1(
+      buildInput({
+        rpmPoints: [{ recordedAtIso: '2026-01-01T00:00:06.000Z', valueRpm: 1500 }],
+      }),
+    );
+    expect(joined[0]!.contextClassification).toBe('PARTIAL');
+    expect(joined[0]!.reasonCodes).toContain('INSUFFICIENT_ADMITTED_TEMPORAL_SUPPORT');
+  });
+
+  it('does not promote NO overlap to PARTIAL from trip aggregates', () => {
+    const joined = joinDs4EventsWithRpmEvidenceV1(
+      buildInput({
+        rpmPoints: [{ recordedAtIso: '2026-01-01T00:05:00.000Z', valueRpm: 1500 }],
+      }),
+    );
+    expect(joined[0]!.contextClassification).toBe('UNAVAILABLE');
+    expect(joined[0]!.reasonCodes).toContain('NO_TEMPORAL_OVERLAP');
+    expect(joined[0]!.reasonCodes).not.toContain('AGGREGATE_ONLY_NO_POINT_RECONSTRUCTION');
+  });
+
+  it('conflicting duplicate timestamps yield AMBIGUOUS without min/median/max', () => {
+    const joined = joinDs4EventsWithRpmEvidenceV1(
+      buildInput({
+        rpmPoints: [
           { recordedAtIso: '2026-01-01T00:00:06.000Z', valueRpm: 1500 },
+          { recordedAtIso: '2026-01-01T00:00:06.000Z', valueRpm: 2500 },
           { recordedAtIso: '2026-01-01T00:00:07.000Z', valueRpm: 1600 },
         ],
-        invalidValueCount: 0,
-        duplicateTimestampCount: 0,
-      },
-    };
-    const joined = joinDs4EventsWithRpmEvidenceV1(input);
-    expect(joined[0]!.contextClassification).toBe('AVAILABLE');
-    expect(joined[0]!.observedRpmPointCountInWindow).toBeGreaterThan(0);
-    expect(joined[0]!.rpmMedian).not.toBeNull();
-    expect(joined[0]!.alignmentSensitivity.length).toBe(3);
+      }),
+    );
+    expect(joined[0]!.contextClassification).toBe('AMBIGUOUS');
+    expect(joined[0]!.rpmMin).toBeNull();
+    expect(joined[0]!.rpmMedian).toBeNull();
+    expect(joined[0]!.rpmMax).toBeNull();
+  });
+
+  it('uses half-open window — boundary at end exclusive', () => {
+    const window = parseHalfOpenEventWindowMs('2026-01-01T00:00:05.000Z', '2026-01-01T00:00:08.000Z');
+    expect(window).not.toBeNull();
+    const endExclusiveMs = window!.endExclusiveMs;
+    const support = computeEventTemporalSupportV1({
+      window: window!,
+      pointsInHalfOpenWindow: [],
+      cadenceTier: 'RPM_1S',
+    });
+    expect(support.observedPointCountInWindow).toBe(0);
+    const joined = joinDs4EventsWithRpmEvidenceV1(
+      buildInput({
+        rpmPoints: [{ recordedAtIso: new Date(endExclusiveMs).toISOString(), valueRpm: 1000 }],
+      }),
+    );
+    expect(joined[0]!.contextClassification).toBe('UNAVAILABLE');
+  });
+
+  it('empty manoeuvre list uses MOTION_RUN_NO_MANOEUVRES not MOTION_RUN_MISSING', () => {
+    const input = buildInput({ events: [] });
+    const validation = validateDs4RpmShadowCorrelationInput(input);
+    expect(validation.ok).toBe(false);
+    if (!validation.ok) {
+      expect(validation.reasonCodes).toContain('MOTION_RUN_NO_MANOEUVRES');
+      expect(validation.reasonCodes).not.toContain('MOTION_RUN_MISSING');
+    }
   });
 
   it('does not mutate DS4 event count', () => {
-    const input: Ds4RpmShadowCorrelationInputV1 = {
-      contractVersion: 'ds4-rpm-shadow-correlation-v1',
-      organizationId: 'org-a',
-      vehicleId: 'veh-a',
-      tripId: 'trip-a',
-      motion: { runId: 'm1' },
+    const input = buildInput({
+      v1b: null,
+      rpmSamples: null,
       events: [
         {
           kind: 'ACCELERATION',
@@ -201,10 +247,46 @@ describe('ds4-rpm-shadow-correlation temporal join', () => {
           flags: [],
         },
       ],
-      v1b: null,
-      rpmSamples: null,
-    };
+    });
     const joined = joinDs4EventsWithRpmEvidenceV1(input);
     expect(joined.length).toBe(2);
+  });
+});
+
+describe('ds4-rpm-shadow-correlation adversarial validation', () => {
+  it('rejects unproven motion run id', () => {
+    const input = buildInput({ motion: { runId: '   ' } });
+    const validation = validateDs4RpmShadowCorrelationInput(input);
+    expect(validation.ok).toBe(false);
+    if (!validation.ok) {
+      expect(validation.reasonCodes).toContain('MOTION_RUN_BINDING_UNPROVEN');
+    }
+  });
+
+  it('rejects fingerprint strings that do not match recompute', () => {
+    const input = buildInput();
+    const validation = validateDs4RpmShadowCorrelationInput(input, {
+      recomputedV1bInputFingerprint: 'different-fp',
+    });
+    expect(validation.ok).toBe(false);
+  });
+
+  it('classifier keeps gap-broken sequences as PARTIAL', () => {
+    const window = parseHalfOpenEventWindowMs('2026-01-01T00:00:05.000Z', '2026-01-01T00:00:10.000Z')!;
+    const support = computeEventTemporalSupportV1({
+      window,
+      pointsInHalfOpenWindow: [
+        { ms: Date.parse('2026-01-01T00:00:06.000Z'), value: 1000 },
+        { ms: Date.parse('2026-01-01T00:00:10.000Z'), value: 1100 },
+      ],
+      cadenceTier: 'RPM_1S',
+    });
+    const classification = classifyEventContextFromTemporalSupport({
+      hasValueConflicts: false,
+      hasDuplicateTimestamps: false,
+      temporalSupport: support,
+      eventDurationMs: window.durationMs,
+    });
+    expect(classification).toBe('PARTIAL');
   });
 });

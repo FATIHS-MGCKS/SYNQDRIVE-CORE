@@ -53,6 +53,42 @@ bash architecture/scripts/validate-module-registry.sh
 - **Production/main drift:** not evaluated in harness v1 (explicit unknown in manifest).
 - **Detection improvement:** **NOT CLAIMED** — descriptive context only.
 
+## REVIEW_HARDENING (2026-11-03, PR #2325 orchestrator)
+
+### BEFORE (pre-hardening head `c709368d2123b1f9d5b60a6fae7081e251cb4cc5`)
+
+- `AVAILABLE` could follow from a single RPM timestamp inside the DS4 window (inclusive end semantics).
+- `NO_TEMPORAL_OVERLAP` could become `PARTIAL` when trip-level V1B aggregates showed `validPointCount > 0`.
+- `alignmentUncertaintyMs` conflated observed sample span with source timestamp phase uncertainty.
+- Conflicting duplicate timestamps still emitted min/median/max from an arbitrary chosen value.
+- Provenance used algorithm bundle version as motion snapshot hash; fixture run/fingerprint strings were not recomputed from canonical V1A inputs.
+- Trip-global reference operating band appeared on per-event rows.
+- Empty manoeuvre list reported `MOTION_RUN_MISSING`.
+
+### AFTER (hardened harness)
+
+| Correction | Implementation |
+|------------|----------------|
+| Event coverage | Half-open event windows; `eventTemporalSupport` (point count, sample span, admitted sequence duration, missing intervals); `AVAILABLE` requires admitted multi-point continuous coverage without internal gaps — not a lone timestamp |
+| Time alignment | `sourceTimestampPhase: UNKNOWN`; `observedSampleSpanMs` separate; alignment offsets remain research diagnostics only |
+| Conflicts | `AMBIGUOUS` clears authoritative min/median/max |
+| Provenance | `motionSnapshotHashAttested: null`; V1B fingerprint via `computeDs4RpmHfV1bTierAwareInputFingerprint`; fail-closed binding validation; `evidenceKind: SYNTHETIC_FIXTURE` |
+| Context semantics | `tripLevelReferenceBand` at trip scope with `TRIP_LEVEL_AGGREGATE_NOT_EVENT_MEASURED` |
+| Edge cases | `MOTION_RUN_NO_MANOEUVRES`; malformed timestamp reason; binding unproven codes |
+| Scientific report | Cohort excludes negative controls from fixture prevalence (`defensibleContextShareFixtureScenariosExcludingNegativeControls`) |
+
+### Fixture cohort (post-hardening, SYNTHETIC_FIXTURE)
+
+- All events (incl. negative controls): **31.25%** defensible (`5/16`).
+- Fixture scenarios excluding negative controls: **41.67%** defensible (`5/12`).
+- Negative controls: **100%** `UNAVAILABLE` (no aggregate-only `PARTIAL`).
+
+### Remaining limitations (unchanged)
+
+- No production/CH loader; no independent motion snapshot attestation in fixture replay.
+- Source timestamp phase vs DIMO bucket labels remains **UNKNOWN**.
+- Descriptive coverage only — no accuracy uplift or fleet prevalence claims from fixtures.
+
 ## NON_EFFECTS
 
 - No Trip FSM, Driving Impact V1, Tire/Battery/Brakes, map DTO, Nest flags, migrations, or production writes.

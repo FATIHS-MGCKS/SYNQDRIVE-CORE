@@ -9,18 +9,36 @@ export type Ds4RpmShadowCorrelationValidationResult =
 
 export function validateDs4RpmShadowCorrelationInput(
   input: Ds4RpmShadowCorrelationInputV1,
+  options?: {
+    /** When supplied, fingerprint strings must match canonical recompute — not trusted alone. */
+    recomputedV1bInputFingerprint?: string | null;
+  },
 ): Ds4RpmShadowCorrelationValidationResult {
   const reasonCodes: Ds4RpmShadowCorrelationReasonCode[] = [];
+
+  if (!input.motion.runId?.trim()) {
+    reasonCodes.push('MOTION_RUN_BINDING_UNPROVEN');
+  }
+
+  if (input.events.length === 0) {
+    reasonCodes.push('MOTION_RUN_NO_MANOEUVRES');
+  }
 
   if (!input.v1b) {
     reasonCodes.push('V1B_RUN_MISSING');
   } else {
+    if (!input.v1b.runId?.trim()) {
+      reasonCodes.push('V1B_RUN_BINDING_UNPROVEN');
+    }
     if (
       input.v1b.summary.organizationId !== input.organizationId ||
       input.v1b.summary.vehicleId !== input.vehicleId ||
       input.v1b.summary.tripId !== input.tripId
     ) {
       reasonCodes.push('TENANCY_MISMATCH');
+    }
+    if (input.v1b.summary.tripId !== input.tripId) {
+      reasonCodes.push('TRIP_ID_MISMATCH');
     }
     if (input.v1b.summary.processingOutcome !== 'SUCCEEDED') {
       reasonCodes.push('V1B_NOT_SUCCEEDED');
@@ -31,13 +49,19 @@ export function validateDs4RpmShadowCorrelationInput(
     if (input.v1b.inputFingerprint !== input.v1b.summary.inputFingerprint) {
       reasonCodes.push('RPM_SAMPLE_FINGERPRINT_MISMATCH');
     }
+    if (
+      options?.recomputedV1bInputFingerprint != null &&
+      options.recomputedV1bInputFingerprint !== input.v1b.inputFingerprint
+    ) {
+      reasonCodes.push('RPM_SAMPLE_FINGERPRINT_MISMATCH');
+    }
   }
 
   if (!input.rpmSamples) {
     reasonCodes.push('RPM_SAMPLE_EVIDENCE_MISSING');
   } else {
-    if (input.rpmSamples.points.length === 0 && input.v1b?.summary.rpmValues.validPointCount === 0) {
-      // allowed — missing HF path
+    if (!input.rpmSamples.inputFingerprint?.trim()) {
+      reasonCodes.push('RPM_SAMPLE_BINDING_UNPROVEN');
     }
     if (
       input.v1b &&
@@ -53,10 +77,12 @@ export function validateDs4RpmShadowCorrelationInput(
     ) {
       reasonCodes.push('RPM_SAMPLE_FINGERPRINT_MISMATCH');
     }
-  }
-
-  if (input.events.length === 0) {
-    reasonCodes.push('MOTION_RUN_MISSING');
+    if (
+      options?.recomputedV1bInputFingerprint != null &&
+      input.rpmSamples.inputFingerprint !== options.recomputedV1bInputFingerprint
+    ) {
+      reasonCodes.push('RPM_SAMPLE_FINGERPRINT_MISMATCH');
+    }
   }
 
   if (reasonCodes.length === 0) {

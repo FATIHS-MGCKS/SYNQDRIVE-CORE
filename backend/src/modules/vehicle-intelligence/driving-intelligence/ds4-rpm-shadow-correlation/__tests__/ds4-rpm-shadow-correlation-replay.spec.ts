@@ -25,14 +25,13 @@ describe('ds4-rpm-shadow-correlation replay cohort', () => {
     expect(report.ds4OnlyBaseline.intensityEligibleNote).toBe('UNCHANGED_BY_HARNESS');
   });
 
-  it('negative controls fail closed', () => {
+  it('negative controls fail closed without PARTIAL from trip aggregates', () => {
     const tenant = replayDs4RpmShadowCorrelationScenario('TENANT_MISMATCH_NEGATIVE', { codeSha });
     expect(tenant.summary.byContextClassification.UNAVAILABLE).toBe(tenant.summary.totalEvents);
 
     const shift = replayDs4RpmShadowCorrelationScenario('RPM_TIMESTAMP_SHIFT_NEGATIVE', { codeSha });
-    expect(shift.summary.byContextClassification.UNAVAILABLE + shift.summary.byContextClassification.PARTIAL).toBe(
-      shift.summary.totalEvents,
-    );
+    expect(shift.summary.byContextClassification.UNAVAILABLE).toBe(shift.summary.totalEvents);
+    expect(shift.summary.byContextClassification.PARTIAL).toBe(0);
   });
 
   it('builds cohort summary with dataset gaps declared', () => {
@@ -45,6 +44,7 @@ describe('ds4-rpm-shadow-correlation replay cohort', () => {
       datasetGaps: [...DS4_RPM_SHADOW_CORRELATION_DATASET_GAPS],
       codeSha,
       generatedAt: new Date('2026-11-03T12:00:00.000Z'),
+      evidenceKind: 'SYNTHETIC_FIXTURE',
     });
     expect(cohort.aggregate.tripCount).toBe(DS4_RPM_SHADOW_CORRELATION_SCENARIO_IDS.length);
     expect(cohort.aggregate.datasetGaps.length).toBeGreaterThan(0);

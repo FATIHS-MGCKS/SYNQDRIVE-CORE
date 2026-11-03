@@ -44,6 +44,7 @@ function main(): void {
     datasetGaps: [...DS4_RPM_SHADOW_CORRELATION_DATASET_GAPS],
     codeSha,
     generatedAt,
+    evidenceKind: 'SYNTHETIC_FIXTURE',
   });
 
   writeFileSync(join(OUT_DIR, 'cohort-summary.json'), JSON.stringify(cohort, null, 2));
