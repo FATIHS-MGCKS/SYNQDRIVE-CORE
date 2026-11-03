@@ -3,6 +3,10 @@ import type {
   Ds4RpmShadowCorrelationEffectiveCadenceSource,
   Ds4RpmShadowCorrelationEventTemporalSupportV1,
 } from './ds4-rpm-shadow-correlation-v1.contract';
+import {
+  DS4_RPM_SHADOW_CORRELATION_GAP_DEFICIENCY_ZERO_SEMANTICS,
+  DS4_RPM_SHADOW_CORRELATION_MISSING_INTERVAL_ALIAS_SEMANTICS,
+} from './ds4-rpm-shadow-correlation-v1.contract';
 
 export const DS4_RPM_SHADOW_CORRELATION_EVENT_WINDOW_HALF_OPEN_NOTE =
   '[startLabelUtcMs, endLabelUtcMsExclusive) where endLabelUtcMsExclusive = parseBucketLabelMs(endLabel) + 1000ms';
@@ -52,6 +56,28 @@ function nominalTierCadenceSeconds(tier: 'RPM_1S' | 'RPM_2S' | 'RPM_3S' | null):
   if (tier === 'RPM_3S') return 3;
   if (tier === 'RPM_1S') return 1;
   return null;
+}
+
+/**
+ * Trip-level VSI tier remains authoritative; local event spacing may be coarser without
+ * inventing finer measurement coverage.
+ */
+export function localEventCadenceCoarserThanVsiTierNominal(input: {
+  authoritativeCadenceTier: 'RPM_1S' | 'RPM_2S' | 'RPM_3S';
+  effectiveInterPointCadenceSeconds: number | null;
+  effectiveCadenceSource: Ds4RpmShadowCorrelationEffectiveCadenceSource;
+}): boolean {
+  if (input.effectiveCadenceSource !== 'OBSERVED_MEDIAN_IN_WINDOW') {
+    return false;
+  }
+  if (input.effectiveInterPointCadenceSeconds == null) {
+    return false;
+  }
+  const nominal = nominalTierCadenceSeconds(input.authoritativeCadenceTier);
+  if (nominal == null) {
+    return false;
+  }
+  return input.effectiveInterPointCadenceSeconds > nominal + 1e-9;
 }
 
 export type WindowRelativeGapMetrics = {
@@ -190,6 +216,9 @@ function buildTemporalSupportBase(input: {
     supportedDurationMs: input.longest.seq != null ? input.longest.spanMs : null,
     continuousSequenceCountInWindow: input.sequences.length,
     gapDeficiencySeconds: input.gapMetrics.gapDeficiencySeconds,
+    gapDeficiencyZeroSemantics: DS4_RPM_SHADOW_CORRELATION_GAP_DEFICIENCY_ZERO_SEMANTICS,
+    missingIntervalSecondsInWindowAliasSemantics:
+      DS4_RPM_SHADOW_CORRELATION_MISSING_INTERVAL_ALIAS_SEMANTICS,
     leadGapSeconds: input.gapMetrics.leadGapSeconds,
     trailGapSeconds: input.gapMetrics.trailGapSeconds,
     maxInternalGapSeconds: input.gapMetrics.maxInternalGapSeconds,
@@ -303,6 +332,16 @@ export function classifyEventContextFromTemporalSupport(input: {
   if (
     input.temporalSupport.effectiveCadenceSource === 'UNKNOWN' &&
     input.temporalSupport.observedPointCountInWindow >= 2
+  ) {
+    return 'PARTIAL';
+  }
+  if (
+    input.temporalSupport.authoritativeCadenceTierForCoverage != null &&
+    localEventCadenceCoarserThanVsiTierNominal({
+      authoritativeCadenceTier: input.temporalSupport.authoritativeCadenceTierForCoverage,
+      effectiveInterPointCadenceSeconds: input.temporalSupport.effectiveInterPointCadenceSeconds,
+      effectiveCadenceSource: input.temporalSupport.effectiveCadenceSource,
+    })
   ) {
     return 'PARTIAL';
   }

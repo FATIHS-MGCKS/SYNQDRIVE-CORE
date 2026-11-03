@@ -4,7 +4,7 @@ import {
   buildAlignmentOffsetSecondsProbes,
   buildDs4RpmShadowCorrelationAlignmentEnvelopeSemantics,
   computeAlignmentClassificationStability,
-  computeRobustDirectionSign,
+  computeTheilSenDirectionSign,
 } from './ds4-rpm-shadow-correlation-alignment-envelope.v1';
 import {
   isIceRpmEventContextBlocked,
@@ -28,12 +28,18 @@ import {
   classifyEventContextFromTemporalSupport,
   computeEventTemporalSupportV1,
   isDefensibleCadenceContext,
+  localEventCadenceCoarserThanVsiTierNominal,
   parseHalfOpenEventWindowMs,
   resolveAuthoritativeCadenceTierForCoverage,
 } from './ds4-rpm-shadow-correlation-event-temporal-support.v1';
 import type { Ds4RpmShadowCorrelationProvenanceGateV1 } from './ds4-rpm-shadow-correlation-provenance-gate.v1';
 import { validateDs4RpmShadowCorrelationProvenanceGate } from './ds4-rpm-shadow-correlation-provenance-gate.v1';
 import { DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS } from './ds4-rpm-shadow-correlation-v1.contract';
+import {
+  DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_METHOD,
+  DS4_RPM_SHADOW_CORRELATION_GAP_DEFICIENCY_ZERO_SEMANTICS,
+  DS4_RPM_SHADOW_CORRELATION_MISSING_INTERVAL_ALIAS_SEMANTICS,
+} from './ds4-rpm-shadow-correlation-v1.contract';
 
 const SOURCE_TIMESTAMP_PHASE: Ds4RpmShadowCorrelationSourceTimestampPhase = 'UNKNOWN';
 
@@ -55,6 +61,9 @@ function emptyTemporalSupport(): Ds4RpmShadowCorrelationEventTemporalSupportV1 {
     supportedDurationMs: null,
     continuousSequenceCountInWindow: 0,
     gapDeficiencySeconds: 0,
+    gapDeficiencyZeroSemantics: DS4_RPM_SHADOW_CORRELATION_GAP_DEFICIENCY_ZERO_SEMANTICS,
+    missingIntervalSecondsInWindowAliasSemantics:
+      DS4_RPM_SHADOW_CORRELATION_MISSING_INTERVAL_ALIAS_SEMANTICS,
     leadGapSeconds: 0,
     trailGapSeconds: 0,
     maxInternalGapSeconds: 0,
@@ -73,9 +82,10 @@ function emptyTemporalSupport(): Ds4RpmShadowCorrelationEventTemporalSupportV1 {
 function emptyDescriptiveStats(): Ds4RpmShadowCorrelationDescriptiveRpmStatsV1 {
   return {
     orderStatisticsSemantics: DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS,
+    directionEstimateMethod: DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_METHOD,
     rpmFirstObserved: null,
     rpmLastObserved: null,
-    rpmDelta: null,
+    rpmEndpointDelta: null,
     robustDirectionSign: 'ABSTAIN_INSUFFICIENT_SUPPORT',
     directionAbstainReason: 'INSUFFICIENT_OBSERVATIONS_FOR_DIRECTION',
   };
@@ -93,34 +103,38 @@ function emptyAlignmentEnvelope(): Ds4RpmShadowCorrelationAlignmentEnvelopeV1 {
     offsetDerivationNote: semantics.offsetDerivationNote,
     classificationStableAcrossEnvelope: false,
     directionSignStableAcrossEnvelope: false,
+    directionSignEnvelopeStability: 'NOT_ASSESSABLE',
   };
 }
 
-function buildDescriptiveStats(
-  authoritativeValues: number[],
-  hasValueConflicts: boolean,
-): Ds4RpmShadowCorrelationDescriptiveRpmStatsV1 {
-  const direction = computeRobustDirectionSign({
-    values: authoritativeValues,
-    hasValueConflicts,
+function buildDescriptiveStats(input: {
+  timeOrderedSeries: ReadonlyArray<{ tMs: number; valueRpm: number }>;
+  hasValueConflicts: boolean;
+}): Ds4RpmShadowCorrelationDescriptiveRpmStatsV1 {
+  const direction = computeTheilSenDirectionSign({
+    series: input.timeOrderedSeries,
+    hasValueConflicts: input.hasValueConflicts,
   });
-  if (authoritativeValues.length === 0) {
+  if (input.timeOrderedSeries.length === 0) {
     return {
       orderStatisticsSemantics: DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS,
+      directionEstimateMethod: DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_METHOD,
       rpmFirstObserved: null,
       rpmLastObserved: null,
-      rpmDelta: null,
+      rpmEndpointDelta: null,
       robustDirectionSign: direction.robustDirectionSign,
       directionAbstainReason: direction.directionAbstainReason,
     };
   }
-  const first = authoritativeValues[0]!;
-  const last = authoritativeValues[authoritativeValues.length - 1]!;
+  const sorted = [...input.timeOrderedSeries].sort((a, b) => a.tMs - b.tMs);
+  const first = sorted[0]!.valueRpm;
+  const last = sorted[sorted.length - 1]!.valueRpm;
   return {
     orderStatisticsSemantics: DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS,
+    directionEstimateMethod: DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_METHOD,
     rpmFirstObserved: first,
     rpmLastObserved: last,
-    rpmDelta: last - first,
+    rpmEndpointDelta: last - first,
     robustDirectionSign: direction.robustDirectionSign,
     directionAbstainReason: direction.directionAbstainReason,
   };
@@ -241,14 +255,17 @@ function classifyPointsInHalfOpenWindow(input: {
       temporalSupport,
       malformedTimestampCount,
       hasValueConflicts: true,
-      descriptiveRpmStats: buildDescriptiveStats([], true),
+      descriptiveRpmStats: buildDescriptiveStats({ timeOrderedSeries: [], hasValueConflicts: true }),
     };
   }
 
   const sortedMs = [...byTs.keys()].sort((a, b) => a - b);
   const authoritativeValues: number[] = [];
+  const timeOrderedSeries: Array<{ tMs: number; valueRpm: number }> = [];
   for (const ms of sortedMs) {
-    authoritativeValues.push(byTs.get(ms)![0]!);
+    const valueRpm = byTs.get(ms)![0]!;
+    authoritativeValues.push(valueRpm);
+    timeOrderedSeries.push({ tMs: ms, valueRpm });
   }
 
   let classification = classifyEventContextFromTemporalSupport({
@@ -268,7 +285,18 @@ function classifyPointsInHalfOpenWindow(input: {
   }
 
   if (classification === 'PARTIAL') {
-    reasonCodes.push('INSUFFICIENT_ADMITTED_TEMPORAL_SUPPORT');
+    if (
+      temporalSupport.authoritativeCadenceTierForCoverage != null &&
+      localEventCadenceCoarserThanVsiTierNominal({
+        authoritativeCadenceTier: temporalSupport.authoritativeCadenceTierForCoverage,
+        effectiveInterPointCadenceSeconds: temporalSupport.effectiveInterPointCadenceSeconds,
+        effectiveCadenceSource: temporalSupport.effectiveCadenceSource,
+      })
+    ) {
+      reasonCodes.push('LOCAL_EVENT_CADENCE_COARSER_THAN_VSI_TIER');
+    } else {
+      reasonCodes.push('INSUFFICIENT_ADMITTED_TEMPORAL_SUPPORT');
+    }
   }
 
   return {
@@ -278,7 +306,7 @@ function classifyPointsInHalfOpenWindow(input: {
     temporalSupport,
     malformedTimestampCount,
     hasValueConflicts: false,
-    descriptiveRpmStats: buildDescriptiveStats(authoritativeValues, false),
+    descriptiveRpmStats: buildDescriptiveStats({ timeOrderedSeries, hasValueConflicts: false }),
   };
 }
 
@@ -340,6 +368,7 @@ function buildAlignmentSensitivity(input: {
       offsetDerivationNote: semantics.offsetDerivationNote,
       classificationStableAcrossEnvelope: stability.classificationStableAcrossEnvelope,
       directionSignStableAcrossEnvelope: stability.directionSignStableAcrossEnvelope,
+      directionSignEnvelopeStability: stability.directionSignEnvelopeStability,
     },
   };
 }

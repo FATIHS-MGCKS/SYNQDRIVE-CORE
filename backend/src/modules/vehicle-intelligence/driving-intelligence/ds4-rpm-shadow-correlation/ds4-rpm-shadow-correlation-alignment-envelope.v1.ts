@@ -1,5 +1,8 @@
 import type { Ds4RpmShadowCorrelationAlignmentDiagnosticV1 } from './ds4-rpm-shadow-correlation-v1.contract';
-import type { Ds4RpmShadowCorrelationRobustDirectionSign } from './ds4-rpm-shadow-correlation-v1.contract';
+import type {
+  Ds4RpmShadowCorrelationDirectionSignEnvelopeStability,
+  Ds4RpmShadowCorrelationRobustDirectionSign,
+} from './ds4-rpm-shadow-correlation-v1.contract';
 
 /** Matches motion-event-detector UNCERTAINTY_LABEL (±1 s label; clock offset unvalidated). */
 export const DS4_RPM_SHADOW_CORRELATION_DS4_LABEL_UNCERTAINTY_SECONDS = 1;
@@ -70,8 +73,18 @@ export function buildAlignmentOffsetSecondsProbes(input: {
   return [...offsets].sort((a, b) => a - b);
 }
 
-export function computeRobustDirectionSign(input: {
-  values: readonly number[];
+export type TimeOrderedRpmSample = { tMs: number; valueRpm: number };
+
+function isAbstainDirectionSign(sign: Ds4RpmShadowCorrelationRobustDirectionSign): boolean {
+  return sign.startsWith('ABSTAIN');
+}
+
+/**
+ * Theil–Sen sign estimator: median of pairwise slopes (Δrpm / Δt) over time-ordered samples.
+ * No calibrated thresholds — sign of median slope only.
+ */
+export function computeTheilSenDirectionSign(input: {
+  series: readonly TimeOrderedRpmSample[];
   hasValueConflicts: boolean;
 }): {
   robustDirectionSign: Ds4RpmShadowCorrelationRobustDirectionSign;
@@ -83,23 +96,43 @@ export function computeRobustDirectionSign(input: {
       directionAbstainReason: 'CONFLICTING_RPM_VALUES_IN_WINDOW',
     };
   }
-  if (input.values.length < 2) {
+  const sorted = [...input.series].sort((a, b) => a.tMs - b.tMs);
+  if (sorted.length < 2) {
     return {
       robustDirectionSign: 'ABSTAIN_INSUFFICIENT_SUPPORT',
       directionAbstainReason: 'INSUFFICIENT_OBSERVATIONS_FOR_DIRECTION',
     };
   }
-  const first = input.values[0]!;
-  const last = input.values[input.values.length - 1]!;
-  const delta = last - first;
-  if (delta > 0) {
+
+  const slopes: number[] = [];
+  for (let i = 0; i < sorted.length; i += 1) {
+    for (let j = i + 1; j < sorted.length; j += 1) {
+      const dtSec = (sorted[j]!.tMs - sorted[i]!.tMs) / 1000;
+      if (dtSec <= 0) continue;
+      slopes.push((sorted[j]!.valueRpm - sorted[i]!.valueRpm) / dtSec);
+    }
+  }
+  if (slopes.length === 0) {
+    return {
+      robustDirectionSign: 'ABSTAIN_INSUFFICIENT_SUPPORT',
+      directionAbstainReason: 'INSUFFICIENT_OBSERVATIONS_FOR_DIRECTION',
+    };
+  }
+  slopes.sort((a, b) => a - b);
+  const mid = Math.floor(slopes.length / 2);
+  const medianSlope =
+    slopes.length % 2 === 0 ? (slopes[mid - 1]! + slopes[mid]!) / 2 : slopes[mid]!;
+  if (medianSlope > 0) {
     return { robustDirectionSign: 'INCREASING', directionAbstainReason: null };
   }
-  if (delta < 0) {
+  if (medianSlope < 0) {
     return { robustDirectionSign: 'DECREASING', directionAbstainReason: null };
   }
   return { robustDirectionSign: 'FLAT', directionAbstainReason: null };
 }
+
+/** @deprecated alias — use computeTheilSenDirectionSign */
+export const computeRobustDirectionSign = computeTheilSenDirectionSign;
 
 export function computeAlignmentClassificationStability(input: {
   diagnostics: ReadonlyArray<
@@ -111,18 +144,29 @@ export function computeAlignmentClassificationStability(input: {
 }): {
   classificationStableAcrossEnvelope: boolean;
   directionSignStableAcrossEnvelope: boolean;
+  directionSignEnvelopeStability: Ds4RpmShadowCorrelationDirectionSignEnvelopeStability;
 } {
   if (input.diagnostics.length === 0) {
-    return { classificationStableAcrossEnvelope: false, directionSignStableAcrossEnvelope: false };
+    return {
+      classificationStableAcrossEnvelope: false,
+      directionSignStableAcrossEnvelope: false,
+      directionSignEnvelopeStability: 'NOT_ASSESSABLE',
+    };
   }
   const classifications = new Set(input.diagnostics.map((d) => d.classification));
-  const directions = new Set(
-    input.diagnostics
-      .map((d) => d.robustDirectionSign)
-      .filter((s) => !s.startsWith('ABSTAIN')),
-  );
+  const assessable = input.diagnostics.filter((d) => !isAbstainDirectionSign(d.robustDirectionSign));
+  if (assessable.length === 0) {
+    return {
+      classificationStableAcrossEnvelope: classifications.size === 1,
+      directionSignStableAcrossEnvelope: false,
+      directionSignEnvelopeStability: 'NOT_ASSESSABLE',
+    };
+  }
+  const directions = new Set(assessable.map((d) => d.robustDirectionSign));
+  const directionStable = directions.size === 1;
   return {
     classificationStableAcrossEnvelope: classifications.size === 1,
-    directionSignStableAcrossEnvelope: directions.size <= 1,
+    directionSignStableAcrossEnvelope: directionStable,
+    directionSignEnvelopeStability: directionStable ? 'STABLE_ASSESSED' : 'UNSTABLE_ASSESSED',
   };
 }

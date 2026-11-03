@@ -2657,6 +2657,16 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** V1B/VSI/DS4 motion changes; **no** ratio/gear library |
 | EVIDENCE | [DS4_RPM_FABLE_SCIENTIFIC_FOUNDATION_PR_A_2026-11-03.md](../evidence/DS4_RPM_FABLE_SCIENTIFIC_FOUNDATION_PR_A_2026-11-03.md) |
 
+### 2026-11-03 — PR #2328 final scientific hardening (stacked on PR-A / #2325)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Local cadence vs VSI tier gate; Theil–Sen direction sign; NOT_ASSESSABLE envelope stability; coverage semantics constants + adversarial tests |
+| VALIDATION | `test:di:ds4-rpm-shadow-correlation` 36/36; ds4-assessment / rpm-ref-intel / V1B; backend tsc; production DB guard entrypoints; registry validator |
+| OBSERVED | Fixture cohort unchanged (37.5% / 50% excl. negative controls) |
+| NON_EFFECTS | **No** DS4 speed/event algorithms; **no** V1B admission changes |
+| EVIDENCE | Same PR-A evidence doc — **PR2328 hardening** section |
+
 | CHANGE | Trips module releases `diV0BoundaryAdmissionV1` after committed `PARTIAL_TRIP_BOUNDARY_EXTENSION`; S4 discovery eligibility unchanged (still requires matching admission revision) |
 | WHY | Post-repair `boundaryRefresh` PENDING blocked `canRelease`; Tiguan canonical trip never received admission via boundary-scanned release path |
 | VALIDATION | `trip-di-boundary-admission.unit.spec.ts`; postgres harness when live |

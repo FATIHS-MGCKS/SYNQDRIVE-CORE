@@ -82,6 +82,19 @@ cd backend && npx ts-node --transpile-only scripts/research/ds4-rpm-shadow-corre
 
 28/28 harness tests passing at PR-A authoring time.
 
+## PR #2328 final scientific hardening (2026-11-03)
+
+| Concern | Resolution |
+|---------|------------|
+| Local 2 s spacing vs `RPM_1S` VSI tier | `localEventCadenceCoarserThanVsiTierNominal` blocks `AVAILABLE` when observed median interval > tier nominal; reason `LOCAL_EVENT_CADENCE_COARSER_THAN_VSI_TIER` on join |
+| Direction estimator | `computeTheilSenDirectionSign` (median pairwise slope sign); contract `directionEstimateMethod: THEIL_SEN_MEDIAN_PAIRWISE_SLOPE_SIGN_V1` |
+| Envelope stability | All-offset ABSTAIN → `directionSignStableAcrossEnvelope: false`, `directionSignEnvelopeStability: NOT_ASSESSABLE` |
+| `gapDeficiencySeconds=0` | Explicit `gapDeficiencyZeroSemantics` + legacy alias semantics; `rpmObservationSupportWidthSeconds: UNKNOWN` unchanged |
+
+**Tests:** `test:di:ds4-rpm-shadow-correlation` **36/36** (includes `ds4-rpm-shadow-correlation-pr2328-hardening.spec.ts`).
+
+**Fixture cohort after hardening:** unchanged vs PR-A — **37.5% (6/16)**, **50% (6/12)** excl. negative-control scenarios.
+
 ## Non-effects
 
 - DS4 manoeuvre event counts unchanged.

@@ -48,7 +48,8 @@ export type Ds4RpmShadowCorrelationReasonCode =
   | 'ICE_RPM_EVENT_APPLICABILITY_UNKNOWN'
   | 'R1_HISTORICAL_OBD_POINT_TIME_CORRELATION_PROHIBITED'
   | 'SOURCE_FAMILY_BINDING_UNPROVEN'
-  | 'ZERO_RPM_OBSERVED_NOT_ENGINE_OFF_INFERENCE';
+  | 'ZERO_RPM_OBSERVED_NOT_ENGINE_OFF_INFERENCE'
+  | 'LOCAL_EVENT_CADENCE_COARSER_THAN_VSI_TIER';
 
 export type Ds4RpmShadowCorrelationRpmSampleEvidenceV1 = {
   source: 'V1A_TRIP_INPUT' | 'PINNED_FIXTURE' | 'AUTHORIZED_CLICKHOUSE_READ';
@@ -80,11 +81,31 @@ export type Ds4RpmShadowCorrelationRobustDirectionSign =
 export const DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS =
   'DESCRIPTIVE_ORDER_STATISTICS_NOT_TRANSIENT_RESPONSE_PROOF' as const;
 
+export const DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_METHOD =
+  'THEIL_SEN_PAIRWISE_SLOPE_SIGN_V1' as const;
+
+export type Ds4RpmShadowCorrelationDirectionSignEnvelopeStability =
+  | 'STABLE_ASSESSED'
+  | 'UNSTABLE_ASSESSED'
+  | 'NOT_ASSESSABLE';
+
+export const DS4_RPM_SHADOW_CORRELATION_GAP_DEFICIENCY_ZERO_SEMANTICS =
+  'ZERO_OBSERVATION_SPACING_VS_LOCAL_CADENCE_NOT_PHYSICAL_SENSOR_COVERAGE' as const;
+
+export const DS4_RPM_SHADOW_CORRELATION_MISSING_INTERVAL_ALIAS_SEMANTICS =
+  'LEGACY_ALIAS_EQUALS_gapDeficiencySeconds_NOT_EPOCH_GRID_MISSING' as const;
+
 export type Ds4RpmShadowCorrelationDescriptiveRpmStatsV1 = {
   orderStatisticsSemantics: typeof DS4_RPM_SHADOW_CORRELATION_RPM_ORDER_STATISTICS_SEMANTICS;
+  directionEstimateMethod: typeof DS4_RPM_SHADOW_CORRELATION_DIRECTION_ESTIMATE_METHOD;
   rpmFirstObserved: number | null;
   rpmLastObserved: number | null;
-  rpmDelta: number | null;
+  /** Time-ordered endpoint delta (rpm); not a transient-response proof. */
+  rpmEndpointDelta: number | null;
+  /**
+   * Sign from Theil–Sen median pairwise slope over time-ordered samples (research diagnostic).
+   * Name retained for contract stability; not endpoint-only.
+   */
   robustDirectionSign: Ds4RpmShadowCorrelationRobustDirectionSign;
   directionAbstainReason: string | null;
 };
@@ -98,7 +119,9 @@ export type Ds4RpmShadowCorrelationAlignmentEnvelopeV1 = {
   offsetSecondsProbed: readonly number[];
   offsetDerivationNote: string;
   classificationStableAcrossEnvelope: boolean;
+  /** True only when ≥1 offset yields a non-ABSTAIN direction sign and all such signs agree. */
   directionSignStableAcrossEnvelope: boolean;
+  directionSignEnvelopeStability: Ds4RpmShadowCorrelationDirectionSignEnvelopeStability;
 };
 
 export type Ds4RpmShadowCorrelationMotionRunRefV1 = {
@@ -155,6 +178,8 @@ export type Ds4RpmShadowCorrelationEventTemporalSupportV1 = {
   continuousSequenceCountInWindow: number;
   /** Window-relative gap deficiency (translation invariant). Legacy alias semantics for `missingIntervalSecondsInWindow`. */
   gapDeficiencySeconds: number;
+  gapDeficiencyZeroSemantics: typeof DS4_RPM_SHADOW_CORRELATION_GAP_DEFICIENCY_ZERO_SEMANTICS;
+  missingIntervalSecondsInWindowAliasSemantics: typeof DS4_RPM_SHADOW_CORRELATION_MISSING_INTERVAL_ALIAS_SEMANTICS;
   leadGapSeconds: number;
   trailGapSeconds: number;
   maxInternalGapSeconds: number;
