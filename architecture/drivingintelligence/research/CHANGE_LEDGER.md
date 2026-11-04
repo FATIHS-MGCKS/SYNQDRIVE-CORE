@@ -2687,6 +2687,16 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** production/DIMO/CH reads; **no** schema; **no** workers; **no** DS4/V1B/VSI authority edits |
 | EVIDENCE | [DS4_RPM_REAL_DATA_PR_B2_OFFLINE_EXECUTOR_2026-11-04.md](../evidence/DS4_RPM_REAL_DATA_PR_B2_OFFLINE_EXECUTOR_2026-11-04.md) |
 
+### 2026-11-04 — DS4 × RPM real-data PR-B3 attestation & pilot read boundary
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Source attestation contracts; orthogonal eligibility dimensions; pilot read authorization gate (design); readiness matrix |
+| WHY | Defensible real-vehicle attestation before any owner-authorized live read pilot |
+| VALIDATION | `test:di:ds4-rpm-real-data-attestation`; PR-B1/B2 replay regression; registry validator |
+| NON_EFFECTS | **No** production/DIMO/CH reads; **no** workers/flags/schema; **no** DS4/V1B/VSI authority changes |
+| EVIDENCE | [DS4_RPM_REAL_DATA_PR_B3_ATTESTATION_BOUNDARY_2026-11-04.md](../evidence/DS4_RPM_REAL_DATA_PR_B3_ATTESTATION_BOUNDARY_2026-11-04.md) |
+
 | CHANGE | Trips module releases `diV0BoundaryAdmissionV1` after committed `PARTIAL_TRIP_BOUNDARY_EXTENSION`; S4 discovery eligibility unchanged (still requires matching admission revision) |
 | WHY | Post-repair `boundaryRefresh` PENDING blocked `canRelease`; Tiguan canonical trip never received admission via boundary-scanned release path |
 | VALIDATION | `trip-di-boundary-admission.unit.spec.ts`; postgres harness when live |
