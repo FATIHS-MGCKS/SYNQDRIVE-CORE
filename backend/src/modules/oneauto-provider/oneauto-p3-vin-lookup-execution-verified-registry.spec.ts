@@ -1,5 +1,6 @@
 import {
   buildExecutionVerifiedOeVinLookupEu,
+  buildExecutionVerifiedOeVinLookupEuFullDataCallback,
   ONEAUTO_EXECUTION_VERIFIED_SKUS_READONLY,
   ONEAUTO_P4_VIN_LOOKUP_EU_PRICING_SOURCE_VERSION,
   seedOneAutoExecutionVerifiedRegistry,
@@ -22,6 +23,13 @@ describe('OneAuto P3/P4 OE_VIN_LOOKUP_EU execution-verified registry', () => {
     expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_SERVICE_HISTORY_EU')).toBe(
       false,
     );
+  });
+
+  it('seeds OE_VIN_LOOKUP_EU with E4 CALLBACK_FULL_DATA async completion (flags still gate runtime)', () => {
+    const entry = buildExecutionVerifiedOeVinLookupEuFullDataCallback();
+    expect(entry.asyncCompletionMode).toBe('CALLBACK_FULL_DATA');
+    expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.get('OE_VIN_LOOKUP_EU')!
+      .asyncCompletionMode).toBe('CALLBACK_FULL_DATA');
   });
 
   it('fail-closes async poll and 206 success; async-capable classification (P4)', () => {

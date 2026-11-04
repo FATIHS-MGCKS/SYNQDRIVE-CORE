@@ -113,9 +113,15 @@
 
 - **Scope:** `CALLBACK_FULL_DATA` completion path for `OE_VIN_LOOKUP_EU` — initial GET with `return_data_in_callback=true`, job completes on validated callback POST without retrieval GET.
 - **Evidence:** `architecture/oneauto-provider/evidence/P4_E4_FULL_DATA_CALLBACK_V1.md`
-- **Flags (default OFF):** `ONEAUTO_CALLBACK_FULL_DATA_ENABLED` (decoupled from `ONEAUTO_CALLBACK_RETRIEVAL_GET_ENABLED`); production registry seed remains `asyncCompletionMode=NONE`.
-- **Non-effects:** No production activation without attestation + registry promotion; no migrations.
-- **Tests:** `oneauto-p4-e4-full-data-callback.spec.ts`, `oneauto-callback-full-data.util.ts`
+- **Flags (default OFF):** `ONEAUTO_CALLBACK_FULL_DATA_ENABLED` (decoupled from `ONEAUTO_CALLBACK_RETRIEVAL_GET_ENABLED`); registry seed promoted to `CALLBACK_FULL_DATA` (runtime still OFF until callback env flags).
+- **Non-effects:** No live activation without env flags + owner attestation; no migrations.
+- **Tests:** `oneauto-p4-e4-full-data-callback.spec.ts`, `oneauto-p4-e4-registry-promotion.spec.ts`, `oneauto-callback-full-data.util.ts`
+
+## P4 E4-R — registry seed promotion CALLBACK_FULL_DATA (2026-11-04)
+
+- **Scope:** `seedOneAutoExecutionVerifiedRegistry()` uses `buildExecutionVerifiedOeVinLookupEuFullDataCallback()`; env callback flags unchanged default OFF.
+- **Evidence:** `P4_E4_FULL_DATA_CALLBACK_V1.md` (updated)
+- **Tests:** `oneauto-p4-e4-registry-promotion.spec.ts`, P3 registry spec assertion
 
 ## P2.5E-P1 hardening — capture field coverage & safe publish (2026-11-02)
 
