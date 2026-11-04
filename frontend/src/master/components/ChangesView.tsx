@@ -36,6 +36,25 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'oneauto-p4-e4-registry-promotion-2026-11-04',
+    version: '4.9.5024',
+    title: 'One Auto P4 E4-R — registry seed CALLBACK_FULL_DATA (flags still OFF)',
+    summary: [
+      'Promotes execution-verified seed for `OE_VIN_LOOKUP_EU` from `asyncCompletionMode=NONE` to `CALLBACK_FULL_DATA` via existing builder.',
+      'Runtime fail-closed unchanged: no `callback_url` until `ONEAUTO_CALLBACK_ENABLED` + `ONEAUTO_CALLBACK_FULL_DATA_ENABLED`; no retrieval GET in full-data mode.',
+      'Tests: `oneauto-p4-e4-registry-promotion.spec.ts`; evidence `P4_E4_FULL_DATA_CALLBACK_V1.md`.',
+    ],
+    reason:
+      'Prepare controlled production E4 live test after code deploy — registry promotion alone does not activate provider callbacks.',
+    previousBehavior:
+      'Registry seed `NONE`; full-data path required manual Map override in tests only.',
+    details:
+      'backend: oneauto-execution-verified-registry.ts seed only; no env or production activation in this change.',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-11-04T11:35:00.000Z',
+  },
+  {
     id: 'oneauto-p4-e4-full-data-callback-2026-11-04',
     version: '4.9.5023',
     title: 'One Auto P4 E4 — OE_VIN_LOOKUP_EU full-data callback completion (draft)',

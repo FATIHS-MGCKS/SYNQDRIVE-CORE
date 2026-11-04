@@ -17,11 +17,7 @@ const P4_VIN_LOOKUP_EVIDENCE_SOURCES = [
   'architecture/oneauto-provider/evidence/P4_CROSS_VEHICLE_ROOT_CAUSE.md',
 ] as const;
 
-/**
- * OE_VIN_LOOKUP_EU — execution-verified for outbound GET acceptance + sync HTTP 200 when result is ready.
- * Live E1 (HTTP 202) proves async-first acceptance; live E2 (HTTP 200) was cached retrieval within provider
- * retention after E1 — not a first-call sync path. Same-URL poll remains unattested (`false`).
- */
+/** Base async-capable contract without callback completion (tests / historical builder). */
 export function buildExecutionVerifiedOeVinLookupEu(): OneAutoExecutionVerifiedProviderContract {
   const documented = getDocumentedOneAutoContract('OE_VIN_LOOKUP_EU');
   if (!documented) {
@@ -40,7 +36,7 @@ export function buildExecutionVerifiedOeVinLookupEu(): OneAutoExecutionVerifiedP
   };
 }
 
-/** E4 promotion target — not seeded in production registry until attestation. */
+/** E4 full-data callback completion — seeded in execution-verified registry (activation still gated by env flags). */
 export function buildExecutionVerifiedOeVinLookupEuFullDataCallback(): OneAutoExecutionVerifiedProviderContract {
   return {
     ...buildExecutionVerifiedOeVinLookupEu(),
@@ -54,5 +50,5 @@ export function seedOneAutoExecutionVerifiedRegistry(
   target: Map<string, OneAutoExecutionVerifiedProviderContract>,
 ): void {
   target.clear();
-  target.set('OE_VIN_LOOKUP_EU', buildExecutionVerifiedOeVinLookupEu());
+  target.set('OE_VIN_LOOKUP_EU', buildExecutionVerifiedOeVinLookupEuFullDataCallback());
 }
