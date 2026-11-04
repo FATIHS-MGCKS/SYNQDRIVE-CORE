@@ -1,4 +1,8 @@
-import type { FsdBudgetConfigV1 } from './fsd-budget.contract.v1';
+import {
+  type FsdBudgetConfigV1,
+  resolveMaxSnapshotDocumentsFromRemainingBudget,
+  sanitizeNonNegativeRequestBudget,
+} from './fsd-budget.contract.v1';
 import type { FsdUnsupportedPlanningReasonV1 } from './fsd-evidence.contract.v1';
 import { createPlannerStageEvidenceDimensions } from './fsd-evidence.contract.v1';
 import { normalizeDeclaredFieldNames } from './fsd-graphql-field.util.v1';
@@ -28,7 +32,7 @@ export type FsdSnapshotPlanV1 = {
 };
 
 function chunkFields<T>(items: T[], chunkSize: number): T[][] {
-  if (items.length === 0) {
+  if (items.length === 0 || chunkSize <= 0) {
     return [];
   }
   const chunks: T[][] = [];
@@ -38,17 +42,34 @@ function chunkFields<T>(items: T[], chunkSize: number): T[][] {
   return chunks;
 }
 
+function markSnapshotSignalDeferred(entry: FsdSnapshotSignalPlanV1): FsdSnapshotSignalPlanV1 {
+  return {
+    ...entry,
+    evidence: createPlannerStageEvidenceDimensions({
+      declared: true,
+      schemaCompatible: entry.classified.shape !== 'UNKNOWN',
+      queryPlanned: false,
+      notEvaluable: true,
+    }),
+    unsupportedReason: 'DEFERRED_BY_REQUEST_BUDGET',
+  };
+}
+
 export function planFsdSnapshotQueries(input: {
   tokenId: number;
   declaredFieldNames: readonly string[];
   budget: FsdBudgetConfigV1;
+  /** Max executable snapshot GraphQL documents allowed (remaining run budget slots). */
+  maxSnapshotDocuments?: number;
 }): FsdSnapshotPlanV1 {
   const normalized = normalizeDeclaredFieldNames(input.declaredFieldNames);
   const classified = classifyDeclaredFsdSignals(normalized);
+  const fieldsPerDocument = Math.max(1, input.budget.maxSnapshotFieldsPerDocument);
 
   const plannable: Array<{
     signal: FsdClassifiedSignalV1;
     selection: string;
+    catalogEntry: FsdSnapshotSignalPlanV1;
   }> = [];
   const catalogSignals: FsdSnapshotSignalPlanV1[] = [];
   const deferredSignals: FsdSnapshotSignalPlanV1[] = [];
@@ -74,7 +95,7 @@ export function planFsdSnapshotQueries(input: {
       continue;
     }
 
-    const entry: FsdSnapshotSignalPlanV1 = {
+    const catalogEntry: FsdSnapshotSignalPlanV1 = {
       fieldName: signal.fieldName,
       classified: signal,
       evidence: createPlannerStageEvidenceDimensions({
@@ -84,34 +105,35 @@ export function planFsdSnapshotQueries(input: {
         notEvaluable: false,
       }),
     };
-    catalogSignals.push(entry);
-    plannable.push({ signal, selection });
+    catalogSignals.push(catalogEntry);
+    plannable.push({ signal, selection, catalogEntry });
   }
 
-  const maxDocs = Math.max(
-    1,
-    Math.ceil(plannable.length / input.budget.maxSnapshotFieldsPerDocument),
+  const maxDocsFromBudget = resolveMaxSnapshotDocumentsFromRemainingBudget(
+    input.maxSnapshotDocuments ?? input.budget.maxRequestsPerRun,
   );
-  const maxPlannableFields = maxDocs * input.budget.maxSnapshotFieldsPerDocument;
+  const maxDocsByFieldCapacity =
+    plannable.length === 0 ? 0 : Math.ceil(plannable.length / fieldsPerDocument);
+  const maxDocs = Math.min(maxDocsByFieldCapacity, maxDocsFromBudget);
+
+  const maxPlannableFields =
+    maxDocs > 0 ? maxDocs * fieldsPerDocument : 0;
 
   const toPlan = plannable.slice(0, maxPlannableFields);
   const overflow = plannable.slice(maxPlannableFields);
+
+  const deferredFieldNames = new Set<string>();
   for (const item of overflow) {
-    deferredSignals.push({
-      fieldName: item.signal.fieldName,
-      classified: item.signal,
-      evidence: createPlannerStageEvidenceDimensions({
-        declared: true,
-        schemaCompatible: item.signal.shape !== 'UNKNOWN',
-        queryPlanned: false,
-        notEvaluable: true,
-      }),
-      unsupportedReason: 'DEFERRED_BY_REQUEST_BUDGET',
-    });
+    deferredFieldNames.add(item.signal.fieldName);
+    deferredSignals.push(markSnapshotSignalDeferred(item.catalogEntry));
   }
 
+  const catalogSignalsAdjusted = catalogSignals.map((entry) =>
+    deferredFieldNames.has(entry.fieldName) ? markSnapshotSignalDeferred(entry) : entry,
+  );
+
   const documents: FsdPlannedQueryDocumentV1[] = [];
-  for (const group of chunkFields(toPlan, input.budget.maxSnapshotFieldsPerDocument)) {
+  for (const group of chunkFields(toPlan, fieldsPerDocument)) {
     const selections = group.map((g) => g.selection);
     const fieldNames = group.map((g) => g.signal.fieldName);
     documents.push(
@@ -123,5 +145,10 @@ export function planFsdSnapshotQueries(input: {
     );
   }
 
-  return { documents, catalogSignals, deferredSignals };
+  const maxDocsSanity = sanitizeNonNegativeRequestBudget(maxDocsFromBudget);
+  if (documents.length > maxDocsSanity) {
+    throw new Error('FSD snapshot planner produced more documents than budget allows');
+  }
+
+  return { documents, catalogSignals: catalogSignalsAdjusted, deferredSignals };
 }

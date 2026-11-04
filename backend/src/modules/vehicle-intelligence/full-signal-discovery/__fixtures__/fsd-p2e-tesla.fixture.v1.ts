@@ -51,3 +51,12 @@ export const FSD_P2E_AGGREGATE_EXPECTATIONS_V1 = {
   historicalNullOnlySignals: 1,
   nullOnlySignal: 'powertrainRange',
 } as const;
+
+/** Deterministic synthetic FLOAT catalog entries for regression tests only. */
+export function buildFsdSyntheticFloatCatalog(count: number): string[] {
+  const safeCount = Math.max(0, Math.min(Math.floor(count), 10_000));
+  return Array.from(
+    { length: safeCount },
+    (_, index) => `fsdSyntheticFloat${String(index + 1).padStart(4, '0')}`,
+  );
+}

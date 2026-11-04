@@ -1,6 +1,9 @@
 import {
   createDefaultFsdBudgetConfigV1,
   type FsdBudgetConfigV1,
+  type FsdBudgetValidationResultV1,
+  resolveMaxSnapshotDocumentsFromRemainingBudget,
+  resolveRemainingHistoricalRequestBudget,
   validatePlannedRequestCount,
 } from './fsd-budget.contract.v1';
 import { normalizeDeclaredFieldNames } from './fsd-graphql-field.util.v1';
@@ -15,16 +18,72 @@ import { classifyDeclaredFsdSignals } from './fsd-signal-shape.classifier.v1';
 /** One reserved provider slot for availableSignals catalog fetch (executed in later FSD phases). */
 export const FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1 = 1;
 
+export type FsdFullDiscoveryNonExecutableReasonV1 =
+  | 'REQUEST_BUDGET_EXCEEDED'
+  | 'INSUFFICIENT_REQUEST_BUDGET_FOR_CATALOG';
+
 export type FsdFullDiscoveryPlanV1 = {
+  /** When false, snapshot.documents and historical chunks must be treated as non-executable. */
+  executable: boolean;
+  nonExecutableReason?: FsdFullDiscoveryNonExecutableReasonV1;
   declaredFieldNames: string[];
   classifiedCount: number;
   catalogReservedRequestSlots: number;
   snapshot: FsdSnapshotPlanV1;
   historical: FsdHistoricalPlanV1 | null;
+  /** Count of provider requests that would execute when executable=true. */
+  executableProviderRequestCount: number;
+  /** Catalog + snapshot docs + historical chunks (planning arithmetic). */
   totalPlannedProviderRequests: number;
-  budgetValidation: ReturnType<typeof validatePlannedRequestCount>;
+  budgetValidation: FsdBudgetValidationResultV1;
   deferredByBudget: string[];
 };
+
+function emptyHistoricalPlan(window: FsdHistoricalWindowV1): FsdHistoricalPlanV1 {
+  return {
+    window,
+    windowSeconds: 0,
+    expectedBucketPositions: 0,
+    chunks: [],
+    catalogSignals: [],
+    deferredSignals: [],
+    budgetValidation: { ok: true, plannedRequestCount: 0 },
+  };
+}
+
+function buildNonExecutableFullPlan(input: {
+  declaredFieldNames: string[];
+  classifiedCount: number;
+  snapshot: FsdSnapshotPlanV1;
+  historical: FsdHistoricalPlanV1 | null;
+  totalPlannedProviderRequests: number;
+  budgetValidation: FsdBudgetValidationResultV1;
+  deferredByBudget: string[];
+  reason: FsdFullDiscoveryNonExecutableReasonV1;
+}): FsdFullDiscoveryPlanV1 {
+  return {
+    executable: false,
+    nonExecutableReason: input.reason,
+    declaredFieldNames: input.declaredFieldNames,
+    classifiedCount: input.classifiedCount,
+    catalogReservedRequestSlots: FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1,
+    snapshot: {
+      documents: [],
+      catalogSignals: input.snapshot.catalogSignals,
+      deferredSignals: input.snapshot.deferredSignals,
+    },
+    historical: input.historical
+      ? {
+          ...input.historical,
+          chunks: [],
+        }
+      : null,
+    executableProviderRequestCount: 0,
+    totalPlannedProviderRequests: input.totalPlannedProviderRequests,
+    budgetValidation: input.budgetValidation,
+    deferredByBudget: input.deferredByBudget,
+  };
+}
 
 export function planFsdFullSignalDiscoveryV1(input: {
   tokenId: number;
@@ -36,27 +95,52 @@ export function planFsdFullSignalDiscoveryV1(input: {
   const declaredFieldNames = normalizeDeclaredFieldNames(input.declaredFieldNames);
   const classified = classifyDeclaredFsdSignals(declaredFieldNames);
 
+  if (budget.maxRequestsPerRun < FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1) {
+    const budgetValidation: FsdBudgetValidationResultV1 = {
+      ok: false,
+      reason: 'REQUEST_BUDGET_EXCEEDED',
+      plannedRequestCount: FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1,
+      limit: budget.maxRequestsPerRun,
+    };
+    return buildNonExecutableFullPlan({
+      declaredFieldNames,
+      classifiedCount: classified.length,
+      snapshot: { documents: [], catalogSignals: [], deferredSignals: [] },
+      historical: input.historicalWindow ? emptyHistoricalPlan(input.historicalWindow) : null,
+      totalPlannedProviderRequests: FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1,
+      budgetValidation,
+      deferredByBudget: declaredFieldNames,
+      reason: 'INSUFFICIENT_REQUEST_BUDGET_FOR_CATALOG',
+    });
+  }
+
+  const maxSnapshotDocuments = resolveMaxSnapshotDocumentsFromRemainingBudget(
+    budget.maxRequestsPerRun - FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1,
+  );
+
   const snapshot = planFsdSnapshotQueries({
     tokenId: input.tokenId,
     declaredFieldNames,
     budget,
+    maxSnapshotDocuments,
   });
 
-  const remainingAfterCatalogAndSnapshot =
-    budget.maxRequestsPerRun -
-    FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1 -
-    snapshot.documents.length;
+  const remainingHistoricalBudget = resolveRemainingHistoricalRequestBudget({
+    maxRequestsPerRun: budget.maxRequestsPerRun,
+    catalogReservedSlots: FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1,
+    snapshotDocumentCount: snapshot.documents.length,
+  });
 
   let historical: FsdHistoricalPlanV1 | null = null;
   const deferredByBudget: string[] = snapshot.deferredSignals.map((s) => s.fieldName);
 
-  if (input.historicalWindow && remainingAfterCatalogAndSnapshot > 0) {
+  if (input.historicalWindow && remainingHistoricalBudget > 0) {
     historical = planFsdHistoricalQueries({
       tokenId: input.tokenId,
       declaredFieldNames,
       window: input.historicalWindow,
       budget,
-      maxPlannedHistoricalRequests: remainingAfterCatalogAndSnapshot,
+      maxPlannedHistoricalRequests: remainingHistoricalBudget,
       isolateSpeedSignal: true,
     });
     deferredByBudget.push(...historical.deferredSignals.map((s) => s.fieldName));
@@ -74,15 +158,31 @@ export function planFsdFullSignalDiscoveryV1(input: {
     (historical?.chunks.length ?? 0);
 
   const budgetValidation = validatePlannedRequestCount(totalPlannedProviderRequests, budget);
+  const sortedDeferred = [...new Set(deferredByBudget)].sort((a, b) => a.localeCompare(b));
+
+  if (!budgetValidation.ok) {
+    return buildNonExecutableFullPlan({
+      declaredFieldNames,
+      classifiedCount: classified.length,
+      snapshot,
+      historical,
+      totalPlannedProviderRequests,
+      budgetValidation,
+      deferredByBudget: sortedDeferred,
+      reason: 'REQUEST_BUDGET_EXCEEDED',
+    });
+  }
 
   return {
+    executable: true,
     declaredFieldNames,
     classifiedCount: classified.length,
     catalogReservedRequestSlots: FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1,
     snapshot,
     historical,
+    executableProviderRequestCount: totalPlannedProviderRequests,
     totalPlannedProviderRequests,
     budgetValidation,
-    deferredByBudget: [...new Set(deferredByBudget)].sort((a, b) => a.localeCompare(b)),
+    deferredByBudget: sortedDeferred,
   };
 }

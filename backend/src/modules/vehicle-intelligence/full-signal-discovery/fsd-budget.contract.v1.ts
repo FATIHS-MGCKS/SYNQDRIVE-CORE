@@ -70,6 +70,33 @@ export function validatePlannedRequestCount(
   return { ok: true, plannedRequestCount };
 }
 
+/** Non-negative finite document/request slot budget (guards negative and overflow inputs). */
+export function sanitizeNonNegativeRequestBudget(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (value <= 0) {
+    return 0;
+  }
+  return Math.min(Math.floor(value), Number.MAX_SAFE_INTEGER);
+}
+
+export function resolveMaxSnapshotDocumentsFromRemainingBudget(
+  remainingAfterCatalogSlot: number,
+): number {
+  return sanitizeNonNegativeRequestBudget(remainingAfterCatalogSlot);
+}
+
+export function resolveRemainingHistoricalRequestBudget(input: {
+  maxRequestsPerRun: number;
+  catalogReservedSlots: number;
+  snapshotDocumentCount: number;
+}): number {
+  const remaining =
+    input.maxRequestsPerRun - input.catalogReservedSlots - input.snapshotDocumentCount;
+  return sanitizeNonNegativeRequestBudget(remaining);
+}
+
 /** Execution-phase ledger (contracts only — enforced in later FSD phases). */
 export type FsdProviderExecutionLedgerV1 = {
   plannedRequests: number;

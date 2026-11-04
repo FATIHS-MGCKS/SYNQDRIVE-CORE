@@ -1,4 +1,5 @@
 import type { FsdBudgetConfigV1 } from './fsd-budget.contract.v1';
+import { sanitizeNonNegativeRequestBudget } from './fsd-budget.contract.v1';
 import {
   buildFsdHistoricalSignalsQueryDocument,
   buildFsdSignalsLatestQueryDocument,
@@ -77,7 +78,12 @@ export function planFsdBinaryChunkSplit(input: {
 }): FsdChunkSplitOutcomeV1 {
   const failedDocument = input.failedDocument;
   const parentFingerprint = failedDocument.fingerprint;
+  const remainingRequestBudget = sanitizeNonNegativeRequestBudget(input.remainingRequestBudget);
   const fieldNames = [...failedDocument.fieldNames].sort((a, b) => a.localeCompare(b));
+
+  if (remainingRequestBudget <= 0) {
+    return { ok: false, reason: 'REQUEST_BUDGET_EXCEEDED', parentFingerprint };
+  }
 
   if (fieldNames.length <= 1) {
     return { ok: false, reason: 'SINGLE_FIELD_FAILURE', parentFingerprint };
@@ -102,7 +108,7 @@ export function planFsdBinaryChunkSplit(input: {
   }
 
   const consumedRequestSlots = childDocuments.length;
-  if (consumedRequestSlots > input.remainingRequestBudget) {
+  if (consumedRequestSlots > remainingRequestBudget) {
     return { ok: false, reason: 'REQUEST_BUDGET_EXCEEDED', parentFingerprint };
   }
 

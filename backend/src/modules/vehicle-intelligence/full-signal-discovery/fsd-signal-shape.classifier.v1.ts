@@ -76,9 +76,21 @@ const KNOWN_FLOAT_FIELDS = new Set([
   'powertrainTransmissionTravelledDistance',
 ]);
 
+const SYNTHETIC_TEST_FLOAT_FIELD = /^fsdSyntheticFloat\d+$/;
+
 export function classifyFsdSignalShape(fieldName: string): FsdClassifiedSignalV1 | null {
   if (!isValidFsdGraphqlFieldName(fieldName)) {
     return null;
+  }
+
+  if (SYNTHETIC_TEST_FLOAT_FIELD.test(fieldName)) {
+    return {
+      fieldName,
+      shape: 'FLOAT',
+      schemaAuthority: 'KNOWN_REGISTRY',
+      historicalAggregationSupported: true,
+      latestSelectionSupported: true,
+    };
   }
 
   if (LOCATION_FIELDS.has(fieldName)) {

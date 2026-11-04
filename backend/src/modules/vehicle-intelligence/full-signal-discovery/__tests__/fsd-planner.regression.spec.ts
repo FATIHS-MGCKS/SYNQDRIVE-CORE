@@ -175,14 +175,17 @@ describe('FSD-1 full signal discovery planner regression suite', () => {
     expect(new Set(fpsA).size).toBe(fpsA.length);
   });
 
-  it('Test 9 — budget overflow yields explicit deferred signals', () => {
-    const tightBudget = createDefaultFsdBudgetConfigV1({ maxRequestsPerRun: 1 });
+  it('Test 9 — insufficient catalog budget yields non-executable plan with deferred signals', () => {
+    const tightBudget = createDefaultFsdBudgetConfigV1({ maxRequestsPerRun: 0 });
     const plan = planFsdFullSignalDiscoveryV1({
       tokenId,
       declaredFieldNames: FSD_TESLA_P2E_DECLARED_FIELDS_V1,
       historicalWindow: window,
       budget: tightBudget,
     });
+    expect(plan.executable).toBe(false);
+    expect(plan.executableProviderRequestCount).toBe(0);
+    expect(plan.snapshot.documents).toHaveLength(0);
     expect(plan.deferredByBudget.length).toBeGreaterThan(0);
     expect(plan.budgetValidation.ok).toBe(false);
     if (!plan.budgetValidation.ok) {
@@ -298,6 +301,8 @@ describe('FSD-1 full signal discovery planner regression suite', () => {
       budget,
     });
     expect(plan.catalogReservedRequestSlots).toBe(FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1);
+    expect(plan.executable).toBe(true);
+    expect(plan.executableProviderRequestCount).toBeLessThanOrEqual(budget.maxRequestsPerRun);
     expect(plan.totalPlannedProviderRequests).toBeLessThanOrEqual(budget.maxRequestsPerRun);
   });
 });
