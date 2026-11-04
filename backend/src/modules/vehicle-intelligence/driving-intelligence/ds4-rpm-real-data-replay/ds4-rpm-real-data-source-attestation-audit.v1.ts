@@ -22,7 +22,8 @@ export function auditDs4RpmRealDataSourceAttestationV1(
   bundle: Ds4RpmRealDataSourceAttestationBundleV1,
   options?: {
     authorizationContext?: Ds4RpmRealDataPilotReadAuthorizationContextV1 | null;
-    authorizationRequestAtIso?: string;
+    /** Trusted executor clock — required when authorizationContext is set. */
+    trustedEvaluatedAtIso?: string | null;
   },
 ): Ds4RpmRealDataSourceAttestationResultV1 {
   const abstainReasons: string[] = [];
@@ -33,6 +34,9 @@ export function auditDs4RpmRealDataSourceAttestationV1(
     computeDs4RpmRealDataSourceAttestationProvenanceFingerprintV1(withoutFingerprint);
   if (bundle.provenanceFingerprint !== expectedFingerprint) {
     abstainReasons.push('PROVENANCE_FINGERPRINT_MISMATCH');
+    dimensions.push(
+      dim('CORRELATION_ELIGIBLE', 'BLOCKED', 'PROVENANCE_FINGERPRINT_MISMATCH'),
+    );
   }
 
   const family = bundle.dimoDeviceIdentity.resolvedTelemetrySourceFamily;
@@ -107,66 +111,80 @@ export function auditDs4RpmRealDataSourceAttestationV1(
   }
 
   if (!dimensions.some((d) => d.dimension === 'CORRELATION_ELIGIBLE')) {
-    const familyBlocked = dimensions.some(
-      (d) =>
-        d.dimension === 'SOURCE_TIMESTAMP_AUTHORITY_PROVEN' && d.state === 'BLOCKED',
-    );
-    const familyUnproven = dimensions.some(
-      (d) => d.dimension === 'SOURCE_FAMILY_PROVEN' && d.state !== 'PROVEN',
-    );
-    if (familyBlocked) {
-      dimensions.push(
-        dim('CORRELATION_ELIGIBLE', 'BLOCKED', 'HISTORICAL_TIMESTAMP_AUTHORITY_BLOCKED'),
-      );
-    } else if (familyUnproven) {
-      dimensions.push(dim('CORRELATION_ELIGIBLE', 'UNPROVEN', 'SOURCE_FAMILY_UNPROVEN'));
-    } else if (!bundle.v1bAdmissionSucceeded || !bundle.v1bProcessingAllowed) {
-      dimensions.push(dim('CORRELATION_ELIGIBLE', 'UNPROVEN', 'V1B_ADMISSION_NOT_DEFENSIBLE'));
-    } else if (
-      !dimensions.some(
-        (d) => d.dimension === 'EVENT_LOCAL_CADENCE_ASSESSABLE' && d.state === 'PROVEN',
-      )
-    ) {
-      dimensions.push(
-        dim('CORRELATION_ELIGIBLE', 'UNPROVEN', 'EVENT_LOCAL_CADENCE_NOT_DEFENSIBLE'),
-      );
-    } else if (options?.authorizationContext == null) {
-      dimensions.push(
-        dim('CORRELATION_ELIGIBLE', 'UNPROVEN', 'OWNER_AUTHORIZED_READ_CONTEXT_MISSING'),
-      );
-      abstainReasons.push('AUTHORIZATION_CONTEXT_MISSING');
+    if (abstainReasons.includes('PROVENANCE_FINGERPRINT_MISMATCH')) {
+      // CORRELATION_ELIGIBLE already BLOCKED
     } else {
-      const auth = evaluateDs4RpmRealDataPilotReadAuthorizationV1({
-        context: options.authorizationContext,
-        request: {
-          organizationId: bundle.organizationId,
-          vehicleId: bundle.vehicleId,
-          tripId: bundle.tripId,
-          providerSourceLinkId: bundle.providerSourceLinkId,
-          queryFromIso: bundle.queryProvenance.dimoQueryFromIso,
-          queryToIso: bundle.queryProvenance.dimoQueryToIso,
-          estimatedResponseRows: bundle.evidenceIdentities.rpmPointCount,
-          requestedAtIso: options.authorizationRequestAtIso ?? options.authorizationContext.issuedAtIso,
-        },
-      });
-      if (!auth.decision.allowed) {
+      const familyBlocked = dimensions.some(
+        (d) =>
+          d.dimension === 'SOURCE_TIMESTAMP_AUTHORITY_PROVEN' && d.state === 'BLOCKED',
+      );
+      const familyUnproven = dimensions.some(
+        (d) => d.dimension === 'SOURCE_FAMILY_PROVEN' && d.state !== 'PROVEN',
+      );
+      if (familyBlocked) {
         dimensions.push(
-          dim('CORRELATION_ELIGIBLE', 'UNPROVEN', auth.decision.reasonCode),
+          dim('CORRELATION_ELIGIBLE', 'BLOCKED', 'HISTORICAL_TIMESTAMP_AUTHORITY_BLOCKED'),
         );
-        abstainReasons.push(auth.decision.reasonCode);
+      } else if (familyUnproven) {
+        dimensions.push(dim('CORRELATION_ELIGIBLE', 'UNPROVEN', 'SOURCE_FAMILY_UNPROVEN'));
+      } else if (!bundle.v1bAdmissionSucceeded || !bundle.v1bProcessingAllowed) {
+        dimensions.push(dim('CORRELATION_ELIGIBLE', 'UNPROVEN', 'V1B_ADMISSION_NOT_DEFENSIBLE'));
       } else if (
-        bundle.dimoDeviceIdentity.attestationLevel !== 'PROVEN_FROM_AUTHORIZED_READ'
+        !dimensions.some(
+          (d) => d.dimension === 'EVENT_LOCAL_CADENCE_ASSESSABLE' && d.state === 'PROVEN',
+        )
       ) {
         dimensions.push(
-          dim(
-            'CORRELATION_ELIGIBLE',
-            'UNPROVEN',
-            'INJECTED_FIXTURE_NOT_PRODUCTION_ATTESTATION',
-          ),
+          dim('CORRELATION_ELIGIBLE', 'UNPROVEN', 'EVENT_LOCAL_CADENCE_NOT_DEFENSIBLE'),
         );
-        abstainReasons.push('INJECTED_FIXTURE_NOT_PRODUCTION_ATTESTATION');
+      } else if (options?.authorizationContext == null) {
+        dimensions.push(
+          dim('CORRELATION_ELIGIBLE', 'UNPROVEN', 'OWNER_AUTHORIZED_READ_CONTEXT_MISSING'),
+        );
+        abstainReasons.push('AUTHORIZATION_CONTEXT_MISSING');
+      } else if (options.trustedEvaluatedAtIso == null) {
+        dimensions.push(
+          dim('CORRELATION_ELIGIBLE', 'UNPROVEN', 'TRUSTED_EVALUATION_TIME_MISSING'),
+        );
+        abstainReasons.push('TRUSTED_EVALUATION_TIME_MISSING');
       } else {
-        dimensions.push(dim('CORRELATION_ELIGIBLE', 'UNPROVEN', 'PILOT_ATTESTATION_INCOMPLETE'));
+        const auth = evaluateDs4RpmRealDataPilotReadAuthorizationV1({
+          context: options.authorizationContext,
+          trustedExecutionBoundary: { evaluatedAtIso: options.trustedEvaluatedAtIso },
+          request: {
+            organizationId: bundle.organizationId,
+            vehicleId: bundle.vehicleId,
+            tripId: bundle.tripId,
+            providerSourceLinkId: bundle.providerSourceLinkId,
+            queryFromIso: bundle.queryProvenance.dimoQueryFromIso,
+            queryToIso: bundle.queryProvenance.dimoQueryToIso,
+            estimatedResponseRows: Math.max(1, bundle.evidenceIdentities.rpmPointCount),
+            estimatedQueryBudgetUnits: 1,
+            requestedAtIso: bundle.queryProvenance.dimoQueryFromIso,
+          },
+        });
+        if (!auth.decision.allowed) {
+          dimensions.push(
+            dim('CORRELATION_ELIGIBLE', 'UNPROVEN', auth.decision.reasonCode),
+          );
+          abstainReasons.push(auth.decision.reasonCode);
+        } else if (
+          bundle.dimoDeviceIdentity.attestationLevel !== 'PROVEN_FROM_AUTHORIZED_READ'
+        ) {
+          dimensions.push(
+            dim(
+              'CORRELATION_ELIGIBLE',
+              'UNPROVEN',
+              'INJECTED_FIXTURE_NOT_PRODUCTION_ATTESTATION',
+            ),
+          );
+          abstainReasons.push('INJECTED_FIXTURE_NOT_PRODUCTION_ATTESTATION');
+          abstainReasons.push('TRUSTED_PRODUCTION_READ_CONTEXT_NOT_VERIFIED');
+        } else {
+          dimensions.push(
+            dim('CORRELATION_ELIGIBLE', 'UNPROVEN', 'PILOT_ATTESTATION_INCOMPLETE'),
+          );
+        }
       }
     }
   }

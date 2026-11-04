@@ -1,9 +1,14 @@
+import type { TelemetrySourceFamily } from '../../telemetry-source-family';
 import { hasUncertainHistoricalObdRecordTime } from '../../telemetry-source-family';
+import type {
+  Ds4RpmRealDataHistoricalTimestampTrustLevelV1,
+} from './ds4-rpm-real-data-source-attestation.contract.v1';
 import type {
   Ds4RpmRealDataPilotReadAuditEntryV1,
   Ds4RpmRealDataPilotReadAuthorizationContextV1,
   Ds4RpmRealDataPilotReadAuthorizationDecisionV1,
   Ds4RpmRealDataPilotReadRequestV1,
+  Ds4RpmRealDataPilotReadTrustedExecutionBoundaryV1,
 } from './ds4-rpm-real-data-pilot-read-authorization.contract.v1';
 import { computeDs4RpmRealDataPilotReadRequestFingerprintV1 } from './ds4-rpm-real-data-attestation-fingerprint.v1';
 
@@ -11,9 +16,56 @@ function auditId(prefix: string, fingerprint: string): string {
   return `${prefix}:${fingerprint.slice(0, 16)}`;
 }
 
+function deny(
+  prefix: string,
+  reasonCode: string,
+  requestFingerprint: string,
+  ctx: Ds4RpmRealDataPilotReadAuthorizationContextV1 | null,
+  baseAudit: Ds4RpmRealDataPilotReadAuditEntryV1['scopeSummary'],
+): {
+  decision: Ds4RpmRealDataPilotReadAuthorizationDecisionV1;
+  auditEntry: Ds4RpmRealDataPilotReadAuditEntryV1;
+} {
+  const auditTrailId = auditId(prefix, requestFingerprint);
+  return {
+    decision: { allowed: false, reasonCode, auditTrailId },
+    auditEntry: {
+      auditTrailId,
+      authorizationRecordId: ctx?.authorizationRecordId ?? 'NONE',
+      decision: 'DENY',
+      reasonCode,
+      requestFingerprint,
+      scopeSummary: baseAudit,
+    },
+  };
+}
+
+/** Parse ISO-8601 instant to epoch ms; rejects non-finite and unparseable values. */
+export function parseIsoInstantToEpochMs(iso: string): number | null {
+  if (typeof iso !== 'string' || iso.trim() === '') return null;
+  const ms = Date.parse(iso.trim());
+  if (!Number.isFinite(ms)) return null;
+  return ms;
+}
+
+function isPositiveInteger(n: number): boolean {
+  return Number.isFinite(n) && Number.isInteger(n) && n > 0;
+}
+
+function isNonNegativeInteger(n: number): boolean {
+  return Number.isFinite(n) && Number.isInteger(n) && n >= 0;
+}
+
+const VALID_TELEMETRY_FAMILIES: ReadonlySet<TelemetrySourceFamily> = new Set([
+  'RUPTELA_R1',
+  'API_SYNTHETIC',
+  'UNKNOWN',
+]);
+
 export function evaluateDs4RpmRealDataPilotReadAuthorizationV1(input: {
   context: Ds4RpmRealDataPilotReadAuthorizationContextV1 | null;
   request: Ds4RpmRealDataPilotReadRequestV1;
+  trustedExecutionBoundary: Ds4RpmRealDataPilotReadTrustedExecutionBoundaryV1;
 }): {
   decision: Ds4RpmRealDataPilotReadAuthorizationDecisionV1;
   auditEntry: Ds4RpmRealDataPilotReadAuditEntryV1;
@@ -30,165 +82,251 @@ export function evaluateDs4RpmRealDataPilotReadAuthorizationV1(input: {
   };
 
   if (input.context == null) {
-    const auditTrailId = auditId('deny-no-context', requestFingerprint);
-    return {
-      decision: { allowed: false, reasonCode: 'AUTHORIZATION_CONTEXT_MISSING', auditTrailId },
-      auditEntry: {
-        auditTrailId,
-        authorizationRecordId: 'NONE',
-        decision: 'DENY',
-        reasonCode: 'AUTHORIZATION_CONTEXT_MISSING',
-        ...baseAudit,
-      },
-    };
+    return deny(
+      'deny-no-context',
+      'AUTHORIZATION_CONTEXT_MISSING',
+      requestFingerprint,
+      null,
+      baseAudit.scopeSummary,
+    );
   }
 
   const ctx = input.context;
-  const nowMs = Date.parse(input.request.requestedAtIso);
-  const expiresMs = Date.parse(ctx.expiresAtIso);
-  const issuedMs = Date.parse(ctx.issuedAtIso);
 
-  if (Number.isNaN(nowMs) || Number.isNaN(expiresMs) || nowMs > expiresMs) {
-    const auditTrailId = auditId('deny-expired', requestFingerprint);
-    return {
-      decision: { allowed: false, reasonCode: 'AUTHORIZATION_EXPIRED', auditTrailId },
-      auditEntry: {
-        auditTrailId,
-        authorizationRecordId: ctx.authorizationRecordId,
-        decision: 'DENY',
-        reasonCode: 'AUTHORIZATION_EXPIRED',
-        ...baseAudit,
-      },
-    };
+  if (ctx.readOnly !== true) {
+    return deny(
+      'deny-readonly',
+      'AUTHORIZATION_READ_ONLY_REQUIRED',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
   }
 
-  if (nowMs < issuedMs) {
-    const auditTrailId = auditId('deny-not-yet-valid', requestFingerprint);
-    return {
-      decision: { allowed: false, reasonCode: 'AUTHORIZATION_NOT_YET_VALID', auditTrailId },
-      auditEntry: {
-        auditTrailId,
-        authorizationRecordId: ctx.authorizationRecordId,
-        decision: 'DENY',
-        reasonCode: 'AUTHORIZATION_NOT_YET_VALID',
-        ...baseAudit,
-      },
-    };
+  const evaluatedMs = parseIsoInstantToEpochMs(input.trustedExecutionBoundary.evaluatedAtIso);
+  if (evaluatedMs == null) {
+    return deny(
+      'deny-trusted-time',
+      'TRUSTED_EVALUATION_TIME_INVALID',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
+  }
+
+  const issuedMs = parseIsoInstantToEpochMs(ctx.issuedAtIso);
+  const expiresMs = parseIsoInstantToEpochMs(ctx.expiresAtIso);
+  if (issuedMs == null || expiresMs == null) {
+    return deny(
+      'deny-auth-interval',
+      'AUTHORIZATION_VALIDITY_INTERVAL_INVALID',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
+  }
+
+  if (issuedMs >= expiresMs) {
+    return deny(
+      'deny-auth-interval',
+      'AUTHORIZATION_VALIDITY_INTERVAL_INVALID',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
+  }
+
+  if (evaluatedMs < issuedMs || evaluatedMs >= expiresMs) {
+    return deny(
+      'deny-expired',
+      'AUTHORIZATION_EXPIRED_OR_NOT_YET_VALID',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
+  }
+
+  if (!ctx.authorizationRecordId?.trim() || !ctx.ownerAttestationReference?.trim()) {
+    return deny(
+      'deny-forged-meta',
+      'AUTHORIZATION_METADATA_INCOMPLETE',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
+  }
+
+  if (!isPositiveInteger(ctx.maxResponseRows) || !isPositiveInteger(ctx.maxQueryBudgetUnits)) {
+    return deny(
+      'deny-auth-limits',
+      'AUTHORIZATION_LIMITS_INVALID',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
+  }
+
+  for (const field of [
+    ctx.organizationId,
+    ctx.vehicleId,
+    ctx.providerSourceLinkId,
+    input.request.organizationId,
+    input.request.vehicleId,
+    input.request.tripId,
+    input.request.providerSourceLinkId,
+  ]) {
+    if (typeof field !== 'string' || field.trim() === '') {
+      return deny(
+        'deny-empty-scope',
+        'SCOPE_FIELD_EMPTY',
+        requestFingerprint,
+        ctx,
+        baseAudit.scopeSummary,
+      );
+    }
   }
 
   if (input.request.organizationId !== ctx.organizationId) {
-    const auditTrailId = auditId('deny-org', requestFingerprint);
-    return {
-      decision: { allowed: false, reasonCode: 'ORGANIZATION_SCOPE_MISMATCH', auditTrailId },
-      auditEntry: {
-        auditTrailId,
-        authorizationRecordId: ctx.authorizationRecordId,
-        decision: 'DENY',
-        reasonCode: 'ORGANIZATION_SCOPE_MISMATCH',
-        ...baseAudit,
-      },
-    };
+    return deny(
+      'deny-org',
+      'ORGANIZATION_SCOPE_MISMATCH',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
   }
 
   if (input.request.vehicleId !== ctx.vehicleId) {
-    const auditTrailId = auditId('deny-vehicle', requestFingerprint);
-    return {
-      decision: { allowed: false, reasonCode: 'VEHICLE_SCOPE_MISMATCH', auditTrailId },
-      auditEntry: {
-        auditTrailId,
-        authorizationRecordId: ctx.authorizationRecordId,
-        decision: 'DENY',
-        reasonCode: 'VEHICLE_SCOPE_MISMATCH',
-        ...baseAudit,
-      },
-    };
+    return deny(
+      'deny-vehicle',
+      'VEHICLE_SCOPE_MISMATCH',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
   }
 
   if (!ctx.allowedTripIds.includes(input.request.tripId)) {
-    const auditTrailId = auditId('deny-trip', requestFingerprint);
-    return {
-      decision: { allowed: false, reasonCode: 'TRIP_NOT_IN_ALLOWLIST', auditTrailId },
-      auditEntry: {
-        auditTrailId,
-        authorizationRecordId: ctx.authorizationRecordId,
-        decision: 'DENY',
-        reasonCode: 'TRIP_NOT_IN_ALLOWLIST',
-        ...baseAudit,
-      },
-    };
+    return deny(
+      'deny-trip',
+      'TRIP_NOT_IN_ALLOWLIST',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
   }
 
   if (input.request.providerSourceLinkId !== ctx.providerSourceLinkId) {
-    const auditTrailId = auditId('deny-link', requestFingerprint);
-    return {
-      decision: { allowed: false, reasonCode: 'SOURCE_LINK_SCOPE_MISMATCH', auditTrailId },
-      auditEntry: {
-        auditTrailId,
-        authorizationRecordId: ctx.authorizationRecordId,
-        decision: 'DENY',
-        reasonCode: 'SOURCE_LINK_SCOPE_MISMATCH',
-        ...baseAudit,
-      },
-    };
+    return deny(
+      'deny-link',
+      'SOURCE_LINK_SCOPE_MISMATCH',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
+  }
+
+  const authFromMs = parseIsoInstantToEpochMs(ctx.queryFromIso);
+  const authToMs = parseIsoInstantToEpochMs(ctx.queryToIso);
+  const reqFromMs = parseIsoInstantToEpochMs(input.request.queryFromIso);
+  const reqToMs = parseIsoInstantToEpochMs(input.request.queryToIso);
+
+  if (authFromMs == null || authToMs == null || reqFromMs == null || reqToMs == null) {
+    return deny(
+      'deny-window-parse',
+      'QUERY_WINDOW_MALFORMED',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
+  }
+
+  if (authFromMs >= authToMs || reqFromMs >= reqToMs) {
+    return deny(
+      'deny-window-reversed',
+      'QUERY_WINDOW_REVERSED_OR_EMPTY',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
+  }
+
+  if (reqFromMs < authFromMs || reqToMs > authToMs) {
+    return deny(
+      'deny-window',
+      'TIME_WINDOW_EXCEEDS_AUTHORIZATION',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
   }
 
   if (
-    input.request.queryFromIso < ctx.queryFromIso ||
-    input.request.queryToIso > ctx.queryToIso
+    !isPositiveInteger(input.request.estimatedResponseRows) ||
+    input.request.estimatedResponseRows > ctx.maxResponseRows
   ) {
-    const auditTrailId = auditId('deny-window', requestFingerprint);
-    return {
-      decision: { allowed: false, reasonCode: 'TIME_WINDOW_EXCEEDS_AUTHORIZATION', auditTrailId },
-      auditEntry: {
-        auditTrailId,
-        authorizationRecordId: ctx.authorizationRecordId,
-        decision: 'DENY',
-        reasonCode: 'TIME_WINDOW_EXCEEDS_AUTHORIZATION',
-        ...baseAudit,
-      },
-    };
+    return deny(
+      'deny-size',
+      'RESPONSE_SIZE_LIMIT_EXCEEDED',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
   }
 
-  if (input.request.estimatedResponseRows > ctx.maxResponseRows) {
-    const auditTrailId = auditId('deny-size', requestFingerprint);
-    return {
-      decision: { allowed: false, reasonCode: 'RESPONSE_SIZE_LIMIT_EXCEEDED', auditTrailId },
-      auditEntry: {
-        auditTrailId,
-        authorizationRecordId: ctx.authorizationRecordId,
-        decision: 'DENY',
-        reasonCode: 'RESPONSE_SIZE_LIMIT_EXCEEDED',
-        ...baseAudit,
-      },
-    };
+  if (
+    !isPositiveInteger(input.request.estimatedQueryBudgetUnits) ||
+    input.request.estimatedQueryBudgetUnits > ctx.maxQueryBudgetUnits
+  ) {
+    return deny(
+      'deny-budget',
+      'QUERY_BUDGET_EXCEEDED',
+      requestFingerprint,
+      ctx,
+      baseAudit.scopeSummary,
+    );
   }
 
-  const auditTrailId = auditId('allow', requestFingerprint);
+  const auditTrailId = auditId('allow-scope', requestFingerprint);
   return {
-    decision: { allowed: true, auditTrailId },
+    decision: {
+      allowed: true,
+      auditTrailId,
+      scopeValidationOnly: true,
+      productionReadPermitted: false,
+    },
     auditEntry: {
       auditTrailId,
       authorizationRecordId: ctx.authorizationRecordId,
       decision: 'ALLOW',
-      reasonCode: 'SCOPE_MATCH',
+      reasonCode: 'SCOPE_VALIDATION_PASSED_NOT_PRODUCTION_READ_PERMISSION',
       ...baseAudit,
     },
   };
 }
 
-/** PR-B3 must never invoke provider/DB clients — explicit runtime guard for future wiring. */
 export function assertDs4RpmRealDataPilotLiveReadNotExecutedInPrB3(): void {
-  // Contract marker for static analysis and future executor boundaries.
   if (process.env.DS4_RPM_REAL_DATA_PILOT_LIVE_READ_EXECUTED === '1') {
     throw new Error('DS4_RPM_REAL_DATA_PILOT_LIVE_READ_FORBIDDEN_IN_PR_B3');
   }
 }
 
-export function authorizationWouldPermitR1HistoricalPointTimeCorrelation(
-  family: string | null,
-): boolean {
-  if (family == null) return false;
-  return !hasUncertainHistoricalObdRecordTime(
-    family as import('../../telemetry-source-family').TelemetrySourceFamily,
-  );
+/**
+ * Historical OBD point-time correlation is never authorized by scope validation alone.
+ * Non-R1 family classification does not prove timestamp authority.
+ */
+export function authorizationWouldPermitR1HistoricalPointTimeCorrelation(input: {
+  telemetrySourceFamily: string | null;
+  historicalTimestampTrust?: Ds4RpmRealDataHistoricalTimestampTrustLevelV1 | null;
+}): boolean {
+  const family = input.telemetrySourceFamily;
+  if (family == null || !VALID_TELEMETRY_FAMILIES.has(family as TelemetrySourceFamily)) {
+    return false;
+  }
+  if (family === 'UNKNOWN') return false;
+  if (hasUncertainHistoricalObdRecordTime(family as TelemetrySourceFamily)) return false;
+  if (input.historicalTimestampTrust !== 'API_SYNTHETIC_BUCKET_LABEL_ONLY') {
+    return false;
+  }
+  return false;
 }

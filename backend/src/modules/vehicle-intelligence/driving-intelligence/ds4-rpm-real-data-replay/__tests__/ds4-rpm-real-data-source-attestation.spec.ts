@@ -35,7 +35,7 @@ describe('ds4-rpm-real-data source attestation v1 (offline)', () => {
     const ctx = buildValidAuthorizationContextFixture(valid);
     const result = auditDs4RpmRealDataSourceAttestationV1(bundle, {
       authorizationContext: ctx,
-      authorizationRequestAtIso: '2026-11-04T09:00:00.000Z',
+      trustedEvaluatedAtIso: '2026-11-04T09:00:00.000Z',
     });
     expect(result.abstainReasons).toContain('ORGANIZATION_SCOPE_MISMATCH');
   });
@@ -51,7 +51,7 @@ describe('ds4-rpm-real-data source attestation v1 (offline)', () => {
       const tampered = { ...bundle, [field]: value };
       const result = auditDs4RpmRealDataSourceAttestationV1(tampered, {
         authorizationContext: ctx,
-        authorizationRequestAtIso: '2026-11-04T09:00:00.000Z',
+        trustedEvaluatedAtIso: '2026-11-04T09:00:00.000Z',
       });
       expect(result.correlationEligible).toBe(false);
     }
@@ -113,6 +113,11 @@ describe('ds4-rpm-real-data source attestation v1 (offline)', () => {
     expect(auditDs4RpmRealDataSourceAttestationV1(bad).abstainReasons).toContain(
       'PROVENANCE_FINGERPRINT_MISMATCH',
     );
+    expect(
+      auditDs4RpmRealDataSourceAttestationV1(bad).dimensions.find(
+        (d) => d.dimension === 'CORRELATION_ELIGIBLE',
+      )?.state,
+    ).toBe('BLOCKED');
   });
 
   it('denies missing or expired authorization scope', () => {
@@ -123,6 +128,7 @@ describe('ds4-rpm-real-data source attestation v1 (offline)', () => {
     const ctx = buildValidAuthorizationContextFixture(bundle);
     const expired = evaluateDs4RpmRealDataPilotReadAuthorizationV1({
       context: { ...ctx, expiresAtIso: '2026-01-01T00:00:00.000Z' },
+      trustedExecutionBoundary: { evaluatedAtIso: '2026-11-04T09:00:00.000Z' },
       request: {
         organizationId: bundle.organizationId,
         vehicleId: bundle.vehicleId,
@@ -131,7 +137,8 @@ describe('ds4-rpm-real-data source attestation v1 (offline)', () => {
         queryFromIso: bundle.queryProvenance.dimoQueryFromIso,
         queryToIso: bundle.queryProvenance.dimoQueryToIso,
         estimatedResponseRows: 100,
-        requestedAtIso: '2026-11-04T09:00:00.000Z',
+        estimatedQueryBudgetUnits: 1,
+        requestedAtIso: '2026-01-01T00:00:00.000Z',
       },
     });
     expect(expired.decision.allowed).toBe(false);
@@ -149,6 +156,7 @@ describe('ds4-rpm-real-data source attestation v1 (offline)', () => {
       queryFromIso: a.queryProvenance.dimoQueryFromIso,
       queryToIso: a.queryProvenance.dimoQueryToIso,
       estimatedResponseRows: 10,
+      estimatedQueryBudgetUnits: 1,
       requestedAtIso: '2026-11-04T09:00:00.000Z',
     });
     expect(reqFp).toMatch(/^[a-f0-9]{64}$/);
@@ -158,7 +166,7 @@ describe('ds4-rpm-real-data source attestation v1 (offline)', () => {
     const matrix = buildDs4RpmRealDataReferenceCohortReadinessMatrixV1();
     expect(matrix.generatedWithoutLiveAttestation).toBe(true);
     expect(matrix.rows.find((r) => r.cohortVehicleLabel === 'VW_TIGUAN')?.correlationEligible).toBe(
-      'NO_ELIGIBLE_REAL_DATA_SOURCE',
+      'CONDITIONAL_BLOCKED_IF_R1_PROVEN',
     );
     expect(matrix.minimalPilotReadPlan.length).toBeGreaterThan(0);
   });

@@ -4,7 +4,7 @@ export type Ds4RpmRealDataSourceReadinessRowV1 = {
   cohortVehicleLabel: Ds4RpmRealDataReferenceCohortVehicleLabel;
   sourceFamilyProven: 'UNPROVEN' | 'BLOCKED_IF_R1' | 'NOT_APPLICABLE';
   timestampAuthority: 'UNPROVEN' | 'BLOCKED_R1' | 'NOT_APPLICABLE';
-  correlationEligible: 'UNPROVEN' | 'NOT_APPLICABLE' | 'NO_ELIGIBLE_REAL_DATA_SOURCE';
+  correlationEligible: 'UNPROVEN' | 'NOT_APPLICABLE' | 'CONDITIONAL_BLOCKED_IF_R1_PROVEN';
   notes: readonly string[];
 };
 
@@ -38,10 +38,11 @@ export function buildDs4RpmRealDataReferenceCohortReadinessMatrixV1(): Ds4RpmRea
     {
       cohortVehicleLabel: 'VW_TIGUAN',
       sourceFamilyProven: 'BLOCKED_IF_R1',
-      timestampAuthority: 'BLOCKED_R1',
-      correlationEligible: 'NO_ELIGIBLE_REAL_DATA_SOURCE',
+      timestampAuthority: 'UNPROVEN',
+      correlationEligible: 'CONDITIONAL_BLOCKED_IF_R1_PROVEN',
       notes: [
-        'If RUPTELA_R1 family proven from rawJson, historical OBD point-time correlation prohibited',
+        'Entire fleet not permanently ineligible — only trips where attested rawJson proves RUPTELA_R1 are BLOCKED for historical OBD point-time correlation',
+        'Non-R1 Tiguan trips remain UNPROVEN pending owner-authorized attestation',
       ],
     },
     {

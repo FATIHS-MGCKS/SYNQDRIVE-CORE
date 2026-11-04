@@ -40,9 +40,11 @@ Injected fixtures use `PROVEN_FROM_INJECTED_FIXTURE` — **not** production atte
 `Ds4RpmRealDataPilotReadAuthorizationContextV1` enforced via `evaluateDs4RpmRealDataPilotReadAuthorizationV1` **outside** attestation bundles:
 
 - Exact org / vehicle / trip allowlist / source link
-- Bounded ISO window + response row budget
-- Expiry + audit trail entries (no secrets)
-- Automatic DENY on scope mismatch
+- Bounded ISO window + response row budget + **positive integer query budget estimate**
+- **Trusted execution boundary** `evaluatedAtIso` for expiry — never `request.requestedAtIso` or `issuedAt` fallback
+- Require `issuedAt <= evaluatedAt < expiresAt`; reject invalid validity intervals
+- Allow decision: `scopeValidationOnly: true`, `productionReadPermitted: false` (not production read permission)
+- Automatic DENY on scope mismatch; provenance fingerprint mismatch → `CORRELATION_ELIGIBLE` BLOCKED
 
 `assertDs4RpmRealDataPilotLiveReadNotExecutedInPrB3()` — no live Postgres/ClickHouse/DIMO in PR-B3.
 
@@ -52,7 +54,7 @@ Injected fixtures use `PROVEN_FROM_INJECTED_FIXTURE` — **not** production atte
 |--------|------------------------------|
 | Audi A4 | UNPROVEN |
 | VW Arteon | UNPROVEN |
-| VW Tiguan | **NO_ELIGIBLE_REAL_DATA_SOURCE** if R1 family (R1 veto) |
+| VW Tiguan | **CONDITIONAL_BLOCKED_IF_R1_PROVEN** — fleet not permanently ineligible; R1-attested trips BLOCKED |
 | Tesla Model 3 | NOT_APPLICABLE (ICE RPM) |
 
 **Pilot conclusion:** `NO_ELIGIBLE_REAL_DATA_SOURCE_WITHOUT_OWNER_AUTHORIZED_ATTESTATION`
@@ -70,12 +72,12 @@ Injected fixtures use `PROVEN_FROM_INJECTED_FIXTURE` — **not** production atte
 
 - Family gate: `ds4-rpm-shadow-correlation-source-family-gate.v1.ts`
 - Attestation audit: `R1_HISTORICAL_OBD_POINT_TIME_CORRELATION_PROHIBITED`
-- Readiness matrix Tiguan row: `NO_ELIGIBLE_REAL_DATA_SOURCE` when R1 path
+- Readiness matrix Tiguan row: conditional R1 block per trip attestation (not whole fleet)
 
 ## 7. Validation
 
 ```bash
-cd backend && npm run test:di:ds4-rpm-real-data-attestation
+cd backend && npm run test:di:ds4-rpm-real-data-attestation  # includes adversarial hardening suite
 cd backend && npm run test:di:ds4-rpm-real-data-replay
 bash architecture/scripts/validate-module-registry.sh
 ```
