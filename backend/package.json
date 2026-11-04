@@ -199,6 +199,7 @@
     "test:di:rpm-ref-intel-v1": "jest ds4-rpm-reference-intelligence-v1 --runInBand",
     "test:di:ds4-rpm-shadow-correlation": "jest ds4-rpm-shadow-correlation --runInBand",
     "test:di:ds4-rpm-real-data-replay": "jest ds4-rpm-real-data-replay --runInBand",
+    "test:di:ds4-rpm-real-data-attestation": "jest ds4-rpm-real-data-source-attestation --runInBand",
     "test:nest:boot-check:ci": "bash scripts/test/synqdrive-nest-boot-check-ci.sh",
     "test:boundary-repair:postgres": "bash scripts/test/boundary-repair-postgres-ci.sh",
     "test:erd-e4:bullmq-redis": "bash scripts/test/erd-e4-bullmq-redis-ci.sh",
