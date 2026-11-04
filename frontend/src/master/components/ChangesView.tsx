@@ -36,6 +36,25 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'oneauto-p4-e4-live-callback-wrapper-fix-2026-11-04',
+    version: '4.9.5025',
+    title: 'One Auto P4 E4-L1 — live callback wrapper envelope + provider-failure classification (draft)',
+    summary: [
+      'Production callbacks arrive as `{ status, result: { success, result, error } }`; parser now unwraps this (bare envelope still accepted).',
+      'Provider `success:false` → `ONEAUTO_CALLBACK_PROVIDER_FAILURE` (HTTP 200 ack, envelope persisted); wrapper 206 → `ONEAUTO_PARTIAL_CONTENT`; unreadable stays `ONEAUTO_CALLBACK_PAYLOAD_MALFORMED` (404).',
+      'Provider 202 echo `callBackUrl` (delivery token) now redacted in persisted responses. Evidence: `P4_E4_LIVE_CALLBACK_INCIDENT_2026-11-04.md`.',
+    ],
+    reason:
+      'First live E4 test: a provider "no data for this VIN — not charged" answer and a valid VW result were both misreported as malformed payloads.',
+    previousBehavior:
+      'Callback body evaluated as bare SUCCESS_RESULT_ERROR envelope; any envelope failure collapsed to ONEAUTO_CALLBACK_PAYLOAD_MALFORMED with HTTP 404 (provider re-delivered after ~60 s).',
+    details:
+      'backend: oneauto-callback-full-data.util.ts, oneauto-provider-callback.service.ts, oneauto-provider-redact.util.ts; tests oneauto-p4-e4-callback-wrapped-envelope.spec.ts; i18n master.oneAuto.error.* (9 locales). No retrieval GET, no retries, no FAILED→SUCCEEDED recovery, no deploy.',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-11-04T19:30:00.000Z',
+  },
+  {
     id: 'oneauto-p4-e4-registry-promotion-2026-11-04',
     version: '4.9.5024',
     title: 'One Auto P4 E4-R — registry seed CALLBACK_FULL_DATA (flags still OFF)',

@@ -71,6 +71,12 @@ export const masterOneAutoCs = {
     'Požadavek pro toto vozidlo a službu již probíhá.',
   'master.oneAuto.error.ONEAUTO_PROVIDER_RESULT_EXPIRED':
     'Vypršela doba uchování výsledku u poskytovatele. Interní rezervace uvolněna; poplatek u poskytovatele zůstává neznámý.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PROVIDER_FAILURE':
+    'Poskytovatel ve zpětném volání nevrátil pro tento VIN žádný výsledek (success=false). Zkontrolujte zprávu poskytovatele ve výsledku.',
+  'master.oneAuto.error.ONEAUTO_PARTIAL_CONTENT':
+    'Poskytovatel vrátil částečný obsah (HTTP 206) — nebyl přijat jako úplný výsledek.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PAYLOAD_MALFORMED':
+    'Zpětné volání poskytovatele se nepodařilo přečíst. Data byla uložena ke kontrole.',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.name': 'OE Service History EU',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.description':
     'Manufacturer service history (EU) — external provider payload only.',

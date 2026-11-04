@@ -71,6 +71,12 @@ export const masterOneAutoTr = {
     'Bu araç ve hizmet için zaten devam eden bir istek var.',
   'master.oneAuto.error.ONEAUTO_PROVIDER_RESULT_EXPIRED':
     'Sağlayıcı sonuç saklama süresi doldu. Dahili rezervasyon serbest bırakıldı; sağlayıcı ücreti bilinmiyor.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PROVIDER_FAILURE':
+    'Sağlayıcı geri çağrısında bu VIN için sonuç bildirmedi (success=false). Sonuçtaki sağlayıcı mesajını kontrol edin.',
+  'master.oneAuto.error.ONEAUTO_PARTIAL_CONTENT':
+    'Sağlayıcı kısmi içerik döndürdü (HTTP 206) — tam sonuç olarak kabul edilmedi.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PAYLOAD_MALFORMED':
+    'Sağlayıcı geri çağrısı okunamadı. Veri inceleme için kaydedildi.',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.name': 'OE Service History EU',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.description':
     'Manufacturer service history (EU) — external provider payload only.',

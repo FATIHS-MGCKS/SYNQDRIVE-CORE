@@ -71,6 +71,12 @@ export const masterOneAutoFr = {
     'Une demande pour ce véhicule et ce service est déjà en cours.',
   'master.oneAuto.error.ONEAUTO_PROVIDER_RESULT_EXPIRED':
     'Délai de conservation du résultat fournisseur expiré. Réservation interne libérée ; facturation fournisseur inconnue.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PROVIDER_FAILURE':
+    'Le fournisseur n’a renvoyé aucun résultat pour ce VIN dans son rappel (success=false). Vérifiez le message du fournisseur dans le résultat.',
+  'master.oneAuto.error.ONEAUTO_PARTIAL_CONTENT':
+    'Le fournisseur a renvoyé un contenu partiel (HTTP 206) — non accepté comme résultat complet.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PAYLOAD_MALFORMED':
+    'Le rappel du fournisseur n’a pas pu être lu. La charge utile a été enregistrée pour vérification.',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.name': 'OE Service History EU',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.description':
     'Manufacturer service history (EU) — external provider payload only.',
