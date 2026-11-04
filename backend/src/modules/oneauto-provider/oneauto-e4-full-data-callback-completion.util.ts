@@ -53,11 +53,33 @@ export type PersistFullDataCallbackSuccessInput = {
 /**
  * Transactional success path shared by live callback ingest and owner-invoked FAILED-job recovery.
  * Never performs provider HTTP.
+ *
+ * Order: conditional job transition first; response rows are written only after `updateMany` succeeds
+ * so a failed transition never leaves orphan audit/callback rows.
  */
 export async function persistFullDataCallbackSuccessInTransaction(
   tx: FullDataCallbackCompletionClient,
   input: PersistFullDataCallbackSuccessInput,
 ): Promise<{ transitioned: boolean }> {
+  const updated = await tx.oneAutoProviderJob.updateMany({
+    where: {
+      id: input.jobId,
+      status: { in: input.eligiblePriorStatuses },
+    },
+    data: {
+      status: OneAutoProviderJobStatus.SUCCEEDED,
+      providerCallbackReceivedAt: input.providerCallbackReceivedAt,
+      actualChargeKnown: false,
+      actualChargeMinor: null,
+      lastErrorCode: null,
+      lastErrorMessageRedacted: null,
+    },
+  });
+
+  if (updated.count === 0) {
+    return { transitioned: false };
+  }
+
   if (input.recoveryAudit) {
     await tx.oneAutoProviderResponse.create({
       data: {
@@ -87,20 +109,5 @@ export async function persistFullDataCallbackSuccessInTransaction(
     },
   });
 
-  const updated = await tx.oneAutoProviderJob.updateMany({
-    where: {
-      id: input.jobId,
-      status: { in: input.eligiblePriorStatuses },
-    },
-    data: {
-      status: OneAutoProviderJobStatus.SUCCEEDED,
-      providerCallbackReceivedAt: input.providerCallbackReceivedAt,
-      actualChargeKnown: false,
-      actualChargeMinor: null,
-      lastErrorCode: null,
-      lastErrorMessageRedacted: null,
-    },
-  });
-
-  return { transitioned: updated.count > 0 };
+  return { transitioned: true };
 }

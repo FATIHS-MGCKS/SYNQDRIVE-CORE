@@ -18,7 +18,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from '../../src/app.module';
+import { OneAutoE4FailedCallbackRecoveryCliModule } from '../../src/modules/oneauto-provider/oneauto-e4-failed-callback-recovery-cli.module';
 import { OneAutoE4FailedCallbackRecoveryService } from '../../src/modules/oneauto-provider/oneauto-e4-failed-callback-recovery.service';
 
 {
@@ -57,9 +57,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const appModule = await AppModule.forRootAsync();
+  const appModule = OneAutoE4FailedCallbackRecoveryCliModule;
   const app = await NestFactory.createApplicationContext(appModule, {
-    logger: ['error', 'warn', 'log'],
+    logger: ['error', 'warn'],
   });
 
   try {

@@ -106,6 +106,7 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
         count: jest.fn().mockResolvedValue(0),
       },
       oneAutoProviderJob: {
+        findFirst: jest.fn().mockResolvedValue(failedVwJob()),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
@@ -126,8 +127,7 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
       vehicle: {
         findFirst: jest.fn().mockResolvedValue({ vin: VW_VIN }),
       },
-      oneAutoProviderResponse: { count: jest.fn().mockResolvedValue(0) },
-      $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<boolean>) => fn(tx)),
+      $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<string>) => fn(tx)),
     };
     const materialize = { tryMaterializeFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'CREATED' }) };
     const svc = new OneAutoE4FailedCallbackRecoveryService(
@@ -285,50 +285,106 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
     expect(result.outcome).toBe('ALREADY_RECOVERED');
   });
 
-  it('does not create duplicate callback responses on concurrent recovery', async () => {
-    const tx = {
-      oneAutoProviderResponse: {
-        create: jest.fn(),
-        count: jest.fn().mockResolvedValue(1),
-      },
-      oneAutoProviderJob: { updateMany: jest.fn() },
-    };
-    const prisma = {
-      oneAutoProviderJob: {
-        findFirst: jest.fn().mockResolvedValue(failedVwJob()),
-        findUnique: jest.fn().mockResolvedValue({
-          status: OneAutoProviderJobStatus.FAILED,
-          providerCallbackReceivedAt: null,
-        }),
-      },
-      oneAutoProviderCallbackInbox: {
-        findMany: jest.fn().mockResolvedValue([
-          {
-            id: 'inbox-vw-1',
-            payloadJson: observedVwWrappedSuccessCallback(),
-            receivedAt: new Date(),
-          },
-        ]),
-      },
-      vehicle: { findFirst: jest.fn().mockResolvedValue({ vin: VW_VIN }) },
-      oneAutoProviderResponse: { count: jest.fn().mockResolvedValue(0) },
-      $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<boolean>) => fn(tx)),
-    };
-    const materialize = { tryMaterializeFromSucceededJob: jest.fn() };
-    const svc = new OneAutoE4FailedCallbackRecoveryService(
-      prisma as never,
-      materialize as never,
-    );
-    const result = await svc.recoverFailedFullDataCallbackJob({
-      jobId: VW_JOB_ID,
-      organizationId: VW_ORG_ID,
-      vehicleId: VW_VEHICLE_ID,
-      expectedLastErrorCode: 'ONEAUTO_CALLBACK_PAYLOAD_MALFORMED',
-      requireProductionAuthorization: false,
+  it('returns ALREADY_RECOVERED when callback response already exists in transaction', async () => {
+      const tx = {
+        oneAutoProviderResponse: {
+          create: jest.fn(),
+          count: jest.fn().mockResolvedValue(1),
+        },
+        oneAutoProviderJob: { updateMany: jest.fn(), findFirst: jest.fn() },
+      };
+      const prisma = {
+        oneAutoProviderJob: { findFirst: jest.fn().mockResolvedValue(failedVwJob()) },
+        oneAutoProviderCallbackInbox: {
+          findMany: jest.fn().mockResolvedValue([
+            {
+              id: 'inbox-vw-1',
+              payloadJson: observedVwWrappedSuccessCallback(),
+              receivedAt: new Date(),
+            },
+          ]),
+        },
+        vehicle: { findFirst: jest.fn().mockResolvedValue({ vin: VW_VIN }) },
+        $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<string>) => fn(tx)),
+      };
+      const svc = new OneAutoE4FailedCallbackRecoveryService(
+        prisma as never,
+        { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      );
+      const result = await svc.recoverFailedFullDataCallbackJob({
+        jobId: VW_JOB_ID,
+        organizationId: VW_ORG_ID,
+        vehicleId: VW_VEHICLE_ID,
+        expectedLastErrorCode: 'ONEAUTO_CALLBACK_PAYLOAD_MALFORMED',
+        requireProductionAuthorization: false,
+      });
+      expect(result.outcome).toBe('ALREADY_RECOVERED');
+      expect(tx.oneAutoProviderJob.updateMany).not.toHaveBeenCalled();
+      expect(tx.oneAutoProviderResponse.create).not.toHaveBeenCalled();
     });
-    expect(result.outcome).toBe('PRECONDITION_FAILED');
-    expect(tx.oneAutoProviderResponse.create).not.toHaveBeenCalled();
-    expect(materialize.tryMaterializeFromSucceededJob).not.toHaveBeenCalled();
+
+  it('concurrent recovery: only one transition succeeds; loser is idempotent or precondition failed', async () => {
+      let transitionAttempts = 0;
+      const tx = {
+        oneAutoProviderResponse: {
+          create: jest.fn(),
+          count: jest.fn().mockResolvedValue(0),
+        },
+        oneAutoProviderJob: {
+          findFirst: jest.fn().mockResolvedValue(failedVwJob()),
+          updateMany: jest.fn().mockImplementation(async () => {
+            transitionAttempts += 1;
+            return { count: transitionAttempts === 1 ? 1 : 0 };
+          }),
+        },
+      };
+      const prisma = {
+        oneAutoProviderJob: {
+          findFirst: jest.fn().mockResolvedValue(failedVwJob()),
+          findUnique: jest.fn().mockResolvedValue({
+            status: OneAutoProviderJobStatus.SUCCEEDED,
+            providerCallbackReceivedAt: new Date(),
+          }),
+        },
+        oneAutoProviderCallbackInbox: {
+          findMany: jest.fn().mockResolvedValue([
+            {
+              id: 'inbox-vw-1',
+              payloadJson: observedVwWrappedSuccessCallback(),
+              receivedAt: new Date(),
+            },
+          ]),
+        },
+        vehicle: { findFirst: jest.fn().mockResolvedValue({ vin: VW_VIN }) },
+        $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<string>) => fn(tx)),
+      };
+      const materialize = { tryMaterializeFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'CREATED' }) };
+      const svc = new OneAutoE4FailedCallbackRecoveryService(
+        prisma as never,
+        materialize as never,
+      );
+
+      const [first, second] = await Promise.all([
+        svc.recoverFailedFullDataCallbackJob({
+          jobId: VW_JOB_ID,
+          organizationId: VW_ORG_ID,
+          vehicleId: VW_VEHICLE_ID,
+          expectedLastErrorCode: 'ONEAUTO_CALLBACK_PAYLOAD_MALFORMED',
+          requireProductionAuthorization: false,
+        }),
+        svc.recoverFailedFullDataCallbackJob({
+          jobId: VW_JOB_ID,
+          organizationId: VW_ORG_ID,
+          vehicleId: VW_VEHICLE_ID,
+          expectedLastErrorCode: 'ONEAUTO_CALLBACK_PAYLOAD_MALFORMED',
+          requireProductionAuthorization: false,
+        }),
+      ]);
+
+      const outcomes = [first.outcome, second.outcome].sort();
+      expect(outcomes).toEqual(['ALREADY_RECOVERED', 'RECOVERED'].sort());
+      expect(materialize.tryMaterializeFromSucceededJob).toHaveBeenCalledTimes(1);
+      expect(tx.oneAutoProviderResponse.create).toHaveBeenCalledTimes(2);
   });
 
   it('dry-run validates VW payload without writes', async () => {

@@ -250,6 +250,7 @@ export class OneAutoE4FailedCallbackRecoveryService {
     }
 
     const recoveredAt = now;
+    const expectedError = input.expectedLastErrorCode.trim();
     const transitioned = await this.prisma.$transaction(async (tx) => {
       const existingCallback = await tx.oneAutoProviderResponse.count({
         where: {
@@ -258,7 +259,37 @@ export class OneAutoE4FailedCallbackRecoveryService {
         },
       });
       if (existingCallback > 0) {
-        return false;
+        return 'already_has_callback' as const;
+      }
+
+      const jobInTx = await tx.oneAutoProviderJob.findFirst({
+        where: {
+          id: job.id,
+          organizationId: input.organizationId,
+          vehicleId: input.vehicleId,
+          status: OneAutoProviderJobStatus.FAILED,
+          lastErrorCode: expectedError,
+          serviceSku: ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU,
+          retrievalProviderDispatchAt: null,
+        },
+        select: {
+          id: true,
+          status: true,
+          lastErrorCode: true,
+          lastErrorMessageRedacted: true,
+          providerResultExpiresAt: true,
+          expiresAt: true,
+        },
+      });
+      if (!jobInTx) {
+        return 'job_precondition_failed' as const;
+      }
+
+      const expiredInTx =
+        (jobInTx.providerResultExpiresAt && jobInTx.providerResultExpiresAt <= now) ||
+        (jobInTx.expiresAt && jobInTx.expiresAt <= now);
+      if (expiredInTx) {
+        return 'retention_expired' as const;
       }
 
       const { transitioned: ok } = await persistFullDataCallbackSuccessInTransaction(tx, {
@@ -267,17 +298,23 @@ export class OneAutoE4FailedCallbackRecoveryService {
         providerCallbackReceivedAt: inbox.receivedAt,
         eligiblePriorStatuses: [OneAutoProviderJobStatus.FAILED],
         recoveryAudit: {
-          priorStatus: job.status,
-          priorLastErrorCode: job.lastErrorCode,
-          priorLastErrorMessageRedacted: job.lastErrorMessageRedacted,
+          priorStatus: jobInTx.status,
+          priorLastErrorCode: jobInTx.lastErrorCode,
+          priorLastErrorMessageRedacted: jobInTx.lastErrorMessageRedacted,
           inboxRowId: inbox.id,
           recoveredAt,
         },
       });
-      return ok;
+      return ok ? ('recovered' as const) : ('transition_lost' as const);
     });
 
-    if (!transitioned) {
+    if (transitioned === 'already_has_callback') {
+      return { ...base, outcome: 'ALREADY_RECOVERED' };
+    }
+    if (transitioned === 'retention_expired') {
+      return { ...base, outcome: 'RETENTION_EXPIRED' };
+    }
+    if (transitioned === 'job_precondition_failed' || transitioned === 'transition_lost') {
       const fresh = await this.prisma.oneAutoProviderJob.findUnique({
         where: { id: job.id },
         select: { status: true, providerCallbackReceivedAt: true },
@@ -288,7 +325,15 @@ export class OneAutoE4FailedCallbackRecoveryService {
       return {
         ...base,
         outcome: 'PRECONDITION_FAILED',
-        detail: { reason: 'transition_race_or_state_changed' },
+        detail: { reason: transitioned },
+      };
+    }
+
+    if (transitioned !== 'recovered') {
+      return {
+        ...base,
+        outcome: 'PRECONDITION_FAILED',
+        detail: { reason: 'unexpected_transaction_result' },
       };
     }
 
