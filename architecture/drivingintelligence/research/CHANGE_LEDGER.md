@@ -2613,10 +2613,39 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** production writes/deploy; **no** motion-core/admission/P2 CSV changes; **no** peak reconstruction |
 | REMAINING | Empirical 129-event sidecar from Production DB requires operator `DATABASE_URL` CLI run; peaks remain unavailable until contract extension |
 
-### 2026-10-31 — Tiguan partial boundary extension → DI admission release (trips reconciliation hook)
+### 2026-11-03 — DS4 × RPM HF shadow correlation harness V1 (Phase 0 research)
 
 | Field | Detail |
 |-------|--------|
+| CHANGE | Pure library `ds4-rpm-shadow-correlation/` — temporal join, validation, trip/cohort reports, fixture replay scenarios, CLI `scripts/research/ds4-rpm-shadow-correlation-harness.cli.ts`; shared motion synthetic harness fixture |
+| WHY | P0 audit Phase 0 — reproducible fail-closed join of DS4 manoeuvre windows with admitted RPM sample evidence (V1A-shaped); no competing tier/motion logic |
+| VALIDATION | `npm run test:di:ds4-rpm-shadow-correlation`; CLI writes `/opt/cursor/artifacts/ds4-rpm-shadow-correlation/`; regression: `test:di:ds4-assessment`, V1B temporal/tier, VSI cadence tier |
+| OBSERVED | Fixture `RPM_1S_ALIGNED`: defensible context on manoeuvre events; negative controls `TENANT_MISMATCH`, timestamp shift fail closed |
+| NON_EFFECTS | **No** production/flags/schema/API/UI/score changes; **no** DS4 event count or L2 eligibility mutation |
+| REMAINING | DB/CH-backed loader with fingerprint attestation; Audi/Arteon frozen cohort; Fable alignment tolerance |
+| EVIDENCE | [DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md](../evidence/DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md) |
+
+### 2026-11-03 — DS4 × RPM shadow correlation harness V1 review hardening (PR #2325)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Hardened temporal join (half-open windows, admitted-sequence support metrics), conflict-safe stats, provenance/fingerprint recompute validation, trip-level reference band scope, cohort negative-control exclusion, adversarial unit tests |
+| WHY | Orchestrator review on Phase 0 harness — prevent authoritative claims from weak overlap, aggregate-only PARTIAL, or unattested fixture identities |
+| VALIDATION | `npm run test:di:ds4-rpm-shadow-correlation` (15 tests); regression ds4-assessment / rpm-ref-intel / V1B temporal / VSI cadence; CLI cohort refresh |
+| OBSERVED | Fixture prevalence excl. negative controls **41.67%** AVAILABLE share (5/12 events); all negative-control events **UNAVAILABLE** |
+| NON_EFFECTS | **No** motion-core/V1B engine/score/API/UI/schema/production flag changes |
+| REMAINING | Authorized loader + attested motion snapshot hash; timestamp phase research; live cohort replay |
+| EVIDENCE | Same evidence doc — **REVIEW_HARDENING** section |
+
+### 2026-11-03 — DS4 × RPM shadow correlation P0 final review fix (PR #2325)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Provenance gate module; mandatory join gate; fingerprint integrity without overwriting persisted summary; tier authority (no SPARSE→1S); reference attachment UNAVAILABLE; empty manoeuvre valid result |
+| VALIDATION | `test:di:ds4-rpm-shadow-correlation` 19/19; ds4-assessment / rpm-ref-intel / V1B / VSI regression; backend tsc |
+| OBSERVED | Fixture cohort unchanged at 41.67% defensible excl. negative controls |
+| EVIDENCE | `DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md` — **P0_FINAL_REVIEW_FIX** |
+
 | CHANGE | Trips module releases `diV0BoundaryAdmissionV1` after committed `PARTIAL_TRIP_BOUNDARY_EXTENSION`; S4 discovery eligibility unchanged (still requires matching admission revision) |
 | WHY | Post-repair `boundaryRefresh` PENDING blocked `canRelease`; Tiguan canonical trip never received admission via boundary-scanned release path |
 | VALIDATION | `trip-di-boundary-admission.unit.spec.ts`; postgres harness when live |
