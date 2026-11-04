@@ -89,6 +89,32 @@ describe('ds4-rpm-real-data offline bundle input fingerprint v2 mutations', () =
     );
   });
 
+  it('E2 — different device serial with same R1 prefix yields different identity digest', () => {
+    const a = { aftermarketDevice: { serial: 'R1-AAAA-1111' } };
+    const b = { aftermarketDevice: { serial: 'R1-AAAA-2222' } };
+    expect(computeDs4RpmRealDataSourceFamilyIdentityDigestV1(a)).not.toBe(
+      computeDs4RpmRealDataSourceFamilyIdentityDigestV1(b),
+    );
+  });
+
+  it('D2 — changed V1B temporalCoverage semantics changes bundle fingerprint', () => {
+    const before = computeDs4RpmRealDataOfflineBundleInputFingerprintV1(base);
+    const after = computeDs4RpmRealDataOfflineBundleInputFingerprintV1(
+      cloneBundle(base, (b) => {
+        if (b.v1bResult) {
+          b.v1bResult = {
+            ...b.v1bResult,
+            temporalCoverage: {
+              ...b.v1bResult.temporalCoverage,
+              missingBucketCount: b.v1bResult.temporalCoverage.missingBucketCount + 1,
+            },
+          };
+        }
+      }),
+    );
+    expect(after).not.toBe(before);
+  });
+
   it('F — changed CAN speed evidence yields different fingerprint', () => {
     const before = computeDs4RpmRealDataOfflineBundleInputFingerprintV1(base);
     const after = computeDs4RpmRealDataOfflineBundleInputFingerprintV1(

@@ -3,8 +3,8 @@ import type {
   Ds4RpmRealDataResearchReportV1,
 } from './ds4-rpm-real-data-replay.contract.v1';
 import { DS4_RPM_REAL_DATA_REPLAY_EXECUTOR_CONTRACT_VERSION } from './ds4-rpm-real-data-replay.contract.v1';
-import { DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS } from './ds4-rpm-real-data-replay-executor.v1';
-import { DS4_RPM_REAL_DATA_SCIENTIFIC_OUTPUT_GUARD_CLAIMS } from './ds4-rpm-real-data-scientific-output-guard.v1';
+import { DS4_RPM_REAL_DATA_ALL_SCIENTIFIC_DISCLAIMER_CLAIMS } from './ds4-rpm-real-data-scientific-claims.v1';
+import { assertDs4RpmRealDataResearchReportScientificIntegrityV1 } from './ds4-rpm-real-data-scientific-output-guard.v1';
 
 function increment(map: Record<string, number>, key: string, by = 1): void {
   map[key] = (map[key] ?? 0) + by;
@@ -71,7 +71,7 @@ export function buildDs4RpmRealDataResearchReportV1(input: {
     }
   }
 
-  return {
+  const report: Ds4RpmRealDataResearchReportV1 = {
     contractVersion: DS4_RPM_REAL_DATA_REPLAY_EXECUTOR_CONTRACT_VERSION,
     reportId: input.reportId,
     generatedAtIso: input.generatedAt.toISOString(),
@@ -87,11 +87,10 @@ export function buildDs4RpmRealDataResearchReportV1(input: {
     gapDeficiencySecondsSum,
     gapDeficiencyEventCount,
     tripArtifacts: input.tripArtifacts,
-    unsupportedScientificClaims: [
-      ...DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS,
-      ...DS4_RPM_REAL_DATA_SCIENTIFIC_OUTPUT_GUARD_CLAIMS,
-    ],
+    unsupportedScientificClaims: [...DS4_RPM_REAL_DATA_ALL_SCIENTIFIC_DISCLAIMER_CLAIMS],
   };
+  assertDs4RpmRealDataResearchReportScientificIntegrityV1(report);
+  return report;
 }
 
 export function executeDs4RpmRealDataOfflineReplayCohortV1(input: {

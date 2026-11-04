@@ -1,19 +1,23 @@
 import type { Ds4RpmRealDataResearchReportV1 } from './ds4-rpm-real-data-replay.contract.v1';
-import { DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS } from './ds4-rpm-real-data-replay-executor.v1';
-
-export const DS4_RPM_REAL_DATA_SCIENTIFIC_OUTPUT_GUARD_CLAIMS = [
-  'UNPROVEN_NEVER_IMPLIES_ELIGIBLE',
-  'BLOCKED_AND_NOT_APPLICABLE_NOT_REAL_DATA_ELIGIBLE',
-  'SHADOW_AVAILABLE_NOT_SOURCE_ELIGIBILITY',
-  'SHADOW_AVAILABLE_NOT_REAL_WORLD_ACCURACY',
-  'INJECTED_FIXTURE_SOURCE_NOT_PRODUCTION_ATTESTED',
-  'CAN_SPEED_CO_BUCKET_NOT_CROSS_DOMAIN_TIMESTAMP_ALIGNMENT',
-] as const;
+import { DS4_RPM_REAL_DATA_ALL_SCIENTIFIC_DISCLAIMER_CLAIMS } from './ds4-rpm-real-data-scientific-claims.v1';
 
 export type Ds4RpmRealDataScientificIntegrityViolation = {
   code: string;
   detail: string;
 };
+
+export class Ds4RpmRealDataScientificIntegrityError extends Error {
+  readonly code = 'DS4_RPM_REAL_DATA_SCIENTIFIC_INTEGRITY_VIOLATION' as const;
+
+  constructor(
+    readonly violations: readonly Ds4RpmRealDataScientificIntegrityViolation[],
+  ) {
+    super(
+      `DS4 RPM real-data research report failed scientific integrity (${violations.length} violation(s))`,
+    );
+    this.name = 'Ds4RpmRealDataScientificIntegrityError';
+  }
+}
 
 export function validateDs4RpmRealDataResearchReportScientificIntegrityV1(
   report: Ds4RpmRealDataResearchReportV1,
@@ -36,11 +40,7 @@ export function validateDs4RpmRealDataResearchReportScientificIntegrityV1(
     }
   }
 
-  const requiredClaims = [
-    ...DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS,
-    ...DS4_RPM_REAL_DATA_SCIENTIFIC_OUTPUT_GUARD_CLAIMS,
-  ];
-  for (const claim of requiredClaims) {
+  for (const claim of DS4_RPM_REAL_DATA_ALL_SCIENTIFIC_DISCLAIMER_CLAIMS) {
     if (!report.unsupportedScientificClaims.includes(claim)) {
       violations.push({ code: 'MISSING_UNSUPPORTED_CLAIM', detail: claim });
     }
@@ -56,7 +56,16 @@ export function validateDs4RpmRealDataResearchReportScientificIntegrityV1(
   return violations;
 }
 
-/** Count shadow AVAILABLE events — distinct from source eligibility or field accuracy. */
+/** Fail closed — never return a partially valid research report. */
+export function assertDs4RpmRealDataResearchReportScientificIntegrityV1(
+  report: Ds4RpmRealDataResearchReportV1,
+): void {
+  const violations = validateDs4RpmRealDataResearchReportScientificIntegrityV1(report);
+  if (violations.length > 0) {
+    throw new Ds4RpmRealDataScientificIntegrityError(violations);
+  }
+}
+
 export function countShadowContextAvailableEvents(
   report: Ds4RpmRealDataResearchReportV1,
 ): number {

@@ -9,7 +9,7 @@ import type { Ds4RpmRealDataOfflineInputBundleV1 } from './ds4-rpm-real-data-rep
 import { DS4_RPM_REAL_DATA_REPLAY_EXECUTOR_CONTRACT_VERSION } from './ds4-rpm-real-data-replay.contract.v1';
 
 export const DS4_RPM_REAL_DATA_OFFLINE_BUNDLE_INPUT_FINGERPRINT_VERSION =
-  'ds4-rpm-real-data-offline-bundle-input-fingerprint-v2' as const;
+  'ds4-rpm-real-data-offline-bundle-input-fingerprint-v3' as const;
 
 /** Deterministic JSON-like serialization (sorted object keys). */
 export function stableStringify(value: unknown): string {
@@ -28,33 +28,58 @@ function sha256Stable(value: unknown): string {
   return createHash('sha256').update(stableStringify(value)).digest('hex');
 }
 
+function hashSensitiveMaterial(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value);
+}
+
 /**
- * Family-resolution evidence digest only — never embeds full rawJson in artifacts.
- * Uses resolved family + structural signals that affect {@link resolveTelemetrySourceFamily}.
+ * Canonical material DIMO identity evidence for family resolution.
+ * Returns only digests — never serials, tokens, or rawJson in the returned structure.
  */
-export function computeDs4RpmRealDataSourceFamilyIdentityDigestV1(rawJson: unknown): string {
+export function buildDs4RpmRealDataSourceFamilyIdentityMaterialV1(rawJson: unknown): {
+  resolvedTelemetrySourceFamily: ReturnType<typeof resolveTelemetrySourceFamily>;
+  aftermarketSerialSha256: string | null;
+  syntheticDeviceMaterialSha256: string | null;
+  conflictingDeviceSignals: boolean;
+} {
   const resolved = resolveTelemetrySourceFamily(rawJson);
-  let aftermarketSerialPrefix: string | null = null;
-  let hasSyntheticDevice = false;
-  let hasAftermarketDevice = false;
-  if (rawJson != null && typeof rawJson === 'object' && !Array.isArray(rawJson)) {
-    const o = rawJson as Record<string, unknown>;
-    hasSyntheticDevice = o.syntheticDevice != null;
-    hasAftermarketDevice = o.aftermarketDevice != null;
-    const am = o.aftermarketDevice;
-    if (am != null && typeof am === 'object' && !Array.isArray(am)) {
-      const serial = (am as Record<string, unknown>).serial;
-      if (typeof serial === 'string' && serial.length > 0) {
-        aftermarketSerialPrefix = serial.slice(0, Math.min(8, serial.length));
-      }
+  if (!isPlainObject(rawJson)) {
+    return {
+      resolvedTelemetrySourceFamily: resolved,
+      aftermarketSerialSha256: null,
+      syntheticDeviceMaterialSha256: null,
+      conflictingDeviceSignals: false,
+    };
+  }
+  const hasAftermarket = rawJson.aftermarketDevice != null;
+  const hasSynthetic = rawJson.syntheticDevice != null;
+  let aftermarketSerialSha256: string | null = null;
+  let syntheticDeviceMaterialSha256: string | null = null;
+  if (hasAftermarket && isPlainObject(rawJson.aftermarketDevice)) {
+    const serial = rawJson.aftermarketDevice.serial;
+    if (typeof serial === 'string' && serial.length > 0) {
+      aftermarketSerialSha256 = hashSensitiveMaterial(serial);
     }
   }
-  return sha256Stable({
+  if (hasSynthetic && isPlainObject(rawJson.syntheticDevice)) {
+    syntheticDeviceMaterialSha256 = sha256Stable(rawJson.syntheticDevice);
+  }
+  return {
     resolvedTelemetrySourceFamily: resolved,
-    hasSyntheticDevice,
-    hasAftermarketDevice,
-    aftermarketSerialPrefix,
-    attestation: 'STRUCTURAL_DIMO_IDENTITY_SLICE_NOT_PRODUCTION_READ',
+    aftermarketSerialSha256,
+    syntheticDeviceMaterialSha256,
+    conflictingDeviceSignals: hasAftermarket && hasSynthetic,
+  };
+}
+
+export function computeDs4RpmRealDataSourceFamilyIdentityDigestV1(rawJson: unknown): string {
+  return sha256Stable({
+    attestation: 'MATERIAL_DIMO_IDENTITY_EVIDENCE_DIGEST_ONLY',
+    material: buildDs4RpmRealDataSourceFamilyIdentityMaterialV1(rawJson),
   });
 }
 
@@ -118,6 +143,30 @@ function motionEvidenceDigest(payload: DiV0MotionCoreShadowPayloadV1): string {
   });
 }
 
+function v1bShadowCorrelationMaterialDigest(v1b: Ds4RpmHfV1bShadowResultV1 | null): string {
+  if (!v1b) return sha256Stable({ v1b: null });
+  return sha256Stable({
+    contractVersion: v1b.contractVersion,
+    engineVersion: v1b.engineVersion,
+    shadowVariant: v1b.shadowVariant,
+    processingOutcome: v1b.processingOutcome,
+    inputFingerprint: v1b.inputFingerprint,
+    providerSourceLinkId: v1b.providerSourceLinkId,
+    admission: v1b.admission,
+    tierEvidence: v1b.tierEvidence ?? null,
+    temporalCoverage: {
+      bucketSemanticsNote: v1b.temporalCoverage.bucketSemanticsNote,
+      gapInterpretationPolicy: v1b.temporalCoverage.gapInterpretationPolicy,
+      observedBucketCoverageRatio: v1b.temporalCoverage.observedBucketCoverageRatio,
+      missingBucketCount: v1b.temporalCoverage.missingBucketCount,
+      eligibleOneSecondBuckets: v1b.temporalCoverage.eligibleOneSecondBuckets,
+      observedUniqueOneSecondBuckets: v1b.temporalCoverage.observedUniqueOneSecondBuckets,
+    },
+    intervalStats: v1b.intervalStats,
+    rpmValues: v1b.rpmValues,
+  });
+}
+
 function v1bAdmissionAndTierDigest(
   v1b: Ds4RpmHfV1bShadowResultV1 | null,
   tripAdmission: Ds4RpmHfV1aTripInputV1['admission'],
@@ -130,22 +179,7 @@ function v1bAdmissionAndTierDigest(
       iceRpmApplicability: tripAdmission.iceRpmApplicability,
       tripRpmProfile: tripAdmission.tripRpmProfile,
     },
-    v1b: v1b
-      ? {
-          contractVersion: v1b.contractVersion,
-          engineVersion: v1b.engineVersion,
-          processingOutcome: v1b.processingOutcome,
-          inputFingerprint: v1b.inputFingerprint,
-          admission: {
-            processingAllowed: v1b.admission.processingAllowed,
-            processingStatus: v1b.admission.processingStatus,
-            reasonCode: v1b.admission.reasonCode,
-            iceRpmApplicability: v1b.admission.iceRpmApplicability,
-            qualityExposure: v1b.admission.qualityExposure,
-          },
-          tierEvidence: v1b.tierEvidence ?? null,
-        }
-      : null,
+    v1bShadowCorrelationMaterialDigest: v1bShadowCorrelationMaterialDigest(v1b),
   });
 }
 

@@ -13,13 +13,9 @@ import type {
 } from './ds4-rpm-real-data-replay.contract.v1';
 import { DS4_RPM_REAL_DATA_REPLAY_EXECUTOR_CONTRACT_VERSION } from './ds4-rpm-real-data-replay.contract.v1';
 
-export const DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS = [
-  'NO_REAL_WORLD_ACCURACY_OR_CAUSALITY_CLAIM',
-  'NO_PRODUCTION_OBSERVATION_IN_PR_B2',
-  'SYNTHETIC_FIXTURE_SUCCESS_NOT_FIELD_VALIDATION',
-  'RPM_OBSERVATION_SUPPORT_WIDTH_UNKNOWN',
-  'SOURCE_TIMESTAMP_PHASE_UNKNOWN',
-] as const;
+import { DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS } from './ds4-rpm-real-data-scientific-claims.v1';
+
+export { DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS };
 
 export type Ds4RpmRealDataReplayExecutorOptionsV1 = {
   codeSha: string;
