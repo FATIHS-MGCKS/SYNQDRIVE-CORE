@@ -198,6 +198,7 @@
     "test:di:ds4-rpm-hf-v1b:postgres:ci": "DS4_RPM_HF_V1B_POSTGRES_REQUIRED=1 bash scripts/test/ds4-rpm-hf-v1b-postgres-ci.sh",
     "test:di:rpm-ref-intel-v1": "jest ds4-rpm-reference-intelligence-v1 --runInBand",
     "test:di:ds4-rpm-shadow-correlation": "jest ds4-rpm-shadow-correlation --runInBand",
+    "test:di:ds4-rpm-real-data-replay": "jest ds4-rpm-real-data-replay --runInBand",
     "test:nest:boot-check:ci": "bash scripts/test/synqdrive-nest-boot-check-ci.sh",
     "test:boundary-repair:postgres": "bash scripts/test/boundary-repair-postgres-ci.sh",
     "test:erd-e4:bullmq-redis": "bash scripts/test/erd-e4-bullmq-redis-ci.sh",
