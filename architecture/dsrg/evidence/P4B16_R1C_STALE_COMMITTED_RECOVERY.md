@@ -17,12 +17,13 @@ SYNQDRIVE_P4B16_RECONCILE_AUTHORIZED=1 \
 | `SYNQDRIVE_P4B16_RECONCILE_AUTHORIZED=1` | Required (exit **41** if missing) |
 | `--expected-sha` | Required; must match `current` release git HEAD and live replicas |
 | `--expected-stale-sha` | Optional pin for stale `DEPLOYED_SHA` / mirror (production forensics) |
-| `deploy-ci-gate.mjs` | Mandatory PASS for exact `--expected-sha` (skip only via `VPS_P4B16_RECONCILE_SKIP_CI_GATE=1` in offline tests) |
+| `deploy-ci-gate.mjs` | Mandatory PASS for exact `--expected-sha` on production entrypoint |
+| Offline bypass flags | **`VPS_P4B16_RECONCILE_SKIP_*` rejected** by production entrypoint (exit **48**); allowed only when `VPS_P4B16_RECONCILE_SELFTEST_ACTIVE=1` inside `vps-reconcile-release-attestation.selftest.sh` (lib-level checks) |
 | Attestation lock | Same canonical lock as deploy record path |
 | Checksum | Existing state checksum must validate before reconcile |
 | Runtime verify | `vps_replica_verify_attestation_reconcile` — health, scheduler leader, nginx dual upstream; **no** post-deploy uptime freshness |
-| Deploy evidence | `last-deploy-state.env` `PREVIOUS_SHA` must match stale attestation SHA |
-| Migrations | Optional comma list `VPS_P4B16_RECONCILE_REQUIRED_MIGRATIONS` when `DATABASE_URL` set |
+| Deploy evidence | `last-deploy-state.env`: `PREVIOUS_SHA`, `PREVIOUS_CURRENT_RELEASE` (dir exists, SHA = stale, ≠ current), `CAPTURED_AT`; pre-deploy backup artifact + `.capture.json` |
+| Migrations | **Required** (default list for P4 One Auto migrations); empty list never passes; `DATABASE_URL` from shared `backend.env` on VPS |
 | Mirror | Updates **`SYNQDRIVE_DEPLOYED_GIT_SHA` only**; all other `backend.env` keys byte-preserving |
 | Generation | Exactly **one** increment via `vps_attest_next_generation` per successful reconcile |
 | Evidence | `deploy-state/evidence/p4b16-stale-committed-reconcile-<ts>.env` |

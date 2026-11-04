@@ -10,6 +10,11 @@ if [[ "${SYNQDRIVE_P4B16_RECONCILE_AUTHORIZED:-}" != "1" ]]; then
   exit 41
 fi
 
+if [[ "${VPS_P4B16_RECONCILE_SELFTEST_ACTIVE:-}" == "1" ]]; then
+  echo "!! ABORT: VPS_P4B16_RECONCILE_SELFTEST_ACTIVE must not be set for production reconcile" >&2
+  exit 48
+fi
+
 EXPECTED_SHA=""
 EXPECTED_STALE_SHA=""
 
@@ -18,7 +23,7 @@ usage() {
 Usage: $(basename "$0") --expected-sha <40-char-hex> [--expected-stale-sha <40-char-hex>]
 
 Attestation-only recovery for stale COMMITTED state + stale backend.env mirror.
-Requires original deploy CI gate PASS for --expected-sha (unless VPS_P4B16_RECONCILE_SKIP_CI_GATE=1).
+Requires deploy-ci-gate.mjs PASS for --expected-sha (production; no CI bypass).
 EOF
   exit 1
 }
@@ -48,10 +53,17 @@ if [[ -z "$EXPECTED_SHA" ]]; then
   exit 1
 fi
 
+if [[ "${VPS_P4B16_RECONCILE_SKIP_CI_GATE:-}" == "1" || "${VPS_P4B16_RECONCILE_SKIP_MIGRATION_CHECK:-}" == "1" || "${VPS_P4B16_RECONCILE_SKIP_BACKUP_EVIDENCE:-}" == "1" ]]; then
+  echo "!! ABORT: offline reconcile bypass flags are forbidden on production entrypoint" >&2
+  exit 48
+fi
+
 SYNQDRIVE_CURRENT_LINK="${SYNQDRIVE_CURRENT_LINK:-/opt/synqdrive/current}"
 SYNQDRIVE_DEPLOY_STATE_DIR="${SYNQDRIVE_DEPLOY_STATE_DIR:-/opt/synqdrive/shared/deploy-state}"
 SYNQDRIVE_BACKEND_ENV="${SYNQDRIVE_BACKEND_ENV:-/opt/synqdrive/shared/backend.env}"
 VPS_ATTESTATION_STATE_DIR="${VPS_ATTESTATION_STATE_DIR:-${SYNQDRIVE_DEPLOY_STATE_DIR}}"
+
+export VPS_P4B16_RECONCILE_REQUIRED_MIGRATIONS="${VPS_P4B16_RECONCILE_REQUIRED_MIGRATIONS:-20261103213000_oneauto_provider_result_expires_at,20261103220000_oneauto_provider_callback_pr3}"
 
 if [[ ! -L "$SYNQDRIVE_CURRENT_LINK" && ! -d "$SYNQDRIVE_CURRENT_LINK" ]]; then
   echo "!! ABORT: current release link missing: ${SYNQDRIVE_CURRENT_LINK}" >&2
@@ -85,6 +97,13 @@ source "$ATTEST_LIB"
 export VPS_ATTESTATION_BACKEND_ENV="$SYNQDRIVE_BACKEND_ENV"
 export VPS_ATTESTATION_STATE_DIR
 
+if [[ -f "$SYNQDRIVE_BACKEND_ENV" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$SYNQDRIVE_BACKEND_ENV"
+  set +a
+fi
+
 if ! vps_attest_validate_sha "$EXPECTED_SHA" 2>/dev/null; then
   echo "!! ABORT: invalid --expected-sha" >&2
   exit 1
@@ -99,37 +118,25 @@ if [[ -n "$EXPECTED_STALE_SHA" ]]; then
   EXPECTED_STALE_SHA="$(vps_attest_normalize_sha "$EXPECTED_STALE_SHA")"
 fi
 
+vps_attest_reconcile_assert_no_conflicting_deploy_authority || exit 1
+
 REL_SHA="$(vps_replica_release_sha "$RELEASE_DIR")"
 if [[ "$(vps_attest_normalize_sha "$REL_SHA")" != "$EXPECTED_SHA" ]]; then
   echo "!! ABORT: current release SHA ${REL_SHA:0:12} != expected ${EXPECTED_SHA:0:12}" >&2
   exit 1
 fi
 
-REPO_ROOT="$(cd "${RELEASE_DIR}/.." && pwd)"
-if [[ -d "${RELEASE_DIR}/.git" ]]; then
-  REPO_ROOT="$RELEASE_DIR"
-elif [[ -f "${RELEASE_DIR}/backend/package.json" ]]; then
-  REPO_ROOT="$RELEASE_DIR"
-fi
-
-if [[ "${VPS_P4B16_RECONCILE_SKIP_CI_GATE:-}" != "1" ]]; then
-  GATE_SCRIPT="${RELEASE_OPS_DIR}/deploy-ci-gate.mjs"
-  if [[ ! -f "$GATE_SCRIPT" ]]; then
-    echo "!! ABORT: deploy-ci-gate.mjs missing in release ops tree" >&2
-    exit 1
-  fi
-  echo "==> CI gate (original deploy evidence) for ${EXPECTED_SHA:0:12}"
-  if ! node "$GATE_SCRIPT" "$EXPECTED_SHA"; then
-    echo "!! ABORT: CI gate not PASS for expected SHA" >&2
-    exit 1
-  fi
-else
-  echo "WARN: VPS_P4B16_RECONCILE_SKIP_CI_GATE=1 — CI gate skipped (non-production only)" >&2
+GATE_SCRIPT="${RELEASE_OPS_DIR}/deploy-ci-gate.mjs"
+echo "==> CI gate (original deploy evidence) for ${EXPECTED_SHA:0:12}"
+if ! vps_attest_reconcile_run_ci_gate "$EXPECTED_SHA" "$GATE_SCRIPT"; then
+  echo "!! ABORT: CI gate not PASS for expected SHA" >&2
+  exit 1
 fi
 
 echo "==> P4B16 stale COMMITTED reconcile target=${EXPECTED_SHA:0:12}"
 echo "    Attestation state dir: ${VPS_ATTESTATION_STATE_DIR}"
 echo "    Backend env mirror: ${VPS_ATTESTATION_BACKEND_ENV}"
+echo "    Required migrations: ${VPS_P4B16_RECONCILE_REQUIRED_MIGRATIONS}"
 echo "    One Auto activation policy unchanged (mirror updates ${VPS_ATTESTATION_MIRROR_KEY:-SYNQDRIVE_DEPLOYED_GIT_SHA} only)"
 
 if ! vps_attest_lock_acquire; then

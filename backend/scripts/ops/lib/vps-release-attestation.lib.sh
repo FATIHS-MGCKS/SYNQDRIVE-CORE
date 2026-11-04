@@ -356,6 +356,96 @@ vps_attest_resume_incomplete_deploy() {
 
 # --- P4B16 stale COMMITTED + stale mirror recovery (attestation-only; no PM2/nginx/migrations) ---
 
+# Set only by vps-reconcile-release-attestation.selftest.sh (never on production).
+vps_attest_reconcile_selftest_active() {
+  [[ "${VPS_P4B16_RECONCILE_SELFTEST_ACTIVE:-}" == "1" ]]
+}
+
+vps_attest_reconcile_forbid_offline_bypass() {
+  local label=$1
+  if vps_attest_reconcile_selftest_active; then
+    return 0
+  fi
+  vps_attest_fail "${label} forbidden outside isolated offline selftest harness"
+  return 1
+}
+
+vps_attest_reconcile_default_required_migrations() {
+  printf '%s' '20261103213000_oneauto_provider_result_expires_at,20261103220000_oneauto_provider_callback_pr3'
+}
+
+vps_attest_reconcile_assert_no_conflicting_deploy_authority() {
+  if [[ "${SYNQDRIVE_ISOLATED_RECOVERY_AUTHORIZED:-}" == "1" ]]; then
+    vps_attest_fail "isolated recovery authorization active — reconcile blocked"
+    return 1
+  fi
+  if [[ "${SYNQDRIVE_PRODUCTION_DB_CUTOVER_AUTHORIZED:-}" == "1" ]]; then
+    vps_attest_fail "production DB cutover authorization active — reconcile blocked"
+    return 1
+  fi
+  if [[ "${SYNQDRIVE_MIGRATION_RECOVERY_RESOLVE_AUTHORIZED:-}" == "1" ]]; then
+    vps_attest_fail "migration recovery resolve authorization active — reconcile blocked"
+    return 1
+  fi
+  return 0
+}
+
+vps_attest_reconcile_validate_backup_evidence() {
+  if [[ "${VPS_P4B16_RECONCILE_SKIP_BACKUP_EVIDENCE:-}" == "1" ]]; then
+    vps_attest_reconcile_forbid_offline_bypass "VPS_P4B16_RECONCILE_SKIP_BACKUP_EVIDENCE" || return 1
+    return 0
+  fi
+  local deploy_state_dir="${SYNQDRIVE_DEPLOY_STATE_DIR:-}"
+  local backup_dir="${SYNQDRIVE_BACKUP_DIR:-/opt/synqdrive/shared/backups}"
+  local state_file="${deploy_state_dir}/last-deploy-state.env"
+  local captured_at backup_file explicit_backup
+  captured_at="$(grep -E '^CAPTURED_AT=' "$state_file" 2>/dev/null | cut -d= -f2- | tail -n 1 || true)"
+  explicit_backup="$(grep -E '^PRE_DEPLOY_BACKUP=' "$state_file" 2>/dev/null | cut -d= -f2- | tail -n 1 || true)"
+  if [[ -z "$captured_at" ]]; then
+    vps_attest_fail "last-deploy CAPTURED_AT missing — backup evidence required"
+    return 1
+  fi
+  if [[ -n "$explicit_backup" && -f "$explicit_backup" ]]; then
+    backup_file="$explicit_backup"
+  else
+    if [[ ! -d "$backup_dir" ]]; then
+      vps_attest_fail "backup directory missing: ${backup_dir}"
+      return 1
+    fi
+    local candidate best_ts best_file ts f base
+    best_ts=0
+    best_file=""
+    shopt -s nullglob
+    for f in "${backup_dir}"/db-pre-deploy-*.sql.gz; do
+      [[ -f "$f" ]] || continue
+      ts="$(stat -c '%Y' "$f" 2>/dev/null || echo 0)"
+      [[ "$ts" -ge "$best_ts" ]] || continue
+      best_ts="$ts"
+      best_file="$f"
+    done
+    shopt -u nullglob
+    backup_file="$best_file"
+  fi
+  if [[ -z "$backup_file" || ! -f "$backup_file" ]]; then
+    vps_attest_fail "no pre-deploy backup artifact found for reconcile evidence"
+    return 1
+  fi
+  if [[ ! -s "$backup_file" ]]; then
+    vps_attest_fail "pre-deploy backup empty: ${backup_file}"
+    return 1
+  fi
+  if ! gzip -t "$backup_file" 2>/dev/null; then
+    vps_attest_fail "pre-deploy backup gzip integrity failed"
+    return 1
+  fi
+  if [[ ! -f "${backup_file}.capture.json" ]]; then
+    vps_attest_fail "pre-deploy backup capture sidecar missing"
+    return 1
+  fi
+  vps_attest_log "backup evidence OK: ${backup_file}"
+  return 0
+}
+
 vps_attest_require_reconcile_replica_verify() {
   local release_dir=$1
   local target_sha=$2
@@ -382,10 +472,31 @@ vps_attest_reconcile_validate_deploy_evidence() {
     vps_attest_fail "missing deployment evidence: ${state_file}"
     return 1
   fi
-  local prev
+  local prev prev_rel prev_rel_sha captured_at
   prev="$(grep -E '^PREVIOUS_SHA=' "$state_file" 2>/dev/null | cut -d= -f2- | tail -n 1 || true)"
   if [[ -z "$prev" ]] || [[ "$(vps_attest_normalize_sha "$prev")" != "$(vps_attest_normalize_sha "$stale_sha")" ]]; then
     vps_attest_fail "last-deploy PREVIOUS_SHA does not match stale attestation SHA"
+    return 1
+  fi
+  prev_rel="$(grep -E '^PREVIOUS_CURRENT_RELEASE=' "$state_file" 2>/dev/null | cut -d= -f2- | tail -n 1 || true)"
+  if [[ -z "$prev_rel" || ! -d "$prev_rel" ]]; then
+    vps_attest_fail "last-deploy PREVIOUS_CURRENT_RELEASE missing or not a directory"
+    return 1
+  fi
+  if [[ "$(readlink -f "$prev_rel")" == "$(readlink -f "$release_dir")" ]]; then
+    vps_attest_fail "current release equals rollback target — no successful promotion evidence"
+    return 1
+  fi
+  if declare -f vps_replica_release_sha >/dev/null 2>&1; then
+    prev_rel_sha="$(vps_replica_release_sha "$prev_rel")"
+    if [[ "$(vps_attest_normalize_sha "$prev_rel_sha")" != "$(vps_attest_normalize_sha "$stale_sha")" ]]; then
+      vps_attest_fail "previous release dir SHA does not match stale attestation SHA"
+      return 1
+    fi
+  fi
+  captured_at="$(grep -E '^CAPTURED_AT=' "$state_file" 2>/dev/null | cut -d= -f2- | tail -n 1 || true)"
+  if [[ -z "$captured_at" ]]; then
+    vps_attest_fail "last-deploy CAPTURED_AT missing"
     return 1
   fi
   if declare -f vps_replica_current_sha >/dev/null 2>&1; then
@@ -404,16 +515,22 @@ vps_attest_reconcile_validate_deploy_evidence() {
       return 1
     fi
   fi
+  vps_attest_reconcile_validate_backup_evidence || return 1
   return 0
 }
 
 vps_attest_reconcile_verify_migrations() {
   if [[ "${VPS_P4B16_RECONCILE_SKIP_MIGRATION_CHECK:-}" == "1" ]]; then
+    vps_attest_reconcile_forbid_offline_bypass "VPS_P4B16_RECONCILE_SKIP_MIGRATION_CHECK" || return 1
     return 0
   fi
   local raw="${VPS_P4B16_RECONCILE_REQUIRED_MIGRATIONS:-}"
   if [[ -z "$raw" ]]; then
-    return 0
+    raw="$(vps_attest_reconcile_default_required_migrations)"
+  fi
+  if [[ -z "$raw" ]]; then
+    vps_attest_fail "required migration list empty — reconcile refused"
+    return 1
   fi
   if [[ -z "${DATABASE_URL:-}" ]]; then
     vps_attest_fail "DATABASE_URL required for migration verification"
@@ -432,6 +549,22 @@ vps_attest_reconcile_verify_migrations() {
     fi
   done
   return 0
+}
+
+# Mandatory CI gate for exact expected SHA (never skippable on production).
+vps_attest_reconcile_run_ci_gate() {
+  local expected_sha=$1
+  local gate_script=$2
+  if [[ "${VPS_P4B16_RECONCILE_SKIP_CI_GATE:-}" == "1" ]]; then
+    vps_attest_reconcile_forbid_offline_bypass "VPS_P4B16_RECONCILE_SKIP_CI_GATE" || return 1
+    vps_attest_log "CI gate skipped (offline selftest harness only)"
+    return 0
+  fi
+  [[ -f "$gate_script" ]] || {
+    vps_attest_fail "deploy-ci-gate.mjs missing: ${gate_script}"
+    return 1
+  }
+  node "$gate_script" "$expected_sha"
 }
 
 vps_attest_emit_reconcile_evidence() {

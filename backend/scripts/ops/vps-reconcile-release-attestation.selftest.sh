@@ -42,7 +42,11 @@ vps_replica_current_sha() {
 }
 
 vps_replica_release_sha() {
-  echo "$RELEASE_DIR_SHA"
+  local dir=$1
+  case "$dir" in
+    *previous-release*) echo "$SHA_STALE" ;;
+    *) echo "$RELEASE_DIR_SHA" ;;
+  esac
 }
 
 write_committed_state() {
@@ -57,12 +61,18 @@ setup_fixture() {
   export VPS_ATTESTATION_STATE_DIR="${root}/deploy-state"
   export SYNQDRIVE_DEPLOY_STATE_DIR="${root}/deploy-state"
   export VPS_ATTESTATION_BACKEND_ENV="${root}/backend.env"
-  mkdir -p "${VPS_ATTESTATION_STATE_DIR}/evidence"
+  export SYNQDRIVE_BACKUP_DIR="${root}/backups"
+  mkdir -p "${VPS_ATTESTATION_STATE_DIR}/evidence" "${SYNQDRIVE_BACKUP_DIR}"
+  mkdir -p "${root}/previous-release"
   touch "${VPS_ATTESTATION_BACKEND_ENV}"
   mkdir -p "${SYNQDRIVE_DEPLOY_STATE_DIR}"
+  printf 'stub\n' | gzip >"${SYNQDRIVE_BACKUP_DIR}/db-pre-deploy-fixture.sql.gz"
+  printf '{"dbname":"synqdrive"}\n' >"${SYNQDRIVE_BACKUP_DIR}/db-pre-deploy-fixture.sql.gz.capture.json"
   cat >"${SYNQDRIVE_DEPLOY_STATE_DIR}/last-deploy-state.env" <<EOF
 PREVIOUS_SHA=${SHA_STALE}
+PREVIOUS_CURRENT_RELEASE=${root}/previous-release
 CAPTURED_AT=2026-11-04T07:20:00Z
+PRE_DEPLOY_BACKUP=${SYNQDRIVE_BACKUP_DIR}/db-pre-deploy-fixture.sql.gz
 EOF
 }
 
@@ -83,8 +93,9 @@ reconcile_locked() {
 
 ROOT="$(mktemp -d)"
 trap 'rm -rf "${ROOT}"' EXIT
-setup_fixture "$ROOT"
+export VPS_P4B16_RECONCILE_SELFTEST_ACTIVE=1
 export VPS_P4B16_RECONCILE_SKIP_MIGRATION_CHECK=1
+setup_fixture "$ROOT"
 seed_stale 88
 RECONCILE_EXPECT="$SHA_TARGET"
 CURRENT_RUNTIME_SHA="$SHA_TARGET"
@@ -213,11 +224,49 @@ vps_attest_lock_release
 pass "interrupted_mirror_resume_no_double_commit"
 
 # Entrypoint authorization gate (dry)
-ROOT9="$(mktemp -d)"
-export VPS_P4B16_RECONCILE_SKIP_CI_GATE=1
 if bash "${SCRIPT_DIR}/vps-reconcile-release-attestation.sh" --expected-sha "$SHA_TARGET" 2>/dev/null; then
   fail "entrypoint_without_auth"
 fi
 pass "entrypoint_requires_SYNQDRIVE_P4B16_RECONCILE_AUTHORIZED"
+
+# Production entrypoint rejects offline bypass flags
+export SYNQDRIVE_P4B16_RECONCILE_AUTHORIZED=1
+export VPS_P4B16_RECONCILE_SKIP_CI_GATE=1
+if bash "${SCRIPT_DIR}/vps-reconcile-release-attestation.sh" --expected-sha "$SHA_TARGET" 2>/dev/null; then
+  unset SYNQDRIVE_P4B16_RECONCILE_AUTHORIZED VPS_P4B16_RECONCILE_SKIP_CI_GATE
+  fail "entrypoint_ci_bypass_on_production_path"
+fi
+unset SYNQDRIVE_P4B16_RECONCILE_AUTHORIZED VPS_P4B16_RECONCILE_SKIP_CI_GATE
+pass "production_entrypoint_rejects_ci_bypass"
+
+# CI bypass forbidden in lib outside selftest harness
+unset VPS_P4B16_RECONCILE_SELFTEST_ACTIVE
+export VPS_P4B16_RECONCILE_SKIP_CI_GATE=1
+if vps_attest_reconcile_run_ci_gate "$SHA_TARGET" "${SCRIPT_DIR}/deploy-ci-gate.mjs" 2>/dev/null; then
+  export VPS_P4B16_RECONCILE_SELFTEST_ACTIVE=1
+  unset VPS_P4B16_RECONCILE_SKIP_CI_GATE
+  fail "lib_ci_bypass_without_selftest"
+fi
+unset VPS_P4B16_RECONCILE_SKIP_CI_GATE
+export VPS_P4B16_RECONCILE_SELFTEST_ACTIVE=1
+pass "lib_ci_bypass_forbidden_outside_selftest"
+
+# Empty migration list cannot silently pass when check enabled
+ROOT10="$(mktemp -d)"
+setup_fixture "$ROOT10"
+export VPS_ATTESTATION_STATE_DIR="${ROOT10}/deploy-state"
+export SYNQDRIVE_DEPLOY_STATE_DIR="${ROOT10}/deploy-state"
+export VPS_ATTESTATION_BACKEND_ENV="${ROOT10}/backend.env"
+unset VPS_P4B16_RECONCILE_SKIP_MIGRATION_CHECK
+unset VPS_P4B16_RECONCILE_REQUIRED_MIGRATIONS
+unset DATABASE_URL
+seed_stale 88
+CURRENT_RUNTIME_SHA="$SHA_TARGET"
+if vps_attest_reconcile_verify_migrations 2>/dev/null; then
+  export VPS_P4B16_RECONCILE_SKIP_MIGRATION_CHECK=1
+  fail "migration_check_without_database_url"
+fi
+export VPS_P4B16_RECONCILE_SKIP_MIGRATION_CHECK=1
+pass "migration_evidence_fail_closed_without_database_url"
 
 echo "ALL_RECONCILE_TESTS_PASS"
