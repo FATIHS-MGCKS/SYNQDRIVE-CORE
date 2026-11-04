@@ -163,6 +163,7 @@ export class OneAutoProviderExecutionService {
       orgDailyBudgetMinor?: number;
       callbackEnabled?: boolean;
       callbackRetrievalGetEnabled?: boolean;
+      callbackFullDataEnabled?: boolean;
       callbackPublicBaseUrl?: string;
       callbackReturnDataInCallback?: boolean;
       providerResultRetentionMs?: number;
@@ -238,14 +239,23 @@ export class OneAutoProviderExecutionService {
       | Partial<Record<'callback_url' | 'return_data_in_callback', string | boolean>>
       | undefined;
     let callbackDeliveryTokenSha256: string | undefined;
-    if (phase === 'initial' && this.isCallbackNotifyThenGetEnabled(runtimeCfg, contract)) {
-      const generated = generateOneAutoCallbackDeliveryToken();
-      callbackDeliveryTokenSha256 = generated.deliveryTokenSha256;
+    if (phase === 'initial') {
       const publicBase = runtimeCfg?.callbackPublicBaseUrl ?? 'https://app.synqdrive.eu/api/v1';
-      callbackQuery = {
-        callback_url: buildOneAutoProviderCallbackUrl(publicBase, generated.deliveryToken),
-        return_data_in_callback: runtimeCfg?.callbackReturnDataInCallback === true,
-      };
+      if (this.isCallbackFullDataEnabled(runtimeCfg, contract)) {
+        const generated = generateOneAutoCallbackDeliveryToken();
+        callbackDeliveryTokenSha256 = generated.deliveryTokenSha256;
+        callbackQuery = {
+          callback_url: buildOneAutoProviderCallbackUrl(publicBase, generated.deliveryToken),
+          return_data_in_callback: true,
+        };
+      } else if (this.isCallbackNotifyThenGetEnabled(runtimeCfg, contract)) {
+        const generated = generateOneAutoCallbackDeliveryToken();
+        callbackDeliveryTokenSha256 = generated.deliveryTokenSha256;
+        callbackQuery = {
+          callback_url: buildOneAutoProviderCallbackUrl(publicBase, generated.deliveryToken),
+          return_data_in_callback: runtimeCfg?.callbackReturnDataInCallback === true,
+        };
+      }
     }
 
     const claimWhere =
@@ -351,6 +361,13 @@ export class OneAutoProviderExecutionService {
       }
 
       if (AWAITING.has(result.httpStatus)) {
+        const latest = await this.prisma.oneAutoProviderJob.findUnique({
+          where: { id: jobId },
+          select: { status: true },
+        });
+        if (latest?.status === OneAutoProviderJobStatus.SUCCEEDED) {
+          return;
+        }
         if (isOneAutoAsyncCapableWithoutVerifiedPoll(contract)) {
           const retentionMs = runtimeCfg?.providerResultRetentionMs;
           const providerResultExpiresAt = computeOneAutoProviderResultExpiresAt(
@@ -414,13 +431,28 @@ export class OneAutoProviderExecutionService {
   }
 
   private isCallbackNotifyThenGetEnabled(
-    runtimeCfg: { callbackEnabled?: boolean; callbackRetrievalGetEnabled?: boolean } | undefined,
+    runtimeCfg:
+      | { callbackEnabled?: boolean; callbackRetrievalGetEnabled?: boolean }
+      | undefined,
     contract: OneAutoExecutionVerifiedProviderContract,
   ): boolean {
     return (
       runtimeCfg?.callbackEnabled === true &&
       runtimeCfg?.callbackRetrievalGetEnabled === true &&
       contract.asyncCompletionMode === 'CALLBACK_NOTIFY_THEN_GET'
+    );
+  }
+
+  private isCallbackFullDataEnabled(
+    runtimeCfg:
+      | { callbackEnabled?: boolean; callbackFullDataEnabled?: boolean }
+      | undefined,
+    contract: OneAutoExecutionVerifiedProviderContract,
+  ): boolean {
+    return (
+      runtimeCfg?.callbackEnabled === true &&
+      runtimeCfg?.callbackFullDataEnabled === true &&
+      contract.asyncCompletionMode === 'CALLBACK_FULL_DATA'
     );
   }
 

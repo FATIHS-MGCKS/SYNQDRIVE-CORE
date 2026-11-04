@@ -55,7 +55,10 @@ export default registerAs('oneautoProvider', () => ({
   /** PR3: allow exactly one retrieval GET after provider callback — default OFF. */
   callbackRetrievalGetEnabled:
     (process.env.ONEAUTO_CALLBACK_RETRIEVAL_GET_ENABLED ?? 'false') === 'true',
-  /** When true, set return_data_in_callback on dispatch (not attested — keep false). */
+  /** E4: complete jobs from full-data callback POST (no retrieval GET) — default OFF. */
+  callbackFullDataEnabled:
+    (process.env.ONEAUTO_CALLBACK_FULL_DATA_ENABLED ?? 'false') === 'true',
+  /** When true, set return_data_in_callback on notify-then-get dispatch (not used for CALLBACK_FULL_DATA mode). */
   callbackReturnDataInCallback:
     (process.env.ONEAUTO_CALLBACK_RETURN_DATA_IN_CALLBACK ?? 'false') === 'true',
   /** Public base for callback_url registration (no trailing slash). */

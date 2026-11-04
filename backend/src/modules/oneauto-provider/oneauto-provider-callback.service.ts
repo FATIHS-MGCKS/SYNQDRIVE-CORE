@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OneAutoProviderJobStatus } from '@prisma/client';
+import { OneAutoProviderJobStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -11,11 +11,32 @@ import {
   hashCallbackPayload,
   sha256Hex,
 } from './oneauto-callback-delivery.util';
-import { redactProviderResponseBody } from './oneauto-provider-redact.util';
+import {
+  evaluateOneAutoFullDataCallbackPayload,
+  isOeVinLookupEuFullDataCallbackSku,
+} from './oneauto-callback-full-data.util';
+import { redactOneAutoErrorMessage, redactProviderResponseBody } from './oneauto-provider-redact.util';
+import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
 
 export type OneAutoCallbackIngestResult =
-  | { ok: true; status: 'accepted' | 'duplicate' | 'ignored_expired' | 'ignored_terminal' }
-  | { ok: false; status: 'unknown_token' | 'disabled' };
+  | {
+      ok: true;
+      status:
+        | 'accepted'
+        | 'completed'
+        | 'duplicate'
+        | 'ignored_expired'
+        | 'ignored_terminal'
+        | 'pending_initial_dispatch';
+    }
+  | { ok: false; status: 'unknown_token' | 'disabled' | 'payload_rejected' };
+
+type RuntimeCallbackCfg = {
+  enabled?: boolean;
+  callbackEnabled?: boolean;
+  callbackRetrievalGetEnabled?: boolean;
+  callbackFullDataEnabled?: boolean;
+};
 
 @Injectable()
 export class OneAutoProviderCallbackService {
@@ -25,19 +46,40 @@ export class OneAutoProviderCallbackService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     @InjectQueue(QUEUE_NAMES.ONEAUTO_PROVIDER) private readonly queue: Queue<OneAutoProviderJobPayload>,
+    private readonly oemSuggestionMaterialization: OneAutoOemVinLookupEuSuggestionMaterializationService,
   ) {}
+
+  private runtimeCfg(): RuntimeCallbackCfg {
+    return this.config.get<RuntimeCallbackCfg>('oneautoProvider') ?? {};
+  }
+
+  private notifyThenGetActive(contract: { asyncCompletionMode?: string } | null | undefined): boolean {
+    const cfg = this.runtimeCfg();
+    return (
+      cfg.enabled === true &&
+      cfg.callbackEnabled === true &&
+      cfg.callbackRetrievalGetEnabled === true &&
+      contract?.asyncCompletionMode === 'CALLBACK_NOTIFY_THEN_GET'
+    );
+  }
+
+  private fullDataCallbackActive(contract: { asyncCompletionMode?: string } | null | undefined): boolean {
+    const cfg = this.runtimeCfg();
+    return (
+      cfg.enabled === true &&
+      cfg.callbackEnabled === true &&
+      cfg.callbackFullDataEnabled === true &&
+      contract?.asyncCompletionMode === 'CALLBACK_FULL_DATA'
+    );
+  }
 
   async ingestProviderCallback(input: {
     deliveryToken: string;
     rawBody: string;
     parsedBody: unknown;
   }): Promise<OneAutoCallbackIngestResult> {
-    const cfg = this.config.get<{
-      enabled?: boolean;
-      callbackEnabled?: boolean;
-      callbackRetrievalGetEnabled?: boolean;
-    }>('oneautoProvider');
-    if (cfg?.enabled !== true || cfg.callbackEnabled !== true || cfg.callbackRetrievalGetEnabled !== true) {
+    const cfg = this.runtimeCfg();
+    if (cfg.enabled !== true || cfg.callbackEnabled !== true) {
       return { ok: false, status: 'disabled' };
     }
 
@@ -47,7 +89,9 @@ export class OneAutoProviderCallbackService {
       select: {
         id: true,
         organizationId: true,
+        vehicleId: true,
         serviceSku: true,
+        vinSnapshot: true,
         status: true,
         providerCallbackReceivedAt: true,
         retrievalProviderDispatchAt: true,
@@ -60,7 +104,13 @@ export class OneAutoProviderCallbackService {
     }
 
     const contract = getVerifiedOneAutoContract(job.serviceSku);
-    if (!contract || contract.asyncCompletionMode !== 'CALLBACK_NOTIFY_THEN_GET') {
+    const notifyMode = this.notifyThenGetActive(contract);
+    const fullDataMode = this.fullDataCallbackActive(contract);
+    if (!notifyMode && !fullDataMode) {
+      return { ok: false, status: 'disabled' };
+    }
+
+    if (fullDataMode && !isOeVinLookupEuFullDataCallbackSku(job.serviceSku)) {
       return { ok: false, status: 'disabled' };
     }
 
@@ -99,6 +149,22 @@ export class OneAutoProviderCallbackService {
       return { ok: true, status: 'ignored_expired' };
     }
 
+    if (fullDataMode) {
+      return this.ingestFullDataCallback(job, input.parsedBody, now);
+    }
+
+    return this.ingestNotifyThenGetCallback(job, now);
+  }
+
+  private async ingestNotifyThenGetCallback(
+    job: {
+      id: string;
+      status: OneAutoProviderJobStatus;
+      providerCallbackReceivedAt: Date | null;
+      retrievalProviderDispatchAt: Date | null;
+    },
+    now: Date,
+  ): Promise<OneAutoCallbackIngestResult> {
     if (job.status !== OneAutoProviderJobStatus.AWAITING_PROVIDER) {
       return { ok: true, status: 'ignored_terminal' };
     }
@@ -130,5 +196,121 @@ export class OneAutoProviderCallbackService {
     }
 
     return { ok: true, status: 'accepted' };
+  }
+
+  private async ingestFullDataCallback(
+    job: {
+      id: string;
+      organizationId: string;
+      vehicleId: string;
+      serviceSku: string;
+      vinSnapshot: string;
+      status: OneAutoProviderJobStatus;
+    },
+    parsedBody: unknown,
+    now: Date,
+  ): Promise<OneAutoCallbackIngestResult> {
+    const contract = getVerifiedOneAutoContract(job.serviceSku);
+    if (!contract) {
+      return { ok: false, status: 'disabled' };
+    }
+
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id: job.vehicleId, organizationId: job.organizationId },
+      select: { vin: true },
+    });
+    if (!vehicle) {
+      await this.failJobFromCallback(job.id, 'ONEAUTO_BINDING_MISMATCH', 'Vehicle binding missing');
+      return { ok: false, status: 'payload_rejected' };
+    }
+
+    const evaluation = evaluateOneAutoFullDataCallbackPayload({
+      body: parsedBody,
+      contract,
+      jobVinSnapshot: job.vinSnapshot,
+      vehicleVin: vehicle.vin,
+    });
+    if (!evaluation.ok) {
+      await this.failJobFromCallback(
+        job.id,
+        evaluation.code,
+        'Full-data callback payload rejected',
+      );
+      return { ok: false, status: 'payload_rejected' };
+    }
+
+    if (
+      job.status !== OneAutoProviderJobStatus.AWAITING_PROVIDER &&
+      job.status !== OneAutoProviderJobStatus.RUNNING
+    ) {
+      return { ok: true, status: 'ignored_terminal' };
+    }
+
+    const bodyForPersistence = redactProviderResponseBody(parsedBody);
+    const completed = await this.prisma.$transaction(async (tx) => {
+      await tx.oneAutoProviderResponse.create({
+        data: {
+          jobId: job.id,
+          httpStatus: 200,
+          providerStatusHeader: null,
+          responseBodyJson: bodyForPersistence as Prisma.InputJsonValue,
+          responsePhase: 'callback',
+        },
+      });
+
+      const updated = await tx.oneAutoProviderJob.updateMany({
+        where: {
+          id: job.id,
+          status: {
+            in: [OneAutoProviderJobStatus.RUNNING, OneAutoProviderJobStatus.AWAITING_PROVIDER],
+          },
+        },
+        data: {
+          status: OneAutoProviderJobStatus.SUCCEEDED,
+          providerCallbackReceivedAt: now,
+          actualChargeKnown: false,
+          actualChargeMinor: null,
+        },
+      });
+      return updated.count;
+    });
+
+    if (completed === 0) {
+      const fresh = await this.prisma.oneAutoProviderJob.findUnique({
+        where: { id: job.id },
+        select: { status: true },
+      });
+      if (fresh?.status === OneAutoProviderJobStatus.SUCCEEDED) {
+        return { ok: true, status: 'ignored_terminal' };
+      }
+      return { ok: true, status: 'pending_initial_dispatch' };
+    }
+
+    await this.oemSuggestionMaterialization.tryMaterializeFromSucceededJob(job.id);
+    this.logger.log(`OneAuto full-data callback completed job ${job.id}`);
+    return { ok: true, status: 'completed' };
+  }
+
+  private async failJobFromCallback(jobId: string, code: string, message: string): Promise<void> {
+    await this.prisma.oneAutoProviderJob.updateMany({
+      where: {
+        id: jobId,
+        status: {
+          in: [
+            OneAutoProviderJobStatus.RUNNING,
+            OneAutoProviderJobStatus.AWAITING_PROVIDER,
+            OneAutoProviderJobStatus.QUEUED,
+            OneAutoProviderJobStatus.CREATED,
+          ],
+        },
+      },
+      data: {
+        status: OneAutoProviderJobStatus.FAILED,
+        lastErrorCode: code,
+        lastErrorMessageRedacted: redactOneAutoErrorMessage(message),
+        actualChargeKnown: false,
+      },
+    });
+    this.logger.warn(`OneAuto callback rejected for job ${jobId}: ${code}`);
   }
 }
