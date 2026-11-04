@@ -19,6 +19,7 @@ import { OneAutoOemVinLookupEuSuggestionCleanupScheduler } from './oem-specifica
 import { OneAutoProviderJobExpiryScheduler } from './oneauto-provider-job-expiry.scheduler';
 import { OneAutoProviderCallbackController } from './oneauto-provider-callback.controller';
 import { OneAutoProviderCallbackService } from './oneauto-provider-callback.service';
+import { OneAutoE4FailedCallbackRecoveryService } from './oneauto-e4-failed-callback-recovery.service';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { OneAutoProviderCallbackService } from './oneauto-provider-callback.serv
     OneAutoProviderService,
     OneAutoProviderExecutionService,
     OneAutoProviderCallbackService,
+    OneAutoE4FailedCallbackRecoveryService,
     OneAutoOemVinLookupEuSuggestionMaterializationService,
     OneAutoOemVinLookupEuSuggestionReadService,
     OneAutoOemVinLookupEuSuggestionCleanupService,
@@ -53,6 +55,7 @@ import { OneAutoProviderCallbackService } from './oneauto-provider-callback.serv
     OneAutoOemVinLookupEuSuggestionReadService,
     OneAutoOemVinLookupEuSuggestionCleanupService,
     OneAutoOemVinLookupEuSuggestionRecoveryService,
+    OneAutoE4FailedCallbackRecoveryService,
   ],
 })
 export class OneAutoProviderModule {}

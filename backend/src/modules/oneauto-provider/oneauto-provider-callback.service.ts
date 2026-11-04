@@ -16,6 +16,7 @@ import {
   evaluateOneAutoFullDataCallbackPayload,
   isOeVinLookupEuFullDataCallbackSku,
 } from './oneauto-callback-full-data.util';
+import { persistFullDataCallbackSuccessInTransaction } from './oneauto-e4-full-data-callback-completion.util';
 import { redactOneAutoErrorMessage, redactProviderResponseBody } from './oneauto-provider-redact.util';
 import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
 
@@ -271,33 +272,17 @@ export class OneAutoProviderCallbackService {
 
     // Persist the unwrapped envelope so downstream readers (result API, OEM materialization) see
     // the same SUCCESS_RESULT_ERROR shape as the sync HTTP 200 path. Raw body stays in the inbox.
-    const bodyForPersistence = redactProviderResponseBody(evaluation.envelope);
     const completed = await this.prisma.$transaction(async (tx) => {
-      await tx.oneAutoProviderResponse.create({
-        data: {
-          jobId: job.id,
-          httpStatus: 200,
-          providerStatusHeader: null,
-          responseBodyJson: bodyForPersistence as Prisma.InputJsonValue,
-          responsePhase: 'callback',
-        },
+      const { transitioned } = await persistFullDataCallbackSuccessInTransaction(tx, {
+        jobId: job.id,
+        evaluation,
+        providerCallbackReceivedAt: now,
+        eligiblePriorStatuses: [
+          OneAutoProviderJobStatus.RUNNING,
+          OneAutoProviderJobStatus.AWAITING_PROVIDER,
+        ],
       });
-
-      const updated = await tx.oneAutoProviderJob.updateMany({
-        where: {
-          id: job.id,
-          status: {
-            in: [OneAutoProviderJobStatus.RUNNING, OneAutoProviderJobStatus.AWAITING_PROVIDER],
-          },
-        },
-        data: {
-          status: OneAutoProviderJobStatus.SUCCEEDED,
-          providerCallbackReceivedAt: now,
-          actualChargeKnown: false,
-          actualChargeMinor: null,
-        },
-      });
-      return updated.count;
+      return transitioned ? 1 : 0;
     });
 
     if (completed === 0) {

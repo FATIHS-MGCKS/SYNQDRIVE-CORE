@@ -43,6 +43,7 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
       'Production callbacks arrive as `{ status, result: { success, result, error } }`; parser now unwraps this (bare envelope still accepted).',
       'Provider `success:false` → `ONEAUTO_CALLBACK_PROVIDER_FAILURE` (HTTP 200 ack, envelope persisted); wrapper 206 → `ONEAUTO_PARTIAL_CONTENT`; unreadable stays `ONEAUTO_CALLBACK_PAYLOAD_MALFORMED` (404).',
       'Provider 202 echo `callBackUrl` (delivery token) now redacted in persisted responses. Evidence: `P4_E4_LIVE_CALLBACK_INCIDENT_2026-11-04.md`.',
+      'Owner-invoked FAILED-job recovery CLI replays validated inbox payload (no provider GET); `--dry-run` + dual env authorization.',
     ],
     reason:
       'First live E4 test: a provider "no data for this VIN — not charged" answer and a valid VW result were both misreported as malformed payloads.',

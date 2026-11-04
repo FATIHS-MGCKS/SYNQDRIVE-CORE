@@ -60,6 +60,12 @@ Job 2 (VW):
 
 Preconditions: job `FAILED` with `lastErrorCode='ONEAUTO_CALLBACK_PAYLOAD_MALFORMED'`, `retrieval_provider_dispatch_at IS NULL`, exactly one non-duplicate inbox row whose payload evaluates `ok:true` under the fixed parser, VIN binding (job snapshot = vehicle VIN = result VIN) satisfied, within `provider_result_expires_at`. Action: explicit owner-invoked ops command (not scheduler, not API) that re-runs `ingestFullDataCallback` semantics from the stored inbox payload inside one transaction — persist envelope response, `FAILED → SUCCEEDED` only when all preconditions hold, keep `lastErrorCode` history in the change ledger, then `tryMaterializeFromSucceededJob`. **No provider HTTP, no new charge, no manual SQL.** Out of scope for this PR because it introduces a `FAILED → SUCCEEDED` transition.
 
+**Update (PR #2338 extension):** `OneAutoE4FailedCallbackRecoveryService` + `scripts/ops/oneauto-e4-recover-failed-callback-job.ts` implement this design. Prior failure preserved in `one_auto_provider_responses` with `responsePhase='recovery_audit'`. Production execution still requires owner env authorizations and is **not** run in the PR.
+
+## Historical callback URL token exposure
+
+See `P4_E4_CALLBACK_URL_REDACTION_REMEDIATION.md` — inventory/redaction plan only; no production cleanup in PR #2338.
+
 ## Invariants preserved
 
 Token SHA-256 lookup, tenant/vehicle binding, inbox dedupe, expiry handling, RUNNING/AWAITING race guard, zero retrieval GET, `attempts:1` / `ONEAUTO_MAX_RETRIES=0`, budget reservation semantics unchanged.
