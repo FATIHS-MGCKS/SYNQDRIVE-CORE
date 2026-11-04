@@ -5,6 +5,7 @@ import type {
 } from './ds4-rpm-shadow-correlation-v1.contract';
 import type { Ds4RpmShadowCorrelationValidationResult } from './ds4-rpm-shadow-correlation-input-validation.v1';
 import { validateDs4RpmShadowCorrelationInput } from './ds4-rpm-shadow-correlation-input-validation.v1';
+import { validateRpmSampleSourceFamilyAuthority } from './ds4-rpm-shadow-correlation-source-family-gate.v1';
 
 export type Ds4RpmShadowCorrelationProvenanceGateV1 = {
   recomputedV1bInputFingerprint: string;
@@ -83,6 +84,13 @@ export function validateDs4RpmShadowCorrelationProvenanceGate(
   ) {
     reasonCodes.push('SOURCE_LINK_BINDING_UNPROVEN');
   }
+
+  reasonCodes.push(
+    ...validateRpmSampleSourceFamilyAuthority({
+      evidenceKind: gate.evidenceKind,
+      rpmSamples: input.rpmSamples,
+    }),
+  );
 
   if (reasonCodes.length === 0) {
     return { ok: true };

@@ -2646,6 +2646,27 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | OBSERVED | Fixture cohort unchanged at 41.67% defensible excl. negative controls |
 | EVIDENCE | `DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md` — **P0_FINAL_REVIEW_FIX** |
 
+### 2026-11-03 — Fable scientific foundation PR-A (stacked on PR #2325)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Window-relative gap coverage (`ds4-rpm-shadow-window-relative-gap-v1`); alignment envelope diagnostics; descriptive RPM stats; ICE applicability + R1 source-family gate |
+| WHY | Independent Fable review C1–C6 — remove epoch-parity artefact; separate DS4/RPM/ingestion uncertainty axes |
+| VALIDATION | `test:di:ds4-rpm-shadow-correlation` 28/28; C1 property tests; CLI cohort replay |
+| OBSERVED | Fixture defensible share **37.5%** (6/16), **50%** excl. negative controls; `RPM_2S_STEP` both AVAILABLE |
+| NON_EFFECTS | **No** V1B/VSI/DS4 motion changes; **no** ratio/gear library |
+| EVIDENCE | [DS4_RPM_FABLE_SCIENTIFIC_FOUNDATION_PR_A_2026-11-03.md](../evidence/DS4_RPM_FABLE_SCIENTIFIC_FOUNDATION_PR_A_2026-11-03.md) |
+
+### 2026-11-03 — PR #2328 final scientific hardening (stacked on PR-A / #2325)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Local cadence vs VSI tier gate; Theil–Sen direction sign; NOT_ASSESSABLE envelope stability; coverage semantics constants + adversarial tests |
+| VALIDATION | `test:di:ds4-rpm-shadow-correlation` 36/36; ds4-assessment / rpm-ref-intel / V1B; backend tsc; production DB guard entrypoints; registry validator |
+| OBSERVED | Fixture cohort unchanged (37.5% / 50% excl. negative controls) |
+| NON_EFFECTS | **No** DS4 speed/event algorithms; **no** V1B admission changes |
+| EVIDENCE | Same PR-A evidence doc — **PR2328 hardening** section |
+
 | CHANGE | Trips module releases `diV0BoundaryAdmissionV1` after committed `PARTIAL_TRIP_BOUNDARY_EXTENSION`; S4 discovery eligibility unchanged (still requires matching admission revision) |
 | WHY | Post-repair `boundaryRefresh` PENDING blocked `canRelease`; Tiguan canonical trip never received admission via boundary-scanned release path |
 | VALIDATION | `trip-di-boundary-admission.unit.spec.ts`; postgres harness when live |
