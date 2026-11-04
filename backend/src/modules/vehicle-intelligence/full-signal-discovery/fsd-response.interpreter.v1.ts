@@ -69,7 +69,7 @@ export function interpretFsdGraphqlProviderResponse(
     const field = extractFieldNameFromErrorPath(err.path, input.fieldNamesInDocument);
     if (field && fieldSet.has(field)) {
       failedFields.add(field);
-    } else if (err.path && err.path.length > 0) {
+    } else {
       hasAmbiguousErrors = true;
     }
   }

@@ -20,7 +20,8 @@ export const FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1 = 1;
 
 export type FsdFullDiscoveryNonExecutableReasonV1 =
   | 'REQUEST_BUDGET_EXCEEDED'
-  | 'INSUFFICIENT_REQUEST_BUDGET_FOR_CATALOG';
+  | 'INSUFFICIENT_REQUEST_BUDGET_FOR_CATALOG'
+  | 'HISTORICAL_WINDOW_TOO_LONG';
 
 export type FsdFullDiscoveryPlanV1 = {
   /** When false, snapshot.documents and historical chunks must be treated as non-executable. */
@@ -134,7 +135,7 @@ export function planFsdFullSignalDiscoveryV1(input: {
   let historical: FsdHistoricalPlanV1 | null = null;
   const deferredByBudget: string[] = snapshot.deferredSignals.map((s) => s.fieldName);
 
-  if (input.historicalWindow && remainingHistoricalBudget > 0) {
+  if (input.historicalWindow) {
     historical = planFsdHistoricalQueries({
       tokenId: input.tokenId,
       declaredFieldNames,
@@ -143,13 +144,33 @@ export function planFsdFullSignalDiscoveryV1(input: {
       maxPlannedHistoricalRequests: remainingHistoricalBudget,
       isolateSpeedSignal: true,
     });
+    if (!historical.budgetValidation.ok) {
+      const sortedDeferredOnWindowFailure = [...new Set(deferredByBudget)].sort((a, b) =>
+        a.localeCompare(b),
+      );
+      return buildNonExecutableFullPlan({
+        declaredFieldNames,
+        classifiedCount: classified.length,
+        snapshot,
+        historical,
+        totalPlannedProviderRequests:
+          FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1 + snapshot.documents.length,
+        budgetValidation: historical.budgetValidation,
+        deferredByBudget: sortedDeferredOnWindowFailure,
+        reason:
+          historical.budgetValidation.reason === 'HISTORICAL_WINDOW_TOO_LONG'
+            ? 'HISTORICAL_WINDOW_TOO_LONG'
+            : 'REQUEST_BUDGET_EXCEEDED',
+      });
+    }
     deferredByBudget.push(...historical.deferredSignals.map((s) => s.fieldName));
-  } else if (input.historicalWindow) {
-    deferredByBudget.push(
-      ...classified
-        .filter((c) => c.historicalAggregationSupported && c.shape !== 'UNKNOWN')
-        .map((c) => c.fieldName),
-    );
+    if (remainingHistoricalBudget <= 0) {
+      deferredByBudget.push(
+        ...classified
+          .filter((c) => c.historicalAggregationSupported && c.shape !== 'UNKNOWN')
+          .map((c) => c.fieldName),
+      );
+    }
   }
 
   const totalPlannedProviderRequests =

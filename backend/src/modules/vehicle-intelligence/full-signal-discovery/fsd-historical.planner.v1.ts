@@ -85,7 +85,6 @@ export function planFsdHistoricalQueries(input: {
           queryPlanned: false,
           notEvaluable: true,
         }),
-        unsupportedReason: 'DEFERRED_BY_REQUEST_BUDGET',
       })),
       deferredSignals: [],
       budgetValidation: {
