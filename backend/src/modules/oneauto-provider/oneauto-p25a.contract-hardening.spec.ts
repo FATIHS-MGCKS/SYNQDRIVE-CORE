@@ -40,6 +40,7 @@ function executionVerifiedFixture(
     evidenceState: 'EXECUTION_VERIFIED',
     asyncPollSameUrlWithoutNewCharge: false,
     http206CompleteSuccessAllowed: false,
+    asyncCompletionMode: 'NONE',
     pricingSourceVersion: 'test-attestation-v1',
     ...overrides,
   };

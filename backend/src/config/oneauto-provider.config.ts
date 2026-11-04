@@ -50,4 +50,15 @@ export default registerAs('oneautoProvider', () => ({
   oemSuggestionsEnabled: (process.env.ONEAUTO_OEM_SUGGESTIONS_ENABLED ?? 'false') === 'true',
   oemSuggestionsCleanupBatchSize: intEnv('ONEAUTO_OEM_SUGGESTIONS_CLEANUP_BATCH_SIZE', 100),
   oemSuggestionsRecoveryBatchSize: intEnv('ONEAUTO_OEM_SUGGESTIONS_RECOVERY_BATCH_SIZE', 25),
+  /** PR3: register callback_url on initial dispatch — default OFF (no live activation). */
+  callbackEnabled: (process.env.ONEAUTO_CALLBACK_ENABLED ?? 'false') === 'true',
+  /** PR3: allow exactly one retrieval GET after provider callback — default OFF. */
+  callbackRetrievalGetEnabled:
+    (process.env.ONEAUTO_CALLBACK_RETRIEVAL_GET_ENABLED ?? 'false') === 'true',
+  /** When true, set return_data_in_callback on dispatch (not attested — keep false). */
+  callbackReturnDataInCallback:
+    (process.env.ONEAUTO_CALLBACK_RETURN_DATA_IN_CALLBACK ?? 'false') === 'true',
+  /** Public base for callback_url registration (no trailing slash). */
+  callbackPublicBaseUrl:
+    process.env.ONEAUTO_CALLBACK_PUBLIC_BASE_URL?.trim() || 'https://app.synqdrive.eu/api/v1',
 }));

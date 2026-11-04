@@ -3245,12 +3245,17 @@ model OneAutoProviderJob {
   expiresAt                   DateTime?                @map("expires_at")
   /// Provider async result retention (KB 24h) from initial dispatch — internal SynqDrive window only.
   providerResultExpiresAt     DateTime?                @map("provider_result_expires_at")
+  /// SHA-256 hex of opaque callback delivery token (never store raw token).
+  callbackDeliveryTokenSha256 String?                  @unique @map("callback_delivery_token_sha256")
+  providerCallbackReceivedAt  DateTime?                @map("provider_callback_received_at")
+  retrievalProviderDispatchAt DateTime?                @map("retrieval_provider_dispatch_at")
   createdAt                   DateTime                 @default(now()) @map("created_at")
   updatedAt                   DateTime                 @updatedAt @map("updated_at")
 
   organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vehicle      Vehicle                   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   responses    OneAutoProviderResponse[]
+  callbackInbox OneAutoProviderCallbackInbox[]
   oemVinLookupEuSuggestionSnapshot OneAutoOemVinLookupEuSuggestionSnapshot?
 
   @@unique([organizationId, idempotencyKey])
@@ -3273,6 +3278,22 @@ model OneAutoProviderResponse {
 
   @@index([jobId])
   @@map("one_auto_provider_responses")
+}
+
+model OneAutoProviderCallbackInbox {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  jobId          String   @map("job_id")
+  payloadSha256  String   @map("payload_sha256")
+  payloadJson    Json?    @map("payload_json")
+  receivedAt     DateTime @default(now()) @map("received_at")
+  duplicate      Boolean  @default(false)
+
+  job OneAutoProviderJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([organizationId, receivedAt])
+  @@map("one_auto_provider_callback_inbox")
 }
 
 /// Immutable OEM desc suggestion snapshot for one successful OE_VIN_LOOKUP_EU provider job (PR-C2).

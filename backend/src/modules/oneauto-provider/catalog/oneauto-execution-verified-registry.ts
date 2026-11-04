@@ -32,6 +32,7 @@ export function buildExecutionVerifiedOeVinLookupEu(): OneAutoExecutionVerifiedP
     evidenceState: 'EXECUTION_VERIFIED',
     asyncPollSameUrlWithoutNewCharge: false,
     http206CompleteSuccessAllowed: false,
+    asyncCompletionMode: 'NONE',
     catalogExecutionMode: 'ASYNC_CAPABLE',
     asyncCapability: 'ASYNC_CAPABLE',
     pricingSourceVersion: ONEAUTO_P4_VIN_LOOKUP_EU_PRICING_SOURCE_VERSION,

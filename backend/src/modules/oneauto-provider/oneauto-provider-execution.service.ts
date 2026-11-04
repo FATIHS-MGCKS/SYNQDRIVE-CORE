@@ -20,10 +20,15 @@ import {
   computeOneAutoProviderResultExpiresAt,
   isOneAutoAsyncCapableWithoutVerifiedPoll,
 } from './oneauto-provider-result-retention.util';
+import {
+  buildOneAutoProviderCallbackUrl,
+  generateOneAutoCallbackDeliveryToken,
+} from './oneauto-callback-delivery.util';
+import type { OneAutoExecutionVerifiedProviderContract } from './catalog/oneauto-contract-types';
 
 export type OneAutoProviderJobPayload = {
   jobId: string;
-  phase: 'initial' | 'poll';
+  phase: 'initial' | 'poll' | 'retrieval';
 };
 
 const TERMINAL_SUCCESS_HTTP = new Set([200]);
@@ -153,7 +158,17 @@ export class OneAutoProviderExecutionService {
       return;
     }
 
-    const runtimeCfg = this.config.get<{ enabled?: boolean; orgDailyBudgetMinor?: number }>('oneautoProvider');
+    const runtimeCfg = this.config.get<{
+      enabled?: boolean;
+      orgDailyBudgetMinor?: number;
+      callbackEnabled?: boolean;
+      callbackRetrievalGetEnabled?: boolean;
+      callbackPublicBaseUrl?: string;
+      callbackReturnDataInCallback?: boolean;
+      providerResultRetentionMs?: number;
+      maxPollAttempts?: number;
+      pollIntervalMs?: number;
+    }>('oneautoProvider');
     const cfgEnabled = runtimeCfg?.enabled === true;
     if (!cfgEnabled) {
       await this.failJob(jobId, 'ONEAUTO_DISABLED', 'Provider disabled');
@@ -176,6 +191,28 @@ export class OneAutoProviderExecutionService {
       return;
     }
 
+    if (phase === 'retrieval') {
+      await this.expireProviderResultIfDue(jobId);
+      const awaiting = await this.prisma.oneAutoProviderJob.findUnique({ where: { id: jobId } });
+      if (!awaiting || awaiting.status !== OneAutoProviderJobStatus.AWAITING_PROVIDER) {
+        return;
+      }
+      if (!this.isCallbackNotifyThenGetEnabled(runtimeCfg, contract)) {
+        await this.failJob(
+          jobId,
+          'ONEAUTO_CALLBACK_RETRIEVAL_DISABLED',
+          'Callback retrieval GET is disabled or not attested',
+        );
+        return;
+      }
+      if (!awaiting.providerCallbackReceivedAt) {
+        return;
+      }
+      if (awaiting.retrievalProviderDispatchAt) {
+        return;
+      }
+    }
+
     if (phase === 'poll') {
       if (job.status !== OneAutoProviderJobStatus.AWAITING_PROVIDER) {
         return;
@@ -192,13 +229,34 @@ export class OneAutoProviderExecutionService {
         );
         return;
       }
-    } else if (job.initialProviderDispatchAt) {
+    } else if (job.initialProviderDispatchAt && phase === 'initial') {
       this.logger.warn(`OneAuto job ${jobId} skipped duplicate initial dispatch`);
       return;
     }
 
+    let callbackQuery:
+      | Partial<Record<'callback_url' | 'return_data_in_callback', string | boolean>>
+      | undefined;
+    let callbackDeliveryTokenSha256: string | undefined;
+    if (phase === 'initial' && this.isCallbackNotifyThenGetEnabled(runtimeCfg, contract)) {
+      const generated = generateOneAutoCallbackDeliveryToken();
+      callbackDeliveryTokenSha256 = generated.deliveryTokenSha256;
+      const publicBase = runtimeCfg?.callbackPublicBaseUrl ?? 'https://app.synqdrive.eu/api/v1';
+      callbackQuery = {
+        callback_url: buildOneAutoProviderCallbackUrl(publicBase, generated.deliveryToken),
+        return_data_in_callback: runtimeCfg?.callbackReturnDataInCallback === true,
+      };
+    }
+
     const claimWhere =
-      phase === 'poll'
+      phase === 'retrieval'
+        ? {
+            id: jobId,
+            status: OneAutoProviderJobStatus.AWAITING_PROVIDER,
+            providerCallbackReceivedAt: { not: null },
+            retrievalProviderDispatchAt: null,
+          }
+        : phase === 'poll'
         ? {
             id: jobId,
             status: OneAutoProviderJobStatus.AWAITING_PROVIDER,
@@ -220,6 +278,10 @@ export class OneAutoProviderExecutionService {
         ...(phase === 'initial' && initialDispatchAt
           ? { initialProviderDispatchAt: initialDispatchAt }
           : {}),
+        ...(phase === 'initial' && callbackDeliveryTokenSha256
+          ? { callbackDeliveryTokenSha256 }
+          : {}),
+        ...(phase === 'retrieval' ? { retrievalProviderDispatchAt: new Date() } : {}),
       },
     });
     if (claim.count === 0) {
@@ -232,6 +294,7 @@ export class OneAutoProviderExecutionService {
       const result = await this.http.executeProviderGet({
         contract,
         vin: job.vinSnapshot,
+        optionalQueryParameters: callbackQuery,
       });
 
       const envelopeEval = evaluateSuccessResultErrorEnvelope(
@@ -289,8 +352,7 @@ export class OneAutoProviderExecutionService {
 
       if (AWAITING.has(result.httpStatus)) {
         if (isOneAutoAsyncCapableWithoutVerifiedPoll(contract)) {
-          const cfg = this.config.get<{ providerResultRetentionMs?: number }>('oneautoProvider');
-          const retentionMs = cfg?.providerResultRetentionMs;
+          const retentionMs = runtimeCfg?.providerResultRetentionMs;
           const providerResultExpiresAt = computeOneAutoProviderResultExpiresAt(
             dispatchMarker,
             retentionMs,
@@ -313,8 +375,7 @@ export class OneAutoProviderExecutionService {
           );
           return;
         }
-        const cfg = this.config.get<{ maxPollAttempts?: number; pollIntervalMs?: number }>('oneautoProvider');
-        const maxPoll = cfg?.maxPollAttempts ?? 12;
+        const maxPoll = runtimeCfg?.maxPollAttempts ?? 12;
         const nextCount = job.pollAttemptCount + 1;
         if (nextCount >= maxPoll) {
           await this.failJob(jobId, 'ONEAUTO_POLL_EXHAUSTED', 'Provider async poll limit reached');
@@ -327,7 +388,7 @@ export class OneAutoProviderExecutionService {
             pollAttemptCount: nextCount,
           },
         });
-        const delay = cfg?.pollIntervalMs ?? 5_000;
+        const delay = runtimeCfg?.pollIntervalMs ?? 5_000;
         await this.queue.add(
           'poll',
           { jobId, phase: 'poll' },
@@ -350,6 +411,17 @@ export class OneAutoProviderExecutionService {
         err instanceof Error ? redactOneAutoErrorMessage(err.message) : 'One Auto execution failed';
       await this.failJob(jobId, code, message);
     }
+  }
+
+  private isCallbackNotifyThenGetEnabled(
+    runtimeCfg: { callbackEnabled?: boolean; callbackRetrievalGetEnabled?: boolean } | undefined,
+    contract: OneAutoExecutionVerifiedProviderContract,
+  ): boolean {
+    return (
+      runtimeCfg?.callbackEnabled === true &&
+      runtimeCfg?.callbackRetrievalGetEnabled === true &&
+      contract.asyncCompletionMode === 'CALLBACK_NOTIFY_THEN_GET'
+    );
   }
 
   private async assertJobBinding(job: {

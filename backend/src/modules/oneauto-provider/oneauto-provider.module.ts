@@ -17,6 +17,8 @@ import { OneAutoOemVinLookupEuSuggestionCleanupService } from './oem-specificati
 import { OneAutoOemVinLookupEuSuggestionRecoveryService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-recovery.service';
 import { OneAutoOemVinLookupEuSuggestionCleanupScheduler } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-cleanup.scheduler';
 import { OneAutoProviderJobExpiryScheduler } from './oneauto-provider-job-expiry.scheduler';
+import { OneAutoProviderCallbackController } from './oneauto-provider-callback.controller';
+import { OneAutoProviderCallbackService } from './oneauto-provider-callback.service';
 
 @Module({
   imports: [
@@ -26,11 +28,16 @@ import { OneAutoProviderJobExpiryScheduler } from './oneauto-provider-job-expiry
     SchedulerLeaderElectionModule,
     BullModule.registerQueue({ name: QUEUE_NAMES.ONEAUTO_PROVIDER }),
   ],
-  controllers: [OneAutoProviderController, OneAutoOemVinLookupEuSuggestionController],
+  controllers: [
+    OneAutoProviderController,
+    OneAutoOemVinLookupEuSuggestionController,
+    OneAutoProviderCallbackController,
+  ],
   providers: [
     OneAutoHttpClient,
     OneAutoProviderService,
     OneAutoProviderExecutionService,
+    OneAutoProviderCallbackService,
     OneAutoOemVinLookupEuSuggestionMaterializationService,
     OneAutoOemVinLookupEuSuggestionReadService,
     OneAutoOemVinLookupEuSuggestionCleanupService,

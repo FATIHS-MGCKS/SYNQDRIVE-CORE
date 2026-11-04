@@ -70,6 +70,7 @@ describe('OneAutoHttpClient', () => {
           evidenceState: 'EXECUTION_VERIFIED',
           asyncPollSameUrlWithoutNewCharge: false,
           http206CompleteSuccessAllowed: false,
+          asyncCompletionMode: 'NONE',
           pricingSourceVersion: 'test',
         },
         vin: 'WBA12345678901234',
