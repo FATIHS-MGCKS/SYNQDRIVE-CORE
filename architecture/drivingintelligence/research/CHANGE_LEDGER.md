@@ -2686,7 +2686,8 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | VALIDATION | `test:di:ds4-rpm-real-data-replay` (18 tests); shadow harness regression; tsc; production DB guard dry-run |
 | NON_EFFECTS | **No** production/DIMO/CH reads; **no** schema; **no** workers; **no** DS4/V1B/VSI authority edits |
 | EVIDENCE | [DS4_RPM_REAL_DATA_PR_B2_OFFLINE_EXECUTOR_2026-11-04.md](../evidence/DS4_RPM_REAL_DATA_PR_B2_OFFLINE_EXECUTOR_2026-11-04.md) |
- `diV0BoundaryAdmissionV1` after committed `PARTIAL_TRIP_BOUNDARY_EXTENSION`; S4 discovery eligibility unchanged (still requires matching admission revision) |
+
+| CHANGE | Trips module releases `diV0BoundaryAdmissionV1` after committed `PARTIAL_TRIP_BOUNDARY_EXTENSION`; S4 discovery eligibility unchanged (still requires matching admission revision) |
 | WHY | Post-repair `boundaryRefresh` PENDING blocked `canRelease`; Tiguan canonical trip never received admission via boundary-scanned release path |
 | VALIDATION | `trip-di-boundary-admission.unit.spec.ts`; postgres harness when live |
 | NON_EFFECTS | **No** S4 worker/discovery code change; **no** scoring; **no** historical replay |

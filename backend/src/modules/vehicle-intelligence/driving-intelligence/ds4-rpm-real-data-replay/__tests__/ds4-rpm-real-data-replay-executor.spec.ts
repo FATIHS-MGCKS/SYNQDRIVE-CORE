@@ -8,6 +8,10 @@ import {
   executeDs4RpmRealDataOfflineReplayCohortV1,
 } from '../ds4-rpm-real-data-research-report.v1';
 import {
+  countShadowContextAvailableEvents,
+  validateDs4RpmRealDataResearchReportScientificIntegrityV1,
+} from '../ds4-rpm-real-data-scientific-output-guard.v1';
+import {
   PR_B2_FIXTURE_BUNDLE_BUILDERS,
   buildCadenceMismatchBundle,
   buildCrossTenantBundle,
@@ -32,6 +36,7 @@ describe('ds4-rpm-real-data-replay executor v1 (offline only)', () => {
       generatedAt: GENERATED_AT,
     });
     expect(artifact.eligibility.overallVerdict).toBe('UNPROVEN');
+    expect(artifact.eligibility.overallVerdict).not.toBe('ELIGIBLE');
     expect(artifact.shadowTripReport).not.toBeNull();
     expect(artifact.shadowTripReport!.summary.eventsWithDefensibleContext).toBeGreaterThan(0);
     expect(artifact.resolvedTelemetrySourceFamily).toBe('API_SYNTHETIC');
@@ -183,6 +188,13 @@ describe('ds4-rpm-real-data-replay executor v1 (offline only)', () => {
     expect(reportA.eligibilityCounts.notApplicable).toBeGreaterThan(0);
     expect(reportA.inputBundleFingerprints.length).toBe(bundles.length);
     expect(reportA.unsupportedScientificClaims).toContain('NO_REAL_WORLD_ACCURACY_OR_CAUSALITY_CLAIM');
+    expect(validateDs4RpmRealDataResearchReportScientificIntegrityV1(reportA)).toEqual([]);
+    expect(reportA.eligibilityCounts.eligible).toBe(0);
+    expect(countShadowContextAvailableEvents(reportA)).toBeGreaterThan(0);
+    expect(reportA.unsupportedScientificClaims).toContain('SHADOW_AVAILABLE_NOT_SOURCE_ELIGIBILITY');
+    expect(reportA.unsupportedScientificClaims).toContain(
+      'INJECTED_FIXTURE_SOURCE_NOT_PRODUCTION_ATTESTED',
+    );
   });
 
   it('never treats owner authorization flag as production access (remains false)', () => {
