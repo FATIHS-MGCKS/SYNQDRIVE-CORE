@@ -11,12 +11,13 @@ describe('OneAutoProviderService cost and idempotency', () => {
     vehicle: { findFirst: jest.fn() },
     oneAutoProviderJob: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       aggregate: jest.fn(),
       create: jest.fn(),
     },
     $transaction: jest.fn(),
   };
-  const execution = { enqueueExecution: jest.fn() };
+  const execution = { enqueueExecution: jest.fn(), expireProviderResultIfDue: jest.fn() };
   const config = {
     get: () => ({
       enabled: true,
@@ -160,6 +161,7 @@ describe('OneAutoProviderService cost and idempotency', () => {
       contractGate: verifiedContracts.buildOneAutoContractGateReport('OE_VIN_LOOKUP_EU'),
     });
     prisma.oneAutoProviderJob.findUnique.mockResolvedValue(null);
+    prisma.oneAutoProviderJob.findFirst.mockResolvedValue(null);
     prisma.oneAutoProviderJob.aggregate.mockResolvedValue({ _sum: { budgetReservedMinor: 400 } });
     prisma.oneAutoProviderJob.create.mockImplementation(() => {
       throw new Error('create must not run when budget exceeded');
@@ -177,5 +179,17 @@ describe('OneAutoProviderService cost and idempotency', () => {
         masterAdminUserId: 'ma-1',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.oneAutoProviderJob.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: {
+            in: expect.arrayContaining([
+              OneAutoProviderJobStatus.EXPIRED,
+              OneAutoProviderJobStatus.FAILED,
+            ]),
+          },
+        }),
+      }),
+    );
   });
 });

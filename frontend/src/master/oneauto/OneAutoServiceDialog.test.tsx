@@ -420,6 +420,80 @@ describe('OneAutoServiceDialog', () => {
     expect(query('[data-testid="oneauto-execute-error"]')?.textContent ?? '').toMatch(/poll|Status/i);
   });
 
+  it('stops polling when job reaches EXPIRED terminal status', async () => {
+    mockGetCatalog.mockResolvedValue({
+      services: [catalogEntry('OE_VIN_LOOKUP_EU', 'AVAILABLE', true, 36)],
+      indicativePricingDisclaimer: 'indicative',
+    });
+    mockQuote.mockResolvedValue({
+      organizationId: 'org-a',
+      vehicleId: 'veh-1',
+      serviceSku: 'OE_VIN_LOOKUP_EU',
+      vinSnapshot: 'WVWZZZ3CZWE123456',
+      estimatedPriceMinor: 36,
+      currency: 'GBP',
+      pricingSourceVersion: 'v1',
+      executionMode: 'ASYNC_CAPABLE',
+      indicativeNotGuaranteed: true,
+      quoteIssuedAt: new Date().toISOString(),
+      quoteExpiresAt: new Date(Date.now() + 60000).toISOString(),
+      contractGate: { serviceSku: 'OE_VIN_LOOKUP_EU', executable: true, reason: 'EXECUTABLE', unverifiedFields: [] },
+    });
+    const expiredJob = {
+      id: 'job-expired',
+      organizationId: 'org-a',
+      vehicleId: 'veh-1',
+      status: 'EXPIRED' as const,
+      serviceSku: 'OE_VIN_LOOKUP_EU',
+      vinSnapshot: 'WVWZZZ3CZWE123456',
+      idempotencyKey: 'idem-exp',
+      providerRequestId: null,
+      estimatedPriceMinor: 36,
+      confirmedPriceMinor: 36,
+      currency: 'GBP',
+      pricingSourceVersion: 'v1',
+      costConfirmedAt: new Date().toISOString(),
+      actualChargeMinor: null,
+      actualChargeKnown: false,
+      pollAttemptCount: 0,
+      lastErrorCode: 'ONEAUTO_PROVIDER_RESULT_EXPIRED',
+      initialProviderDispatchAt: new Date().toISOString(),
+      expiresAt: new Date().toISOString(),
+      providerResultExpiresAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    mockExecute.mockResolvedValue({
+      ok: true,
+      data: { ...expiredJob, status: 'AWAITING_PROVIDER' as const },
+    });
+    mockGetJob.mockResolvedValue(expiredJob);
+
+    const { query } = renderDialog();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      (query('[data-testid="oneauto-select-OE_VIN_LOOKUP_EU"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const checkbox = query('[data-testid="oneauto-confirm-checkbox"]') as HTMLInputElement;
+    await act(async () => {
+      checkbox.click();
+      (query('[data-testid="oneauto-confirm-execute"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mockGetJob.mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(mockGetJob.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(query('[data-testid="oneauto-execute-error"]')?.textContent ?? '').toMatch(
+      /retention|ONEAUTO|Provider|Abgelaufen|expired/i,
+    );
+  });
+
   it('shows read-only result viewer without mutating specs', async () => {
     mockGetCatalog.mockResolvedValue({
       services: [catalogEntry('RECALL_CHECK', 'AVAILABLE', true, 50)],
