@@ -40,6 +40,14 @@ export function buildExecutionVerifiedOeVinLookupEu(): OneAutoExecutionVerifiedP
   };
 }
 
+/** E4 promotion target — not seeded in production registry until attestation. */
+export function buildExecutionVerifiedOeVinLookupEuFullDataCallback(): OneAutoExecutionVerifiedProviderContract {
+  return {
+    ...buildExecutionVerifiedOeVinLookupEu(),
+    asyncCompletionMode: 'CALLBACK_FULL_DATA',
+  };
+}
+
 export const ONEAUTO_EXECUTION_VERIFIED_SKUS_READONLY = ['OE_VIN_LOOKUP_EU'] as const;
 
 export function seedOneAutoExecutionVerifiedRegistry(

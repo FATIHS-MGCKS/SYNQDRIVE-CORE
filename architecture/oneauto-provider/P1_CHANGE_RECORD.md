@@ -109,6 +109,14 @@
 - **Non-effects:** No live activation without E4 + registry promotion; Service History remains non-executable; no merge/deploy in PR-3 draft.
 - **Tests:** `oneauto-p4-pr3-callback-completion.spec.ts`
 
+## P4 E4 — full-data callback completion (2026-11-04, draft)
+
+- **Scope:** `CALLBACK_FULL_DATA` completion path for `OE_VIN_LOOKUP_EU` — initial GET with `return_data_in_callback=true`, job completes on validated callback POST without retrieval GET.
+- **Evidence:** `architecture/oneauto-provider/evidence/P4_E4_FULL_DATA_CALLBACK_V1.md`
+- **Flags (default OFF):** `ONEAUTO_CALLBACK_FULL_DATA_ENABLED` (decoupled from `ONEAUTO_CALLBACK_RETRIEVAL_GET_ENABLED`); production registry seed remains `asyncCompletionMode=NONE`.
+- **Non-effects:** No production activation without attestation + registry promotion; no migrations.
+- **Tests:** `oneauto-p4-e4-full-data-callback.spec.ts`, `oneauto-callback-full-data.util.ts`
+
 ## P2.5E-P1 hardening — capture field coverage & safe publish (2026-11-02)
 
 - **Field coverage:** `bodyType` / `interiorTrim` from `oem_body_type_desc` / `oem_interior_trim_desc`; regression asserts **17** non-VIN OpenAPI result keys mapped.

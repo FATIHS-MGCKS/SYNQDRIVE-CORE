@@ -201,7 +201,7 @@ SSH fails?
 Deploy fails?
 ├─ Exit 44/45 → Bootstrap not installed or integrity failure (install doc)
 ├─ Exit 42 → Session file / authorization
-├─ Exit 3 → P4B16 partial — reconcile attestation before declaring success
+├─ Exit 3 → P4B16 partial — `SYNQDRIVE_P4B16_RECONCILE_AUTHORIZED=1` + `backend/scripts/ops/vps-reconcile-release-attestation.sh --expected-sha <sha>` (attestation only; see `architecture/dsrg/evidence/P4B16_R1C_STALE_COMMITTED_RECOVERY.md`)
 └─ Post-promotion → VO5C rollback if eligible (ROLLBACK_AND_CONTAINMENT.md)
 ```
 

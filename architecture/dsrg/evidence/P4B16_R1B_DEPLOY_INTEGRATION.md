@@ -29,6 +29,14 @@ If replicas pass `vps_replica_verify_post_deploy` but durable attestation fails 
 - Does **not** roll back a healthy promotion solely for attestation failure.
 - Rollback path returns **`3`** similarly when replicas are restored but attestation persistence fails.
 
+## Stale COMMITTED recovery (R1C)
+
+When deploy exits **3** but replicas and `current` already match the requested SHA, use attestation-only reconcile (no redeploy):
+
+- Script: `backend/scripts/ops/vps-reconcile-release-attestation.sh`
+- Design/evidence: [`P4B16_R1C_STALE_COMMITTED_RECOVERY.md`](P4B16_R1C_STALE_COMMITTED_RECOVERY.md)
+- Runtime verify: `vps_replica_verify_attestation_reconcile` (no uptime freshness gate)
+
 ## `vps_replica_verify_post_deploy` — identity guarantees (actual)
 
 Implemented in `lib/vps-production-replica.lib.sh`. **Does not** assert per-process build SHA via a dedicated runtime-identity HTTP contract.
@@ -54,6 +62,7 @@ Attestation **re-invokes** this verifier inside `vps_attest_record_deploy_succes
 
 ```bash
 bash backend/scripts/ops/vps-release-attestation.selftest.sh
+bash backend/scripts/ops/vps-reconcile-release-attestation.selftest.sh
 bash backend/scripts/ops/vps-release-attestation-integration.selftest.sh
 bash backend/scripts/ops/vps-release-attestation-exitcode.selftest.sh
 bash architecture/dsrg/scripts/validate-graph.sh

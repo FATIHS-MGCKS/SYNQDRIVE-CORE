@@ -49,6 +49,9 @@ export class OneAutoProviderCallbackController {
 
     if (!result.ok) {
       if (result.status === 'unknown_token') throw new NotFoundException();
+      if (result.status === 'payload_rejected') {
+        throw new NotFoundException();
+      }
       throw new ServiceUnavailableException('One Auto callback path disabled');
     }
 

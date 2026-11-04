@@ -36,6 +36,25 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'oneauto-p4-e4-full-data-callback-2026-11-04',
+    version: '4.9.5023',
+    title: 'One Auto P4 E4 — OE_VIN_LOOKUP_EU full-data callback completion (draft)',
+    summary: [
+      'Adds `CALLBACK_FULL_DATA` completion path: initial GET with `callback_url` + `return_data_in_callback=true`, job `SUCCEEDED` on validated callback POST — **no retrieval GET**.',
+      'Gated by `ONEAUTO_CALLBACK_FULL_DATA_ENABLED` (independent of `ONEAUTO_CALLBACK_RETRIEVAL_GET_ENABLED`); production registry seed stays `asyncCompletionMode=NONE` until attestation.',
+      'Evidence: `architecture/oneauto-provider/evidence/P4_E4_FULL_DATA_CALLBACK_V1.md`; tests `oneauto-p4-e4-full-data-callback.spec.ts`.',
+    ],
+    reason:
+      'Async VIN lookup should complete from provider callback payload when OpenAPI SUCCESS_RESULT_ERROR is present, without a second billable GET.',
+    previousBehavior:
+      'PR3 notify-then-GET only; `return_data_in_callback` did not complete jobs; registry `asyncCompletionMode=NONE`.',
+    details:
+      'backend: oneauto-provider-callback.service.ts, oneauto-provider-execution.service.ts, oneauto-callback-full-data.util.ts, ONEAUTO_CALLBACK_FULL_DATA_ENABLED; PR3 callback tests updated. No production activation; no migrations.',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-11-04T08:00:00.000Z',
+  },
+  {
     id: 'oneauto-p4-pr1-vin-lookup-async-contract-2026-11-03',
     version: '4.9.5022',
     title: 'One Auto P4 PR-1 — OE_VIN_LOOKUP_EU async-capable contract correction',

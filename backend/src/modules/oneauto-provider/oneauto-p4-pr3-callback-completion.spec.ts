@@ -135,7 +135,12 @@ describe('OneAuto P4 PR3 callback completion (offline, flags default OFF)', () =
         callbackRetrievalGetEnabled: true,
       }),
     } as unknown as ConfigService;
-    const svc = new OneAutoProviderCallbackService(prisma as never, config, queue as never);
+    const svc = new OneAutoProviderCallbackService(
+      prisma as never,
+      config,
+      queue as never,
+      { tryMaterializeFromSucceededJob: jest.fn() } as never,
+    );
     const result = await svc.ingestProviderCallback({
       deliveryToken,
       rawBody: JSON.stringify({ notify: true }),
@@ -162,6 +167,7 @@ describe('OneAuto P4 PR3 callback completion (offline, flags default OFF)', () =
       { oneAutoProviderJob: { findFirst: jest.fn() } } as never,
       config,
       { add: jest.fn() } as never,
+      { tryMaterializeFromSucceededJob: jest.fn() } as never,
     );
     const result = await svc.ingestProviderCallback({
       deliveryToken: 'x',

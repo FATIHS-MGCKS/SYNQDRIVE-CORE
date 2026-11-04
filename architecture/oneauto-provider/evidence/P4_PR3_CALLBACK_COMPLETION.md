@@ -18,8 +18,9 @@ Registry default for `OE_VIN_LOOKUP_EU`:
 | Variable | Default | Role |
 |----------|---------|------|
 | `ONEAUTO_CALLBACK_ENABLED` | `false` | Register `callback_url` on initial dispatch |
-| `ONEAUTO_CALLBACK_RETRIEVAL_GET_ENABLED` | `false` | Allow retrieval GET + accept inbound callbacks |
-| `ONEAUTO_CALLBACK_RETURN_DATA_IN_CALLBACK` | `false` | OpenAPI `return_data_in_callback` (full-data path not implemented) |
+| `ONEAUTO_CALLBACK_RETRIEVAL_GET_ENABLED` | `false` | Allow retrieval GET + accept inbound callbacks (**notify-then-GET only**) |
+| `ONEAUTO_CALLBACK_FULL_DATA_ENABLED` | `false` | Complete jobs from callback POST (**no retrieval GET**) |
+| `ONEAUTO_CALLBACK_RETURN_DATA_IN_CALLBACK` | `false` | Optional on notify-then-GET dispatch only |
 | `ONEAUTO_CALLBACK_PUBLIC_BASE_URL` | `https://app.synqdrive.eu/api/v1` | Prefix for registered callback URL |
 
 ## Ingress
