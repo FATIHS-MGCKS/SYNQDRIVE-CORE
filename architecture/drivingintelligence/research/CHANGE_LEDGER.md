@@ -2677,7 +2677,16 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** production reads; **no** loader I/O; **no** V1B/VSI/DS4 authority changes |
 | EVIDENCE | [DS4_RPM_REAL_DATA_PR_B1_SOURCE_ELIGIBILITY_2026-11-04.md](../evidence/DS4_RPM_REAL_DATA_PR_B1_SOURCE_ELIGIBILITY_2026-11-04.md) |
 
-| CHANGE | Trips module releases `diV0BoundaryAdmissionV1` after committed `PARTIAL_TRIP_BOUNDARY_EXTENSION`; S4 discovery eligibility unchanged (still requires matching admission revision) |
+### 2026-11-04 — DS4 × RPM real-data PR-B2 offline replay executor
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Offline injectable evidence adapter; deterministic replay executor; research report aggregation; fixture harness |
+| WHY | Reproducible bounded replay pipeline before any owner-authorized production read |
+| VALIDATION | `test:di:ds4-rpm-real-data-replay` (18 tests); shadow harness regression; tsc; production DB guard dry-run |
+| NON_EFFECTS | **No** production/DIMO/CH reads; **no** schema; **no** workers; **no** DS4/V1B/VSI authority edits |
+| EVIDENCE | [DS4_RPM_REAL_DATA_PR_B2_OFFLINE_EXECUTOR_2026-11-04.md](../evidence/DS4_RPM_REAL_DATA_PR_B2_OFFLINE_EXECUTOR_2026-11-04.md) |
+ `diV0BoundaryAdmissionV1` after committed `PARTIAL_TRIP_BOUNDARY_EXTENSION`; S4 discovery eligibility unchanged (still requires matching admission revision) |
 | WHY | Post-repair `boundaryRefresh` PENDING blocked `canRelease`; Tiguan canonical trip never received admission via boundary-scanned release path |
 | VALIDATION | `trip-di-boundary-admission.unit.spec.ts`; postgres harness when live |
 | NON_EFFECTS | **No** S4 worker/discovery code change; **no** scoring; **no** historical replay |
