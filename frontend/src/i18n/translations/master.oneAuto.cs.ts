@@ -25,6 +25,7 @@ export const masterOneAutoCs = {
   'master.oneAuto.jobSubmitted': 'Submitted',
   'master.oneAuto.jobLastUpdate': 'Last update',
   'master.oneAuto.jobRequestRef': 'Request reference',
+  'master.oneAuto.providerResultExpires': 'Konec okna pro výsledek poskytovatele',
   'master.oneAuto.safeError': 'Error',
   'master.oneAuto.billingStatus': 'Billing',
   'master.oneAuto.billingKnown': 'Known charge recorded',
@@ -47,7 +48,9 @@ export const masterOneAutoCs = {
   'master.oneAuto.status.CREATED': 'Created',
   'master.oneAuto.status.QUEUED': 'Queued',
   'master.oneAuto.status.RUNNING': 'Running',
-  'master.oneAuto.status.AWAITING_PROVIDER': 'Awaiting provider',
+  'master.oneAuto.status.AWAITING_PROVIDER': 'Čekání na poskytovatele',
+  'master.oneAuto.statusMessage.AWAITING_PROVIDER':
+    'Poskytovatel přijal požadavek; načtení výsledku čeká na dokončení.',
   'master.oneAuto.status.SUCCEEDED': 'Succeeded',
   'master.oneAuto.status.FAILED': 'Failed',
   'master.oneAuto.status.EXPIRED': 'Expired',
@@ -64,6 +67,10 @@ export const masterOneAutoCs = {
   'master.oneAuto.error.ONEAUTO_COST_CONFIRMATION_REQUIRED': 'Explicit cost confirmation is required.',
   'master.oneAuto.error.STEP_UP_REQUIRED': 'MFA step-up required before execution.',
   'master.oneAuto.error.ONEAUTO_JOB_POLL_TIMEOUT': 'Status polling stopped — check job later.',
+  'master.oneAuto.error.ONEAUTO_JOB_IN_FLIGHT':
+    'Požadavek pro toto vozidlo a službu již probíhá.',
+  'master.oneAuto.error.ONEAUTO_PROVIDER_RESULT_EXPIRED':
+    'Vypršela doba uchování výsledku u poskytovatele. Interní rezervace uvolněna; poplatek u poskytovatele zůstává neznámý.',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.name': 'OE Service History EU',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.description':
     'Manufacturer service history (EU) — external provider payload only.',

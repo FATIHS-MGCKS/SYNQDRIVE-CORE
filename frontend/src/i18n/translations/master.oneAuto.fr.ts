@@ -25,6 +25,7 @@ export const masterOneAutoFr = {
   'master.oneAuto.jobSubmitted': 'Submitted',
   'master.oneAuto.jobLastUpdate': 'Last update',
   'master.oneAuto.jobRequestRef': 'Request reference',
+  'master.oneAuto.providerResultExpires': 'Fin de la fenêtre de résultat fournisseur',
   'master.oneAuto.safeError': 'Error',
   'master.oneAuto.billingStatus': 'Billing',
   'master.oneAuto.billingKnown': 'Known charge recorded',
@@ -47,7 +48,9 @@ export const masterOneAutoFr = {
   'master.oneAuto.status.CREATED': 'Created',
   'master.oneAuto.status.QUEUED': 'Queued',
   'master.oneAuto.status.RUNNING': 'Running',
-  'master.oneAuto.status.AWAITING_PROVIDER': 'Awaiting provider',
+  'master.oneAuto.status.AWAITING_PROVIDER': 'En attente du fournisseur',
+  'master.oneAuto.statusMessage.AWAITING_PROVIDER':
+    'Le fournisseur a accepté la demande ; la récupération du résultat est en attente.',
   'master.oneAuto.status.SUCCEEDED': 'Succeeded',
   'master.oneAuto.status.FAILED': 'Failed',
   'master.oneAuto.status.EXPIRED': 'Expired',
@@ -64,6 +67,10 @@ export const masterOneAutoFr = {
   'master.oneAuto.error.ONEAUTO_COST_CONFIRMATION_REQUIRED': 'Explicit cost confirmation is required.',
   'master.oneAuto.error.STEP_UP_REQUIRED': 'MFA step-up required before execution.',
   'master.oneAuto.error.ONEAUTO_JOB_POLL_TIMEOUT': 'Status polling stopped — check job later.',
+  'master.oneAuto.error.ONEAUTO_JOB_IN_FLIGHT':
+    'Une demande pour ce véhicule et ce service est déjà en cours.',
+  'master.oneAuto.error.ONEAUTO_PROVIDER_RESULT_EXPIRED':
+    'Délai de conservation du résultat fournisseur expiré. Réservation interne libérée ; facturation fournisseur inconnue.',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.name': 'OE Service History EU',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.description':
     'Manufacturer service history (EU) — external provider payload only.',

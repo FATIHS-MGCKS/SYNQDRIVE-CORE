@@ -1,6 +1,6 @@
 # One Auto API — provider contracts (SynqDrive)
 
-Last updated: **2026-11-03** (P3 VIN lookup execution-verified registry). No live paid provider calls from this workstream.
+Last updated: **2026-11-03** (P4 PR-1 VIN lookup async-capable contract correction). No live paid provider calls from this workstream.
 
 ## OpenAPI evidence (P2.5B)
 
@@ -46,7 +46,7 @@ Service page URLs are listed on each entry in `oneauto-documented-contracts.ts` 
 
 ## EXECUTION_VERIFIED registry
 
-**P3 (2026-11-03):** `OE_VIN_LOOKUP_EU` only — sync HTTP **200** completion attested (live E2); **async poll disabled** (`asyncPollSameUrlWithoutNewCharge: false`) per live E1 (HTTP 202, single GET). See `architecture/oneauto-provider/evidence/P3_VIN_LOOKUP_EXECUTION_VERIFIED.md`.
+**P4 PR-1 (2026-11-03):** `OE_VIN_LOOKUP_EU` only — **async-capable** (`catalogExecutionMode: ASYNC_CAPABLE`); live E1 HTTP **202** = acceptance; live E2 HTTP **200** = cached retrieval within provider retention (not sync-first). **Async poll disabled** (`asyncPollSameUrlWithoutNewCharge: false`). See `architecture/oneauto-provider/evidence/P4_VIN_LOOKUP_ASYNC_CONTRACT_CORRECTION.md` (P3 classification superseded).
 
 **All other SKUs (including `OE_SERVICE_HISTORY_EU`) remain non-executable** until separate attestation PRs.
 

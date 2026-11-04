@@ -82,6 +82,7 @@ export type OneAutoJobDto = {
   lastErrorCode: string | null;
   initialProviderDispatchAt: string | null;
   expiresAt: string | null;
+  providerResultExpiresAt: string | null;
   createdAt: string;
   updatedAt: string;
 };

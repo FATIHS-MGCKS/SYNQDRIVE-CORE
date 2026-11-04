@@ -1,7 +1,7 @@
 import {
   buildExecutionVerifiedOeVinLookupEu,
   ONEAUTO_EXECUTION_VERIFIED_SKUS_READONLY,
-  ONEAUTO_P3_VIN_LOOKUP_EU_PRICING_SOURCE_VERSION,
+  ONEAUTO_P4_VIN_LOOKUP_EU_PRICING_SOURCE_VERSION,
   seedOneAutoExecutionVerifiedRegistry,
 } from './catalog/oneauto-execution-verified-registry';
 import {
@@ -14,7 +14,7 @@ import {
 } from './catalog/oneauto-service-catalog';
 import { isOneAutoPathAllowlisted } from './client/oneauto-allowlist';
 
-describe('OneAuto P3 OE_VIN_LOOKUP_EU execution-verified registry', () => {
+describe('OneAuto P3/P4 OE_VIN_LOOKUP_EU execution-verified registry', () => {
   it('seeds exactly one SKU (VIN lookup only)', () => {
     expect(ONEAUTO_EXECUTION_VERIFIED_SKUS_READONLY).toEqual(['OE_VIN_LOOKUP_EU']);
     expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.size).toBe(1);
@@ -24,13 +24,14 @@ describe('OneAuto P3 OE_VIN_LOOKUP_EU execution-verified registry', () => {
     );
   });
 
-  it('fail-closes async poll and 206 success (E1/E2 policy)', () => {
+  it('fail-closes async poll and 206 success; async-capable classification (P4)', () => {
     const entry = buildExecutionVerifiedOeVinLookupEu();
     expect(entry.asyncPollSameUrlWithoutNewCharge).toBe(false);
     expect(entry.http206CompleteSuccessAllowed).toBe(false);
-    expect(entry.catalogExecutionMode).toBe('SYNC');
-    expect(entry.asyncCapability).toBe('SYNC_ONLY');
-    expect(entry.pricingSourceVersion).toBe(ONEAUTO_P3_VIN_LOOKUP_EU_PRICING_SOURCE_VERSION);
+    expect(entry.catalogExecutionMode).toBe('ASYNC_CAPABLE');
+    expect(entry.asyncCapability).toBe('ASYNC_CAPABLE');
+    expect(entry.asyncCapability).not.toBe('SYNC_ONLY');
+    expect(entry.pricingSourceVersion).toBe(ONEAUTO_P4_VIN_LOOKUP_EU_PRICING_SOURCE_VERSION);
   });
 
   it('marks VIN lookup gate EXECUTABLE and service history DOCUMENTED_NOT_EXECUTABLE', () => {
@@ -48,10 +49,10 @@ describe('OneAuto P3 OE_VIN_LOOKUP_EU execution-verified registry', () => {
     const resolved = resolveCatalogEntryForRuntime(catalogEntry, {
       providerEnabled: true,
       indicativePriceMinorBySku: { OE_VIN_LOOKUP_EU: 36 },
-      pricingCatalogVersion: ONEAUTO_P3_VIN_LOOKUP_EU_PRICING_SOURCE_VERSION,
+      pricingCatalogVersion: ONEAUTO_P4_VIN_LOOKUP_EU_PRICING_SOURCE_VERSION,
     });
     expect(resolved.availabilityStatus).toBe('AVAILABLE');
-    expect(resolved.executionMode).toBe('SYNC');
+    expect(resolved.executionMode).toBe('ASYNC_CAPABLE');
   });
 
   it('allowlists only vinlookup path from seeded registry', () => {

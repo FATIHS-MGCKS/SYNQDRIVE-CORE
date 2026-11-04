@@ -25,6 +25,7 @@ export const masterOneAutoDe = {
   'master.oneAuto.jobSubmitted': 'Eingereicht',
   'master.oneAuto.jobLastUpdate': 'Letzte Aktualisierung',
   'master.oneAuto.jobRequestRef': 'Anfrage-Referenz',
+  'master.oneAuto.providerResultExpires': 'Anbieter-Ergebnisfenster endet',
   'master.oneAuto.safeError': 'Fehler',
   'master.oneAuto.billingStatus': 'Abrechnung',
   'master.oneAuto.billingKnown': 'Belastung bekannt erfasst',
@@ -48,6 +49,8 @@ export const masterOneAutoDe = {
   'master.oneAuto.status.QUEUED': 'In Warteschlange',
   'master.oneAuto.status.RUNNING': 'Läuft',
   'master.oneAuto.status.AWAITING_PROVIDER': 'Wartet auf Provider',
+  'master.oneAuto.statusMessage.AWAITING_PROVIDER':
+    'Anbieter hat die Anfrage angenommen; der Ergebnisabruf steht noch aus.',
   'master.oneAuto.status.SUCCEEDED': 'Erfolgreich',
   'master.oneAuto.status.FAILED': 'Fehlgeschlagen',
   'master.oneAuto.status.EXPIRED': 'Abgelaufen',
@@ -64,6 +67,10 @@ export const masterOneAutoDe = {
   'master.oneAuto.error.ONEAUTO_COST_CONFIRMATION_REQUIRED': 'Ausdrückliche Kostenbestätigung erforderlich.',
   'master.oneAuto.error.STEP_UP_REQUIRED': 'MFA-Bestätigung vor Ausführung erforderlich.',
   'master.oneAuto.error.ONEAUTO_JOB_POLL_TIMEOUT': 'Statusabfrage beendet — Job später prüfen.',
+  'master.oneAuto.error.ONEAUTO_JOB_IN_FLIGHT':
+    'Für dieses Fahrzeug und diesen Dienst läuft bereits eine Anfrage.',
+  'master.oneAuto.error.ONEAUTO_PROVIDER_RESULT_EXPIRED':
+    'Speicherfrist des Anbieterergebnisses abgelaufen. Interne Reservierung freigegeben; Anbietergebühr unbekannt.',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.name': 'OE Servicehistorie EU',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.description':
     'Hersteller-Servicehistorie (EU) — nur externe Provider-Nutzlast.',

@@ -16,6 +16,7 @@ import { OneAutoOemVinLookupEuSuggestionReadService } from './oem-specification/
 import { OneAutoOemVinLookupEuSuggestionCleanupService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-cleanup.service';
 import { OneAutoOemVinLookupEuSuggestionRecoveryService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-recovery.service';
 import { OneAutoOemVinLookupEuSuggestionCleanupScheduler } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-cleanup.scheduler';
+import { OneAutoProviderJobExpiryScheduler } from './oneauto-provider-job-expiry.scheduler';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { OneAutoOemVinLookupEuSuggestionCleanupScheduler } from './oem-specifica
     OneAutoOemVinLookupEuSuggestionCleanupService,
     OneAutoOemVinLookupEuSuggestionRecoveryService,
     OneAutoOemVinLookupEuSuggestionCleanupScheduler,
+    OneAutoProviderJobExpiryScheduler,
   ],
   exports: [
     OneAutoProviderService,

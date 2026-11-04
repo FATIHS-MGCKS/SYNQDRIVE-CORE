@@ -340,7 +340,10 @@ describe('OneAutoProviderExecutionService async and 206 policy', () => {
   it('fails closed on HTTP 202 when poll billing not attested', async () => {
     ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.set(
       'OE_SERVICE_HISTORY_EU',
-      executionVerifiedFixture('OE_SERVICE_HISTORY_EU'),
+      executionVerifiedFixture('OE_SERVICE_HISTORY_EU', {
+        asyncCapability: 'ASYNC_UNVERIFIED',
+        catalogExecutionMode: 'ASYNC_UNVERIFIED',
+      }),
     );
     const http = {
       executeProviderGet: jest.fn().mockResolvedValue({

@@ -64,3 +64,10 @@ export function oneAutoBindingMismatchException() {
     message: 'Organization, vehicle, or VIN binding failed server-side validation',
   });
 }
+
+export function oneAutoJobInFlightException() {
+  return new ConflictException({
+    code: 'ONEAUTO_JOB_IN_FLIGHT',
+    message: 'A One Auto job for this vehicle and service is already in progress',
+  });
+}
