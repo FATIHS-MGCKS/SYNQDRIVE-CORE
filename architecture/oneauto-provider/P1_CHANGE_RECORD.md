@@ -123,6 +123,25 @@
 - **Evidence:** `P4_E4_FULL_DATA_CALLBACK_V1.md` (updated)
 - **Tests:** `oneauto-p4-e4-registry-promotion.spec.ts`, P3 registry spec assertion
 
+## P4 E4-L1 — live callback wrapper envelope + provider-failure classification (2026-11-04, draft PR)
+
+- **BEFORE:** Callback body evaluated as bare `SUCCESS_RESULT_ERROR`; any envelope failure → `ONEAUTO_CALLBACK_PAYLOAD_MALFORMED` + HTTP 404.
+- **WHY:** First live E4 callbacks (jobs `cmw2hedwi…` Tesla, `cmw2hf8zg…` VW) arrived as `{ status, result: <envelope> }` and both failed as malformed — one was a provider "no data / not charged" answer, one a valid result.
+- **CHANGE:** `unwrapOneAutoCallbackBody()`; codes `ONEAUTO_CALLBACK_PROVIDER_FAILURE` / `ONEAUTO_PARTIAL_CONTENT`; provider failures persist envelope (`responsePhase='callback'`) and ack 200 `provider_failure`; success persists unwrapped envelope; `callback[_-]?url` redacted (202 echo carried delivery token).
+- **Evidence:** `architecture/oneauto-provider/evidence/P4_E4_LIVE_CALLBACK_INCIDENT_2026-11-04.md`
+- **Tests:** `oneauto-p4-e4-callback-wrapped-envelope.spec.ts`; `oneauto-p4-e4-full-data-callback.spec.ts` malformed case now uses non-boolean `success`.
+- **Non-effects:** No retrieval GET, no retries, no billing change, no FAILED→SUCCEEDED recovery (designed only), no production deploy/env change in this PR.
+- **Known pre-existing failure (main):** `oneauto-p25c-vin-lookup-offline-harness.spec.ts` "fails closed on HTTP 202" expects `ONEAUTO_ASYNC_POLL_UNVERIFIED`; P4 PR-1 made 202 → `AWAITING_PROVIDER`. Not touched here.
+
+## P4 E4-L2 — FAILED-job inbox recovery CLI (2026-11-04, draft PR #2338)
+
+- **Scope:** Owner-invoked recovery for job `cmw2hf8zg…` (VW) from persisted inbox — `OneAutoE4FailedCallbackRecoveryService`, shared `persistFullDataCallbackSuccessInTransaction`, ops CLI `oneauto-e4-recover-failed-callback-job.ts`.
+- **Auth:** `ONEAUTO_E4_CALLBACK_RECOVERY_PRODUCTION_AUTHORIZED=1` + `ONEAUTO_E4_CALLBACK_RECOVERY_OWNER_ACK=1`; `--dry-run` first.
+- **Audit:** `responsePhase=recovery_audit` row preserves prior `FAILED` / `lastErrorCode`; success clears job error fields after transition.
+- **Evidence:** `P4_E4_CALLBACK_URL_REDACTION_REMEDIATION.md` (historical token exposure plan — no prod cleanup).
+- **Tests:** `oneauto-e4-failed-callback-recovery.spec.ts`.
+- **Non-effects:** No production replay in PR; no provider HTTP; Tesla job remains non-recoverable (provider `success:false`).
+
 ## P2.5E-P1 hardening — capture field coverage & safe publish (2026-11-02)
 
 - **Field coverage:** `bodyType` / `interiorTrim` from `oem_body_type_desc` / `oem_interior_trim_desc`; regression asserts **17** non-VIN OpenAPI result keys mapped.

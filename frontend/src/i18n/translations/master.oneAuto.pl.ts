@@ -71,6 +71,12 @@ export const masterOneAutoPl = {
     'Żądanie dla tego pojazdu i usługi jest już w toku.',
   'master.oneAuto.error.ONEAUTO_PROVIDER_RESULT_EXPIRED':
     'Upłynął czas przechowywania wyniku u dostawcy. Zwolniono rezerwację wewnętrzną; opłata u dostawcy pozostaje nieznana.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PROVIDER_FAILURE':
+    'Dostawca nie zwrócił wyniku dla tego numeru VIN w wywołaniu zwrotnym (success=false). Sprawdź komunikat dostawcy w wyniku.',
+  'master.oneAuto.error.ONEAUTO_PARTIAL_CONTENT':
+    'Dostawca zwrócił częściową treść (HTTP 206) — nie została zaakceptowana jako pełny wynik.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PAYLOAD_MALFORMED':
+    'Nie udało się odczytać wywołania zwrotnego dostawcy. Dane zostały zapisane do weryfikacji.',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.name': 'OE Service History EU',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.description':
     'Manufacturer service history (EU) — external provider payload only.',

@@ -1,4 +1,6 @@
-const SENSITIVE_KEY = /authorization|api[_-]?key|password|secret|token|email|phone|address|name/i;
+// `callback[_-]?url` covers provider echo `callBackUrl` (carries the per-job delivery token).
+const SENSITIVE_KEY =
+  /authorization|api[_-]?key|password|secret|token|email|phone|address|name|callback[_-]?url/i;
 
 export function redactOneAutoErrorMessage(message: string): string {
   return message.slice(0, 240);

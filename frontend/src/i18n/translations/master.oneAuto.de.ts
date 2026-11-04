@@ -71,6 +71,12 @@ export const masterOneAutoDe = {
     'Für dieses Fahrzeug und diesen Dienst läuft bereits eine Anfrage.',
   'master.oneAuto.error.ONEAUTO_PROVIDER_RESULT_EXPIRED':
     'Speicherfrist des Anbieterergebnisses abgelaufen. Interne Reservierung freigegeben; Anbietergebühr unbekannt.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PROVIDER_FAILURE':
+    'Anbieter hat im Callback kein Ergebnis für diese FIN gemeldet (success=false). Anbietermeldung im Ergebnis prüfen.',
+  'master.oneAuto.error.ONEAUTO_PARTIAL_CONTENT':
+    'Anbieter hat Teilinhalt geliefert (HTTP 206) — nicht als vollständiges Ergebnis akzeptiert.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PAYLOAD_MALFORMED':
+    'Anbieter-Callback konnte nicht gelesen werden. Die Nutzlast wurde zur Prüfung gespeichert.',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.name': 'OE Servicehistorie EU',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.description':
     'Hersteller-Servicehistorie (EU) — nur externe Provider-Nutzlast.',

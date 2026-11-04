@@ -71,6 +71,12 @@ export const masterOneAutoNl = {
     'Er is al een verzoek voor dit voertuig en deze dienst actief.',
   'master.oneAuto.error.ONEAUTO_PROVIDER_RESULT_EXPIRED':
     'Bewaartermijn providerresultaat verstreken. Interne reservering vrijgegeven; providerkosten onbekend.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PROVIDER_FAILURE':
+    'De provider meldde in de callback geen resultaat voor dit VIN (success=false). Controleer het providerbericht in het resultaat.',
+  'master.oneAuto.error.ONEAUTO_PARTIAL_CONTENT':
+    'De provider leverde gedeeltelijke inhoud (HTTP 206) — niet geaccepteerd als volledig resultaat.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PAYLOAD_MALFORMED':
+    'De provider-callback kon niet worden gelezen. De payload is opgeslagen voor controle.',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.name': 'OE Service History EU',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.description':
     'Manufacturer service history (EU) — external provider payload only.',

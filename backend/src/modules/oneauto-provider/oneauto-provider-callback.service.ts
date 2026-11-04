@@ -12,9 +12,11 @@ import {
   sha256Hex,
 } from './oneauto-callback-delivery.util';
 import {
+  ONEAUTO_CALLBACK_PROVIDER_OUTCOME_CODES,
   evaluateOneAutoFullDataCallbackPayload,
   isOeVinLookupEuFullDataCallbackSku,
 } from './oneauto-callback-full-data.util';
+import { persistFullDataCallbackSuccessInTransaction } from './oneauto-e4-full-data-callback-completion.util';
 import { redactOneAutoErrorMessage, redactProviderResponseBody } from './oneauto-provider-redact.util';
 import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
 
@@ -27,7 +29,9 @@ export type OneAutoCallbackIngestResult =
         | 'duplicate'
         | 'ignored_expired'
         | 'ignored_terminal'
-        | 'pending_initial_dispatch';
+        | 'pending_initial_dispatch'
+        /** Authenticated callback processed; provider reported a business failure / partial result. */
+        | 'provider_failure';
     }
   | { ok: false; status: 'unknown_token' | 'disabled' | 'payload_rejected' };
 
@@ -231,6 +235,26 @@ export class OneAutoProviderCallbackService {
       vehicleVin: vehicle.vin,
     });
     if (!evaluation.ok) {
+      if (ONEAUTO_CALLBACK_PROVIDER_OUTCOME_CODES.has(evaluation.code) && evaluation.envelope) {
+        // Provider answered (e.g. "no data for this VIN"): keep the envelope as audit trail like the sync path.
+        await this.prisma.oneAutoProviderResponse.create({
+          data: {
+            jobId: job.id,
+            httpStatus: evaluation.wrapperStatus ?? 200,
+            providerStatusHeader: null,
+            responseBodyJson: redactProviderResponseBody(evaluation.envelope) as Prisma.InputJsonValue,
+            responsePhase: 'callback',
+          },
+        });
+        await this.failJobFromCallback(
+          job.id,
+          evaluation.code,
+          evaluation.code === 'ONEAUTO_PARTIAL_CONTENT'
+            ? 'Provider callback reported partial content (HTTP 206) — not attested as complete success'
+            : 'Provider callback reported failure (success=false) — no result delivered',
+        );
+        return { ok: true, status: 'provider_failure' };
+      }
       await this.failJobFromCallback(
         job.id,
         evaluation.code,
@@ -246,33 +270,19 @@ export class OneAutoProviderCallbackService {
       return { ok: true, status: 'ignored_terminal' };
     }
 
-    const bodyForPersistence = redactProviderResponseBody(parsedBody);
+    // Persist the unwrapped envelope so downstream readers (result API, OEM materialization) see
+    // the same SUCCESS_RESULT_ERROR shape as the sync HTTP 200 path. Raw body stays in the inbox.
     const completed = await this.prisma.$transaction(async (tx) => {
-      await tx.oneAutoProviderResponse.create({
-        data: {
-          jobId: job.id,
-          httpStatus: 200,
-          providerStatusHeader: null,
-          responseBodyJson: bodyForPersistence as Prisma.InputJsonValue,
-          responsePhase: 'callback',
-        },
+      const { transitioned } = await persistFullDataCallbackSuccessInTransaction(tx, {
+        jobId: job.id,
+        evaluation,
+        providerCallbackReceivedAt: now,
+        eligiblePriorStatuses: [
+          OneAutoProviderJobStatus.RUNNING,
+          OneAutoProviderJobStatus.AWAITING_PROVIDER,
+        ],
       });
-
-      const updated = await tx.oneAutoProviderJob.updateMany({
-        where: {
-          id: job.id,
-          status: {
-            in: [OneAutoProviderJobStatus.RUNNING, OneAutoProviderJobStatus.AWAITING_PROVIDER],
-          },
-        },
-        data: {
-          status: OneAutoProviderJobStatus.SUCCEEDED,
-          providerCallbackReceivedAt: now,
-          actualChargeKnown: false,
-          actualChargeMinor: null,
-        },
-      });
-      return updated.count;
+      return transitioned ? 1 : 0;
     });
 
     if (completed === 0) {

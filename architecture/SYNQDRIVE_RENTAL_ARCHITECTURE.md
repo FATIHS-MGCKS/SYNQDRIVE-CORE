@@ -52,6 +52,7 @@ Canonical overview of known modules. **Every row includes module name, mini desc
 | Internationalization (i18n) | Owns locale selection, translation catalogs, runtime translation delivery, Rental UI localization, fallback behavior, translation coverage, hardcoded-copy prevention, and i18n governance/CI. | `AUTHORITY_ACTIVE` | Bootstrap audit V1 (2026-09-10) · Gate A satisfied · runtime-bearing frontend module · product migration debt documented | [`architecture/internationalization/`](internationalization/) |
 | Invoices | Operational invoice records, issue and send flows, and accounts-receivable management for rentals. | `NOT_STARTED` | N/A — inventory only | — |
 | Notifications | Multi-channel notification evaluation, preferences, delivery outbox, and in-app notification consumption. | `NOT_STARTED` | N/A — inventory only | — |
+| One Auto Provider (Master VIN Lookup) | Master Admin-only paid One Auto provider integration: catalog, quote/confirm/execute jobs, async 202 + full-data callback completion, OEM VIN-lookup suggestions. | `NOT_STARTED` | N/A — inventory only | — |
 | Organizations & Tenancy | Multi-tenant organization profiles, operational settings, and tenant-scoped configuration. | `NOT_STARTED` | N/A — inventory only | — |
 | Outbound Email | Resend-based outbound email for org, platform, and booking-document delivery. | `NOT_STARTED` | N/A — inventory only | — |
 | Parts & Accessories | Parts procurement integrations including Alzura and eBay marketplace adapters. | `NOT_STARTED` | N/A — inventory only | — |

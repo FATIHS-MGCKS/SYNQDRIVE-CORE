@@ -21,6 +21,8 @@ When registry is `CALLBACK_FULL_DATA` but callback env flags are **OFF**, initia
 
 Callback POST body treated as documented **SUCCESS_RESULT_ERROR @ HTTP 200** shape only. No undocumented delivery guarantees assumed.
 
+**Live correction (2026-11-04, `P4_E4_LIVE_CALLBACK_INCIDENT_2026-11-04.md`):** the production callback body wraps the envelope — `{ status: <provider HTTP status>, result: { success, result, error } }`. The parser unwraps this (bare envelope still accepted). `success:false` → `ONEAUTO_CALLBACK_PROVIDER_FAILURE` (HTTP 200 ack, envelope persisted); wrapper `206` → `ONEAUTO_PARTIAL_CONTENT`; unreadable → `ONEAUTO_CALLBACK_PAYLOAD_MALFORMED` (HTTP 404). Provider re-delivers callbacks after ~60 s on 404; inbox SHA dedupe answers `duplicate`.
+
 ## Runtime flags (defaults OFF)
 
 | Variable | Role |

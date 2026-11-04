@@ -253,10 +253,18 @@ describe('OneAuto E4 full-data callback (offline)', () => {
     );
     const result = await svc.ingestProviderCallback({
       deliveryToken: 'tok',
-      rawBody: '{"success":false}',
-      parsedBody: { success: false },
+      rawBody: '{"success":"yes"}',
+      parsedBody: { success: 'yes' },
     });
     expect(result).toEqual({ ok: false, status: 'payload_rejected' });
+    expect(prisma.oneAutoProviderJob.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: OneAutoProviderJobStatus.FAILED,
+          lastErrorCode: 'ONEAUTO_CALLBACK_PAYLOAD_MALFORMED',
+        }),
+      }),
+    );
   });
 
   it('handles callback before initial 202 commit via RUNNING state', async () => {

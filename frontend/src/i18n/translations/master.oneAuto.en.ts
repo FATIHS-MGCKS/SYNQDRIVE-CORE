@@ -71,6 +71,12 @@ export const masterOneAutoEn = {
     'A request for this vehicle and service is already in progress.',
   'master.oneAuto.error.ONEAUTO_PROVIDER_RESULT_EXPIRED':
     'Provider result retention elapsed. Internal reservation released; vendor charge remains unknown.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PROVIDER_FAILURE':
+    'Provider reported no result for this VIN in its callback (success=false). Check the provider message in the result.',
+  'master.oneAuto.error.ONEAUTO_PARTIAL_CONTENT':
+    'Provider returned partial content (HTTP 206) — not accepted as a complete result.',
+  'master.oneAuto.error.ONEAUTO_CALLBACK_PAYLOAD_MALFORMED':
+    'Provider callback payload could not be read. The payload was stored for review.',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.name': 'OE Service History EU',
   'master.oneAuto.sku.OE_SERVICE_HISTORY_EU.description':
     'Manufacturer service history (EU) — external provider payload only.',
