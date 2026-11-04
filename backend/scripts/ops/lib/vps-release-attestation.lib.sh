@@ -354,6 +354,201 @@ vps_attest_resume_incomplete_deploy() {
   vps_attest_state_write_atomic "$body"
 }
 
+# --- P4B16 stale COMMITTED + stale mirror recovery (attestation-only; no PM2/nginx/migrations) ---
+
+vps_attest_require_reconcile_replica_verify() {
+  local release_dir=$1
+  local target_sha=$2
+  vps_attest_validate_sha "$target_sha" || return 1
+  target_sha="$(vps_attest_normalize_sha "$target_sha")"
+  if ! declare -f vps_replica_verify_attestation_reconcile >/dev/null 2>&1; then
+    vps_attest_fail "vps_replica_verify_attestation_reconcile unavailable — cannot reconcile"
+    return 1
+  fi
+  vps_replica_verify_attestation_reconcile "$release_dir" "$target_sha"
+}
+
+vps_attest_reconcile_validate_deploy_evidence() {
+  local release_dir=$1
+  local expected_sha=$2
+  local stale_sha=$3
+  local deploy_state_dir="${SYNQDRIVE_DEPLOY_STATE_DIR:-}"
+  if [[ -z "$deploy_state_dir" ]]; then
+    vps_attest_fail "SYNQDRIVE_DEPLOY_STATE_DIR required for deploy evidence"
+    return 1
+  fi
+  local state_file="${deploy_state_dir}/last-deploy-state.env"
+  if [[ ! -f "$state_file" ]]; then
+    vps_attest_fail "missing deployment evidence: ${state_file}"
+    return 1
+  fi
+  local prev
+  prev="$(grep -E '^PREVIOUS_SHA=' "$state_file" 2>/dev/null | cut -d= -f2- | tail -n 1 || true)"
+  if [[ -z "$prev" ]] || [[ "$(vps_attest_normalize_sha "$prev")" != "$(vps_attest_normalize_sha "$stale_sha")" ]]; then
+    vps_attest_fail "last-deploy PREVIOUS_SHA does not match stale attestation SHA"
+    return 1
+  fi
+  if declare -f vps_replica_current_sha >/dev/null 2>&1; then
+    local cur
+    cur="$(vps_replica_current_sha)"
+    if [[ "$(vps_attest_normalize_sha "$cur")" != "$(vps_attest_normalize_sha "$expected_sha")" ]]; then
+      vps_attest_fail "runtime current SHA ${cur:0:12} != expected ${expected_sha:0:12}"
+      return 1
+    fi
+  fi
+  if declare -f vps_replica_release_sha >/dev/null 2>&1 && [[ -n "$release_dir" && -d "$release_dir" ]]; then
+    local rel_sha
+    rel_sha="$(vps_replica_release_sha "$release_dir")"
+    if [[ "$(vps_attest_normalize_sha "$rel_sha")" != "$(vps_attest_normalize_sha "$expected_sha")" ]]; then
+      vps_attest_fail "release dir SHA mismatch"
+      return 1
+    fi
+  fi
+  return 0
+}
+
+vps_attest_reconcile_verify_migrations() {
+  if [[ "${VPS_P4B16_RECONCILE_SKIP_MIGRATION_CHECK:-}" == "1" ]]; then
+    return 0
+  fi
+  local raw="${VPS_P4B16_RECONCILE_REQUIRED_MIGRATIONS:-}"
+  if [[ -z "$raw" ]]; then
+    return 0
+  fi
+  if [[ -z "${DATABASE_URL:-}" ]]; then
+    vps_attest_fail "DATABASE_URL required for migration verification"
+    return 1
+  fi
+  local name
+  IFS=',' read -ra _migs <<<"$raw"
+  for name in "${_migs[@]}"; do
+    name="${name// /}"
+    [[ -n "$name" ]] || continue
+    if ! psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc \
+      "SELECT 1 FROM _prisma_migrations WHERE migration_name='${name}' AND finished_at IS NOT NULL LIMIT 1;" \
+      2>/dev/null | grep -q 1; then
+      vps_attest_fail "required migration not applied: ${name}"
+      return 1
+    fi
+  done
+  return 0
+}
+
+vps_attest_emit_reconcile_evidence() {
+  local expected_sha=$1
+  local stale_sha=$2
+  local gen_before=$3
+  local gen_after=$4
+  local evidence_dir="${SYNQDRIVE_P4B16_RECONCILE_EVIDENCE_DIR:-}"
+  if [[ -z "$evidence_dir" ]]; then
+    evidence_dir="$(dirname "$(vps_attest_state_path)")/evidence"
+  fi
+  mkdir -p "$evidence_dir" 2>/dev/null || true
+  local ts file
+  ts="$(date -u +%Y%m%d%H%M%S)"
+  file="${evidence_dir}/p4b16-stale-committed-reconcile-${ts}.env"
+  cat >"$file" <<EOF
+OPERATION=P4B16_STALE_COMMITTED_RECOVERY
+EXPECTED_SHA=${expected_sha}
+STALE_ATTESTED_SHA=${stale_sha}
+GENERATION_BEFORE=${gen_before}
+GENERATION_AFTER=${gen_after}
+MIRROR_KEY=${VPS_ATTESTATION_MIRROR_KEY:-SYNQDRIVE_DEPLOYED_GIT_SHA}
+ONEAUTO_ACTIVATION_POLICY=UNCHANGED_BY_RECONCILE
+RECORDED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+  chmod 640 "$file" 2>/dev/null || true
+  vps_attest_log "reconcile evidence → ${file}"
+}
+
+# Reconcile stale COMMITTED attestation when runtime already matches expected_sha (no redeploy).
+vps_attest_reconcile_stale_committed_deploy() {
+  local release_dir=$1
+  local expected_sha=$2
+  local expected_stale_sha=${3:-}
+
+  vps_attest_require_lock_held || return 1
+  vps_attest_validate_sha "$expected_sha" || return 1
+  expected_sha="$(vps_attest_normalize_sha "$expected_sha")"
+  if [[ -n "$expected_stale_sha" ]]; then
+    vps_attest_validate_sha "$expected_stale_sha" || return 1
+    expected_stale_sha="$(vps_attest_normalize_sha "$expected_stale_sha")"
+  fi
+
+  if ! vps_attest_state_verify_checksum; then
+    vps_attest_fail "attestation checksum invalid — reconcile refused"
+    return 1
+  fi
+  if ! vps_attest_reader_is_committed 2>/dev/null; then
+    vps_attest_fail "attestation not COMMITTED — reconcile refused"
+    return 1
+  fi
+
+  local stale_deployed stale_gen mirrored gen_before
+  stale_deployed="$(vps_attest_normalize_sha "$(vps_attest_state_read_kv DEPLOYED_SHA)")"
+  stale_gen="$(vps_attest_state_read_kv GENERATION)"
+  gen_before="${stale_gen}"
+
+  if [[ -n "$expected_stale_sha" && "$stale_deployed" != "$expected_stale_sha" ]]; then
+    vps_attest_fail "attestation DEPLOYED_SHA != expected stale SHA"
+    return 1
+  fi
+  if [[ -n "${VPS_P4B16_RECONCILE_EXPECTED_GENERATION:-}" && "$stale_gen" != "${VPS_P4B16_RECONCILE_EXPECTED_GENERATION}" ]]; then
+    vps_attest_fail "attestation GENERATION != expected (${VPS_P4B16_RECONCILE_EXPECTED_GENERATION})"
+    return 1
+  fi
+
+  # shellcheck source=lib/vps-release-attestation-env-mirror.lib.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/vps-release-attestation-env-mirror.lib.sh"
+
+  mirrored="$(vps_attest_mirror_read_sha_from_file "${VPS_ATTESTATION_BACKEND_ENV:-}" 2>/dev/null || true)"
+  mirrored="$(vps_attest_normalize_sha "${mirrored:-}")"
+
+  if [[ "$stale_deployed" == "$expected_sha" ]] && vps_attest_mirror_sha_matches "$expected_sha"; then
+    vps_attest_log "reconcile no-op: attestation and mirror already at ${expected_sha:0:12}"
+    return 0
+  fi
+
+  local prev_for_state="$stale_deployed"
+  local mirror_resume=0
+  if vps_attest_mirror_sha_matches "$expected_sha" && [[ "$stale_deployed" != "$expected_sha" ]]; then
+    mirror_resume=1
+    vps_attest_log "detected mirror/state split — resume after mirror update"
+  elif [[ -z "$mirrored" || "$mirrored" != "$stale_deployed" ]]; then
+    vps_attest_fail "stale mirror must match stale attestation DEPLOYED_SHA"
+    return 1
+  fi
+
+  vps_attest_require_reconcile_replica_verify "$release_dir" "$expected_sha" || return 1
+  vps_attest_reconcile_validate_deploy_evidence "$release_dir" "$expected_sha" "$stale_deployed" || return 1
+  vps_attest_reconcile_verify_migrations || return 1
+
+  local planned_gen body
+  planned_gen="$(vps_attest_next_generation)"
+
+  if [[ "$mirror_resume" == "1" ]]; then
+    body="$(vps_attest_build_state_body COMMITTED "$planned_gen" "$expected_sha" "$prev_for_state")"
+    vps_attest_crash_hook before_state_write
+    vps_attest_state_write_atomic "$body" || return 1
+    vps_attest_emit_reconcile_evidence "$expected_sha" "$stale_deployed" "$gen_before" "$planned_gen"
+    return 0
+  fi
+
+  vps_attest_crash_hook before_mirror
+  if ! vps_attest_mirror_deployed_git_sha "${VPS_ATTESTATION_BACKEND_ENV:-}" "$expected_sha"; then
+    body="$(vps_attest_build_state_body FAILED "$planned_gen" "$stale_deployed" "$(vps_attest_state_read_kv PREVIOUS_SHA)")"
+    vps_attest_state_write_atomic "$body" || true
+    return 1
+  fi
+  vps_attest_crash_hook after_mirror
+
+  body="$(vps_attest_build_state_body COMMITTED "$planned_gen" "$expected_sha" "$prev_for_state")"
+  vps_attest_crash_hook before_state_write
+  vps_attest_state_write_atomic "$body" || return 1
+  vps_attest_emit_reconcile_evidence "$expected_sha" "$stale_deployed" "$gen_before" "$planned_gen"
+  return 0
+}
+
 vps_attest_record_rollback_success() {
   local release_dir=$1
   local previous_sha=$2

@@ -316,7 +316,8 @@ vps_replica_nginx_dual_upstream_ok() {
   return 1
 }
 
-vps_replica_verify_no_mixed_sha() {
+# Runtime identity + replica health without post-deploy uptime freshness (P4B16 reconcile path).
+vps_replica_verify_runtime_identity_no_uptime() {
   local target_sha=$1
   local current_sha
   current_sha="$(vps_replica_current_sha)"
@@ -325,7 +326,6 @@ vps_replica_verify_no_mixed_sha() {
     return 1
   fi
 
-  # Both replicas share current symlink; verify each restarted recently (no stale in-memory old build).
   local names=("${SYNQDRIVE_REPLICA_A_PM2_NAME}")
   local ports=("${SYNQDRIVE_REPLICA_A_PORT}")
   if [[ "${SYNQDRIVE_PRODUCTION_REPLICA_COUNT}" -ge 2 ]]; then
@@ -353,7 +353,23 @@ vps_replica_verify_no_mixed_sha() {
       vps_replica_log "ABORT: ${name} readiness failed on port ${port}"
       return 1
     fi
-    local uptime
+  done
+
+  vps_replica_log "SHA invariant OK: all replicas on ${target_sha} (no uptime gate)"
+  return 0
+}
+
+vps_replica_verify_no_mixed_sha() {
+  local target_sha=$1
+  vps_replica_verify_runtime_identity_no_uptime "$target_sha" || return 1
+
+  local names=("${SYNQDRIVE_REPLICA_A_PM2_NAME}")
+  if [[ "${SYNQDRIVE_PRODUCTION_REPLICA_COUNT}" -ge 2 ]]; then
+    names+=("${SYNQDRIVE_REPLICA_B_PM2_NAME}")
+  fi
+
+  local name uptime
+  for name in "${names[@]}"; do
     uptime="$(vps_replica_pm2_uptime_sec "$name")"
     if [[ "$uptime" -lt 0 ]] || [[ "$uptime" -gt "${SYNQDRIVE_MAX_UPTIME_AFTER_DEPLOY_SEC}" ]]; then
       vps_replica_log "ABORT: ${name} uptime ${uptime}s suggests process was not restarted for this deploy"
@@ -361,7 +377,6 @@ vps_replica_verify_no_mixed_sha() {
     fi
   done
 
-  vps_replica_log "SHA invariant OK: all replicas on ${target_sha}"
   return 0
 }
 
@@ -416,6 +431,35 @@ vps_replica_rolling_deploy() {
   fi
 
   pm2 save
+  return 0
+}
+
+# P4B16 attestation-only reconcile: same routing/health gates as post-deploy, without uptime freshness.
+vps_replica_verify_attestation_reconcile() {
+  local release_dir=$1
+  local target_sha=$2
+
+  local release_sha
+  release_sha="$(vps_replica_release_sha "$release_dir")"
+  if [[ "$release_sha" != "$target_sha" ]]; then
+    vps_replica_log "ABORT: release dir SHA ${release_sha} != target ${target_sha}"
+    return 1
+  fi
+
+  vps_replica_verify_runtime_identity_no_uptime "$target_sha" || return 1
+  vps_replica_wait_scheduler_leader_convergence || return 1
+  vps_replica_verify_scheduler_leaders 1 || return 1
+  vps_replica_nginx_dual_upstream_ok || return 1
+
+  if [[ -n "${SYNQDRIVE_EXTERNAL_HEALTH_URL:-}" ]]; then
+    if curl -sf "${SYNQDRIVE_EXTERNAL_HEALTH_URL}" >/dev/null 2>&1; then
+      vps_replica_log "External health PASS ${SYNQDRIVE_EXTERNAL_HEALTH_URL}"
+    else
+      vps_replica_log "ABORT: external health failed ${SYNQDRIVE_EXTERNAL_HEALTH_URL}"
+      return 1
+    fi
+  fi
+
   return 0
 }
 
