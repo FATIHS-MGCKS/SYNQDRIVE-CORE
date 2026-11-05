@@ -1668,6 +1668,7 @@ model Organization {
   vehicleProviderSourceObservationCounters                  VehicleProviderSourceObservationCounter[]
   vehicleSignalCapabilityProfiles                           VehicleSignalCapabilityProfile[]
   vehicleSignalCapabilityProfileRevisions                   VehicleSignalCapabilityProfileRevision[]
+  fsdDiscoveryRuns                                          FsdDiscoveryRun[]
   vsiProviderCatalogAxes                                    VsiProviderCatalogAxis[]
   vsiProfileLifecycleOutbox                                 VsiProfileLifecycleOutbox[]
   apdShadowReconciliationDecisions                          ApdShadowReconciliationDecision[]
@@ -3078,6 +3079,7 @@ model Vehicle {
   vehicleProviderSourceObservationCounters VehicleProviderSourceObservationCounter[]
   vehicleSignalCapabilityProfiles          VehicleSignalCapabilityProfile[]
   vehicleSignalCapabilityProfileRevisions  VehicleSignalCapabilityProfileRevision[]
+  fsdDiscoveryRuns                         FsdDiscoveryRun[]
   vsiProviderCatalogAxes                   VsiProviderCatalogAxis[]
   vsiProfileLifecycleOutbox                VsiProfileLifecycleOutbox[]
   apdShadowReconciliationDecisions       ApdShadowReconciliationDecision[]
@@ -4874,6 +4876,143 @@ model VehicleSignalCapabilityProfileRevision {
   @@index([organizationId, vehicleId, providerSourceLinkId, recordedAt(sort: Desc)], map: "vehicle_signal_capability_profile_revisions_scope_recorded_idx")
   @@index([organizationId, vehicleId, providerSourceLinkId, evaluatedAt(sort: Desc)], map: "vehicle_signal_capability_profile_revisions_scope_evaluated_idx")
   @@map("vehicle_signal_capability_profile_revisions")
+}
+
+enum FsdDiscoveryRunStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  INVALIDATED
+}
+
+enum FsdDiscoveryStageType {
+  CATALOG
+  SNAPSHOT
+  HISTORICAL
+}
+
+enum FsdDiscoveryStageStatus {
+  PLANNED
+  IN_PROGRESS
+  SUCCEEDED
+  FAILED
+  UNKNOWN_OUTCOME
+  DEFERRED
+  SKIPPED
+}
+
+enum FsdDiscoveryFailureClass {
+  REQUEST_BUDGET_EXCEEDED
+  HISTORICAL_WINDOW_INVALID
+  PROVIDER_ERROR
+  STALE_SOURCE_LINK
+  STALE_RUN_VERSION
+  INVALID_STATE_TRANSITION
+  UNKNOWN
+}
+
+enum FsdDiscoverySignalEvidenceState {
+  DECLARED_ONLY
+  QUERY_PLANNED
+  QUERY_ACCEPTED
+  QUERY_FAILED
+  OBSERVED
+  NOT_EVALUABLE
+  DEFERRED
+}
+
+/// FSD-2 — durable discovery run owner context (no provider execution in this phase).
+model FsdDiscoveryRun {
+  id                            String                  @id @default(cuid())
+  organizationId                String                  @map("organization_id")
+  vehicleId                     String                  @map("vehicle_id")
+  providerSourceLinkId          String                  @map("provider_source_link_id")
+  runKey                        String                  @map("run_key")
+  runRevision                   Int                     @default(1) @map("run_revision")
+  contractVersion               String                  @default("fsd-discovery-run-v1") @map("contract_version")
+  dimoTokenId                   Int?                    @map("dimo_token_id")
+  connectionIdentityFingerprint String?                 @map("connection_identity_fingerprint")
+  status                        FsdDiscoveryRunStatus   @default(PENDING)
+  failureClass                  FsdDiscoveryFailureClass? @map("failure_class")
+  failureReasonRedacted         String?                 @map("failure_reason_redacted") @db.VarChar(2000)
+  leaseOwner                    String?                 @map("lease_owner")
+  leaseExpiresAt                DateTime?               @map("lease_expires_at") @db.Timestamptz(3)
+  version                       Int                     @default(1)
+  invalidatedAt                 DateTime?               @map("invalidated_at") @db.Timestamptz(3)
+  invalidationReason            String?                 @map("invalidation_reason")
+  supersededByRunId             String?                 @map("superseded_by_run_id")
+  completedAt                   DateTime?               @map("completed_at") @db.Timestamptz(3)
+  createdAt                     DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                     DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle      @relation(fields: [organizationId, vehicleId], references: [organizationId, id], onDelete: Cascade)
+  providerSourceLink VehicleDataSourceLink @relation(fields: [providerSourceLinkId], references: [id], onDelete: Restrict)
+  stages       FsdDiscoveryStage[]
+  evidence     FsdDiscoverySignalEvidence[]
+
+  @@index([organizationId, vehicleId, providerSourceLinkId, runKey], map: "fsd_discovery_runs_idempotency_lookup")
+  @@unique([providerSourceLinkId, runRevision], map: "fsd_discovery_runs_source_link_revision_key")
+  @@index([organizationId, vehicleId])
+  @@index([providerSourceLinkId, status])
+  @@index([invalidatedAt])
+  @@map("fsd_discovery_runs")
+}
+
+/// FSD-2 — per-run stage checkpoint (CATALOG / SNAPSHOT / HISTORICAL).
+model FsdDiscoveryStage {
+  id              String                  @id @default(cuid())
+  runId           String                  @map("run_id")
+  stageType       FsdDiscoveryStageType   @map("stage_type")
+  status          FsdDiscoveryStageStatus @default(PLANNED)
+  planFingerprint String?                 @map("plan_fingerprint")
+  checkpointJson  Json                    @default("{}") @map("checkpoint_json")
+  attemptCount    Int                     @default(0) @map("attempt_count")
+  lastHttpStatus  Int?                    @map("last_http_status")
+  lastOutcome     String?                 @map("last_outcome")
+  lastErrorCode   String?                 @map("last_error_code")
+  version         Int                     @default(1)
+  startedAt       DateTime?               @map("started_at") @db.Timestamptz(3)
+  completedAt     DateTime?               @map("completed_at") @db.Timestamptz(3)
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  run      FsdDiscoveryRun                @relation(fields: [runId], references: [id], onDelete: Cascade)
+  evidence FsdDiscoverySignalEvidence[]
+
+  @@unique([runId, stageType], map: "fsd_discovery_stages_run_stage_key")
+  @@unique([id, runId, stageType], map: "fsd_discovery_stages_id_run_stage_scope_key")
+  @@index([runId, status])
+  @@map("fsd_discovery_stages")
+}
+
+/// FSD-2 — per-signal evidence row (no raw GraphQL payload storage).
+model FsdDiscoverySignalEvidence {
+  id                 String                          @id @default(cuid())
+  runId              String                          @map("run_id")
+  stageId            String?                         @map("stage_id")
+  stageType          FsdDiscoveryStageType           @map("stage_type")
+  signalName         String                          @map("signal_name")
+  declaredByProvider Boolean                         @default(true) @map("declared_by_provider")
+  schemaShape        String?                         @map("schema_shape")
+  evidenceState      FsdDiscoverySignalEvidenceState @default(DECLARED_ONLY) @map("evidence_state")
+  queryPlanned       Boolean                         @default(false) @map("query_planned")
+  queryAccepted      Boolean?                        @map("query_accepted")
+  observedValue      Boolean?                        @map("observed_value")
+  provenanceJson     Json                            @default("{}") @map("provenance_json")
+  qualityJson        Json                            @default("{}") @map("quality_json")
+  version            Int                             @default(1)
+  createdAt          DateTime                        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  run   FsdDiscoveryRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stage FsdDiscoveryStage? @relation(fields: [stageId, runId, stageType], references: [id, runId, stageType], onDelete: Restrict)
+
+  /// Composite FK `fsd_discovery_signal_evidence_stage_scope_fkey` (migration-managed, ON DELETE RESTRICT).
+  @@unique([runId, stageType, signalName], map: "fsd_discovery_signal_evidence_run_stage_signal_key")
+  @@index([runId, stageType])
+  @@map("fsd_discovery_signal_evidence")
 }
 
 enum VsiProviderCatalogAxisDeclaredStatus {
@@ -17642,6 +17781,7 @@ model VehicleDataSourceLink {
   hmVehicle   HighMobilityVehicle? @relation(fields: [sourceReferenceId], references: [id])
   dimoVehicle DimoVehicle?         @relation(fields: [dimoVehicleId], references: [id], onDelete: Restrict)
   connectionIdentityReconciliationAudits VehicleConnectionIdentityReconciliationAudit[]
+  fsdDiscoveryRuns                     FsdDiscoveryRun[]
 
   /// Active-link uniqueness: DB partial index `uq_vehicle_data_source_link_active_scope` (see migration VO-2.1).
   /// Inactive episodes are unlimited; do not reintroduce Prisma @@unique on is_active.
