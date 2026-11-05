@@ -10,3 +10,4 @@ export * from './fsd-response.interpreter.v1';
 export * from './fsd-selection.builder.v1';
 export * from './fsd-signal-shape.classifier.v1';
 export * from './fsd-snapshot.planner.v1';
+export * from './persistence';
