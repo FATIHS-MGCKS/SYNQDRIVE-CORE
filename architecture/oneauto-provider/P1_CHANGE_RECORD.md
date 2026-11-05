@@ -179,3 +179,10 @@
 - **Evidence:** `architecture/oneauto-provider/evidence/P1_OE_SERVICE_SCHEDULE_INTEGRATION_DRAFT.md`
 - **Tests:** `oneauto-oe-service-schedule-eu-provider.util.spec.ts`, `oneauto-p1-oe-service-schedule-integration.spec.ts`, `oneauto-sku-runtime-activation.util.spec.ts`
 - **Non-effects:** Not seeded in execution-verified registry; no provider HTTP; no VehicleServiceEvent / HM-OEM writes; `ONEAUTO_SKU_OE_SERVICE_SCHEDULE_RUNTIME_ENABLED` default OFF.
+
+## OE Service Schedule EU — standard execution activation (2026-11-05, draft PR)
+
+- **Scope:** Seed `OE_SERVICE_SCHEDULE` in execution-verified registry with E4 `CALLBACK_FULL_DATA` (same architecture as VIN lookup / service history). **Abandons** P2 attestation canary (PR #2345).
+- **Evidence:** `architecture/oneauto-provider/evidence/OE_SERVICE_SCHEDULE_EU_EXECUTION_ACTIVATION.md`
+- **Tests:** `oneauto-oe-service-schedule-eu-execution.spec.ts`; updated P1/P3 registry specs.
+- **Non-effects:** No schema migration; no new Master routes; runtime SKU flag default OFF; live provider attestation not claimed.

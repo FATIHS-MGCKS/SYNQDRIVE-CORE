@@ -77,11 +77,16 @@ export function buildExecutionVerifiedOeServiceHistoryEuFullDataCallback(): OneA
   };
 }
 
-/**
- * Builder for future attestation only — intentionally NOT seeded in `seedOneAutoExecutionVerifiedRegistry`.
- * OE_SERVICE_SCHEDULE remains DOCUMENTED / non-executable until service-specific callback evidence exists.
- */
-export function buildExecutionVerifiedOeServiceScheduleEuFullDataCallbackForAttestationOnly(): OneAutoExecutionVerifiedProviderContract {
+/** DE PrePay reference 210 EUR minor; account billing still operator-verified. */
+export const ONEAUTO_OE_SERVICE_SCHEDULE_EU_PRICING_SOURCE_VERSION =
+  'synqdrive-oe-service-schedule-eu-callback-v1' as const;
+
+const OE_SERVICE_SCHEDULE_EVIDENCE_SOURCES = [
+  'architecture/oneauto-provider/evidence/P1_OE_SERVICE_SCHEDULE_INTEGRATION_DRAFT.md',
+  'architecture/oneauto-provider/evidence/OE_SERVICE_SCHEDULE_EU_EXECUTION_ACTIVATION.md',
+] as const;
+
+export function buildExecutionVerifiedOeServiceScheduleEu(): OneAutoExecutionVerifiedProviderContract {
   const documented = getDocumentedOneAutoContract('OE_SERVICE_SCHEDULE');
   if (!documented) {
     throw new Error('OE_SERVICE_SCHEDULE documented contract missing');
@@ -91,20 +96,32 @@ export function buildExecutionVerifiedOeServiceScheduleEuFullDataCallbackForAtte
     evidenceState: 'EXECUTION_VERIFIED',
     asyncPollSameUrlWithoutNewCharge: false,
     http206CompleteSuccessAllowed: false,
-    asyncCompletionMode: 'CALLBACK_FULL_DATA',
+    asyncCompletionMode: 'NONE',
     catalogExecutionMode: 'ASYNC_CAPABLE',
     asyncCapability: 'ASYNC_CAPABLE',
-    pricingSourceVersion: 'synqdrive-p1-oe-service-schedule-draft-v1',
-    evidenceSources: [
-      ...documented.evidenceSources,
-      'architecture/oneauto-provider/evidence/P1_OE_SERVICE_SCHEDULE_INTEGRATION_DRAFT.md',
-    ],
+    pricingSourceVersion: ONEAUTO_OE_SERVICE_SCHEDULE_EU_PRICING_SOURCE_VERSION,
+    evidenceSources: [...documented.evidenceSources, ...OE_SERVICE_SCHEDULE_EVIDENCE_SOURCES],
   };
+}
+
+export function buildExecutionVerifiedOeServiceScheduleEuFullDataCallback(): OneAutoExecutionVerifiedProviderContract {
+  return {
+    ...buildExecutionVerifiedOeServiceScheduleEu(),
+    asyncCompletionMode: 'CALLBACK_FULL_DATA',
+  };
+}
+
+/**
+ * @deprecated Prefer `buildExecutionVerifiedOeServiceScheduleEuFullDataCallback` (P2 canary alias retained for imports).
+ */
+export function buildExecutionVerifiedOeServiceScheduleEuFullDataCallbackForAttestationOnly(): OneAutoExecutionVerifiedProviderContract {
+  return buildExecutionVerifiedOeServiceScheduleEuFullDataCallback();
 }
 
 export const ONEAUTO_EXECUTION_VERIFIED_SKUS_READONLY = [
   'OE_VIN_LOOKUP_EU',
   'OE_SERVICE_HISTORY_EU',
+  'OE_SERVICE_SCHEDULE',
 ] as const;
 
 export function seedOneAutoExecutionVerifiedRegistry(
@@ -113,4 +130,5 @@ export function seedOneAutoExecutionVerifiedRegistry(
   target.clear();
   target.set('OE_VIN_LOOKUP_EU', buildExecutionVerifiedOeVinLookupEuFullDataCallback());
   target.set('OE_SERVICE_HISTORY_EU', buildExecutionVerifiedOeServiceHistoryEuFullDataCallback());
+  target.set('OE_SERVICE_SCHEDULE', buildExecutionVerifiedOeServiceScheduleEuFullDataCallback());
 }

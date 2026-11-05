@@ -1,3 +1,4 @@
+import { ONEAUTO_OE_SERVICE_SCHEDULE_EU_PRICING_SOURCE_VERSION } from './catalog/oneauto-execution-verified-registry';
 import { getDocumentedOneAutoContract } from './catalog/oneauto-documented-contracts';
 import { getOneAutoCatalogEntry, resolveCatalogEntryForRuntime } from './catalog/oneauto-service-catalog';
 import { buildOneAutoContractGateReport } from './catalog/oneauto-verified-contracts';
@@ -23,10 +24,10 @@ describe('OneAuto OE Service Schedule P1 integration (draft, offline)', () => {
     delete process.env[ONEAUTO_OE_SERVICE_SCHEDULE_EU_RUNTIME_ENABLED_ENV];
   });
 
-  it('registers E4 full-data callback SKU hook without execution-verified promotion', () => {
+  it('registers E4 full-data callback SKU hook with execution-verified registry entry', () => {
     expect(isOneAutoFullDataCallbackSku(ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU)).toBe(true);
     expect(buildOneAutoContractGateReport(ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU).executable).toBe(
-      false,
+      true,
     );
   });
 
@@ -36,20 +37,17 @@ describe('OneAuto OE Service Schedule P1 integration (draft, offline)', () => {
     expect(isOneAutoSkuRuntimeExecutionEnabled(ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU)).toBe(true);
   });
 
-  it('quotes EUR when indicative price is configured (still CONTRACT_UNVERIFIED)', () => {
+  it('quotes EUR when indicative price is configured and runtime enabled', () => {
     const entry = getOneAutoCatalogEntry(ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU)!;
     process.env[ONEAUTO_OE_SERVICE_SCHEDULE_EU_RUNTIME_ENABLED_ENV] = '1';
     const resolved = resolveCatalogEntryForRuntime(entry, {
       providerEnabled: true,
       indicativePriceMinorBySku: { OE_SERVICE_SCHEDULE: 210 },
-      pricingCatalogVersion: 'v-test',
+      pricingCatalogVersion: ONEAUTO_OE_SERVICE_SCHEDULE_EU_PRICING_SOURCE_VERSION,
     });
     expect(resolved.currency).toBe('EUR');
     expect(resolved.indicativePriceMinor).toBe(210);
-    expect(resolved.availabilityStatus).toBe('CONTRACT_UNVERIFIED');
-    expect(buildOneAutoContractGateReport(ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU).executable).toBe(
-      false,
-    );
+    expect(resolved.availabilityStatus).toBe('AVAILABLE');
   });
 
   it('evaluates wrapped full-data callback success envelope', () => {
