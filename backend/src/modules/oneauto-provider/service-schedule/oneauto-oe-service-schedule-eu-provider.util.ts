@@ -1,11 +1,13 @@
 import { isValidVin, normalizeVin } from '../client/oneauto-vin.util';
 import { extractProviderResultVin } from '../attestation/oneauto-sandbox-attestation-result-capture.util';
 import {
+  validateOeServiceScheduleService,
+  validateOeServiceScheduleServiceArray,
+} from './oneauto-oe-service-schedule-field-validation.util';
+import {
   ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU,
-  type OneAutoOeServiceSchedulePart,
   type OneAutoOeServiceScheduleParseOutcome,
   type OneAutoOeServiceScheduleService,
-  type OneAutoOeServiceScheduleTask,
 } from './oneauto-service-schedule-eu.types';
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -49,66 +51,30 @@ export function extractOeServiceScheduleEuProviderResult(body: unknown): Record<
   return body.result;
 }
 
-function normalizeTask(raw: unknown): OneAutoOeServiceScheduleTask | null {
-  if (!isPlainObject(raw)) return null;
-  return raw as OneAutoOeServiceScheduleTask;
-}
-
-function normalizePart(raw: unknown): OneAutoOeServiceSchedulePart | null {
-  if (!isPlainObject(raw)) return null;
-  return raw as OneAutoOeServiceSchedulePart;
-}
-
 function normalizeService(raw: unknown): OneAutoOeServiceScheduleService | null {
-  if (!isPlainObject(raw)) return null;
-  const service = { ...raw } as OneAutoOeServiceScheduleService;
-
-  if (Object.prototype.hasOwnProperty.call(raw, 'service_tasks')) {
-    const tasksRaw = raw.service_tasks;
-    if (!Array.isArray(tasksRaw)) {
-      return null;
-    }
-    const tasks: OneAutoOeServiceScheduleTask[] = [];
-    for (const item of tasksRaw) {
-      const task = normalizeTask(item);
-      if (!task) return null;
-      tasks.push(task);
-    }
-    service.service_tasks = tasks;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(raw, 'service_parts')) {
-    const partsRaw = raw.service_parts;
-    if (!Array.isArray(partsRaw)) {
-      return null;
-    }
-    const parts: OneAutoOeServiceSchedulePart[] = [];
-    for (const item of partsRaw) {
-      const part = normalizePart(item);
-      if (!part) return null;
-      parts.push(part);
-    }
-    service.service_parts = parts;
-  }
-
-  return service;
+  const shapeErr = validateOeServiceScheduleService(raw);
+  if (shapeErr || !isPlainObject(raw)) return null;
+  return raw as OneAutoOeServiceScheduleService;
 }
 
 function parseServiceArray(
   result: Record<string, unknown>,
   key: 'normal_services' | 'extra_services',
-): OneAutoOeServiceScheduleService[] | 'INVALID' {
+): OneAutoOeServiceScheduleService[] | { invalid: true; reason: string } {
   if (!Object.prototype.hasOwnProperty.call(result, key)) {
-    return 'INVALID';
+    return { invalid: true, reason: `${key}_missing` };
   }
   const raw = result[key];
-  if (!Array.isArray(raw)) {
-    return 'INVALID';
+  const arrayErr = validateOeServiceScheduleServiceArray(raw, key);
+  if (arrayErr) {
+    return { invalid: true, reason: arrayErr };
   }
   const out: OneAutoOeServiceScheduleService[] = [];
-  for (const item of raw) {
+  for (const item of raw as unknown[]) {
     const normalized = normalizeService(item);
-    if (!normalized) return 'INVALID';
+    if (!normalized) {
+      return { invalid: true, reason: `${key}_item_invalid` };
+    }
     out.push(normalized);
   }
   return out;
@@ -127,12 +93,12 @@ export function parseOeServiceScheduleEuProviderResult(
   const vehicleIdentificationNumber = normalizeVin(vinRaw)!;
 
   const normal = parseServiceArray(result, 'normal_services');
-  if (normal === 'INVALID') {
-    return { kind: 'INVALID_SHAPE', reason: 'normal_services_not_array' };
+  if ('invalid' in normal) {
+    return { kind: 'INVALID_SHAPE', reason: normal.reason };
   }
   const extra = parseServiceArray(result, 'extra_services');
-  if (extra === 'INVALID') {
-    return { kind: 'INVALID_SHAPE', reason: 'extra_services_not_array' };
+  if ('invalid' in extra) {
+    return { kind: 'INVALID_SHAPE', reason: extra.reason };
   }
 
   if (normal.length === 0 && extra.length === 0) {

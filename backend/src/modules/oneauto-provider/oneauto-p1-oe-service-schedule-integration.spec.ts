@@ -38,6 +38,7 @@ describe('OneAuto OE Service Schedule P1 integration (draft, offline)', () => {
 
   it('quotes EUR when indicative price is configured (still CONTRACT_UNVERIFIED)', () => {
     const entry = getOneAutoCatalogEntry(ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU)!;
+    process.env[ONEAUTO_OE_SERVICE_SCHEDULE_EU_RUNTIME_ENABLED_ENV] = '1';
     const resolved = resolveCatalogEntryForRuntime(entry, {
       providerEnabled: true,
       indicativePriceMinorBySku: { OE_SERVICE_SCHEDULE: 210 },
@@ -46,6 +47,9 @@ describe('OneAuto OE Service Schedule P1 integration (draft, offline)', () => {
     expect(resolved.currency).toBe('EUR');
     expect(resolved.indicativePriceMinor).toBe(210);
     expect(resolved.availabilityStatus).toBe('CONTRACT_UNVERIFIED');
+    expect(buildOneAutoContractGateReport(ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU).executable).toBe(
+      false,
+    );
   });
 
   it('evaluates wrapped full-data callback success envelope', () => {
@@ -102,6 +106,39 @@ describe('OneAuto OE Service Schedule P1 integration (draft, offline)', () => {
     expect(evaluation.ok).toBe(false);
     if (!evaluation.ok) {
       expect(evaluation.code).toBe('ONEAUTO_CALLBACK_PROVIDER_FAILURE');
+    }
+  });
+
+  it('rejects malformed schedule fields in callback result', () => {
+    const evaluation = evaluateOneAutoFullDataCallbackPayload({
+      body: {
+        success: true,
+        result: {
+          vehicle_identification_number: ONEAUTO_OE_SERVICE_SCHEDULE_FIXTURE_VIN,
+          normal_services: [{ service_months: -1 }],
+          extra_services: [],
+        },
+      },
+      contract: documented(),
+      jobVinSnapshot: ONEAUTO_OE_SERVICE_SCHEDULE_FIXTURE_VIN,
+      vehicleVin: ONEAUTO_OE_SERVICE_SCHEDULE_FIXTURE_VIN,
+    });
+    expect(evaluation.ok).toBe(false);
+    if (!evaluation.ok) {
+      expect(evaluation.code).toBe('ONEAUTO_CALLBACK_PAYLOAD_INCOMPLETE');
+    }
+  });
+
+  it('rejects callback VIN mismatch', () => {
+    const evaluation = evaluateOneAutoFullDataCallbackPayload({
+      body: buildOeServiceScheduleSuccessEnvelope('WVWZZZ3HZLE010725'),
+      contract: documented(),
+      jobVinSnapshot: ONEAUTO_OE_SERVICE_SCHEDULE_FIXTURE_VIN,
+      vehicleVin: ONEAUTO_OE_SERVICE_SCHEDULE_FIXTURE_VIN,
+    });
+    expect(evaluation.ok).toBe(false);
+    if (!evaluation.ok) {
+      expect(evaluation.code).toBe('ONEAUTO_CALLBACK_VIN_MISMATCH');
     }
   });
 });

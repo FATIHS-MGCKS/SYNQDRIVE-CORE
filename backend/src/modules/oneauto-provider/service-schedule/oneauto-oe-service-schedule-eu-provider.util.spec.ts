@@ -33,8 +33,38 @@ describe('OE Service Schedule EU provider util (offline)', () => {
     });
     expect(parsed).toEqual({
       kind: 'INVALID_SHAPE',
-      reason: 'normal_services_not_array',
+      reason: 'normal_services_missing',
     });
+  });
+
+  it('rejects negative service_time_hours', () => {
+    const parsed = parseOeServiceScheduleEuProviderResult({
+      vehicle_identification_number: ONEAUTO_OE_SERVICE_SCHEDULE_FIXTURE_VIN,
+      normal_services: [{ service_time_hours: -0.5 }],
+      extra_services: [],
+    });
+    expect(parsed.kind).toBe('INVALID_SHAPE');
+    if (parsed.kind === 'INVALID_SHAPE') {
+      expect(parsed.reason).toContain('service_time_hours_invalid');
+    }
+  });
+
+  it('rejects non-integer service_kms', () => {
+    const parsed = parseOeServiceScheduleEuProviderResult({
+      vehicle_identification_number: ONEAUTO_OE_SERVICE_SCHEDULE_FIXTURE_VIN,
+      normal_services: [{ service_kms: 1000.5 }],
+      extra_services: [],
+    });
+    expect(parsed.kind).toBe('INVALID_SHAPE');
+  });
+
+  it('rejects malformed service_tasks entries', () => {
+    const parsed = parseOeServiceScheduleEuProviderResult({
+      vehicle_identification_number: ONEAUTO_OE_SERVICE_SCHEDULE_FIXTURE_VIN,
+      normal_services: [{ service_tasks: ['bad'] }],
+      extra_services: [],
+    });
+    expect(parsed.kind).toBe('INVALID_SHAPE');
   });
 
   it('validates VIN binding against job snapshot', () => {

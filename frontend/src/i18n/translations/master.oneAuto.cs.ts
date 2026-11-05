@@ -112,4 +112,10 @@ export const masterOneAutoCs = {
   'master.oneAuto.serviceSchedule.columns.interval': 'Interval',
   'master.oneAuto.serviceSchedule.columns.description': 'Popis',
   'master.oneAuto.serviceSchedule.hoursUnit': ' h',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'VIN strukturovaného plánu neodpovídá tomuto jobu — plán se nezobrazuje. Viz surová odpověď níže.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Payload plánu je neúplný nebo chybný — strukturovaný plán se nezobrazuje. Viz surová odpověď níže.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Žádný čitelný payload plánu — strukturovaný plán se nezobrazuje. Viz surová odpověď níže.',
 } as const;

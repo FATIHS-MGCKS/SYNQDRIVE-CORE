@@ -1,18 +1,15 @@
 import { useLanguage } from '../../i18n/LanguageContext';
 import type { OneAutoJobResultResponse } from './oneauto-api.types';
-import { parseServiceScheduleFromJobResult } from './oneauto-service-schedule-result.util';
+import {
+  parseServiceScheduleFromJobResult,
+  type ParsedScheduleService,
+} from './oneauto-service-schedule-result.util';
 
 type Props = {
   result: OneAutoJobResultResponse;
 };
 
-function ServiceBlock({
-  service,
-  index,
-}: {
-  service: ReturnType<typeof parseServiceScheduleFromJobResult>['normalServices'][number];
-  index: number;
-}) {
+function ServiceBlock({ service, index }: { service: ParsedScheduleService; index: number }) {
   const { t } = useLanguage();
   return (
     <li
@@ -71,6 +68,21 @@ export function OneAutoServiceScheduleResultPanel({ result }: Props) {
   const { t } = useLanguage();
   const parsed = parseServiceScheduleFromJobResult(result);
 
+  const integrityMessage = (() => {
+    switch (parsed.integrity) {
+      case 'VIN_MISMATCH':
+        return t('master.oneAuto.serviceSchedule.integrity.vinMismatch' as never);
+      case 'MALFORMED_OR_PARTIAL':
+        return t('master.oneAuto.serviceSchedule.integrity.malformed' as never);
+      case 'RESPONSE_UNAVAILABLE':
+        return t('master.oneAuto.serviceSchedule.integrity.unavailable' as never);
+      case 'VALID_EMPTY':
+        return t('master.oneAuto.serviceSchedule.empty' as never);
+      default:
+        return null;
+    }
+  })();
+
   return (
     <div className="space-y-3" data-testid="oneauto-service-schedule-panel">
       <p className="text-sm font-semibold">{t('master.oneAuto.serviceSchedule.title' as never)}</p>
@@ -78,13 +90,12 @@ export function OneAutoServiceScheduleResultPanel({ result }: Props) {
         {t('master.oneAuto.serviceSchedule.providerSource' as never)}: One Auto ·{' '}
         {parsed.providerStatus ?? '—'}
       </p>
-      {parsed.verifiedEmptySchedule ? (
-        <p className="text-sm text-muted-foreground" data-testid="oneauto-service-schedule-empty">
-          {t('master.oneAuto.serviceSchedule.empty' as never)}
-        </p>
-      ) : parsed.normalServices.length === 0 && parsed.extraServices.length === 0 ? (
-        <p className="text-sm text-muted-foreground" data-testid="oneauto-service-schedule-unstructured">
-          {t('master.oneAuto.resultFallback' as never)}
+      {parsed.integrity !== 'VALID_WITH_SERVICES' ? (
+        <p
+          className="text-sm text-muted-foreground"
+          data-testid={`oneauto-service-schedule-integrity-${parsed.integrity}`}
+        >
+          {integrityMessage}
         </p>
       ) : (
         <div className="space-y-4">

@@ -112,4 +112,10 @@ export const masterOneAutoDe = {
   'master.oneAuto.serviceSchedule.columns.interval': 'Intervall',
   'master.oneAuto.serviceSchedule.columns.description': 'Beschreibung',
   'master.oneAuto.serviceSchedule.hoursUnit': ' h',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'Strukturierter Plan-VIN stimmt nicht mit diesem Auftrag überein — Wartungsplan wird nicht angezeigt. Rohantwort unten.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Anbieter-Payload unvollständig oder fehlerhaft — strukturierter Plan wird nicht angezeigt. Rohantwort unten.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Keine lesbare Plan-Payload — strukturierter Plan wird nicht angezeigt. Rohantwort unten.',
 } as const;

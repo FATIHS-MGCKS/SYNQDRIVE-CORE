@@ -112,4 +112,10 @@ export const masterOneAutoNl = {
   'master.oneAuto.serviceSchedule.columns.interval': 'Interval',
   'master.oneAuto.serviceSchedule.columns.description': 'Beschrijving',
   'master.oneAuto.serviceSchedule.hoursUnit': ' u',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'VIN van het gestructureerde plan komt niet overeen met deze job — plan niet getoond. Zie ruwe response hieronder.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Plan-payload onvolledig of ongeldig — gestructureerd plan niet getoond. Zie ruwe response hieronder.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Geen leesbare plan-payload — gestructureerd plan niet getoond. Zie ruwe response hieronder.',
 } as const;

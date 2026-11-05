@@ -112,4 +112,10 @@ export const masterOneAutoPl = {
   'master.oneAuto.serviceSchedule.columns.interval': 'Interwał',
   'master.oneAuto.serviceSchedule.columns.description': 'Opis',
   'master.oneAuto.serviceSchedule.hoursUnit': ' h',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'VIN planu nie zgadza się z tym zleceniem — plan nie jest wyświetlany. Zobacz surową odpowiedź poniżej.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Payload planu jest niepełny lub błędny — plan nie jest wyświetlany. Zobacz surową odpowiedź poniżej.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Brak czytelnego payloadu planu — plan nie jest wyświetlany. Zobacz surową odpowiedź poniżej.',
 } as const;

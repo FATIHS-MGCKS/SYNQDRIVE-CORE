@@ -112,4 +112,10 @@ export const masterOneAutoIt = {
   'master.oneAuto.serviceSchedule.columns.interval': 'Intervallo',
   'master.oneAuto.serviceSchedule.columns.description': 'Descrizione',
   'master.oneAuto.serviceSchedule.hoursUnit': ' h',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'Il VIN del piano strutturato non corrisponde a questo job — piano non mostrato. Vedi risposta grezza sotto.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Payload piano incompleto o non valido — piano strutturato non mostrato. Vedi risposta grezza sotto.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Nessun payload piano leggibile — piano strutturato non mostrato. Vedi risposta grezza sotto.',
 } as const;

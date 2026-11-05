@@ -112,4 +112,10 @@ export const masterOneAutoTr = {
   'master.oneAuto.serviceSchedule.columns.interval': 'Aralık',
   'master.oneAuto.serviceSchedule.columns.description': 'Açıklama',
   'master.oneAuto.serviceSchedule.hoursUnit': ' sa',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'Yapılandırılmış plan VIN\'i bu işle eşleşmiyor — plan gösterilmiyor. Ham yanıt aşağıda.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Plan yükü eksik veya hatalı — yapılandırılmış plan gösterilmiyor. Ham yanıt aşağıda.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Okunabilir plan yükü yok — yapılandırılmış plan gösterilmiyor. Ham yanıt aşağıda.',
 } as const;
