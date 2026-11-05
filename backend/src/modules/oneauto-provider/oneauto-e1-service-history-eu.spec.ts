@@ -194,6 +194,7 @@ describe('OneAuto E1 OE_SERVICE_HISTORY_EU (offline)', () => {
       config,
       queue as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     await exec.processJob('j-e1', 'initial');
     expect(http.executeProviderGet).toHaveBeenCalledTimes(1);
@@ -225,11 +226,13 @@ describe('OneAuto E1 OE_SERVICE_HISTORY_EU (offline)', () => {
       $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<number>) => fn(tx)),
     };
     const materialize = { tryMaterializeFromSucceededJob: jest.fn() };
+    const ingestion = { tryIngestFromSucceededJob: jest.fn() };
     const cb = new OneAutoProviderCallbackService(
       prismaCb as never,
       config,
       queue as never,
       materialize as never,
+      ingestion as never,
     );
     const result = await cb.ingestProviderCallback({
       deliveryToken,
@@ -242,6 +245,7 @@ describe('OneAuto E1 OE_SERVICE_HISTORY_EU (offline)', () => {
     );
     expect(queue.add).not.toHaveBeenCalled();
     expect(materialize.tryMaterializeFromSucceededJob).not.toHaveBeenCalled();
+    expect(ingestion.tryIngestFromSucceededJob).toHaveBeenCalledWith('j-e1');
   });
 
   it('raises effective budget cap only for allowlisted org on service history SKU', () => {

@@ -3994,6 +3994,13 @@ export const en = {
   'health.restingVoltageOnly': 'Qualified resting voltage measurements only — no charging or live voltage.',
   'health.noMeasurementsYet': 'No measurements available yet',
   'health.noServiceEvents': 'No service events documented yet',
+  'health.serviceHistory.sourceManual': 'Manually recorded',
+  'health.serviceHistory.sourceOneAuto': 'OneAuto (external)',
+  'health.serviceHistory.providerType': 'Service type (provider)',
+  'health.serviceHistory.performedActions': 'Work performed',
+  'health.serviceHistory.incompleteExternalHint':
+    'External source — not presented as complete or manufacturer-certified history.',
+  'health.serviceHistory.loadMore': 'Load more service events',
   'health.tasksAndSuggestions': 'Tasks & suggestions',
   'health.taskManagementHint': 'Visible under Task Management — closes automatically when the appointment is completed.',
   'health.serviceCompliance': 'Service & compliance',

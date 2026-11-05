@@ -315,6 +315,7 @@ describe('OneAutoProviderExecutionService async and 206 policy', () => {
       config,
       queue as never,
       oemMaterialization as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     return { svc, prisma, queue, http };
   }

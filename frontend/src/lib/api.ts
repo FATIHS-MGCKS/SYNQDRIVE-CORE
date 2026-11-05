@@ -7911,6 +7911,13 @@ export const api = {
     createOilChangeEvent: (vehicleId: string, data: any) => post<any>(`/vehicles/${vehicleId}/service-events`, { ...data, eventType: 'OIL_CHANGE' }),
     hvBatteryStatus: (vehicleId: string) => get<HvBatteryStatus>(`/vehicles/${vehicleId}/hv-battery-status`),
     serviceInfoStatus: (vehicleId: string) => get<ServiceInfoStatus>(`/vehicles/${vehicleId}/service-info-status`),
+    serviceHistoryPage: (vehicleId: string, params?: { cursor?: string; limit?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.cursor) q.set('cursor', params.cursor);
+      if (params?.limit != null) q.set('limit', String(params.limit));
+      const suffix = q.toString() ? `?${q.toString()}` : '';
+      return get<ServiceHistoryPage>(`/vehicles/${vehicleId}/service-history-page${suffix}`);
+    },
     vehicleFileSummary: (vehicleId: string) =>
       get<import('../rental/lib/vehicle-file-summary.types').VehicleFileSummary>(
         `/vehicles/${vehicleId}/file-summary`,
@@ -9751,7 +9758,8 @@ export type ServiceEventOrigin =
   | 'AI_UPLOAD'
   | 'WORKSHOP_DOCUMENT'
   | 'IMPORT'
-  | 'OEM';
+  | 'OEM'
+  | 'ONEAUTO';
 
 export type ServiceEventType =
   | 'OIL_CHANGE'
@@ -9861,7 +9869,19 @@ export interface ServiceInfoStatus {
   bokraftRemainingDays: number | null;
   bokraftOverdue: boolean;
   bokraftLastDate: string | null;
-  serviceHistory: Array<{ id: string; eventType: string; date: string; odometerKm: number | null; workshopName: string | null; notes: string | null }>;
+  serviceHistory: Array<{
+    id: string;
+    eventType: string;
+    date: string;
+    odometerKm: number | null;
+    workshopName: string | null;
+    notes: string | null;
+    origin?: ServiceEventOrigin;
+    provider?: string | null;
+    providerServiceType?: string | null;
+    performedActions?: string[];
+    externalSource?: boolean;
+  }>;
   tuvHistory: Array<{ id: string; eventType: string; date: string; odometerKm: number | null; workshopName: string | null; notes: string | null }>;
   bokraftHistory: Array<{ id: string; eventType: string; date: string; odometerKm: number | null; workshopName: string | null; notes: string | null }>;
   /** Phase 3: set to true when HM Health is active and overrides km/months values */
@@ -9874,6 +9894,16 @@ export interface ServiceInfoStatus {
   hmTimeFromOem?: boolean;
   /** Actionable compliance task signals from ServiceComplianceService. */
   taskSignals?: ComplianceTaskSignal[];
+  serviceHistoryTotalCount?: number;
+  serviceHistoryHasMore?: boolean;
+  serviceHistoryNextCursor?: string | null;
+}
+
+export interface ServiceHistoryPage {
+  items: ServiceInfoStatus['serviceHistory'];
+  totalCount: number;
+  hasMore: boolean;
+  nextCursor: string | null;
 }
 
 export interface ComplianceTaskSignal {

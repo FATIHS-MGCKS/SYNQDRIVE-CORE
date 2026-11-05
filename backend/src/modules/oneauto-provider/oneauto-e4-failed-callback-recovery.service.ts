@@ -14,6 +14,7 @@ import {
 } from './oneauto-e4-failed-callback-recovery.constants';
 import { ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU } from './oem-specification/oneauto-vin-lookup-oem-suggestion.types';
 import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
+import { OneAutoOeServiceHistoryEuIngestionService } from './service-history/oneauto-oe-service-history-eu-ingestion.service';
 
 export type OneAutoE4FailedCallbackRecoveryOutcome =
   | 'AUTHORIZATION_DENIED'
@@ -53,6 +54,7 @@ export class OneAutoE4FailedCallbackRecoveryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly materialization: OneAutoOemVinLookupEuSuggestionMaterializationService,
+    private readonly oeServiceHistoryIngestion: OneAutoOeServiceHistoryEuIngestionService,
   ) {}
 
   /**
@@ -338,6 +340,19 @@ export class OneAutoE4FailedCallbackRecoveryService {
     }
 
     const materialization = await this.materialization.tryMaterializeFromSucceededJob(job.id);
+    let serviceHistoryIngestion: { outcome: string } = { outcome: 'SKIPPED' };
+    try {
+      serviceHistoryIngestion = await this.oeServiceHistoryIngestion.tryIngestFromSucceededJob(job.id);
+    } catch (error) {
+      this.logger.error(
+        JSON.stringify({
+          kind: 'ONEAUTO_E4_SERVICE_HISTORY_INGESTION_UNHANDLED',
+          jobId: job.id,
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+      serviceHistoryIngestion = { outcome: 'FAILED' };
+    }
     this.logger.log(
       JSON.stringify({
         kind: 'ONEAUTO_E4_FAILED_CALLBACK_RECOVERY',
@@ -346,6 +361,7 @@ export class OneAutoE4FailedCallbackRecoveryService {
         vehicleId: job.vehicleId,
         inboxRowId: inbox.id,
         materializationOutcome: materialization.outcome,
+        serviceHistoryIngestionOutcome: serviceHistoryIngestion.outcome,
       }),
     );
 

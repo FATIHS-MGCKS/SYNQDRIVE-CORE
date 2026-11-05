@@ -15,6 +15,8 @@ import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-spe
 import { OneAutoOemVinLookupEuSuggestionReadService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-read.service';
 import { OneAutoOemVinLookupEuSuggestionCleanupService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-cleanup.service';
 import { OneAutoOemVinLookupEuSuggestionRecoveryService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-recovery.service';
+import { OneAutoOeServiceHistoryEuIngestionService } from './service-history/oneauto-oe-service-history-eu-ingestion.service';
+import { OneAutoOeServiceHistoryEuIngestionRecoveryService } from './service-history/oneauto-oe-service-history-eu-ingestion-recovery.service';
 import { OneAutoOemVinLookupEuSuggestionCleanupScheduler } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-cleanup.scheduler';
 import { OneAutoProviderJobExpiryScheduler } from './oneauto-provider-job-expiry.scheduler';
 import { OneAutoProviderCallbackController } from './oneauto-provider-callback.controller';
@@ -44,6 +46,8 @@ import { OneAutoE4FailedCallbackRecoveryService } from './oneauto-e4-failed-call
     OneAutoOemVinLookupEuSuggestionReadService,
     OneAutoOemVinLookupEuSuggestionCleanupService,
     OneAutoOemVinLookupEuSuggestionRecoveryService,
+    OneAutoOeServiceHistoryEuIngestionService,
+    OneAutoOeServiceHistoryEuIngestionRecoveryService,
     OneAutoOemVinLookupEuSuggestionCleanupScheduler,
     OneAutoProviderJobExpiryScheduler,
   ],
@@ -55,6 +59,8 @@ import { OneAutoE4FailedCallbackRecoveryService } from './oneauto-e4-failed-call
     OneAutoOemVinLookupEuSuggestionReadService,
     OneAutoOemVinLookupEuSuggestionCleanupService,
     OneAutoOemVinLookupEuSuggestionRecoveryService,
+    OneAutoOeServiceHistoryEuIngestionService,
+    OneAutoOeServiceHistoryEuIngestionRecoveryService,
     OneAutoE4FailedCallbackRecoveryService,
   ],
 })

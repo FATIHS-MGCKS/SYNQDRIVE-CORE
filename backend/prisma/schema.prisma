@@ -549,6 +549,7 @@ enum ServiceEventOrigin {
   WORKSHOP_DOCUMENT
   IMPORT
   OEM
+  ONEAUTO
 }
 
 enum BrakeServiceKind {
@@ -1659,6 +1660,8 @@ model Organization {
   vehicles                                                  Vehicle[]
   oneAutoProviderJobs                                       OneAutoProviderJob[]
   oneAutoOemVinLookupEuSuggestionSnapshots                  OneAutoOemVinLookupEuSuggestionSnapshot[]
+  oneAutoOeServiceHistoryEuIngestions                       OneAutoOeServiceHistoryEuIngestion[]
+  oneAutoOeServiceHistoryEuIngestionEventLinks              OneAutoOeServiceHistoryEuIngestionEventLink[]
   physicalDevices                                           PhysicalDevice[]
   physicalDeviceAssignments                                 PhysicalDeviceAssignment[]
   vehicleProviderSourceObservations                         VehicleProviderSourceObservation[]
@@ -3195,6 +3198,7 @@ model Vehicle {
   registryLifecycleOutboxEvents          VehicleRegistryLifecycleOutbox[]
   oneAutoProviderJobs                    OneAutoProviderJob[]
   oneAutoOemVinLookupEuSuggestionSnapshots OneAutoOemVinLookupEuSuggestionSnapshot[]
+  oneAutoOeServiceHistoryEuIngestions    OneAutoOeServiceHistoryEuIngestion[]
 
   @@unique([vin, organizationId])
   @@index([organizationId])
@@ -3257,6 +3261,8 @@ model OneAutoProviderJob {
   responses    OneAutoProviderResponse[]
   callbackInbox OneAutoProviderCallbackInbox[]
   oemVinLookupEuSuggestionSnapshot OneAutoOemVinLookupEuSuggestionSnapshot?
+  oeServiceHistoryEuIngestion      OneAutoOeServiceHistoryEuIngestion?
+  oeServiceHistoryEuIngestionEventLinks OneAutoOeServiceHistoryEuIngestionEventLink[]
 
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, vehicleId])
@@ -3317,6 +3323,63 @@ model OneAutoOemVinLookupEuSuggestionSnapshot {
   @@index([organizationId, vehicleId])
   @@index([expiresAt])
   @@map("one_auto_oem_vin_lookup_eu_suggestion_snapshots")
+}
+
+enum OneAutoOeServiceHistoryEuIngestionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  PARTIAL
+}
+
+enum OneAutoOeServiceHistoryEuIngestionEventLinkKind {
+  CREATED
+  LINKED_EXISTING
+}
+
+/// Per-job evidence that each provider event was created or linked to an existing vehicle row.
+model OneAutoOeServiceHistoryEuIngestionEventLink {
+  id                  String                                      @id @default(cuid())
+  organizationId      String                                      @map("organization_id")
+  providerJobId       String                                      @map("provider_job_id")
+  vehicleServiceEventId String                                    @map("vehicle_service_event_id")
+  jobSourceEventKey   String                                      @map("job_source_event_key")
+  linkKind            OneAutoOeServiceHistoryEuIngestionEventLinkKind @map("link_kind")
+  createdAt           DateTime                                    @default(now()) @map("created_at")
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  providerJob         OneAutoProviderJob @relation(fields: [providerJobId], references: [id], onDelete: Cascade)
+  vehicleServiceEvent VehicleServiceEvent @relation(fields: [vehicleServiceEventId], references: [id], onDelete: Cascade)
+
+  @@unique([providerJobId, jobSourceEventKey])
+  @@index([organizationId, providerJobId])
+  @@index([vehicleServiceEventId])
+  @@map("one_auto_oe_service_history_eu_ingestion_event_links")
+}
+
+/// Auditable structured ingestion of OE_SERVICE_HISTORY_EU into VehicleServiceEvent (one row per provider job).
+model OneAutoOeServiceHistoryEuIngestion {
+  id                         String                                   @id @default(cuid())
+  organizationId             String                                   @map("organization_id")
+  vehicleId                  String                                   @map("vehicle_id")
+  providerJobId              String                                   @unique @map("provider_job_id")
+  status                     OneAutoOeServiceHistoryEuIngestionStatus @default(PENDING)
+  eventsDiscovered           Int                                      @default(0) @map("events_discovered")
+  eventsIngested             Int                                      @default(0) @map("events_ingested")
+  sourceResponseId           String?                                  @map("source_response_id")
+  sourceRetrievedAt          DateTime?                                @map("source_retrieved_at")
+  lastErrorCode              String?                                  @map("last_error_code")
+  lastErrorMessageRedacted   String?                                  @map("last_error_message_redacted")
+  createdAt                  DateTime                                 @default(now()) @map("created_at")
+  updatedAt                  DateTime                                 @updatedAt @map("updated_at")
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  providerJob  OneAutoProviderJob @relation(fields: [providerJobId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, vehicleId])
+  @@index([status])
+  @@map("one_auto_oe_service_history_eu_ingestions")
 }
 
 enum ComplaintUrgency {
@@ -4321,6 +4384,10 @@ model VehicleServiceEvent {
   provider               String?
   documentUrl            String?                        @map("document_url")
   origin                 ServiceEventOrigin             @default(MANUAL) @map("origin")
+  oneAutoProviderJobId   String?                        @map("one_auto_provider_job_id")
+  externalSourceEventKey String?                        @map("external_source_event_key")
+  oneAutoVehicleHistoricalEventKey String?              @map("one_auto_vehicle_historical_event_key")
+  sourcePayloadJson      Json?                          @map("source_payload_json")
   createdById            String?                        @map("created_by_id")
   updatedById            String?                        @map("updated_by_id")
   brakeServiceKind       BrakeServiceKind?              @map("brake_service_kind")
@@ -4342,9 +4409,14 @@ model VehicleServiceEvent {
   brakeComponentInstallations       BrakeComponentInstallation[]
   brakeServiceApplication           BrakeServiceApplication?
   brakeServiceOutbox                BrakeServiceOutbox[]
+  oneAutoOeServiceHistoryEuIngestionEventLinks OneAutoOeServiceHistoryEuIngestionEventLink[]
 
   @@unique([organizationId, documentExtractionId])
+  @@unique([organizationId, oneAutoProviderJobId, externalSourceEventKey], map: "vehicle_service_events_oneauto_source_uq")
+  @@unique([organizationId, vehicleId, oneAutoVehicleHistoricalEventKey], map: "vehicle_service_events_oneauto_vehicle_hist_uq")
   @@index([vehicleId])
+  @@index([oneAutoProviderJobId])
+  @@index([oneAutoVehicleHistoricalEventKey])
   @@index([eventDate])
   @@index([documentExtractionId])
   @@index([organizationId])

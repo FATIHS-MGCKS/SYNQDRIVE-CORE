@@ -1936,6 +1936,19 @@ export class VehicleIntelligenceController {
     return this.serviceComplianceService.buildServiceInfoStatus(vehicleId);
   }
 
+  @Get('service-history-page')
+  async getServiceHistoryPage(
+    @Param('vehicleId') vehicleId: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limitRaw?: string,
+  ) {
+    const limit = limitRaw ? Number.parseInt(limitRaw, 10) : undefined;
+    return this.serviceComplianceService.listServiceHistoryPage(vehicleId, {
+      cursor: cursor?.trim() || undefined,
+      limit: Number.isFinite(limit) ? limit : undefined,
+    });
+  }
+
   @Post('compliance-task-signals/:signalKey/materialize')
   async materializeComplianceTask(
     @Param('vehicleId') vehicleId: string,

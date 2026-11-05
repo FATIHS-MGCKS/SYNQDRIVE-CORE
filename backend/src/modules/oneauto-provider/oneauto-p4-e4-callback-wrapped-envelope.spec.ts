@@ -215,6 +215,7 @@ describe('OneAuto E4 callback — wrapped `{ status, result: <envelope> }` body 
         fullDataConfig,
         queue as never,
         materialize as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
       );
 
       const result = await svc.ingestProviderCallback({
@@ -257,6 +258,7 @@ describe('OneAuto E4 callback — wrapped `{ status, result: <envelope> }` body 
         fullDataConfig,
         queue as never,
         materialize as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
       );
       const body = observedSuccessCallback();
 
@@ -299,6 +301,7 @@ describe('OneAuto E4 callback — wrapped `{ status, result: <envelope> }` body 
         fullDataConfig,
         { add: jest.fn() } as never,
         { tryMaterializeFromSucceededJob: jest.fn() } as never,
+        { tryIngestFromSucceededJob: jest.fn() } as never,
       );
       const result = await svc.ingestProviderCallback({
         deliveryToken: 'tok',

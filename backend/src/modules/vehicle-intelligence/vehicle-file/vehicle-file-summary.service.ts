@@ -428,7 +428,7 @@ export class VehicleFileSummaryService {
     }
 
     const pushService = (
-      row: ServiceInfoStatusDto['serviceHistory'][number],
+      row: { id: string; date: string; workshopName: string | null },
       title: string,
     ) => {
       items.push({

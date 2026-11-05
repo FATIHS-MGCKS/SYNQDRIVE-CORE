@@ -16,6 +16,10 @@ import {
 } from './oneauto-response-envelope.util';
 import { redactOneAutoErrorMessage, redactProviderResponseBody } from './oneauto-provider-redact.util';
 import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
+import { OneAutoOeServiceHistoryEuIngestionService } from './service-history/oneauto-oe-service-history-eu-ingestion.service';
+import { runOneAutoOeServiceHistoryIngestionSafely } from './service-history/oneauto-oe-service-history-eu-ingestion-safe.util';
+import { ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU } from './service-history/oneauto-service-history-eu.types';
+import { ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU } from './oem-specification/oneauto-vin-lookup-oem-suggestion.types';
 import {
   computeOneAutoProviderResultExpiresAt,
   isOneAutoAsyncCapableWithoutVerifiedPoll,
@@ -51,6 +55,7 @@ export class OneAutoProviderExecutionService {
     private readonly config: ConfigService,
     @InjectQueue(QUEUE_NAMES.ONEAUTO_PROVIDER) private readonly queue: Queue<OneAutoProviderJobPayload>,
     private readonly oemSuggestionMaterialization: OneAutoOemVinLookupEuSuggestionMaterializationService,
+    private readonly oeServiceHistoryIngestion: OneAutoOeServiceHistoryEuIngestionService,
   ) {}
 
   async enqueueExecution(jobId: string): Promise<void> {
@@ -362,7 +367,20 @@ export class OneAutoProviderExecutionService {
             actualChargeMinor: null,
           },
         });
-        await this.oemSuggestionMaterialization.tryMaterializeFromSucceededJob(jobId);
+        const succeededJob = await this.prisma.oneAutoProviderJob.findUnique({
+          where: { id: jobId },
+          select: { id: true, serviceSku: true },
+        });
+        if (succeededJob?.serviceSku === ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU) {
+          await this.oemSuggestionMaterialization.tryMaterializeFromSucceededJob(jobId);
+        }
+        if (succeededJob?.serviceSku === ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU) {
+          await runOneAutoOeServiceHistoryIngestionSafely(
+            this.oeServiceHistoryIngestion,
+            jobId,
+            this.logger,
+          );
+        }
         return;
       }
 

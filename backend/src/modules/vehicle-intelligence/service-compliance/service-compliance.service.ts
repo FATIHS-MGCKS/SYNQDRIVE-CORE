@@ -20,9 +20,26 @@ import type {
 } from './service-compliance.types';
 import { buildComplianceTaskSignals } from './service-compliance-operational.signals';
 import type { ComplianceOperationalVehicle } from './service-compliance-operational.signals';
+import {
+  clampServiceHistoryPageLimit,
+  decodeServiceHistoryCursor,
+  encodeServiceHistoryCursor,
+  SERVICE_HISTORY_PAGE_DEFAULT_LIMIT,
+} from './service-history-pagination.util';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DAYS_PER_MONTH = 30.44;
+/** UI cap for Service & Compliance history list (full count still in hasServiceHistory). */
+const SERVICE_HISTORY_UI_LIMIT = SERVICE_HISTORY_PAGE_DEFAULT_LIMIT;
+
+function extractPerformedActionsFromSourcePayload(sourcePayloadJson: unknown): string[] {
+  if (!sourcePayloadJson || typeof sourcePayloadJson !== 'object' || Array.isArray(sourcePayloadJson)) {
+    return [];
+  }
+  const actions = (sourcePayloadJson as Record<string, unknown>).service_actions;
+  if (!Array.isArray(actions)) return [];
+  return actions.map((item) => String(item).trim()).filter(Boolean);
+}
 
 export interface VehicleComplianceFields {
   lastTuvDate: Date | null;
@@ -66,6 +83,11 @@ export interface ServiceInfoStatusDto {
     odometerKm: number | null;
     workshopName: string | null;
     notes: string | null;
+    origin: string;
+    provider: string | null;
+    providerServiceType: string | null;
+    performedActions: string[];
+    externalSource: boolean;
   }>;
   tuvHistory: Array<{
     id: string;
@@ -95,6 +117,19 @@ export interface ServiceInfoStatusDto {
   hmTimeFromOem: boolean;
   /** @deprecated Use hasServiceHistory. */
   hasServiceBaseline: boolean;
+  /** Total persisted service-history events (all pages). */
+  serviceHistoryTotalCount: number;
+  /** True when more events exist beyond the first page. */
+  serviceHistoryHasMore: boolean;
+  /** Opaque cursor for GET service-history-page (next page). */
+  serviceHistoryNextCursor: string | null;
+}
+
+export interface ServiceHistoryPageDto {
+  items: ServiceInfoStatusDto['serviceHistory'];
+  totalCount: number;
+  hasMore: boolean;
+  nextCursor: string | null;
 }
 
 export interface RentalServiceModuleHealthInput {
@@ -402,7 +437,7 @@ export class ServiceComplianceService {
       },
     });
 
-    const [serviceEvents, fullServiceEvents, tuvEvents, bokraftEvents, compliance, historyCount] =
+    const [serviceEvents, fullServiceEvents, tuvEvents, bokraftEvents, compliance, historyCount, baselineCount] =
       await Promise.all([
       this.prisma.vehicleServiceEvent.findMany({
         where: {
@@ -410,7 +445,7 @@ export class ServiceComplianceService {
           eventType: { in: SERVICE_HISTORY_EVENT_TYPES },
         },
         orderBy: { eventDate: 'desc' },
-        take: 20,
+        take: SERVICE_HISTORY_UI_LIMIT,
       }),
       this.prisma.vehicleServiceEvent.findMany({
         where: {
@@ -442,6 +477,12 @@ export class ServiceComplianceService {
           eventType: { in: SERVICE_HISTORY_EVENT_TYPES },
         },
       }),
+      this.prisma.vehicleServiceEvent.count({
+        where: {
+          vehicleId,
+          eventType: { in: FULL_SERVICE_BASELINE_EVENT_TYPES },
+        },
+      }),
     ]);
 
     const latestFullServiceEvent = fullServiceEvents[0] ?? null;
@@ -450,6 +491,10 @@ export class ServiceComplianceService {
     const lastServiceOdometer =
       latestFullServiceEvent?.odometerKm ?? vehicle?.lastServiceOdometerKm ?? null;
     const hasServiceHistory = historyCount > 0;
+    const hasServiceBaseline =
+      baselineCount > 0 ||
+      vehicle?.lastServiceDate != null ||
+      vehicle?.lastServiceOdometerKm != null;
 
     const mapEvent = (e: {
       id: string;
@@ -458,14 +503,32 @@ export class ServiceComplianceService {
       odometerKm: number | null;
       workshopName: string | null;
       notes: string | null;
-    }) => ({
-      id: e.id,
-      eventType: e.eventType,
-      date: e.eventDate.toISOString(),
-      odometerKm: e.odometerKm,
-      workshopName: e.workshopName,
-      notes: e.notes,
-    });
+      origin: string;
+      provider: string | null;
+      sourcePayloadJson: unknown;
+    }) => {
+      const performedActions = extractPerformedActionsFromSourcePayload(e.sourcePayloadJson);
+      const providerServiceType =
+        e.sourcePayloadJson &&
+        typeof e.sourcePayloadJson === 'object' &&
+        !Array.isArray(e.sourcePayloadJson) &&
+        typeof (e.sourcePayloadJson as Record<string, unknown>).service_type === 'string'
+          ? String((e.sourcePayloadJson as Record<string, unknown>).service_type)
+          : null;
+      return {
+        id: e.id,
+        eventType: e.eventType,
+        date: e.eventDate.toISOString(),
+        odometerKm: e.odometerKm,
+        workshopName: e.workshopName,
+        notes: e.notes,
+        origin: e.origin,
+        provider: e.provider,
+        providerServiceType,
+        performedActions,
+        externalSource: e.origin === 'ONEAUTO',
+      };
+    };
 
     const { nextService, tuvBokraft } = compliance;
     const tracked = nextService.trackingStatus === 'TRACKED';
@@ -497,7 +560,7 @@ export class ServiceComplianceService {
     return {
       nextService,
       hasServiceHistory,
-      hasServiceBaseline: hasServiceHistory,
+      hasServiceBaseline,
       serviceRemainingPercent: null,
       serviceRemainingKm,
       serviceRemainingMonths,
@@ -521,9 +584,18 @@ export class ServiceComplianceService {
       bokraftRemainingDays: tuvBokraft.bokraftRemainingDays,
       bokraftOverdue: tuvBokraft.bokraftOverdue,
       bokraftLastDate: tuvBokraft.bokraftLastDate,
-      serviceHistory: serviceEvents.map(mapEvent),
+      serviceHistory: serviceEvents.map((e) => this.mapServiceHistoryEvent(e)),
       tuvHistory: tuvEvents.map(mapEvent),
       bokraftHistory: bokraftEvents.map(mapEvent),
+      serviceHistoryTotalCount: historyCount,
+      serviceHistoryHasMore: historyCount > serviceEvents.length,
+      serviceHistoryNextCursor:
+        historyCount > serviceEvents.length && serviceEvents.length > 0
+          ? encodeServiceHistoryCursor({
+              eventDateIso: serviceEvents[serviceEvents.length - 1]!.eventDate.toISOString(),
+              id: serviceEvents[serviceEvents.length - 1]!.id,
+            })
+          : null,
       hmServiceSource: tracked,
       hmLastUpdatedAt: nextService.lastUpdatedAt,
       hmDistanceFromOem: nextService.hmDistanceFromOem,
@@ -543,6 +615,102 @@ export class ServiceComplianceService {
         } satisfies ComplianceOperationalVehicle,
         compliance,
       ),
+    };
+  }
+
+  async listServiceHistoryPage(
+    vehicleId: string,
+    input?: { cursor?: string; limit?: number },
+  ): Promise<ServiceHistoryPageDto> {
+    const limit = clampServiceHistoryPageLimit(input?.limit);
+    const decoded = input?.cursor ? decodeServiceHistoryCursor(input.cursor) : null;
+    if (input?.cursor && !decoded) {
+      return { items: [], totalCount: 0, hasMore: false, nextCursor: null };
+    }
+
+    const whereBase = {
+      vehicleId,
+      eventType: { in: SERVICE_HISTORY_EVENT_TYPES },
+    } as const;
+
+    const cursorFilter =
+      decoded != null
+        ? {
+            OR: [
+              { eventDate: { lt: new Date(decoded.eventDateIso) } },
+              {
+                eventDate: new Date(decoded.eventDateIso),
+                id: { lt: decoded.id },
+              },
+            ],
+          }
+        : {};
+
+    const [totalCount, rows] = await Promise.all([
+      this.prisma.vehicleServiceEvent.count({ where: whereBase }),
+      this.prisma.vehicleServiceEvent.findMany({
+        where: { ...whereBase, ...cursorFilter },
+        orderBy: [{ eventDate: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
+        select: {
+          id: true,
+          eventType: true,
+          eventDate: true,
+          odometerKm: true,
+          workshopName: true,
+          notes: true,
+          origin: true,
+          provider: true,
+          sourcePayloadJson: true,
+        },
+      }),
+    ]);
+
+    const hasMore = rows.length > limit;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+    const last = pageRows[pageRows.length - 1];
+    return {
+      items: pageRows.map((e) => this.mapServiceHistoryEvent(e)),
+      totalCount,
+      hasMore,
+      nextCursor:
+        hasMore && last
+          ? encodeServiceHistoryCursor({ eventDateIso: last.eventDate.toISOString(), id: last.id })
+          : null,
+    };
+  }
+
+  private mapServiceHistoryEvent(e: {
+    id: string;
+    eventType: string;
+    eventDate: Date;
+    odometerKm: number | null;
+    workshopName: string | null;
+    notes: string | null;
+    origin: string;
+    provider: string | null;
+    sourcePayloadJson: unknown;
+  }): ServiceInfoStatusDto['serviceHistory'][number] {
+    const performedActions = extractPerformedActionsFromSourcePayload(e.sourcePayloadJson);
+    const providerServiceType =
+      e.sourcePayloadJson &&
+      typeof e.sourcePayloadJson === 'object' &&
+      !Array.isArray(e.sourcePayloadJson) &&
+      typeof (e.sourcePayloadJson as Record<string, unknown>).service_type === 'string'
+        ? String((e.sourcePayloadJson as Record<string, unknown>).service_type)
+        : null;
+    return {
+      id: e.id,
+      eventType: e.eventType,
+      date: e.eventDate.toISOString(),
+      odometerKm: e.odometerKm,
+      workshopName: e.workshopName,
+      notes: e.notes,
+      origin: e.origin,
+      provider: e.provider,
+      providerServiceType,
+      performedActions,
+      externalSource: e.origin === 'ONEAUTO',
     };
   }
 

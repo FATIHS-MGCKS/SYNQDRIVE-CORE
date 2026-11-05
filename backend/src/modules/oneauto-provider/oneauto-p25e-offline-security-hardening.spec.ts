@@ -126,6 +126,7 @@ describe('OneAuto P2.5E offline security hardening', () => {
         config,
         queue as never,
         { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
       );
       await svc.processJob('job-env-fail', 'initial');
       expect(prisma.oneAutoProviderJob.update).toHaveBeenCalledWith(

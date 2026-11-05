@@ -73,6 +73,7 @@ describe('OneAuto P4 async job lifecycle (offline)', () => {
       config,
       queue as never,
       oemMaterialization as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     return { svc, prisma, queue, http };
   }

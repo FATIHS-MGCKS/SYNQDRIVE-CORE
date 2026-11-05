@@ -155,6 +155,17 @@
 - **Tests:** `oneauto-e1-service-history-eu.spec.ts`; registry specs updated for second SKU.
 - **Non-effects:** No production env activation; no vehicle service-history import; no OEM spec overwrite.
 
+## V1 — OE_SERVICE_HISTORY_EU → VehicleServiceEvent ingestion (PR #2341 review corrections, 2026-11-05)
+
+- **Flag:** `ONEAUTO_OE_SERVICE_HISTORY_INGESTION_ENABLED` accepts `true`/`1`/`yes` vs `false`/`0`/`no`; unknown → off (`oneauto-boolean-env.util.ts` + config test).
+- **Migration:** Renamed to `20261103231000_oneauto_oe_service_history_eu_ingestion` (depends on `one_auto_provider_jobs`); vehicle historical key + ingestion event links for cross-job dedup.
+- **Isolation:** Provider job `SUCCEEDED` never downgraded by ingestion; ingestion audit `FAILED`/`PARTIAL` independent; callback/execution use safe wrapper (no throw).
+- **Idempotency:** Link-table counts; `updateMany` guards against downgrading `SUCCEEDED`; cross-job `LINKED_EXISTING`.
+- **HM/OEM:** `hasServiceBaseline` decoupled from imported OneAuto history; UI history cap 100 (count unchanged).
+- **Backfill:** Prisma-only CLI + dry-run plan validation (0 provider GET).
+- **Evidence:** `ONEAUTO_OE_SERVICE_HISTORY_INGESTION_V1.md` updated.
+- **Tests:** ingestion concurrency/cross-job/mapper/backfill-lib; service-compliance baseline regression; `oneauto-oe-service-history-eu-postgres-ci.sh` (fresh + upgrade replay, real PG concurrency).
+
 ## P2.5E-P1 hardening — capture field coverage & safe publish (2026-11-02)
 
 - **Field coverage:** `bodyType` / `interiorTrim` from `oem_body_type_desc` / `oem_interior_trim_desc`; regression asserts **17** non-VIN OpenAPI result keys mapped.

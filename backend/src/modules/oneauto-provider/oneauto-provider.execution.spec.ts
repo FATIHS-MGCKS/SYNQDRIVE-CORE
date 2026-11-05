@@ -33,6 +33,7 @@ describe('OneAutoProviderExecutionService dispatch safety', () => {
       config,
       queue as never,
       oemMaterialization as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     await svc.processJob('j1', 'initial');
     expect(http.executeProviderGet).not.toHaveBeenCalled();

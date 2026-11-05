@@ -95,6 +95,7 @@ describe('OneAuto E4 full-data callback (offline)', () => {
       config,
       queue as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     await exec.processJob('j-e4', 'initial');
     expect(http.executeProviderGet).toHaveBeenCalledWith(
@@ -140,6 +141,7 @@ describe('OneAuto E4 full-data callback (offline)', () => {
       config,
       queue as never,
       materialize as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const result = await cb.ingestProviderCallback({
       deliveryToken,
@@ -187,6 +189,7 @@ describe('OneAuto E4 full-data callback (offline)', () => {
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+        { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const result = await svc.ingestProviderCallback({
       deliveryToken: 'tok',
@@ -209,6 +212,7 @@ describe('OneAuto E4 full-data callback (offline)', () => {
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const result = await svc.ingestProviderCallback({
       deliveryToken: 'missing',
@@ -250,6 +254,7 @@ describe('OneAuto E4 full-data callback (offline)', () => {
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const result = await svc.ingestProviderCallback({
       deliveryToken: 'tok',
@@ -305,6 +310,7 @@ describe('OneAuto E4 full-data callback (offline)', () => {
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const result = await svc.ingestProviderCallback({
       deliveryToken: 'tok',
@@ -348,6 +354,7 @@ describe('OneAuto E4 full-data callback (offline)', () => {
       config,
       queue as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     await svc.ingestProviderCallback({ deliveryToken: 't', rawBody: '{}', parsedBody: {} });
     expect(queue.add).not.toHaveBeenCalled();
@@ -383,6 +390,7 @@ describe('OneAuto E4 full-data callback (offline)', () => {
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const result = await svc.ingestProviderCallback({
       deliveryToken: 'tok',
@@ -424,6 +432,7 @@ describe('OneAuto E4 full-data callback (offline)', () => {
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const result = await svc.ingestProviderCallback({
       deliveryToken: 'tok',
@@ -490,6 +499,7 @@ describe('OneAuto E4 full-data callback (offline)', () => {
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     await exec.processJob('j-sync', 'initial');
     expect(prisma.oneAutoProviderJob.update).toHaveBeenCalledWith(

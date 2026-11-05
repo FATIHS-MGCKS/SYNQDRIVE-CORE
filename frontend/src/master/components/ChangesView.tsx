@@ -36,6 +36,15 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'oneauto-oe-service-history-ingestion-v1-2026-11-05',
+    title: 'OneAuto OE_SERVICE_HISTORY_EU → VehicleServiceEvent ingestion (V1 draft)',
+    summary:
+      'Automatic idempotent ingestion of successful OE_SERVICE_HISTORY_EU responses into VehicleServiceEvent; Service & Compliance UI shows manual vs OneAuto provenance; backfill script uses DB only.',
+    technical:
+      'backend: migration 20261103231000, OneAutoOeServiceHistoryEuIngestionService, callback/execution hooks, ONEAUTO_OE_SERVICE_HISTORY_INGESTION_ENABLED (=1/true); frontend: HealthErrorsView service history badges + modal refetch; evidence ONEAUTO_OE_SERVICE_HISTORY_INGESTION_V1.md.',
+    tags: ['oneauto', 'service-history', 'vehicle-intelligence'],
+  },
+  {
     id: 'oneauto-e1-service-history-eu-2026-11-05',
     title: 'One Auto E1 — OE Service History EU (Master Admin, E4 callback)',
     summary:
