@@ -8,13 +8,18 @@ import {
 } from '@prisma/client';
 import { OneAutoOeServiceHistoryEuIngestionService } from './oneauto-oe-service-history-eu-ingestion.service';
 import { ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU } from './oneauto-service-history-eu.types';
-import { buildOneAutoOeServiceHistoryEuSourceEventKey } from './oneauto-oe-service-history-eu-event-identity.util';
+import {
+  buildOneAutoOeServiceHistoryEuJobSourceEventKey,
+  buildOneAutoOeServiceHistoryEuVehicleHistoricalEventKey,
+} from './oneauto-oe-service-history-eu-event-identity.util';
 import { mapOneAutoOeServiceHistoryEuEvent } from './oneauto-oe-service-history-eu-event.mapper';
+import { runOneAutoOeServiceHistoryIngestionSafely } from './oneauto-oe-service-history-eu-ingestion-safe.util';
 
 const ARTEON_VIN = 'WVWZZZ3HZLE010725';
 const ORG_ID = 'faa710c9-6d91-4079-a7d5-91fdccdec14a';
 const VEHICLE_ID = '8c850ff1-4201-432b-af2e-2711dbc7ca48';
 const JOB_ID = 'job-arteon-success';
+const JOB_ID_2 = 'job-arteon-success-2';
 
 const ARTEON_EVENTS = [
   {
@@ -45,6 +50,33 @@ function successEnvelope() {
   };
 }
 
+function jobRow(overrides?: {
+  id?: string;
+  oeServiceHistoryEuIngestion?: {
+    status: OneAutoOeServiceHistoryEuIngestionStatus;
+    eventsDiscovered: number;
+    eventsIngested: number;
+  } | null;
+}) {
+  return {
+    id: overrides?.id ?? JOB_ID,
+    organizationId: ORG_ID,
+    vehicleId: VEHICLE_ID,
+    serviceSku: ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU,
+    status: OneAutoProviderJobStatus.SUCCEEDED,
+    vinSnapshot: ARTEON_VIN,
+    responses: [
+      {
+        id: 'resp-1',
+        fetchedAt: new Date('2026-11-05T10:00:00.000Z'),
+        httpStatus: 200,
+        responseBodyJson: successEnvelope(),
+      },
+    ],
+    oeServiceHistoryEuIngestion: overrides?.oeServiceHistoryEuIngestion ?? null,
+  };
+}
+
 function createHarness(options?: { enabled?: boolean }) {
   const enabled = options?.enabled ?? true;
   const config = {
@@ -53,13 +85,83 @@ function createHarness(options?: { enabled?: boolean }) {
     ),
   } as unknown as ConfigService;
 
+  const vehicleEventsByHistoricalKey = new Map<string, { id: string }>();
+  let createCounter = 0;
+
+  const oneAutoOeServiceHistoryEuIngestionEventLink = {
+    findUnique: jest.fn().mockResolvedValue(null),
+    create: jest.fn().mockResolvedValue({}),
+    count: jest.fn().mockResolvedValue(2),
+  };
+
   const vehicleServiceEvent = {
-    create: jest.fn().mockResolvedValue({ id: 'evt-1' }),
+    create: jest.fn().mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
+      createCounter += 1;
+      const id = `evt-${createCounter}`;
+      const historicalKey = data.oneAutoVehicleHistoricalEventKey as string | undefined;
+      if (historicalKey) {
+        vehicleEventsByHistoricalKey.set(historicalKey, { id });
+      }
+      return { id, ...data };
+    }),
+    findFirst: jest.fn().mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
+      if (where.oneAutoVehicleHistoricalEventKey) {
+        return vehicleEventsByHistoricalKey.get(String(where.oneAutoVehicleHistoricalEventKey)) ?? null;
+      }
+      if (where.externalSourceEventKey && where.oneAutoProviderJobId) {
+        for (const [key, row] of vehicleEventsByHistoricalKey) {
+          if (key) return row;
+        }
+      }
+      return null;
+    }),
   };
+
+  const ingestionRows = new Map<
+    string,
+    { status: OneAutoOeServiceHistoryEuIngestionStatus; eventsDiscovered: number; eventsIngested: number }
+  >();
+
   const oneAutoOeServiceHistoryEuIngestion = {
-    upsert: jest.fn().mockResolvedValue({}),
-    update: jest.fn().mockResolvedValue({}),
+    upsert: jest.fn().mockImplementation(async ({ where, create, update }: any) => {
+      const id = where.providerJobId as string;
+      const existing = ingestionRows.get(id);
+      if (!existing) {
+        ingestionRows.set(id, {
+          status: create.status,
+          eventsDiscovered: create.eventsDiscovered ?? 0,
+          eventsIngested: create.eventsIngested ?? 0,
+        });
+      } else if (update?.status) {
+        if (existing.status !== OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED) {
+          existing.status = update.status;
+        }
+        if (update.eventsDiscovered != null) existing.eventsDiscovered = update.eventsDiscovered;
+        if (update.eventsIngested != null) existing.eventsIngested = update.eventsIngested;
+      }
+      return {};
+    }),
+    updateMany: jest.fn().mockImplementation(async ({ where, data }: any) => {
+      const row = ingestionRows.get(where.providerJobId);
+      if (!row) return { count: 0 };
+      if (
+        where.status?.not === OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED &&
+        row.status === OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED
+      ) {
+        return { count: 0 };
+      }
+      if (data.status) row.status = data.status;
+      if (data.eventsDiscovered != null) row.eventsDiscovered = data.eventsDiscovered;
+      if (data.eventsIngested != null) row.eventsIngested = data.eventsIngested;
+      return { count: 1 };
+    }),
+    findUnique: jest.fn().mockImplementation(async ({ where }: { where: { providerJobId: string } }) => {
+      const row = ingestionRows.get(where.providerJobId);
+      if (!row) return null;
+      return { status: row.status, eventsDiscovered: row.eventsDiscovered, eventsIngested: row.eventsIngested };
+    }),
   };
+
   const prisma = {
     oneAutoProviderJob: {
       findUnique: jest.fn(),
@@ -69,10 +171,18 @@ function createHarness(options?: { enabled?: boolean }) {
     },
     vehicleServiceEvent,
     oneAutoOeServiceHistoryEuIngestion,
+    oneAutoOeServiceHistoryEuIngestionEventLink,
   };
 
   const svc = new OneAutoOeServiceHistoryEuIngestionService(prisma as never, config);
-  return { svc, prisma, vehicleServiceEvent, oneAutoOeServiceHistoryEuIngestion };
+  return {
+    svc,
+    prisma,
+    vehicleServiceEvent,
+    oneAutoOeServiceHistoryEuIngestion,
+    vehicleEventsByHistoricalKey,
+    ingestionRows,
+  };
 }
 
 describe('OneAuto OE_SERVICE_HISTORY_EU ingestion (offline)', () => {
@@ -99,46 +209,29 @@ describe('OneAuto OE_SERVICE_HISTORY_EU ingestion (offline)', () => {
     expect(delivery.value.eventType).toBe(ServiceEventType.OTHER);
   });
 
-  it('builds stable source event keys (duplicate-safe, not date-only)', () => {
-    const k1 = buildOneAutoOeServiceHistoryEuSourceEventKey({
+  it('builds stable job and vehicle historical keys (duplicate-safe, not date-only)', () => {
+    const jobKey = buildOneAutoOeServiceHistoryEuJobSourceEventKey({
       providerJobId: JOB_ID,
       event: ARTEON_EVENTS[0]!,
       eventIndex: 0,
     });
-    const k2 = buildOneAutoOeServiceHistoryEuSourceEventKey({
-      providerJobId: JOB_ID,
-      event: ARTEON_EVENTS[1]!,
-      eventIndex: 1,
+    const vehicleKey = buildOneAutoOeServiceHistoryEuVehicleHistoricalEventKey({
+      normalizedVin: ARTEON_VIN,
+      event: ARTEON_EVENTS[0]!,
     });
-    expect(k1).not.toEqual(k2);
+    expect(jobKey).toHaveLength(64);
+    expect(vehicleKey).not.toEqual(jobKey);
     expect(
-      buildOneAutoOeServiceHistoryEuSourceEventKey({
-        providerJobId: JOB_ID,
+      buildOneAutoOeServiceHistoryEuVehicleHistoricalEventKey({
+        normalizedVin: ARTEON_VIN,
         event: ARTEON_EVENTS[0]!,
-        eventIndex: 0,
       }),
-    ).toEqual(k1);
+    ).toEqual(vehicleKey);
   });
 
   it('ingests exactly two Arteon events on HTTP 200 success envelope', async () => {
     const { svc, prisma, vehicleServiceEvent } = createHarness();
-    prisma.oneAutoProviderJob.findUnique.mockResolvedValue({
-      id: JOB_ID,
-      organizationId: ORG_ID,
-      vehicleId: VEHICLE_ID,
-      serviceSku: ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU,
-      status: OneAutoProviderJobStatus.SUCCEEDED,
-      vinSnapshot: ARTEON_VIN,
-      responses: [
-        {
-          id: 'resp-1',
-          fetchedAt: new Date('2026-11-05T10:00:00.000Z'),
-          httpStatus: 200,
-          responseBodyJson: successEnvelope(),
-        },
-      ],
-      oeServiceHistoryEuIngestion: null,
-    });
+    prisma.oneAutoProviderJob.findUnique.mockResolvedValue(jobRow());
     prisma.vehicle.findFirst.mockResolvedValue({ vin: ARTEON_VIN });
 
     const result = await svc.tryIngestFromSucceededJob(JOB_ID);
@@ -158,57 +251,15 @@ describe('OneAuto OE_SERVICE_HISTORY_EU ingestion (offline)', () => {
     );
   });
 
-  it('is idempotent on repeated ingestion (P2002 race)', async () => {
-    const { svc, prisma, vehicleServiceEvent } = createHarness();
-    const jobRow: {
-      id: string;
-      organizationId: string;
-      vehicleId: string;
-      serviceSku: string;
-      status: OneAutoProviderJobStatus;
-      vinSnapshot: string;
-      responses: Array<{
-        id: string;
-        fetchedAt: Date;
-        httpStatus: number;
-        responseBodyJson: unknown;
-      }>;
-      oeServiceHistoryEuIngestion: {
-        status: OneAutoOeServiceHistoryEuIngestionStatus;
-        eventsDiscovered: number;
-        eventsIngested: number;
-      } | null;
-    } = {
-      id: JOB_ID,
-      organizationId: ORG_ID,
-      vehicleId: VEHICLE_ID,
-      serviceSku: ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU,
-      status: OneAutoProviderJobStatus.SUCCEEDED,
-      vinSnapshot: ARTEON_VIN,
-      responses: [
-        {
-          id: 'resp-1',
-          fetchedAt: new Date(),
-          httpStatus: 200,
-          responseBodyJson: successEnvelope(),
-        },
-      ],
-      oeServiceHistoryEuIngestion: null,
-    };
-    prisma.oneAutoProviderJob.findUnique.mockResolvedValue(jobRow);
+  it('is idempotent on repeated ingestion after SUCCEEDED', async () => {
+    const { svc, prisma } = createHarness();
+    const row = jobRow();
+    prisma.oneAutoProviderJob.findUnique.mockResolvedValue(row);
     prisma.vehicle.findFirst.mockResolvedValue({ vin: ARTEON_VIN });
-    vehicleServiceEvent.create
-      .mockResolvedValueOnce({ id: 'e1' })
-      .mockRejectedValueOnce(
-        new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'test' }),
-      )
-      .mockRejectedValueOnce(
-        new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'test' }),
-      );
 
     const first = await svc.tryIngestFromSucceededJob(JOB_ID);
-    expect(first.eventsIngested).toBe(1);
-    jobRow.oeServiceHistoryEuIngestion = {
+    expect(first.outcome).toBe('SUCCEEDED');
+    row.oeServiceHistoryEuIngestion = {
       status: OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED,
       eventsDiscovered: 2,
       eventsIngested: 2,
@@ -217,25 +268,89 @@ describe('OneAuto OE_SERVICE_HISTORY_EU ingestion (offline)', () => {
     expect(second.outcome).toBe('ALREADY_SUCCEEDED');
   });
 
+  it('links duplicate vehicle events across two successful provider jobs (no second create)', async () => {
+    const { svc, prisma, vehicleServiceEvent } = createHarness();
+    prisma.vehicle.findFirst.mockResolvedValue({ vin: ARTEON_VIN });
+
+    prisma.oneAutoProviderJob.findUnique.mockResolvedValueOnce(jobRow({ id: JOB_ID }));
+    const first = await svc.tryIngestFromSucceededJob(JOB_ID);
+    expect(first.eventsIngested).toBe(2);
+    expect(vehicleServiceEvent.create).toHaveBeenCalledTimes(2);
+
+    prisma.oneAutoProviderJob.findUnique.mockResolvedValueOnce(jobRow({ id: JOB_ID_2 }));
+    vehicleServiceEvent.create.mockClear();
+    const second = await svc.tryIngestFromSucceededJob(JOB_ID_2);
+    expect(second.outcome).toBe('SUCCEEDED');
+    expect(second.eventsIngested).toBe(2);
+    expect(vehicleServiceEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('counts linked events after P2002 race on create', async () => {
+    const { svc, prisma, vehicleServiceEvent } = createHarness();
+    prisma.oneAutoProviderJob.findUnique.mockResolvedValue(jobRow());
+    prisma.vehicle.findFirst.mockResolvedValue({ vin: ARTEON_VIN });
+
+    vehicleServiceEvent.create
+      .mockResolvedValueOnce({ id: 'e1' })
+      .mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'test' }),
+      )
+      .mockResolvedValueOnce({ id: 'e2' });
+
+    vehicleServiceEvent.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'e1-race' })
+      .mockResolvedValueOnce({ id: 'e1-race' });
+
+    const result = await svc.tryIngestFromSucceededJob(JOB_ID);
+    expect(result.eventsIngested).toBe(2);
+    expect(result.outcome).toBe('SUCCEEDED');
+  });
+
+  it('runs concurrent ingestion without downgrading SUCCEEDED', async () => {
+    const { svc, prisma, ingestionRows } = createHarness();
+    const row = jobRow();
+    prisma.oneAutoProviderJob.findUnique.mockImplementation(async () => ({ ...row }));
+    prisma.vehicle.findFirst.mockResolvedValue({ vin: ARTEON_VIN });
+
+    const [a, b] = await Promise.all([
+      svc.tryIngestFromSucceededJob(JOB_ID),
+      svc.tryIngestFromSucceededJob(JOB_ID),
+    ]);
+    expect(a.outcome).toBe('SUCCEEDED');
+    expect(b.outcome).toBe('SUCCEEDED');
+    expect(ingestionRows.get(JOB_ID)?.status).toBe(
+      OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED,
+    );
+  });
+
+  it('marks ingestion FAILED on DB error without throwing (provider job untouched)', async () => {
+    const { svc, prisma, vehicleServiceEvent, ingestionRows } = createHarness();
+    prisma.oneAutoProviderJob.findUnique.mockResolvedValue(jobRow());
+    prisma.vehicle.findFirst.mockResolvedValue({ vin: ARTEON_VIN });
+    vehicleServiceEvent.create.mockRejectedValue(new Error('db_down'));
+
+    const result = await svc.tryIngestFromSucceededJob(JOB_ID);
+    expect(result.outcome).toBe('FAILED');
+    const row = ingestionRows.get(JOB_ID);
+    expect(row?.status).toBe(OneAutoOeServiceHistoryEuIngestionStatus.FAILED);
+  });
+
+  it('safe wrapper swallows unexpected throws', async () => {
+    const ingestion = {
+      tryIngestFromSucceededJob: jest.fn().mockRejectedValue(new Error('boom')),
+    };
+    const logger = { error: jest.fn() } as any;
+    await expect(
+      runOneAutoOeServiceHistoryIngestionSafely(ingestion, JOB_ID, logger),
+    ).resolves.toBeUndefined();
+    expect(logger.error).toHaveBeenCalled();
+  });
+
   it('rejects cross-VIN binding', async () => {
     const { svc, prisma } = createHarness();
-    prisma.oneAutoProviderJob.findUnique.mockResolvedValue({
-      id: JOB_ID,
-      organizationId: ORG_ID,
-      vehicleId: VEHICLE_ID,
-      serviceSku: ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU,
-      status: OneAutoProviderJobStatus.SUCCEEDED,
-      vinSnapshot: ARTEON_VIN,
-      responses: [
-        {
-          id: 'resp-1',
-          fetchedAt: new Date(),
-          httpStatus: 200,
-          responseBodyJson: successEnvelope(),
-        },
-      ],
-      oeServiceHistoryEuIngestion: null,
-    });
+    prisma.oneAutoProviderJob.findUnique.mockResolvedValue(jobRow());
     prisma.vehicle.findFirst.mockResolvedValue({ vin: 'WAUZZZF48GA096957' });
     const result = await svc.tryIngestFromSucceededJob(JOB_ID);
     expect(result.outcome).toBe('SKIPPED_BINDING');
@@ -244,25 +359,16 @@ describe('OneAuto OE_SERVICE_HISTORY_EU ingestion (offline)', () => {
   it('skips provider failure / no-data envelopes without creating events', async () => {
     const { svc, prisma, vehicleServiceEvent } = createHarness();
     prisma.oneAutoProviderJob.findUnique.mockResolvedValue({
-      id: JOB_ID,
-      organizationId: ORG_ID,
-      vehicleId: VEHICLE_ID,
-      serviceSku: ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU,
+      ...jobRow(),
       status: OneAutoProviderJobStatus.FAILED,
-      vinSnapshot: ARTEON_VIN,
       responses: [
         {
           id: 'resp-fail',
           fetchedAt: new Date(),
           httpStatus: 206,
-          responseBodyJson: {
-            success: false,
-            result: null,
-            error: 'no data',
-          },
+          responseBodyJson: { success: false, result: null, error: 'no data' },
         },
       ],
-      oeServiceHistoryEuIngestion: null,
     });
     const result = await svc.tryIngestFromSucceededJob(JOB_ID);
     expect(result.outcome).toBe('SKIPPED_JOB_STATE');
@@ -274,5 +380,32 @@ describe('OneAuto OE_SERVICE_HISTORY_EU ingestion (offline)', () => {
     prisma.oneAutoProviderJob.findUnique.mockResolvedValue(null);
     const result = await svc.tryIngestFromSucceededJob(JOB_ID);
     expect(result.outcome).toBe('DISABLED');
+  });
+
+  it('keeps two distinct events on the same calendar day', () => {
+    const day = '2024-06-01';
+    const a = buildOneAutoOeServiceHistoryEuVehicleHistoricalEventKey({
+      normalizedVin: ARTEON_VIN,
+      event: {
+        date_of_service_event: day,
+        mileage_observed: 1000,
+        mileage_unit: 'km',
+        service_provider: 'Shop A',
+        service_type: 'Maintenance',
+        service_actions: ['Oil'],
+      },
+    });
+    const b = buildOneAutoOeServiceHistoryEuVehicleHistoricalEventKey({
+      normalizedVin: ARTEON_VIN,
+      event: {
+        date_of_service_event: day,
+        mileage_observed: 1000,
+        mileage_unit: 'km',
+        service_provider: 'Shop B',
+        service_type: 'Repair',
+        service_actions: ['Brakes'],
+      },
+    });
+    expect(a).not.toEqual(b);
   });
 });

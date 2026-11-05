@@ -41,7 +41,7 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     summary:
       'Automatic idempotent ingestion of successful OE_SERVICE_HISTORY_EU responses into VehicleServiceEvent; Service & Compliance UI shows manual vs OneAuto provenance; backfill script uses DB only.',
     technical:
-      'backend: migration 20260705120000, OneAutoOeServiceHistoryEuIngestionService, callback/execution hooks, ONEAUTO_OE_SERVICE_HISTORY_INGESTION_ENABLED; frontend: HealthErrorsView service history badges + modal refetch; evidence ONEAUTO_OE_SERVICE_HISTORY_INGESTION_V1.md.',
+      'backend: migration 20261103231000, OneAutoOeServiceHistoryEuIngestionService, callback/execution hooks, ONEAUTO_OE_SERVICE_HISTORY_INGESTION_ENABLED (=1/true); frontend: HealthErrorsView service history badges + modal refetch; evidence ONEAUTO_OE_SERVICE_HISTORY_INGESTION_V1.md.',
     tags: ['oneauto', 'service-history', 'vehicle-intelligence'],
   },
   {

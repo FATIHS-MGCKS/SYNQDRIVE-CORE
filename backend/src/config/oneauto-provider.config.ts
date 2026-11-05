@@ -4,6 +4,7 @@ import {
   loadE1ServiceHistoryTestOrgBudgetCapMinorFromEnv,
   loadE1ServiceHistoryTestOrgIdsFromEnv,
 } from '../modules/oneauto-provider/oneauto-org-budget-test-allowance.util';
+import { readOneAutoBooleanEnv } from '../modules/oneauto-provider/oneauto-boolean-env.util';
 
 function intEnv(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -73,6 +74,8 @@ export default registerAs('oneautoProvider', () => ({
   e1ServiceHistoryTestOrgIds: loadE1ServiceHistoryTestOrgIdsFromEnv(),
   e1ServiceHistoryTestOrgBudgetCapMinor: loadE1ServiceHistoryTestOrgBudgetCapMinorFromEnv(),
   /** V1: persist OE_SERVICE_HISTORY_EU provider events into VehicleServiceEvent after successful jobs. */
-  oeServiceHistoryIngestionEnabled:
-    (process.env.ONEAUTO_OE_SERVICE_HISTORY_INGESTION_ENABLED ?? 'false') === 'true',
+  oeServiceHistoryIngestionEnabled: readOneAutoBooleanEnv(
+    'ONEAUTO_OE_SERVICE_HISTORY_INGESTION_ENABLED',
+    false,
+  ),
 }));

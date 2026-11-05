@@ -1661,6 +1661,7 @@ model Organization {
   oneAutoProviderJobs                                       OneAutoProviderJob[]
   oneAutoOemVinLookupEuSuggestionSnapshots                  OneAutoOemVinLookupEuSuggestionSnapshot[]
   oneAutoOeServiceHistoryEuIngestions                       OneAutoOeServiceHistoryEuIngestion[]
+  oneAutoOeServiceHistoryEuIngestionEventLinks              OneAutoOeServiceHistoryEuIngestionEventLink[]
   physicalDevices                                           PhysicalDevice[]
   physicalDeviceAssignments                                 PhysicalDeviceAssignment[]
   vehicleProviderSourceObservations                         VehicleProviderSourceObservation[]
@@ -3261,6 +3262,7 @@ model OneAutoProviderJob {
   callbackInbox OneAutoProviderCallbackInbox[]
   oemVinLookupEuSuggestionSnapshot OneAutoOemVinLookupEuSuggestionSnapshot?
   oeServiceHistoryEuIngestion      OneAutoOeServiceHistoryEuIngestion?
+  oeServiceHistoryEuIngestionEventLinks OneAutoOeServiceHistoryEuIngestionEventLink[]
 
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, vehicleId])
@@ -3328,6 +3330,31 @@ enum OneAutoOeServiceHistoryEuIngestionStatus {
   SUCCEEDED
   FAILED
   PARTIAL
+}
+
+enum OneAutoOeServiceHistoryEuIngestionEventLinkKind {
+  CREATED
+  LINKED_EXISTING
+}
+
+/// Per-job evidence that each provider event was created or linked to an existing vehicle row.
+model OneAutoOeServiceHistoryEuIngestionEventLink {
+  id                  String                                      @id @default(cuid())
+  organizationId      String                                      @map("organization_id")
+  providerJobId       String                                      @map("provider_job_id")
+  vehicleServiceEventId String                                    @map("vehicle_service_event_id")
+  jobSourceEventKey   String                                      @map("job_source_event_key")
+  linkKind            OneAutoOeServiceHistoryEuIngestionEventLinkKind @map("link_kind")
+  createdAt           DateTime                                    @default(now()) @map("created_at")
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  providerJob         OneAutoProviderJob @relation(fields: [providerJobId], references: [id], onDelete: Cascade)
+  vehicleServiceEvent VehicleServiceEvent @relation(fields: [vehicleServiceEventId], references: [id], onDelete: Cascade)
+
+  @@unique([providerJobId, jobSourceEventKey])
+  @@index([organizationId, providerJobId])
+  @@index([vehicleServiceEventId])
+  @@map("one_auto_oe_service_history_eu_ingestion_event_links")
 }
 
 /// Auditable structured ingestion of OE_SERVICE_HISTORY_EU into VehicleServiceEvent (one row per provider job).
@@ -4359,6 +4386,7 @@ model VehicleServiceEvent {
   origin                 ServiceEventOrigin             @default(MANUAL) @map("origin")
   oneAutoProviderJobId   String?                        @map("one_auto_provider_job_id")
   externalSourceEventKey String?                        @map("external_source_event_key")
+  oneAutoVehicleHistoricalEventKey String?              @map("one_auto_vehicle_historical_event_key")
   sourcePayloadJson      Json?                          @map("source_payload_json")
   createdById            String?                        @map("created_by_id")
   updatedById            String?                        @map("updated_by_id")
@@ -4381,11 +4409,14 @@ model VehicleServiceEvent {
   brakeComponentInstallations       BrakeComponentInstallation[]
   brakeServiceApplication           BrakeServiceApplication?
   brakeServiceOutbox                BrakeServiceOutbox[]
+  oneAutoOeServiceHistoryEuIngestionEventLinks OneAutoOeServiceHistoryEuIngestionEventLink[]
 
   @@unique([organizationId, documentExtractionId])
   @@unique([organizationId, oneAutoProviderJobId, externalSourceEventKey], map: "vehicle_service_events_oneauto_source_uq")
+  @@unique([organizationId, vehicleId, oneAutoVehicleHistoricalEventKey], map: "vehicle_service_events_oneauto_vehicle_hist_uq")
   @@index([vehicleId])
   @@index([oneAutoProviderJobId])
+  @@index([oneAutoVehicleHistoricalEventKey])
   @@index([eventDate])
   @@index([documentExtractionId])
   @@index([organizationId])

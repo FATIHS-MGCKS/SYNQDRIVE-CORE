@@ -340,7 +340,19 @@ export class OneAutoE4FailedCallbackRecoveryService {
     }
 
     const materialization = await this.materialization.tryMaterializeFromSucceededJob(job.id);
-    const serviceHistoryIngestion = await this.oeServiceHistoryIngestion.tryIngestFromSucceededJob(job.id);
+    let serviceHistoryIngestion: { outcome: string } = { outcome: 'SKIPPED' };
+    try {
+      serviceHistoryIngestion = await this.oeServiceHistoryIngestion.tryIngestFromSucceededJob(job.id);
+    } catch (error) {
+      this.logger.error(
+        JSON.stringify({
+          kind: 'ONEAUTO_E4_SERVICE_HISTORY_INGESTION_UNHANDLED',
+          jobId: job.id,
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+      serviceHistoryIngestion = { outcome: 'FAILED' };
+    }
     this.logger.log(
       JSON.stringify({
         kind: 'ONEAUTO_E4_FAILED_CALLBACK_RECOVERY',

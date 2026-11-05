@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  OneAutoOeServiceHistoryEuIngestionEventLinkKind,
   OneAutoOeServiceHistoryEuIngestionStatus,
   OneAutoProviderJobStatus,
   Prisma,
@@ -13,8 +14,11 @@ import {
   parseOeServiceHistoryEuProviderResult,
 } from './oneauto-service-history-eu-provider.util';
 import { ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU } from './oneauto-service-history-eu.types';
-import { buildOneAutoOeServiceHistoryEuSourceEventKey } from './oneauto-oe-service-history-eu-event-identity.util';
-import { mapOneAutoOeServiceHistoryEuEvent } from './oneauto-oe-service-history-eu-event.mapper';
+import {
+  buildOneAutoOeServiceHistoryEuJobSourceEventKey,
+  buildOneAutoOeServiceHistoryEuVehicleHistoricalEventKey,
+} from './oneauto-oe-service-history-eu-event-identity.util';
+import { mapOneAutoOeServiceHistoryEuEvent, type OneAutoMappedServiceHistoryEvent } from './oneauto-oe-service-history-eu-event.mapper';
 import { pickPersistedOeServiceHistoryEuSuccessPayload } from './oneauto-oe-service-history-eu-response.util';
 
 export type OneAutoOeServiceHistoryEuIngestionOutcome =
@@ -33,8 +37,11 @@ export type OneAutoOeServiceHistoryEuIngestionEvidence = {
   providerJobId: string;
   eventsDiscovered?: number;
   eventsIngested?: number;
+  eventsLinked?: number;
   code?: string;
 };
+
+type PersistEventResult = 'created' | 'linked' | 'already_linked_for_job';
 
 @Injectable()
 export class OneAutoOeServiceHistoryEuIngestionService {
@@ -59,11 +66,32 @@ export class OneAutoOeServiceHistoryEuIngestionService {
     );
   }
 
-  /**
-   * Idempotent ingestion from persisted provider responses only — never provider HTTP.
-   * Does not mutate manual service history rows or HM/OEM next-service fields.
-   */
   async tryIngestFromSucceededJob(
+    providerJobId: string,
+  ): Promise<OneAutoOeServiceHistoryEuIngestionEvidence> {
+    try {
+      return await this.ingestFromSucceededJobInternal(providerJobId);
+    } catch (error) {
+      const code = 'ONEAUTO_SERVICE_HISTORY_INGESTION_EXCEPTION';
+      this.logger.error(
+        JSON.stringify({
+          kind: 'ONEAUTO_OE_SERVICE_HISTORY_EU_INGESTION_EXCEPTION',
+          providerJobId,
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+      await this.markIngestionFailedSafe(providerJobId, code, 'Unhandled ingestion exception');
+      const evidence = {
+        outcome: 'FAILED' as const,
+        providerJobId,
+        code,
+      };
+      this.emitOperationalEvidence(evidence);
+      return evidence;
+    }
+  }
+
+  private async ingestFromSucceededJobInternal(
     providerJobId: string,
   ): Promise<OneAutoOeServiceHistoryEuIngestionEvidence> {
     const base = { providerJobId };
@@ -104,11 +132,15 @@ export class OneAutoOeServiceHistoryEuIngestionService {
     }
 
     if (job.oeServiceHistoryEuIngestion?.status === OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED) {
+      const linkCount = await this.prisma.oneAutoOeServiceHistoryEuIngestionEventLink.count({
+        where: { providerJobId: job.id },
+      });
       const evidence = {
         ...base,
         outcome: 'ALREADY_SUCCEEDED' as const,
         eventsDiscovered: job.oeServiceHistoryEuIngestion.eventsDiscovered,
-        eventsIngested: job.oeServiceHistoryEuIngestion.eventsIngested,
+        eventsIngested: linkCount,
+        eventsLinked: linkCount,
       };
       this.emitOperationalEvidence(evidence);
       return evidence;
@@ -118,7 +150,7 @@ export class OneAutoOeServiceHistoryEuIngestionService {
       where: { id: job.vehicleId, organizationId: job.organizationId },
       select: { vin: true },
     });
-    if (!vehicle) {
+    if (!vehicle?.vin) {
       const evidence = {
         ...base,
         outcome: 'SKIPPED_BINDING' as const,
@@ -166,56 +198,37 @@ export class OneAutoOeServiceHistoryEuIngestionService {
     }
 
     if (parsed.kind === 'SUCCESS_EMPTY_HISTORY') {
-      await this.prisma.oneAutoOeServiceHistoryEuIngestion.upsert({
-        where: { providerJobId: job.id },
-        create: {
-          organizationId: job.organizationId,
-          vehicleId: job.vehicleId,
-          providerJobId: job.id,
-          status: OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED,
-          eventsDiscovered: 0,
-          eventsIngested: 0,
-          sourceResponseId: payload.responseId,
-          sourceRetrievedAt: payload.fetchedAt,
-        },
-        update: {
-          status: OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED,
-          eventsDiscovered: 0,
-          eventsIngested: 0,
-          sourceResponseId: payload.responseId,
-          sourceRetrievedAt: payload.fetchedAt,
-          lastErrorCode: null,
-          lastErrorMessageRedacted: null,
-        },
+      await this.finalizeIngestion(job, {
+        discovered: 0,
+        persisted: 0,
+        linked: 0,
+        malformedCount: 0,
+        sourceResponseId: payload.responseId,
+        sourceRetrievedAt: payload.fetchedAt,
       });
       const evidence = { ...base, outcome: 'SKIPPED_EMPTY' as const, eventsDiscovered: 0, eventsIngested: 0 };
       this.emitOperationalEvidence(evidence);
       return evidence;
     }
 
-    let eventsIngested = 0;
+    const claimed = await this.claimIngestionWork(job, {
+      discovered: parsed.serviceEvents.length,
+      sourceResponseId: payload.responseId,
+      sourceRetrievedAt: payload.fetchedAt,
+    });
+    if (!claimed) {
+      const fresh = await this.prisma.oneAutoOeServiceHistoryEuIngestion.findUnique({
+        where: { providerJobId: job.id },
+      });
+      if (fresh?.status === OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED) {
+        return this.ingestFromSucceededJobInternal(providerJobId);
+      }
+    }
+
+    let created = 0;
+    let linked = 0;
     let malformedCount = 0;
     const discovered = parsed.serviceEvents.length;
-
-    await this.prisma.oneAutoOeServiceHistoryEuIngestion.upsert({
-      where: { providerJobId: job.id },
-      create: {
-        organizationId: job.organizationId,
-        vehicleId: job.vehicleId,
-        providerJobId: job.id,
-        status: OneAutoOeServiceHistoryEuIngestionStatus.PENDING,
-        eventsDiscovered: discovered,
-        eventsIngested: 0,
-        sourceResponseId: payload.responseId,
-        sourceRetrievedAt: payload.fetchedAt,
-      },
-      update: {
-        status: OneAutoOeServiceHistoryEuIngestionStatus.PENDING,
-        eventsDiscovered: discovered,
-        sourceResponseId: payload.responseId,
-        sourceRetrievedAt: payload.fetchedAt,
-      },
-    });
 
     for (let index = 0; index < parsed.serviceEvents.length; index += 1) {
       const rawEvent = parsed.serviceEvents[index]!;
@@ -233,67 +246,60 @@ export class OneAutoOeServiceHistoryEuIngestionService {
         continue;
       }
 
-      const sourceEventKey = buildOneAutoOeServiceHistoryEuSourceEventKey({
+      const jobSourceEventKey = buildOneAutoOeServiceHistoryEuJobSourceEventKey({
         providerJobId: job.id,
         event: rawEvent,
         eventIndex: index,
       });
+      const vehicleHistoricalEventKey = buildOneAutoOeServiceHistoryEuVehicleHistoricalEventKey({
+        normalizedVin: binding.normalizedVin,
+        event: rawEvent,
+      });
 
-      try {
-        await this.prisma.vehicleServiceEvent.create({
-          data: {
-            organizationId: job.organizationId,
-            vehicleId: job.vehicleId,
-            eventType: mapped.value.eventType,
-            eventDate: mapped.value.eventDate,
-            odometerKm: mapped.value.odometerKm,
-            workshopName: mapped.value.workshopName,
-            notes: mapped.value.notes,
-            provider: mapped.value.provider,
-            origin: ServiceEventOrigin.ONEAUTO,
-            oneAutoProviderJobId: job.id,
-            externalSourceEventKey: sourceEventKey,
-            sourcePayloadJson: rawEvent as Prisma.InputJsonValue,
+      const existingLink =
+        await this.prisma.oneAutoOeServiceHistoryEuIngestionEventLink.findUnique({
+          where: {
+            providerJobId_jobSourceEventKey: {
+              providerJobId: job.id,
+              jobSourceEventKey,
+            },
           },
         });
-        eventsIngested += 1;
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          continue;
-        }
-        throw error;
+      if (existingLink) {
+        linked += 1;
+        continue;
       }
+
+      const result = await this.persistEvent({
+        job,
+        mapped: mapped.value,
+        rawEvent,
+        jobSourceEventKey,
+        vehicleHistoricalEventKey,
+      });
+      if (result === 'created') created += 1;
+      else if (result === 'linked' || result === 'already_linked_for_job') linked += 1;
     }
 
-    const finalStatus =
-      eventsIngested === discovered
-        ? OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED
-        : eventsIngested > 0
-          ? OneAutoOeServiceHistoryEuIngestionStatus.PARTIAL
-          : OneAutoOeServiceHistoryEuIngestionStatus.FAILED;
+    const persisted = created + linked;
+    await this.finalizeIngestion(job, {
+      discovered,
+      persisted,
+      linked,
+      malformedCount,
+      sourceResponseId: payload.responseId,
+      sourceRetrievedAt: payload.fetchedAt,
+    });
 
-    await this.prisma.oneAutoOeServiceHistoryEuIngestion.update({
+    const finalStatus = await this.prisma.oneAutoOeServiceHistoryEuIngestion.findUnique({
       where: { providerJobId: job.id },
-      data: {
-        status: finalStatus,
-        eventsDiscovered: discovered,
-        eventsIngested,
-        lastErrorCode:
-          malformedCount > 0 ? 'ONEAUTO_SERVICE_HISTORY_MALFORMED_EVENTS' : null,
-        lastErrorMessageRedacted:
-          malformedCount > 0
-            ? redactOneAutoErrorMessage(`${malformedCount} provider event(s) skipped`)
-            : null,
-      },
+      select: { status: true },
     });
 
     const outcome: OneAutoOeServiceHistoryEuIngestionOutcome =
-      finalStatus === OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED
+      finalStatus?.status === OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED
         ? 'SUCCEEDED'
-        : finalStatus === OneAutoOeServiceHistoryEuIngestionStatus.PARTIAL
+        : finalStatus?.status === OneAutoOeServiceHistoryEuIngestionStatus.PARTIAL
           ? 'PARTIAL'
           : 'FAILED';
 
@@ -301,11 +307,219 @@ export class OneAutoOeServiceHistoryEuIngestionService {
       ...base,
       outcome,
       eventsDiscovered: discovered,
-      eventsIngested,
+      eventsIngested: persisted,
+      eventsLinked: linked,
       code: malformedCount > 0 ? 'ONEAUTO_SERVICE_HISTORY_MALFORMED_EVENTS' : undefined,
     };
     this.emitOperationalEvidence(evidence);
     return evidence;
+  }
+
+  private async persistEvent(input: {
+    job: { id: string; organizationId: string; vehicleId: string };
+    mapped: OneAutoMappedServiceHistoryEvent;
+    rawEvent: Record<string, unknown>;
+    jobSourceEventKey: string;
+    vehicleHistoricalEventKey: string;
+  }): Promise<PersistEventResult> {
+    const existingVehicleRow = await this.prisma.vehicleServiceEvent.findFirst({
+      where: {
+        organizationId: input.job.organizationId,
+        vehicleId: input.job.vehicleId,
+        oneAutoVehicleHistoricalEventKey: input.vehicleHistoricalEventKey,
+        origin: ServiceEventOrigin.ONEAUTO,
+      },
+      select: { id: true },
+    });
+
+    if (existingVehicleRow) {
+      await this.upsertEventLink({
+        organizationId: input.job.organizationId,
+        providerJobId: input.job.id,
+        vehicleServiceEventId: existingVehicleRow.id,
+        jobSourceEventKey: input.jobSourceEventKey,
+        linkKind: OneAutoOeServiceHistoryEuIngestionEventLinkKind.LINKED_EXISTING,
+      });
+      return 'linked';
+    }
+
+    try {
+      const created = await this.prisma.vehicleServiceEvent.create({
+        data: {
+          organizationId: input.job.organizationId,
+          vehicleId: input.job.vehicleId,
+          eventType: input.mapped.eventType,
+          eventDate: input.mapped.eventDate,
+          odometerKm: input.mapped.odometerKm,
+          workshopName: input.mapped.workshopName,
+          notes: input.mapped.notes,
+          provider: input.mapped.provider,
+          origin: ServiceEventOrigin.ONEAUTO,
+          oneAutoProviderJobId: input.job.id,
+          externalSourceEventKey: input.jobSourceEventKey,
+          oneAutoVehicleHistoricalEventKey: input.vehicleHistoricalEventKey,
+          sourcePayloadJson: input.rawEvent as Prisma.InputJsonValue,
+        },
+      });
+      await this.upsertEventLink({
+        organizationId: input.job.organizationId,
+        providerJobId: input.job.id,
+        vehicleServiceEventId: created.id,
+        jobSourceEventKey: input.jobSourceEventKey,
+        linkKind: OneAutoOeServiceHistoryEuIngestionEventLinkKind.CREATED,
+      });
+      return 'created';
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const racedVehicle = await this.prisma.vehicleServiceEvent.findFirst({
+          where: {
+            organizationId: input.job.organizationId,
+            vehicleId: input.job.vehicleId,
+            oneAutoVehicleHistoricalEventKey: input.vehicleHistoricalEventKey,
+          },
+          select: { id: true },
+        });
+        const racedJob = await this.prisma.vehicleServiceEvent.findFirst({
+          where: {
+            organizationId: input.job.organizationId,
+            oneAutoProviderJobId: input.job.id,
+            externalSourceEventKey: input.jobSourceEventKey,
+          },
+          select: { id: true },
+        });
+        const targetId = racedVehicle?.id ?? racedJob?.id;
+        if (targetId) {
+          await this.upsertEventLink({
+            organizationId: input.job.organizationId,
+            providerJobId: input.job.id,
+            vehicleServiceEventId: targetId,
+            jobSourceEventKey: input.jobSourceEventKey,
+            linkKind: OneAutoOeServiceHistoryEuIngestionEventLinkKind.LINKED_EXISTING,
+          });
+          return racedJob ? 'already_linked_for_job' : 'linked';
+        }
+      }
+      throw error;
+    }
+  }
+
+  private async upsertEventLink(input: {
+    organizationId: string;
+    providerJobId: string;
+    vehicleServiceEventId: string;
+    jobSourceEventKey: string;
+    linkKind: OneAutoOeServiceHistoryEuIngestionEventLinkKind;
+  }): Promise<void> {
+    try {
+      await this.prisma.oneAutoOeServiceHistoryEuIngestionEventLink.create({
+        data: input,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private async claimIngestionWork(
+    job: { id: string; organizationId: string; vehicleId: string },
+    input: {
+      discovered: number;
+      sourceResponseId: string;
+      sourceRetrievedAt: Date;
+    },
+  ): Promise<boolean> {
+    const existing = await this.prisma.oneAutoOeServiceHistoryEuIngestion.findUnique({
+      where: { providerJobId: job.id },
+    });
+    if (existing?.status === OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED) {
+      return false;
+    }
+    await this.prisma.oneAutoOeServiceHistoryEuIngestion.upsert({
+      where: { providerJobId: job.id },
+      create: {
+        organizationId: job.organizationId,
+        vehicleId: job.vehicleId,
+        providerJobId: job.id,
+        status: OneAutoOeServiceHistoryEuIngestionStatus.PENDING,
+        eventsDiscovered: input.discovered,
+        eventsIngested: 0,
+        sourceResponseId: input.sourceResponseId,
+        sourceRetrievedAt: input.sourceRetrievedAt,
+      },
+      update: {
+        status: OneAutoOeServiceHistoryEuIngestionStatus.PENDING,
+        eventsDiscovered: input.discovered,
+        sourceResponseId: input.sourceResponseId,
+        sourceRetrievedAt: input.sourceRetrievedAt,
+      },
+    });
+    return true;
+  }
+
+  private async finalizeIngestion(
+    job: { id: string; organizationId: string; vehicleId: string },
+    input: {
+      discovered: number;
+      persisted: number;
+      linked: number;
+      malformedCount: number;
+      sourceResponseId: string;
+      sourceRetrievedAt: Date;
+    },
+  ): Promise<void> {
+    const finalStatus =
+      input.discovered === 0
+        ? OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED
+        : input.persisted === input.discovered
+          ? OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED
+          : input.persisted > 0
+            ? OneAutoOeServiceHistoryEuIngestionStatus.PARTIAL
+            : OneAutoOeServiceHistoryEuIngestionStatus.FAILED;
+
+    await this.prisma.oneAutoOeServiceHistoryEuIngestion.updateMany({
+      where: {
+        providerJobId: job.id,
+        status: { not: OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED },
+      },
+      data: {
+        status: finalStatus,
+        eventsDiscovered: input.discovered,
+        eventsIngested: input.persisted,
+        sourceResponseId: input.sourceResponseId,
+        sourceRetrievedAt: input.sourceRetrievedAt,
+        lastErrorCode:
+          input.malformedCount > 0 ? 'ONEAUTO_SERVICE_HISTORY_MALFORMED_EVENTS' : null,
+        lastErrorMessageRedacted:
+          input.malformedCount > 0
+            ? redactOneAutoErrorMessage(`${input.malformedCount} provider event(s) skipped`)
+            : null,
+      },
+    });
+
+    if (finalStatus === OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED) {
+      await this.prisma.oneAutoOeServiceHistoryEuIngestion.updateMany({
+        where: {
+          providerJobId: job.id,
+          status: OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED,
+        },
+        data: {
+          eventsDiscovered: input.discovered,
+          eventsIngested: input.persisted,
+          sourceResponseId: input.sourceResponseId,
+          sourceRetrievedAt: input.sourceRetrievedAt,
+          lastErrorCode: null,
+          lastErrorMessageRedacted: null,
+        },
+      });
+    }
   }
 
   private async markIngestionFailed(
@@ -323,7 +537,33 @@ export class OneAutoOeServiceHistoryEuIngestionService {
         lastErrorCode: code,
         lastErrorMessageRedacted: redactOneAutoErrorMessage(message),
       },
-      update: {
+      update: {},
+    });
+    await this.prisma.oneAutoOeServiceHistoryEuIngestion.updateMany({
+      where: {
+        providerJobId: job.id,
+        status: { not: OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED },
+      },
+      data: {
+        status: OneAutoOeServiceHistoryEuIngestionStatus.FAILED,
+        lastErrorCode: code,
+        lastErrorMessageRedacted: redactOneAutoErrorMessage(message),
+      },
+    });
+  }
+
+  private async markIngestionFailedSafe(providerJobId: string, code: string, message: string): Promise<void> {
+    const job = await this.prisma.oneAutoProviderJob.findUnique({
+      where: { id: providerJobId },
+      select: { id: true, organizationId: true, vehicleId: true },
+    });
+    if (!job) return;
+    await this.prisma.oneAutoOeServiceHistoryEuIngestion.updateMany({
+      where: {
+        providerJobId: job.id,
+        status: { not: OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED },
+      },
+      data: {
         status: OneAutoOeServiceHistoryEuIngestionStatus.FAILED,
         lastErrorCode: code,
         lastErrorMessageRedacted: redactOneAutoErrorMessage(message),

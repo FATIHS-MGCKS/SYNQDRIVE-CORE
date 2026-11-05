@@ -22,6 +22,7 @@ import { ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU } from './oem-specification/oneau
 import { ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU } from './service-history/oneauto-service-history-eu.types';
 import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
 import { OneAutoOeServiceHistoryEuIngestionService } from './service-history/oneauto-oe-service-history-eu-ingestion.service';
+import { runOneAutoOeServiceHistoryIngestionSafely } from './service-history/oneauto-oe-service-history-eu-ingestion-safe.util';
 import { isOneAutoSkuRuntimeExecutionEnabled } from './oneauto-sku-runtime-activation.util';
 
 export type OneAutoCallbackIngestResult =
@@ -314,7 +315,11 @@ export class OneAutoProviderCallbackService {
       await this.oemSuggestionMaterialization.tryMaterializeFromSucceededJob(job.id);
     }
     if (job.serviceSku === ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU) {
-      await this.oeServiceHistoryIngestion.tryIngestFromSucceededJob(job.id);
+      await runOneAutoOeServiceHistoryIngestionSafely(
+        this.oeServiceHistoryIngestion,
+        job.id,
+        this.logger,
+      );
     }
   }
 

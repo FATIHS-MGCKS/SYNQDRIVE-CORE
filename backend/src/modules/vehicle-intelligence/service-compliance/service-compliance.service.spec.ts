@@ -246,7 +246,20 @@ describe('ServiceComplianceService.buildServiceInfoStatus — history vs HM next
           }
           return Promise.resolve([]);
         }),
-        count: jest.fn().mockResolvedValue(events.length),
+        count: jest.fn().mockImplementation(({ where }: { where: { eventType?: { in?: string[] } } }) => {
+          const types = where.eventType?.in ?? [];
+          const baselineOnly =
+            types.length > 0 &&
+            types.every((t) => ['FULL_SERVICE', 'GENERAL_INSPECTION'].includes(t));
+          if (baselineOnly) {
+            return Promise.resolve(
+              events.filter((e) =>
+                ['FULL_SERVICE', 'GENERAL_INSPECTION'].includes(e.eventType),
+              ).length,
+            );
+          }
+          return Promise.resolve(events.length);
+        }),
       },
     } as any;
     return new ServiceComplianceService(prisma, hmMock as any);
@@ -277,6 +290,8 @@ describe('ServiceComplianceService.buildServiceInfoStatus — history vs HM next
     ]);
     const status = await svc.buildServiceInfoStatus('v1');
     expect(status.lastServiceDate).toBeNull();
+    expect(status.hasServiceHistory).toBe(true);
+    expect(status.hasServiceBaseline).toBe(false);
     expect(status.nextService.trackingStatus).toBe('TRACKED');
   });
 });

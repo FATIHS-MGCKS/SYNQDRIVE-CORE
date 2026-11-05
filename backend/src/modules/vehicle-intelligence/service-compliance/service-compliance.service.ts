@@ -23,6 +23,8 @@ import type { ComplianceOperationalVehicle } from './service-compliance-operatio
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DAYS_PER_MONTH = 30.44;
+/** UI cap for Service & Compliance history list (full count still in hasServiceHistory). */
+const SERVICE_HISTORY_UI_LIMIT = 100;
 
 function extractPerformedActionsFromSourcePayload(sourcePayloadJson: unknown): string[] {
   if (!sourcePayloadJson || typeof sourcePayloadJson !== 'object' || Array.isArray(sourcePayloadJson)) {
@@ -416,7 +418,7 @@ export class ServiceComplianceService {
       },
     });
 
-    const [serviceEvents, fullServiceEvents, tuvEvents, bokraftEvents, compliance, historyCount] =
+    const [serviceEvents, fullServiceEvents, tuvEvents, bokraftEvents, compliance, historyCount, baselineCount] =
       await Promise.all([
       this.prisma.vehicleServiceEvent.findMany({
         where: {
@@ -424,7 +426,7 @@ export class ServiceComplianceService {
           eventType: { in: SERVICE_HISTORY_EVENT_TYPES },
         },
         orderBy: { eventDate: 'desc' },
-        take: 20,
+        take: SERVICE_HISTORY_UI_LIMIT,
       }),
       this.prisma.vehicleServiceEvent.findMany({
         where: {
@@ -456,6 +458,12 @@ export class ServiceComplianceService {
           eventType: { in: SERVICE_HISTORY_EVENT_TYPES },
         },
       }),
+      this.prisma.vehicleServiceEvent.count({
+        where: {
+          vehicleId,
+          eventType: { in: FULL_SERVICE_BASELINE_EVENT_TYPES },
+        },
+      }),
     ]);
 
     const latestFullServiceEvent = fullServiceEvents[0] ?? null;
@@ -464,6 +472,10 @@ export class ServiceComplianceService {
     const lastServiceOdometer =
       latestFullServiceEvent?.odometerKm ?? vehicle?.lastServiceOdometerKm ?? null;
     const hasServiceHistory = historyCount > 0;
+    const hasServiceBaseline =
+      baselineCount > 0 ||
+      vehicle?.lastServiceDate != null ||
+      vehicle?.lastServiceOdometerKm != null;
 
     const mapEvent = (e: {
       id: string;
@@ -529,7 +541,7 @@ export class ServiceComplianceService {
     return {
       nextService,
       hasServiceHistory,
-      hasServiceBaseline: hasServiceHistory,
+      hasServiceBaseline,
       serviceRemainingPercent: null,
       serviceRemainingKm,
       serviceRemainingMonths,

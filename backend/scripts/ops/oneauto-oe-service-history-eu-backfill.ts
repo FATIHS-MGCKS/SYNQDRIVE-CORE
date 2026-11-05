@@ -1,19 +1,22 @@
 #!/usr/bin/env node
 /**
  * Safe backfill/reconcile for persisted OE_SERVICE_HISTORY_EU responses.
- * Uses database evidence only — never performs provider HTTP.
+ * Uses Prisma only — does not boot Nest AppModule (no schedulers/queues).
  *
- * Usage:
- *   ONEAUTO_OE_SERVICE_HISTORY_INGESTION_ENABLED=1 \
+ * From repo root:
+ *   cd backend && ONEAUTO_OE_SERVICE_HISTORY_INGESTION_ENABLED=1 \
  *   npx ts-node -r tsconfig-paths/register scripts/ops/oneauto-oe-service-history-eu-backfill.ts \
  *     --vehicle-id=<uuid> [--org-id=<uuid>] [--job-id=<cuid>] [--limit=25] [--dry-run]
  */
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from '../../src/app.module';
-import { OneAutoOeServiceHistoryEuIngestionRecoveryService } from '../../src/modules/oneauto-provider/service-history/oneauto-oe-service-history-eu-ingestion-recovery.service';
-import { PrismaService } from '../../src/shared/database/prisma.service';
-import { OneAutoProviderJobStatus } from '@prisma/client';
-import { ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU } from '../../src/modules/oneauto-provider/service-history/oneauto-service-history-eu.types';
+import { PrismaClient } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import oneautoProviderConfig from '../../src/config/oneauto-provider.config';
+import { OneAutoOeServiceHistoryEuIngestionService } from '../../src/modules/oneauto-provider/service-history/oneauto-oe-service-history-eu-ingestion.service';
+import {
+  buildOneAutoOeServiceHistoryEuBackfillDryRunPlan,
+  reconcileOneAutoOeServiceHistoryEuJobs,
+} from '../../src/modules/oneauto-provider/service-history/oneauto-oe-service-history-eu-backfill.lib';
+import { readOneAutoBooleanEnv } from '../../src/modules/oneauto-provider/oneauto-boolean-env.util';
 
 function readArg(name: string): string | undefined {
   const prefix = `--${name}=`;
@@ -29,45 +32,50 @@ async function main(): Promise<void> {
   const limitRaw = readArg('limit');
   const limit = limitRaw ? Number.parseInt(limitRaw, 10) : 25;
 
-  const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn', 'log'] });
+  const prisma = new PrismaClient();
   try {
-    const prisma = app.get(PrismaService);
-    const recovery = app.get(OneAutoOeServiceHistoryEuIngestionRecoveryService);
-
-    const candidates = await prisma.oneAutoProviderJob.findMany({
-      where: {
-        serviceSku: ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU,
-        status: OneAutoProviderJobStatus.SUCCEEDED,
-        ...(providerJobId ? { id: providerJobId } : {}),
-        ...(organizationId ? { organizationId } : {}),
-        ...(vehicleId ? { vehicleId } : {}),
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: Number.isFinite(limit) ? limit : 25,
-      select: { id: true, vehicleId: true, organizationId: true, vinSnapshot: true, updatedAt: true },
+    const plans = await buildOneAutoOeServiceHistoryEuBackfillDryRunPlan(prisma, {
+      organizationId,
+      vehicleId,
+      providerJobId,
+      limit,
     });
 
     console.log(
-      JSON.stringify({
-        dryRun,
-        candidateCount: candidates.length,
-        candidates,
-      }),
+      JSON.stringify(
+        {
+          dryRun,
+          providerGetRequests: 0,
+          candidateCount: plans.length,
+          plans,
+        },
+        null,
+        2,
+      ),
     );
 
     if (dryRun) {
       return;
     }
 
-    const summary = await recovery.reconcileSucceededJobs({
-      organizationId,
-      vehicleId,
-      providerJobId,
-      limit,
-    });
-    console.log(JSON.stringify({ summary }));
+    if (!readOneAutoBooleanEnv('ONEAUTO_OE_SERVICE_HISTORY_INGESTION_ENABLED', false)) {
+      console.error('ONEAUTO_OE_SERVICE_HISTORY_INGESTION_ENABLED is not active (use true or 1).');
+      process.exit(2);
+    }
+
+    const config = {
+      get: (key: string) => (key === 'oneautoProvider' ? oneautoProviderConfig() : {}),
+    } as ConfigService;
+    const ingestion = new OneAutoOeServiceHistoryEuIngestionService(prisma as never, config);
+
+    const summary = await reconcileOneAutoOeServiceHistoryEuJobs(
+      prisma,
+      (jobId) => ingestion.tryIngestFromSucceededJob(jobId),
+      { organizationId, vehicleId, providerJobId, limit },
+    );
+    console.log(JSON.stringify({ summary, providerGetRequests: 0 }));
   } finally {
-    await app.close();
+    await prisma.$disconnect();
   }
 }
 

@@ -20,21 +20,55 @@ export type MapOneAutoOeServiceHistoryEuEventResult =
 
 const ONEAUTO_PROVIDER_LABEL = 'OneAuto OE_SERVICE_HISTORY_EU';
 
-function parseEventDate(raw: unknown): Date | null {
+/** ISO calendar date YYYY-MM-DD with strict validity (no JS rollover). */
+export function parseOeServiceHistoryEuEventDate(raw: unknown): Date | null {
   if (typeof raw !== 'string' || !raw.trim()) return null;
-  const d = new Date(`${raw.trim()}T12:00:00.000Z`);
-  return Number.isNaN(d.getTime()) ? null : d;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.trim());
+  if (!match) return null;
+  const year = Number.parseInt(match[1]!, 10);
+  const month = Number.parseInt(match[2]!, 10);
+  const day = Number.parseInt(match[3]!, 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function parseEventDate(raw: unknown): Date | null {
+  return parseOeServiceHistoryEuEventDate(raw);
 }
 
 function parseOdometerKm(raw: unknown, unitRaw: unknown): number | null {
   if (raw == null || raw === '') return null;
-  const n = typeof raw === 'number' ? raw : Number.parseInt(String(raw).replace(/[^\d-]/g, ''), 10);
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw) || raw < 0) return null;
+    return convertOdometerToKm(Math.round(raw), unitRaw);
+  }
+  const cleaned = String(raw).trim();
+  if (!cleaned) return null;
+  if (!/^-?\d+(?:[.,]\d+)?$/.test(cleaned.replace(/\s/g, ''))) return null;
+  const normalized = cleaned.replace(',', '.');
+  const n = Number.parseFloat(normalized);
   if (!Number.isFinite(n) || n < 0) return null;
+  return convertOdometerToKm(Math.round(n), unitRaw);
+}
+
+function convertOdometerToKm(value: number, unitRaw: unknown): number | null {
+  if (value < 0) return null;
   const unit = typeof unitRaw === 'string' ? unitRaw.trim().toLowerCase() : 'km';
   if (unit === 'mi' || unit === 'mile' || unit === 'miles') {
-    return Math.round(n * 1.60934);
+    return Math.round(value * 1.60934);
   }
-  return Math.round(n);
+  if (unit !== 'km' && unit !== 'kilometer' && unit !== 'kilometers' && unit !== '') {
+    return null;
+  }
+  return value;
 }
 
 function parseActions(raw: unknown): string[] {
@@ -98,6 +132,18 @@ export function mapOneAutoOeServiceHistoryEuEvent(
     return { ok: false, reason: 'missing_or_invalid_date_of_service_event' };
   }
 
+  if (
+    typeof event.mileage_observed === 'number' &&
+    (!Number.isFinite(event.mileage_observed) || event.mileage_observed < 0)
+  ) {
+    return { ok: false, reason: 'invalid_mileage_observed' };
+  }
+
+  const odometerKm = parseOdometerKm(event.mileage_observed, event.mileage_unit);
+  if (event.mileage_observed != null && event.mileage_observed !== '' && odometerKm === null) {
+    return { ok: false, reason: 'invalid_mileage_or_unit' };
+  }
+
   const providerServiceType =
     typeof event.service_type === 'string' && event.service_type.trim()
       ? event.service_type.trim()
@@ -116,7 +162,7 @@ export function mapOneAutoOeServiceHistoryEuEvent(
     value: {
       eventType,
       eventDate,
-      odometerKm: parseOdometerKm(event.mileage_observed, event.mileage_unit),
+      odometerKm,
       workshopName,
       notes: buildNotes({ providerServiceType, performedActions, deliveryInspection }),
       provider: ONEAUTO_PROVIDER_LABEL,
