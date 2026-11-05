@@ -17,9 +17,13 @@ export function OneAutoServiceHistoryResultPanel({ result }: Props) {
         {t('master.oneAuto.serviceHistory.providerSource' as never)}: One Auto ·{' '}
         {parsed.providerStatus ?? '—'}
       </p>
-      {parsed.events.length === 0 ? (
+      {parsed.verifiedEmptyHistory ? (
         <p className="text-sm text-muted-foreground" data-testid="oneauto-service-history-empty">
           {t('master.oneAuto.serviceHistory.empty' as never)}
+        </p>
+      ) : parsed.events.length === 0 ? (
+        <p className="text-sm text-muted-foreground" data-testid="oneauto-service-history-unstructured">
+          {t('master.oneAuto.resultFallback' as never)}
         </p>
       ) : (
         <ul className="space-y-3">

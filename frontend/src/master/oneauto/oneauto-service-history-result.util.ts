@@ -56,20 +56,27 @@ export function parseServiceHistoryFromJobResult(
   events: ParsedServiceHistoryEvent[];
   vin: string | null;
   providerStatus: number | null;
+  verifiedEmptyHistory: boolean;
 } {
   const body = result?.latestResponse?.responseBodyJson;
   const providerStatus = result?.latestResponse?.httpStatus ?? null;
   const unwrapped = unwrapEnvelope(body);
   if (!unwrapped) {
-    return { events: [], vin: null, providerStatus };
+    return { events: [], vin: null, providerStatus, verifiedEmptyHistory: false };
   }
   const vin =
     typeof unwrapped.vehicle_identification_number === 'string'
       ? unwrapped.vehicle_identification_number
       : null;
+  if (!Object.prototype.hasOwnProperty.call(unwrapped, 'service_events')) {
+    return { events: [], vin, providerStatus, verifiedEmptyHistory: false };
+  }
   const eventsRaw = unwrapped.service_events;
   if (!Array.isArray(eventsRaw)) {
-    return { events: [], vin, providerStatus };
+    return { events: [], vin, providerStatus, verifiedEmptyHistory: false };
+  }
+  if (eventsRaw.length === 0) {
+    return { events: [], vin, providerStatus, verifiedEmptyHistory: true };
   }
   const events = eventsRaw
     .map(parseEvent)
@@ -79,5 +86,5 @@ export function parseServiceHistoryFromJobResult(
       const db = b.dateOfService ?? '';
       return db.localeCompare(da);
     });
-  return { events, vin, providerStatus };
+  return { events, vin, providerStatus, verifiedEmptyHistory: false };
 }

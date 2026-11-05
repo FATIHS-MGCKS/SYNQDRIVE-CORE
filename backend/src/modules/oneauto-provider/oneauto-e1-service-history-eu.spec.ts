@@ -103,6 +103,23 @@ describe('OneAuto E1 OE_SERVICE_HISTORY_EU (offline)', () => {
     expect(evalResult.ok).toBe(true);
   });
 
+  it('rejects callback when service_events key is absent (unknown shape)', () => {
+    const contract = buildExecutionVerifiedOeServiceHistoryEuFullDataCallback();
+    const evalResult = evaluateOneAutoFullDataCallbackPayload({
+      body: {
+        success: true,
+        result: { vehicle_identification_number: TEST_VIN },
+      },
+      contract,
+      jobVinSnapshot: TEST_VIN,
+      vehicleVin: TEST_VIN,
+    });
+    expect(evalResult.ok).toBe(false);
+    if (!evalResult.ok) {
+      expect(evalResult.code).toBe('ONEAUTO_CALLBACK_PAYLOAD_INCOMPLETE');
+    }
+  });
+
   it('classifies provider success=false as provider failure', () => {
     const contract = buildExecutionVerifiedOeServiceHistoryEuFullDataCallback();
     const evalResult = evaluateOneAutoFullDataCallbackPayload({

@@ -65,11 +65,7 @@ export function parseOeServiceHistoryEuProviderResult(
   const vehicleIdentificationNumber = normalizeVin(vinRaw)!;
 
   if (!Object.prototype.hasOwnProperty.call(result, 'service_events')) {
-    return {
-      kind: 'SUCCESS_EMPTY_HISTORY',
-      vehicleIdentificationNumber,
-      rawResult: result,
-    };
+    return { kind: 'INVALID_SHAPE', reason: 'missing_service_events' };
   }
 
   const eventsRaw = result.service_events;

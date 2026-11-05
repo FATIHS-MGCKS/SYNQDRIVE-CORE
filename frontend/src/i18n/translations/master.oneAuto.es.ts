@@ -93,8 +93,6 @@ export const masterOneAutoEs = {
   'master.oneAuto.sku.OE_VIN_LOOKUP_EU.description': 'EU VIN lookup — external provider payload only.',
   'master.oneAuto.sku.RECALL_CHECK.name': 'Recall Check',
   'master.oneAuto.sku.RECALL_CHECK.description': 'Recall check — external provider payload only.',
-
-  'master.oneAuto.availability.SKU_RUNTIME_DISABLED': 'Activation required',
   'master.oneAuto.serviceHistory.title': 'Service history (chronological)',
   'master.oneAuto.serviceHistory.empty': 'No service events returned for this VIN.',
   'master.oneAuto.serviceHistory.unknownDate': 'Date unknown',

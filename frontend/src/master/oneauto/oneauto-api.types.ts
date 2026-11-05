@@ -3,7 +3,8 @@ export type OneAutoCatalogAvailability =
   | 'DISABLED_FLAG'
   | 'PRICE_NOT_CONFIGURED'
   | 'PATH_UNVERIFIED'
-  | 'CONTRACT_UNVERIFIED';
+  | 'CONTRACT_UNVERIFIED'
+  | 'SKU_RUNTIME_DISABLED';
 
 export type OneAutoExecutionMode = 'SYNC' | 'ASYNC_POLL' | 'ASYNC_CAPABLE' | 'ASYNC_UNVERIFIED';
 
