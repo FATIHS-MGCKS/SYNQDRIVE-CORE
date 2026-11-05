@@ -92,6 +92,41 @@ export function isValidValueBucket(kind: FsdValueObservationKindV1): boolean {
   return kind === 'VALID_NONZERO' || kind === 'VALID_ZERO';
 }
 
+function observationKindPriority(kind: FsdValueObservationKindV1): number {
+  if (kind === 'VALID_NONZERO' || kind === 'VALID_ZERO') {
+    return 3;
+  }
+  if (kind === 'NULL') {
+    return 2;
+  }
+  if (kind === 'MISSING') {
+    return 1;
+  }
+  return 0;
+}
+
+/** Order-independent dominant observation for a single 1 Hz bucket slot. */
+export function pickDominantBucketObservation(
+  observations: readonly FsdBucketObservationV1[],
+): FsdBucketObservationV1 {
+  if (observations.length === 0) {
+    throw new Error('pickDominantBucketObservation requires at least one observation');
+  }
+  return observations.reduce((best, obs) => {
+    const bestKind = classifyNumericObservation(best.numericValue);
+    const obsKind = classifyNumericObservation(obs.numericValue);
+    const bestPriority = observationKindPriority(bestKind);
+    const obsPriority = observationKindPriority(obsKind);
+    if (obsPriority > bestPriority) {
+      return obs;
+    }
+    if (obsPriority < bestPriority) {
+      return best;
+    }
+    return obs.timestampMs < best.timestampMs ? obs : best;
+  });
+}
+
 export type FsdCoverageSummaryV1 = {
   expectedBucketPositions: number;
   returnedBucketCount: number;
@@ -104,6 +139,8 @@ export type FsdCoverageSummaryV1 = {
   lastValidTimestampMs: number | null;
   frequencyClass: FsdHistoricalFrequencyClassV1;
   duplicateTimestampsIgnored: number;
+  /** Additional in-window observations landing in an already-seen 1 Hz bucket (distinct timestampMs). */
+  collidingBucketObservationsIgnored: number;
   outOfWindowObservations: number;
 };
 
@@ -114,15 +151,11 @@ export function summarizeSignalBucketObservations(input: {
   coSelectedFieldCount?: number;
 }): FsdCoverageSummaryV1 {
   const expectedBucketPositions = computeExpectedBucketPositions(input.window);
-  const seenTimestamps = new Set<number>();
+  const seenExactTimestamps = new Set<number>();
+  const bucketObservations = new Map<number, FsdBucketObservationV1[]>();
   let duplicateTimestampsIgnored = 0;
+  let collidingBucketObservationsIgnored = 0;
   let outOfWindowObservations = 0;
-  let validValueBucketCount = 0;
-  let nullBucketCount = 0;
-  let missingBucketCount = 0;
-  let zeroValueBucketCount = 0;
-  let firstValidTimestampMs: number | null = null;
-  let lastValidTimestampMs: number | null = null;
 
   for (const obs of input.observations) {
     if (!isTimestampWithinHistoricalWindow(input.window, obs.timestampMs)) {
@@ -134,23 +167,46 @@ export function summarizeSignalBucketObservations(input: {
       outOfWindowObservations += 1;
       continue;
     }
-    if (seenTimestamps.has(obs.timestampMs)) {
+    if (seenExactTimestamps.has(obs.timestampMs)) {
       duplicateTimestampsIgnored += 1;
       continue;
     }
-    seenTimestamps.add(obs.timestampMs);
+    seenExactTimestamps.add(obs.timestampMs);
 
-    const kind = classifyNumericObservation(obs.numericValue);
+    const existing = bucketObservations.get(bucketSlot);
+    if (existing) {
+      collidingBucketObservationsIgnored += 1;
+      existing.push(obs);
+    } else {
+      bucketObservations.set(bucketSlot, [obs]);
+    }
+  }
+
+  let validValueBucketCount = 0;
+  let nullBucketCount = 0;
+  let missingBucketCount = 0;
+  let zeroValueBucketCount = 0;
+  let firstValidTimestampMs: number | null = null;
+  let lastValidTimestampMs: number | null = null;
+
+  for (const observations of bucketObservations.values()) {
+    const dominant = pickDominantBucketObservation(observations);
+    const kind = classifyNumericObservation(dominant.numericValue);
     if (kind === 'VALID_NONZERO' || kind === 'VALID_ZERO') {
       validValueBucketCount += 1;
       if (kind === 'VALID_ZERO') {
         zeroValueBucketCount += 1;
       }
-      if (firstValidTimestampMs === null || obs.timestampMs < firstValidTimestampMs) {
-        firstValidTimestampMs = obs.timestampMs;
+      const validTimestamps = observations
+        .filter((o) => isValidValueBucket(classifyNumericObservation(o.numericValue)))
+        .map((o) => o.timestampMs);
+      const bucketFirstValid = Math.min(...validTimestamps);
+      const bucketLastValid = Math.max(...validTimestamps);
+      if (firstValidTimestampMs === null || bucketFirstValid < firstValidTimestampMs) {
+        firstValidTimestampMs = bucketFirstValid;
       }
-      if (lastValidTimestampMs === null || obs.timestampMs > lastValidTimestampMs) {
-        lastValidTimestampMs = obs.timestampMs;
+      if (lastValidTimestampMs === null || bucketLastValid > lastValidTimestampMs) {
+        lastValidTimestampMs = bucketLastValid;
       }
     } else if (kind === 'NULL') {
       nullBucketCount += 1;
@@ -159,7 +215,7 @@ export function summarizeSignalBucketObservations(input: {
     }
   }
 
-  const returnedBucketCount = seenTimestamps.size;
+  const returnedBucketCount = bucketObservations.size;
   const validValueCoverageRatio =
     expectedBucketPositions > 0 ? validValueBucketCount / expectedBucketPositions : 0;
 
@@ -175,6 +231,7 @@ export function summarizeSignalBucketObservations(input: {
     lastValidTimestampMs,
     frequencyClass: 'AGGREGATED_1S',
     duplicateTimestampsIgnored,
+    collidingBucketObservationsIgnored,
     outOfWindowObservations,
   };
 }
