@@ -42,7 +42,11 @@ function sanitizePositiveInt(value: number, fallback: number): number {
   if (!Number.isFinite(value) || value <= 0) {
     return fallback;
   }
-  return Math.min(Math.floor(value), Number.MAX_SAFE_INTEGER);
+  const floored = Math.min(Math.floor(value), Number.MAX_SAFE_INTEGER);
+  if (floored <= 0) {
+    return fallback;
+  }
+  return floored;
 }
 
 /** Deterministic normalization for planner inputs — preserves intentional zero request budgets. */

@@ -2,8 +2,12 @@ import type { FsdHistoricalWindowV1 } from './fsd-query-document.builder.v1';
 import type { FsdHistoricalFrequencyClassV1, FsdValueObservationKindV1 } from './fsd-evidence.contract.v1';
 
 /**
- * Historical window denominator: ceil((toMs - fromMs) / 1000).
- * Uses integer millisecond timestamps parsed from ISO strings — no floating drift on boundaries.
+ * FSD coverage observation window: half-open interval [fromUtc, toUtc) in epoch milliseconds.
+ * Bucket denominator still uses ceil((toMs - fromMs) / 1000) for aggregated 1 Hz grid sizing.
+ *
+ * DIMO provider query boundaries may use inclusive/exclusive rules that differ; this module
+ * applies the half-open contract above only to coverage math and bucket slot assignment —
+ * not to GraphQL document construction (see fsd-query-document.builder.v1.ts).
  */
 export function parseUtcIsoToEpochMs(iso: string): number {
   const ms = Date.parse(iso);
@@ -46,7 +50,7 @@ export function isTimestampWithinHistoricalWindow(
 ): boolean {
   const fromMs = parseUtcIsoToEpochMs(window.fromUtc);
   const toMs = parseUtcIsoToEpochMs(window.toUtc);
-  return timestampMs >= fromMs && timestampMs <= toMs;
+  return timestampMs >= fromMs && timestampMs < toMs;
 }
 
 export function mapTimestampToBucketSlot(
@@ -122,6 +126,11 @@ export function summarizeSignalBucketObservations(input: {
 
   for (const obs of input.observations) {
     if (!isTimestampWithinHistoricalWindow(input.window, obs.timestampMs)) {
+      outOfWindowObservations += 1;
+      continue;
+    }
+    const bucketSlot = mapTimestampToBucketSlot(input.window, obs.timestampMs);
+    if (bucketSlot === null || bucketSlot >= expectedBucketPositions) {
       outOfWindowObservations += 1;
       continue;
     }

@@ -235,7 +235,8 @@ describe('FSD-1 full signal discovery planner regression suite', () => {
     const fromMs = Date.parse(window.fromUtc);
     const toMs = Date.parse(window.toUtc);
     expect(isTimestampWithinHistoricalWindow(window, fromMs)).toBe(true);
-    expect(isTimestampWithinHistoricalWindow(window, toMs)).toBe(true);
+    expect(isTimestampWithinHistoricalWindow(window, toMs)).toBe(false);
+    expect(isTimestampWithinHistoricalWindow(window, toMs - 1)).toBe(true);
     expect(isTimestampWithinHistoricalWindow(window, toMs + 1)).toBe(false);
     expect(mapTimestampToBucketSlot(window, fromMs + 1500)).toBe(1);
 

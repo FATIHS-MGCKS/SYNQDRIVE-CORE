@@ -106,11 +106,11 @@ describe('FSD-1 edge safety hardening', () => {
     expect(plan.snapshot.documents).toHaveLength(0);
   });
 
-  it('preserves inclusive observation upper bound and ceil bucket denominator (P2E)', () => {
+  it('preserves half-open observation window and ceil bucket denominator (P2E)', () => {
     const window = FSD_P2E_HISTORICAL_WINDOW_V1;
     expect(computeExpectedBucketPositions(window)).toBe(1538);
     const toMs = parseUtcIsoToEpochMs(window.toUtc);
-    expect(isTimestampWithinHistoricalWindow(window, toMs)).toBe(true);
-    expect(isTimestampWithinHistoricalWindow(window, toMs + 1)).toBe(false);
+    expect(isTimestampWithinHistoricalWindow(window, toMs)).toBe(false);
+    expect(isTimestampWithinHistoricalWindow(window, toMs - 1)).toBe(true);
   });
 });
