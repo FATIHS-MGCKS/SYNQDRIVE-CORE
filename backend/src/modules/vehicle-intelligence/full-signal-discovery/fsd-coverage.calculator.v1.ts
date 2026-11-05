@@ -105,6 +105,49 @@ function observationKindPriority(kind: FsdValueObservationKindV1): number {
   return 0;
 }
 
+function observationNumericTieRank(
+  kind: FsdValueObservationKindV1,
+  value: number | null | undefined,
+): number {
+  if (kind === 'VALID_NONZERO' && typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (kind === 'VALID_ZERO') {
+    return 0;
+  }
+  if (kind === 'NULL') {
+    return -1;
+  }
+  if (kind === 'MISSING') {
+    return -2;
+  }
+  return -3;
+}
+
+/** Positive when `candidate` should win over `incumbent` (total, order-independent). */
+export function compareFsdBucketObservationDominance(
+  candidate: FsdBucketObservationV1,
+  incumbent: FsdBucketObservationV1,
+): number {
+  const candidateKind = classifyNumericObservation(candidate.numericValue);
+  const incumbentKind = classifyNumericObservation(incumbent.numericValue);
+  const priorityDelta =
+    observationKindPriority(candidateKind) - observationKindPriority(incumbentKind);
+  if (priorityDelta !== 0) {
+    return priorityDelta;
+  }
+  if (candidate.timestampMs !== incumbent.timestampMs) {
+    return incumbent.timestampMs - candidate.timestampMs;
+  }
+  const numericRankDelta =
+    observationNumericTieRank(candidateKind, candidate.numericValue) -
+    observationNumericTieRank(incumbentKind, incumbent.numericValue);
+  if (numericRankDelta !== 0) {
+    return numericRankDelta;
+  }
+  return 0;
+}
+
 /** Order-independent dominant observation for a single 1 Hz bucket slot. */
 export function pickDominantBucketObservation(
   observations: readonly FsdBucketObservationV1[],
@@ -112,19 +155,9 @@ export function pickDominantBucketObservation(
   if (observations.length === 0) {
     throw new Error('pickDominantBucketObservation requires at least one observation');
   }
-  return observations.reduce((best, obs) => {
-    const bestKind = classifyNumericObservation(best.numericValue);
-    const obsKind = classifyNumericObservation(obs.numericValue);
-    const bestPriority = observationKindPriority(bestKind);
-    const obsPriority = observationKindPriority(obsKind);
-    if (obsPriority > bestPriority) {
-      return obs;
-    }
-    if (obsPriority < bestPriority) {
-      return best;
-    }
-    return obs.timestampMs < best.timestampMs ? obs : best;
-  });
+  return observations.reduce((best, obs) =>
+    compareFsdBucketObservationDominance(obs, best) > 0 ? obs : best,
+  );
 }
 
 export type FsdCoverageSummaryV1 = {

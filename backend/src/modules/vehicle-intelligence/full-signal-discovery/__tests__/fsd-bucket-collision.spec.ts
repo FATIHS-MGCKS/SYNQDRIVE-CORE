@@ -80,6 +80,29 @@ describe('FSD-1 bucket collision coverage invariant', () => {
     expect(summary.validValueCoverageRatio).toBeLessThanOrEqual(1);
   });
 
+  it('mandatory — equal priority valid 0 vs 7 at same timestamp is order-independent', () => {
+    const fromMs = parseUtcIsoToEpochMs(oneSecondWindow.fromUtc);
+    const ts = fromMs + 100;
+    const forward = summarizeSignalBucketObservations({
+      window: oneSecondWindow,
+      observations: [
+        { timestampMs: ts, numericValue: 0 },
+        { timestampMs: ts, numericValue: 7 },
+      ],
+    });
+    const reverse = summarizeSignalBucketObservations({
+      window: oneSecondWindow,
+      observations: [
+        { timestampMs: ts, numericValue: 7 },
+        { timestampMs: ts, numericValue: 0 },
+      ],
+    });
+    expect(forward.validValueCoverageRatio).toBe(1);
+    expect(forward.zeroValueBucketCount).toBe(0);
+    expect(forward.validValueBucketCount).toBe(1);
+    expect(reverse).toEqual(forward);
+  });
+
   it('mandatory — identical timestampMs null vs zero is order-independent at coverage 1.0', () => {
     const fromMs = parseUtcIsoToEpochMs(oneSecondWindow.fromUtc);
     const ts = fromMs + 100;
