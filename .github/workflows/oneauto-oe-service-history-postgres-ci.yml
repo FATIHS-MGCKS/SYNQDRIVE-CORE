@@ -1,0 +1,71 @@
+name: OneAuto OE service history PostgreSQL
+
+# Governance-only workflow registration. Full postgres CI runs when the product
+# branch includes backend/scripts/test/oneauto-oe-service-history-eu-postgres-ci.sh.
+# No push-to-main trigger — avoids running against main before the script lands.
+
+on:
+  pull_request:
+    paths:
+      - 'backend/prisma/schema.prisma'
+      - 'backend/prisma/migrations/**'
+      - 'backend/src/modules/oneauto-provider/service-history/**'
+      - 'backend/src/modules/vehicle-intelligence/service-compliance/**'
+      - 'backend/scripts/test/oneauto-oe-service-history-eu-postgres-ci.sh'
+      - 'backend/scripts/test/ci-start-postgres.sh'
+      - 'backend/scripts/test/prisma-migrate-deploy-resilient.sh'
+      - 'backend/package.json'
+      - 'backend/package-lock.json'
+      - '.github/workflows/oneauto-oe-service-history-postgres-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  DATABASE_URL: postgresql://synqdrive:synqdrive@127.0.0.1:5432/synqdrive_ci_ephemeral?schema=public
+
+jobs:
+  oneauto-service-history-postgres:
+    name: OneAuto OE service history migration + ingestion
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect postgres CI script on ref
+        id: probe
+        run: |
+          script_path="backend/scripts/test/oneauto-oe-service-history-eu-postgres-ci.sh"
+          if [ -f "$script_path" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "Postgres CI script found at $script_path — full suite will run."
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=OneAuto postgres CI skipped::${script_path} not on this ref (workflow registration / script not merged yet)."
+          fi
+
+      - name: Skip — postgres CI script absent on this ref
+        if: steps.probe.outputs.present != 'true'
+        run: |
+          echo "WORKFLOW_STATE=SKIPPED_SCRIPT_ABSENT"
+          echo "Reason: backend/scripts/test/oneauto-oe-service-history-eu-postgres-ci.sh missing after checkout."
+
+      - name: Start PostgreSQL
+        if: steps.probe.outputs.present == 'true'
+        run: bash backend/scripts/test/ci-start-postgres.sh
+
+      - uses: actions/setup-node@v4
+        if: steps.probe.outputs.present == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Migration replay + ingestion integration
+        if: steps.probe.outputs.present == 'true'
+        working-directory: backend
+        run: |
+          npm ci
+          npx prisma generate
+          bash scripts/test/oneauto-oe-service-history-eu-postgres-ci.sh
