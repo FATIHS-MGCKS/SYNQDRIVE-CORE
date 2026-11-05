@@ -37,6 +37,35 @@ export function buildFsdDiscoveryStagePlanFingerprint(input: {
     .digest('hex');
 }
 
+export const FSD_DISCOVERY_STAGE_TERMINAL_STATUSES = [
+  'SUCCEEDED',
+  'FAILED',
+  'UNKNOWN_OUTCOME',
+  'DEFERRED',
+  'SKIPPED',
+] as const;
+
+export type FsdDiscoveryWriteAuthorizationV1 = FsdDiscoveryRunScopeV1 & {
+  runId: string;
+  expectedRunVersion: number;
+  leaseOwner: string;
+};
+
+export function isFsdDiscoveryStageTerminal(status: string): boolean {
+  return (FSD_DISCOVERY_STAGE_TERMINAL_STATUSES as readonly string[]).includes(status);
+}
+
+export function buildFsdDimoConnectionIdentityFingerprint(input: {
+  dimoVehicleId: string;
+  tokenId: number | null;
+}): string {
+  return createHash('sha256')
+    .update(`dimo|${input.dimoVehicleId}|${input.tokenId ?? ''}`)
+    .digest('hex');
+}
+
+export const FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES = ['PENDING', 'IN_PROGRESS'] as const;
+
 export const FSD_DISCOVERY_RUN_ALLOWED_TRANSITIONS: Record<string, readonly string[]> = {
   PENDING: ['IN_PROGRESS', 'INVALIDATED', 'FAILED'],
   IN_PROGRESS: ['COMPLETED', 'FAILED', 'INVALIDATED'],
@@ -77,7 +106,13 @@ export class FsdDiscoveryPersistenceError extends Error {
       | 'INVALID_STATE_TRANSITION'
       | 'TENANT_SCOPE_VIOLATION'
       | 'RUN_NOT_FOUND'
-      | 'STAGE_NOT_FOUND',
+      | 'STAGE_NOT_FOUND'
+      | 'LEASE_LOST'
+      | 'SOURCE_LINK_INVALID'
+      | 'STAGE_IMMUTABLE'
+      | 'PLAN_FINGERPRINT_CONFLICT'
+      | 'STAGE_SCOPE_VIOLATION'
+      | 'EVIDENCE_SCOPE_VIOLATION',
     message: string,
   ) {
     super(message);

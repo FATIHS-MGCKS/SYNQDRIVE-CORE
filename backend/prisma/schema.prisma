@@ -4948,10 +4948,11 @@ model FsdDiscoveryRun {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vehicle      Vehicle      @relation(fields: [organizationId, vehicleId], references: [organizationId, id], onDelete: Cascade)
+  providerSourceLink VehicleDataSourceLink @relation(fields: [providerSourceLinkId], references: [id], onDelete: Restrict)
   stages       FsdDiscoveryStage[]
   evidence     FsdDiscoverySignalEvidence[]
 
-  @@unique([organizationId, vehicleId, providerSourceLinkId, runKey], map: "fsd_discovery_runs_idempotency_key")
+  @@index([organizationId, vehicleId, providerSourceLinkId, runKey], map: "fsd_discovery_runs_idempotency_lookup")
   @@unique([providerSourceLinkId, runRevision], map: "fsd_discovery_runs_source_link_revision_key")
   @@index([organizationId, vehicleId])
   @@index([providerSourceLinkId, status])
@@ -17778,6 +17779,7 @@ model VehicleDataSourceLink {
   hmVehicle   HighMobilityVehicle? @relation(fields: [sourceReferenceId], references: [id])
   dimoVehicle DimoVehicle?         @relation(fields: [dimoVehicleId], references: [id], onDelete: Restrict)
   connectionIdentityReconciliationAudits VehicleConnectionIdentityReconciliationAudit[]
+  fsdDiscoveryRuns                     FsdDiscoveryRun[]
 
   /// Active-link uniqueness: DB partial index `uq_vehicle_data_source_link_active_scope` (see migration VO-2.1).
   /// Inactive episodes are unlimited; do not reintroduce Prisma @@unique on is_active.

@@ -1,6 +1,7 @@
 import {
   assertFsdDiscoveryRunTransition,
   assertFsdDiscoveryStageTransition,
+  buildFsdDimoConnectionIdentityFingerprint,
   buildFsdDiscoveryRunKey,
   buildFsdDiscoveryStagePlanFingerprint,
 } from './fsd-discovery-persistence.contract.v1';
@@ -34,6 +35,17 @@ describe('FSD-2 persistence contract', () => {
     expect(() => assertFsdDiscoveryStageTransition('IN_PROGRESS', 'UNKNOWN_OUTCOME')).not.toThrow();
     expect(() => assertFsdDiscoveryStageTransition('UNKNOWN_OUTCOME', 'IN_PROGRESS')).toThrow(
       /INVALID_STATE_TRANSITION/,
+    );
+  });
+
+  it('builds stable DIMO connection identity fingerprint', () => {
+    const fp = buildFsdDimoConnectionIdentityFingerprint({
+      dimoVehicleId: 'dimo-1',
+      tokenId: 42,
+    });
+    expect(fp).toHaveLength(64);
+    expect(fp).toBe(
+      buildFsdDimoConnectionIdentityFingerprint({ dimoVehicleId: 'dimo-1', tokenId: 42 }),
     );
   });
 });
