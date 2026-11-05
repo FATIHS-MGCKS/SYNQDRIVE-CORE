@@ -101,10 +101,8 @@ describe('OneAuto P25E-E2 async evidence hardening (offline fixtures)', () => {
       expect(url).not.toMatch(/callback/i);
     });
 
-    it('does not activate callbacks; service history remains non-executable in production registry', () => {
-      expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_SERVICE_HISTORY_EU')).toBe(
-        false,
-      );
+    it('registers E1 service history alongside VIN lookup (paid execution still env-gated)', () => {
+      expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_SERVICE_HISTORY_EU')).toBe(true);
       expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_VIN_LOOKUP_EU')).toBe(true);
     });
   });

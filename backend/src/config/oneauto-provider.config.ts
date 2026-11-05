@@ -1,5 +1,10 @@
 import { registerAs } from '@nestjs/config';
 
+import {
+  loadE1ServiceHistoryTestOrgBudgetCapMinorFromEnv,
+  loadE1ServiceHistoryTestOrgIdsFromEnv,
+} from '../modules/oneauto-provider/oneauto-org-budget-test-allowance.util';
+
 function intEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw == null || raw.trim() === '') return fallback;
@@ -64,4 +69,7 @@ export default registerAs('oneautoProvider', () => ({
   /** Public base for callback_url registration (no trailing slash). */
   callbackPublicBaseUrl:
     process.env.ONEAUTO_CALLBACK_PUBLIC_BASE_URL?.trim() || 'https://app.synqdrive.eu/api/v1',
+  /** E1: comma-separated org UUIDs allowed a higher daily cap for OE_SERVICE_HISTORY_EU test executes only. */
+  e1ServiceHistoryTestOrgIds: loadE1ServiceHistoryTestOrgIdsFromEnv(),
+  e1ServiceHistoryTestOrgBudgetCapMinor: loadE1ServiceHistoryTestOrgBudgetCapMinorFromEnv(),
 }));

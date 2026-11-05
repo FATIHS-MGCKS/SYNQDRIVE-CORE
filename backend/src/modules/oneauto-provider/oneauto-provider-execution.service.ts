@@ -24,6 +24,7 @@ import {
   buildOneAutoProviderCallbackUrl,
   generateOneAutoCallbackDeliveryToken,
 } from './oneauto-callback-delivery.util';
+import { isOneAutoSkuRuntimeExecutionEnabled } from './oneauto-sku-runtime-activation.util';
 import type { OneAutoExecutionVerifiedProviderContract } from './catalog/oneauto-contract-types';
 
 export type OneAutoProviderJobPayload = {
@@ -183,6 +184,11 @@ export class OneAutoProviderExecutionService {
           ? (err as { code: string }).code
           : 'ONEAUTO_BUDGET_NOT_CONFIGURED';
       await this.failJob(jobId, code, 'Organization daily budget not configured for enabled provider');
+      return;
+    }
+
+    if (!isOneAutoSkuRuntimeExecutionEnabled(job.serviceSku)) {
+      await this.failJob(jobId, 'ONEAUTO_SKU_RUNTIME_DISABLED', 'Service SKU runtime activation disabled');
       return;
     }
 

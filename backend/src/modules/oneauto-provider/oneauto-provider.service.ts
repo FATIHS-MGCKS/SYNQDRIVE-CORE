@@ -10,7 +10,8 @@ import { assertOneAutoSkuExecutable } from './catalog/oneauto-contract-gate.util
 import { assertOneAutoPositiveOrgBudgetWhenEnabled } from './oneauto-execution-budget-guard.util';
 import { buildOneAutoContractGateReport } from './catalog/oneauto-verified-contracts';
 import { isValidVin, normalizeVin } from './client/oneauto-vin.util';
-import { OneAutoProviderExecutionService } from './oneauto-provider-execution.service';
+import { resolveEffectiveOrgDailyBudgetMinor } from './oneauto-org-budget-test-allowance.util';
+import { isOneAutoSkuRuntimeExecutionEnabled } from './oneauto-sku-runtime-activation.util';
 import {
   oneAutoBudgetExceededException,
   oneAutoBindingMismatchException,
@@ -26,6 +27,7 @@ import {
   oneAutoQuoteExpiredException,
   oneAutoUnavailableException,
 } from './oneauto-provider.errors';
+import { OneAutoProviderExecutionService } from './oneauto-provider-execution.service';
 
 type RuntimeCfg = {
   enabled?: boolean;
@@ -34,6 +36,8 @@ type RuntimeCfg = {
   orgDailyBudgetMinor?: number;
   quoteTtlMs?: number;
   jobTtlMs?: number;
+  e1ServiceHistoryTestOrgIds?: string[];
+  e1ServiceHistoryTestOrgBudgetCapMinor?: number;
 };
 
 @Injectable()
@@ -180,6 +184,9 @@ export class OneAutoProviderService {
     } catch {
       throw oneAutoContractUnverifiedException(input.serviceSku);
     }
+    if (!isOneAutoSkuRuntimeExecutionEnabled(input.serviceSku)) {
+      throw oneAutoUnavailableException('Service SKU runtime activation disabled');
+    }
 
     const quoteIssuedAtMs = Date.parse(input.quoteIssuedAt);
     if (Number.isNaN(quoteIssuedAtMs)) {
@@ -206,7 +213,7 @@ export class OneAutoProviderService {
     const expiresAt = new Date(now.getTime() + jobTtlMs);
 
     const job = await this.prisma.$transaction(async (tx) => {
-      await this.assertBudgetAllowsTx(tx, input.orgId, input.confirmedPriceMinor);
+      await this.assertBudgetAllowsTx(tx, input.orgId, input.confirmedPriceMinor, input.serviceSku);
       return tx.oneAutoProviderJob.create({
         data: {
           organizationId: input.orgId,
@@ -298,8 +305,13 @@ export class OneAutoProviderService {
     tx: Prisma.TransactionClient,
     orgId: string,
     additionalMinor: number,
+    serviceSku: string,
   ) {
-    const cap = this.runtimeCfg().orgDailyBudgetMinor ?? 0;
+    const cap = resolveEffectiveOrgDailyBudgetMinor({
+      organizationId: orgId,
+      serviceSku,
+      cfg: this.runtimeCfg(),
+    });
     if (cap <= 0) return;
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);

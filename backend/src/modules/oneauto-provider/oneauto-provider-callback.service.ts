@@ -14,11 +14,13 @@ import {
 import {
   ONEAUTO_CALLBACK_PROVIDER_OUTCOME_CODES,
   evaluateOneAutoFullDataCallbackPayload,
-  isOeVinLookupEuFullDataCallbackSku,
+  isOneAutoFullDataCallbackSku,
 } from './oneauto-callback-full-data.util';
 import { persistFullDataCallbackSuccessInTransaction } from './oneauto-e4-full-data-callback-completion.util';
 import { redactOneAutoErrorMessage, redactProviderResponseBody } from './oneauto-provider-redact.util';
+import { ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU } from './oem-specification/oneauto-vin-lookup-oem-suggestion.types';
 import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
+import { isOneAutoSkuRuntimeExecutionEnabled } from './oneauto-sku-runtime-activation.util';
 
 export type OneAutoCallbackIngestResult =
   | {
@@ -114,7 +116,10 @@ export class OneAutoProviderCallbackService {
       return { ok: false, status: 'disabled' };
     }
 
-    if (fullDataMode && !isOeVinLookupEuFullDataCallbackSku(job.serviceSku)) {
+    if (fullDataMode && !isOneAutoFullDataCallbackSku(job.serviceSku)) {
+      return { ok: false, status: 'disabled' };
+    }
+    if (fullDataMode && !isOneAutoSkuRuntimeExecutionEnabled(job.serviceSku)) {
       return { ok: false, status: 'disabled' };
     }
 
@@ -296,7 +301,9 @@ export class OneAutoProviderCallbackService {
       return { ok: true, status: 'pending_initial_dispatch' };
     }
 
-    await this.oemSuggestionMaterialization.tryMaterializeFromSucceededJob(job.id);
+    if (job.serviceSku === ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU) {
+      await this.oemSuggestionMaterialization.tryMaterializeFromSucceededJob(job.id);
+    }
     this.logger.log(`OneAuto full-data callback completed job ${job.id}`);
     return { ok: true, status: 'completed' };
   }

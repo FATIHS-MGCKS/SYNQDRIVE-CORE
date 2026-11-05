@@ -7,6 +7,12 @@ import {
   assertOemVinLookupEuJobBinding,
 } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-provider.util';
 import { ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU } from './oem-specification/oneauto-vin-lookup-oem-suggestion.types';
+import {
+  assertOeServiceHistoryEuJobBinding,
+  extractOeServiceHistoryEuProviderResult,
+  parseOeServiceHistoryEuProviderResult,
+} from './service-history/oneauto-service-history-eu-provider.util';
+import { ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU } from './service-history/oneauto-service-history-eu.types';
 
 export type OneAutoFullDataCallbackRejectionCode =
   | 'ONEAUTO_CALLBACK_PAYLOAD_MALFORMED'
@@ -128,32 +134,68 @@ export function evaluateOneAutoFullDataCallbackPayload(input: {
     };
   }
 
-  const result = extractOeVinLookupEuProviderResult(envelope);
+  if (input.contract.serviceSku === ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU) {
+    return evaluateOeServiceHistoryEuFullDataResult({
+      envelope,
+      wrapped,
+      wrapperStatus,
+      jobVinSnapshot: input.jobVinSnapshot,
+      vehicleVin: input.vehicleVin,
+    });
+  }
+
+  return evaluateOeVinLookupEuFullDataResult({
+    envelope,
+    wrapped,
+    wrapperStatus,
+    serviceSku: input.contract.serviceSku,
+    jobVinSnapshot: input.jobVinSnapshot,
+    vehicleVin: input.vehicleVin,
+  });
+}
+
+function evaluateOeVinLookupEuFullDataResult(input: {
+  envelope: Record<string, unknown>;
+  wrapped: boolean;
+  wrapperStatus: number | null;
+  serviceSku: string;
+  jobVinSnapshot: string;
+  vehicleVin: string | null;
+}): OneAutoFullDataCallbackEvaluation {
+  const result = extractOeVinLookupEuProviderResult(input.envelope);
   if (!result) {
     return {
       ok: false,
       code: 'ONEAUTO_CALLBACK_PAYLOAD_INCOMPLETE',
-      diagnostic: { reason: 'missing_result_object', wrapped, wrapperStatus },
-      envelope,
-      wrapperStatus,
+      diagnostic: {
+        reason: 'missing_result_object',
+        wrapped: input.wrapped,
+        wrapperStatus: input.wrapperStatus,
+      },
+      envelope: input.envelope,
+      wrapperStatus: input.wrapperStatus,
     };
   }
 
   const binding: OemVinLookupEuBindingValidation = assertOemVinLookupEuJobBinding({
     organizationId: '',
     vehicleId: '',
-    serviceSku: input.contract.serviceSku,
+    serviceSku: input.serviceSku,
     jobVinSnapshot: input.jobVinSnapshot,
     vehicleVin: input.vehicleVin,
-    providerResponseBody: envelope,
+    providerResponseBody: input.envelope,
   });
   if (!binding.ok) {
     return {
       ok: false,
       code: 'ONEAUTO_CALLBACK_VIN_MISMATCH',
-      diagnostic: { bindingCode: binding.code, wrapped, wrapperStatus },
-      envelope,
-      wrapperStatus,
+      diagnostic: {
+        bindingCode: binding.code,
+        wrapped: input.wrapped,
+        wrapperStatus: input.wrapperStatus,
+      },
+      envelope: input.envelope,
+      wrapperStatus: input.wrapperStatus,
     };
   }
 
@@ -162,15 +204,111 @@ export function evaluateOneAutoFullDataCallbackPayload(input: {
     return {
       ok: false,
       code: 'ONEAUTO_CALLBACK_PAYLOAD_INCOMPLETE',
-      diagnostic: { reason: 'result_vin_missing_or_invalid', wrapped, wrapperStatus },
-      envelope,
-      wrapperStatus,
+      diagnostic: {
+        reason: 'result_vin_missing_or_invalid',
+        wrapped: input.wrapped,
+        wrapperStatus: input.wrapperStatus,
+      },
+      envelope: input.envelope,
+      wrapperStatus: input.wrapperStatus,
     };
   }
 
-  return { ok: true, result, envelope, wrapperStatus };
+  return {
+    ok: true,
+    result,
+    envelope: input.envelope,
+    wrapperStatus: input.wrapperStatus,
+  };
+}
+
+function evaluateOeServiceHistoryEuFullDataResult(input: {
+  envelope: Record<string, unknown>;
+  wrapped: boolean;
+  wrapperStatus: number | null;
+  jobVinSnapshot: string;
+  vehicleVin: string | null;
+}): OneAutoFullDataCallbackEvaluation {
+  const result = extractOeServiceHistoryEuProviderResult(input.envelope);
+  if (!result) {
+    return {
+      ok: false,
+      code: 'ONEAUTO_CALLBACK_PAYLOAD_INCOMPLETE',
+      diagnostic: {
+        reason: 'missing_result_object',
+        wrapped: input.wrapped,
+        wrapperStatus: input.wrapperStatus,
+      },
+      envelope: input.envelope,
+      wrapperStatus: input.wrapperStatus,
+    };
+  }
+
+  const binding = assertOeServiceHistoryEuJobBinding({
+    serviceSku: ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU,
+    jobVinSnapshot: input.jobVinSnapshot,
+    vehicleVin: input.vehicleVin,
+    providerResponseBody: input.envelope,
+  });
+  if (!binding.ok) {
+    return {
+      ok: false,
+      code: 'ONEAUTO_CALLBACK_VIN_MISMATCH',
+      diagnostic: {
+        bindingCode: binding.code,
+        wrapped: input.wrapped,
+        wrapperStatus: input.wrapperStatus,
+      },
+      envelope: input.envelope,
+      wrapperStatus: input.wrapperStatus,
+    };
+  }
+
+  const parsed = parseOeServiceHistoryEuProviderResult(result);
+  if (parsed.kind === 'INVALID_SHAPE') {
+    return {
+      ok: false,
+      code: 'ONEAUTO_CALLBACK_PAYLOAD_INCOMPLETE',
+      diagnostic: {
+        reason: parsed.reason,
+        wrapped: input.wrapped,
+        wrapperStatus: input.wrapperStatus,
+      },
+      envelope: input.envelope,
+      wrapperStatus: input.wrapperStatus,
+    };
+  }
+
+  if (normalizeVin(parsed.vehicleIdentificationNumber) !== binding.normalizedVin) {
+    return {
+      ok: false,
+      code: 'ONEAUTO_CALLBACK_VIN_MISMATCH',
+      diagnostic: {
+        reason: 'result_vin_mismatch',
+        wrapped: input.wrapped,
+        wrapperStatus: input.wrapperStatus,
+      },
+      envelope: input.envelope,
+      wrapperStatus: input.wrapperStatus,
+    };
+  }
+
+  return {
+    ok: true,
+    result: parsed.rawResult,
+    envelope: input.envelope,
+    wrapperStatus: input.wrapperStatus,
+  };
 }
 
 export function isOeVinLookupEuFullDataCallbackSku(serviceSku: string): boolean {
   return serviceSku === ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU;
+}
+
+/** SKUs that complete via E4 full-data callback ingress (no retrieval GET). */
+export function isOneAutoFullDataCallbackSku(serviceSku: string): boolean {
+  return (
+    serviceSku === ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU ||
+    serviceSku === ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU
+  );
 }

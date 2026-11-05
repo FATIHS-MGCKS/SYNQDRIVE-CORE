@@ -55,7 +55,7 @@ describe('OneAuto E4 registry promotion (CALLBACK_FULL_DATA seed)', () => {
     expect(buildExecutionVerifiedOeVinLookupEuFullDataCallback().asyncCompletionMode).toBe(
       'CALLBACK_FULL_DATA',
     );
-    expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_SERVICE_HISTORY_EU')).toBe(false);
+    expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_SERVICE_HISTORY_EU')).toBe(true);
   });
 
   it('does not attach callback_url when registry is CALLBACK_FULL_DATA but callback flags are OFF', async () => {

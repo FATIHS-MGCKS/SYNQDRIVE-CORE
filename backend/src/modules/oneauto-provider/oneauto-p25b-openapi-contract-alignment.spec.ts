@@ -70,10 +70,8 @@ describe('OneAuto P2.5B OpenAPI evidence alignment', () => {
     }
   });
 
-  it('keeps service history out of execution-verified registry (P3 VIN lookup only)', () => {
+  it('includes E1 service history in execution-verified registry (runtime still SKU-gated)', () => {
     expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_VIN_LOOKUP_EU')).toBe(true);
-    expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_SERVICE_HISTORY_EU')).toBe(
-      false,
-    );
+    expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_SERVICE_HISTORY_EU')).toBe(true);
   });
 });

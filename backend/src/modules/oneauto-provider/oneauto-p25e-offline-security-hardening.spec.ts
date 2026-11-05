@@ -271,11 +271,9 @@ describe('OneAuto P2.5E offline security hardening', () => {
   });
 
   describe('production fences unchanged', () => {
-    it('seeds P3 VIN lookup only; service history remains non-executable', () => {
+    it('seeds VIN lookup and E1 service history in execution-verified registry', () => {
       expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_VIN_LOOKUP_EU')).toBe(true);
-      expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_SERVICE_HISTORY_EU')).toBe(
-        false,
-      );
+      expect(ONEAUTO_EXECUTION_VERIFIED_PROVIDER_CONTRACTS.has('OE_SERVICE_HISTORY_EU')).toBe(true);
     });
   });
 });

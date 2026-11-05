@@ -10,11 +10,14 @@ import type { OneAutoExecutionMode } from './oneauto-contract-types';
 
 export type { OneAutoExecutionMode } from './oneauto-contract-types';
 
+import { isOneAutoSkuRuntimeExecutionEnabled } from '../oneauto-sku-runtime-activation.util';
+
 export type OneAutoCatalogAvailability =
   | 'AVAILABLE'
   | 'DISABLED_FLAG'
   | 'PRICE_NOT_CONFIGURED'
-  | 'CONTRACT_UNVERIFIED';
+  | 'CONTRACT_UNVERIFIED'
+  | 'SKU_RUNTIME_DISABLED';
 
 export type OneAutoServiceCatalogEntry = {
   serviceSku: string;
@@ -104,6 +107,7 @@ export function resolveCatalogEntryForRuntime(
   let availabilityStatus: OneAutoCatalogAvailability = entry.availabilityStatus;
   if (!opts.providerEnabled) availabilityStatus = 'DISABLED_FLAG';
   else if (!isOneAutoSkuExecutionVerified(entry.serviceSku)) availabilityStatus = 'CONTRACT_UNVERIFIED';
+  else if (!isOneAutoSkuRuntimeExecutionEnabled(entry.serviceSku)) availabilityStatus = 'SKU_RUNTIME_DISABLED';
   else if (configuredPrice == null) availabilityStatus = 'PRICE_NOT_CONFIGURED';
   else availabilityStatus = 'AVAILABLE';
   const verified = getExecutionVerifiedOneAutoContract(entry.serviceSku);

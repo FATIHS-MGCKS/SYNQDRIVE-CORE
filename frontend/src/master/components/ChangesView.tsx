@@ -36,7 +36,15 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
-    id: 'oneauto-p4-e4-live-callback-wrapper-fix-2026-11-04',
+    id: 'oneauto-e1-service-history-eu-2026-11-05',
+    title: 'One Auto E1 — OE Service History EU (Master Admin, E4 callback)',
+    summary:
+      'Execution-verified OE_SERVICE_HISTORY_EU on GET ezyvin/servicehistory/ with CALLBACK_FULL_DATA completion, SKU runtime gate, service_events validation, Master chronological UI, test-org budget allowance.',
+    technical:
+      'backend: oneauto-execution-verified-registry, oneauto-callback-full-data.util, service-history/*, oneauto-sku-runtime-activation, oneauto-org-budget-test-allowance; frontend: OneAutoServiceHistoryResultPanel; tests oneauto-e1-service-history-eu.spec.ts; evidence E1_SERVICE_HISTORY_EU_CALLBACK_V1.md. No production activation.',
+    tags: ['oneauto', 'master', 'e1'],
+  },
+  {
     version: '4.9.5025',
     title: 'One Auto P4 E4-L1 — live callback wrapper envelope + provider-failure classification (draft)',
     summary: [
