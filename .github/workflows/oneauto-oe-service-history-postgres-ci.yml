@@ -30,17 +30,40 @@ jobs:
   oneauto-service-history-postgres:
     name: OneAuto OE service history migration + ingestion
     runs-on: ubuntu-latest
-    if: hashFiles('backend/scripts/test/oneauto-oe-service-history-eu-postgres-ci.sh') != ''
     steps:
       - uses: actions/checkout@v4
+
+      - name: Detect postgres CI script on ref
+        id: probe
+        run: |
+          script_path="backend/scripts/test/oneauto-oe-service-history-eu-postgres-ci.sh"
+          if [ -f "$script_path" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "Postgres CI script found at $script_path — full suite will run."
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=OneAuto postgres CI skipped::${script_path} not on this ref (workflow registration / script not merged yet)."
+          fi
+
+      - name: Skip — postgres CI script absent on this ref
+        if: steps.probe.outputs.present != 'true'
+        run: |
+          echo "WORKFLOW_STATE=SKIPPED_SCRIPT_ABSENT"
+          echo "Reason: backend/scripts/test/oneauto-oe-service-history-eu-postgres-ci.sh missing after checkout."
+
       - name: Start PostgreSQL
+        if: steps.probe.outputs.present == 'true'
         run: bash backend/scripts/test/ci-start-postgres.sh
+
       - uses: actions/setup-node@v4
+        if: steps.probe.outputs.present == 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: backend/package-lock.json
+
       - name: Migration replay + ingestion integration
+        if: steps.probe.outputs.present == 'true'
         working-directory: backend
         run: |
           npm ci
