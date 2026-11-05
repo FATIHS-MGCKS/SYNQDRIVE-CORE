@@ -1,7 +1,9 @@
 import {
   createDefaultFsdBudgetConfigV1,
   type FsdBudgetConfigV1,
+  type FsdBudgetValidationFailureReasonV1,
   type FsdBudgetValidationResultV1,
+  normalizeFsdBudgetConfigV1,
   resolveMaxSnapshotDocumentsFromRemainingBudget,
   resolveRemainingHistoricalRequestBudget,
   validatePlannedRequestCount,
@@ -21,7 +23,20 @@ export const FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1 = 1;
 export type FsdFullDiscoveryNonExecutableReasonV1 =
   | 'REQUEST_BUDGET_EXCEEDED'
   | 'INSUFFICIENT_REQUEST_BUDGET_FOR_CATALOG'
-  | 'HISTORICAL_WINDOW_TOO_LONG';
+  | 'HISTORICAL_WINDOW_TOO_LONG'
+  | 'HISTORICAL_WINDOW_INVALID';
+
+function mapHistoricalBudgetFailureToNonExecutableReason(
+  reason: FsdBudgetValidationFailureReasonV1,
+): FsdFullDiscoveryNonExecutableReasonV1 {
+  if (reason === 'HISTORICAL_WINDOW_TOO_LONG') {
+    return 'HISTORICAL_WINDOW_TOO_LONG';
+  }
+  if (reason === 'HISTORICAL_WINDOW_INVALID') {
+    return 'HISTORICAL_WINDOW_INVALID';
+  }
+  return 'REQUEST_BUDGET_EXCEEDED';
+}
 
 export type FsdFullDiscoveryPlanV1 = {
   /** When false, snapshot.documents and historical chunks must be treated as non-executable. */
@@ -92,7 +107,7 @@ export function planFsdFullSignalDiscoveryV1(input: {
   historicalWindow?: FsdHistoricalWindowV1;
   budget?: FsdBudgetConfigV1;
 }): FsdFullDiscoveryPlanV1 {
-  const budget = input.budget ?? createDefaultFsdBudgetConfigV1();
+  const budget = normalizeFsdBudgetConfigV1(input.budget ?? createDefaultFsdBudgetConfigV1());
   const declaredFieldNames = normalizeDeclaredFieldNames(input.declaredFieldNames);
   const classified = classifyDeclaredFsdSignals(declaredFieldNames);
 
@@ -157,10 +172,9 @@ export function planFsdFullSignalDiscoveryV1(input: {
           FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1 + snapshot.documents.length,
         budgetValidation: historical.budgetValidation,
         deferredByBudget: sortedDeferredOnWindowFailure,
-        reason:
-          historical.budgetValidation.reason === 'HISTORICAL_WINDOW_TOO_LONG'
-            ? 'HISTORICAL_WINDOW_TOO_LONG'
-            : 'REQUEST_BUDGET_EXCEEDED',
+        reason: mapHistoricalBudgetFailureToNonExecutableReason(
+          historical.budgetValidation.reason,
+        ),
       });
     }
     deferredByBudget.push(...historical.deferredSignals.map((s) => s.fieldName));

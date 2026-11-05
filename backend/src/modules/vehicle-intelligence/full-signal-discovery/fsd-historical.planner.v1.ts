@@ -1,6 +1,8 @@
 import {
   type FsdBudgetConfigV1,
-  validateHistoricalWindowAgainstBudget,
+  type FsdBudgetValidationResultV1,
+  normalizeFsdBudgetConfigV1,
+  validateHistoricalWindowForPlanning,
   validatePlannedRequestCount,
 } from './fsd-budget.contract.v1';
 import type { FsdUnsupportedPlanningReasonV1 } from './fsd-evidence.contract.v1';
@@ -42,16 +44,20 @@ export type FsdHistoricalPlanV1 = {
   chunks: FsdHistoricalChunkPlanV1[];
   catalogSignals: FsdHistoricalSignalPlanV1[];
   deferredSignals: FsdHistoricalSignalPlanV1[];
-  budgetValidation: ReturnType<typeof validatePlannedRequestCount>;
+  budgetValidation: FsdBudgetValidationResultV1;
 };
 
 function chunkSortedSignals(
   signals: FsdClassifiedSignalV1[],
   chunkSize: number,
 ): FsdClassifiedSignalV1[][] {
+  const safeChunkSize = Number.isFinite(chunkSize) && chunkSize > 0 ? Math.floor(chunkSize) : 0;
+  if (signals.length === 0 || safeChunkSize <= 0) {
+    return [];
+  }
   const chunks: FsdClassifiedSignalV1[][] = [];
-  for (let i = 0; i < signals.length; i += chunkSize) {
-    chunks.push(signals.slice(i, i + chunkSize));
+  for (let i = 0; i < signals.length; i += safeChunkSize) {
+    chunks.push(signals.slice(i, i + safeChunkSize));
   }
   return chunks;
 }
@@ -66,14 +72,14 @@ export function planFsdHistoricalQueries(input: {
   /** When true, isolate speed into its own historical document (P2E R1 pattern). */
   isolateSpeedSignal?: boolean;
 }): FsdHistoricalPlanV1 {
+  const budget = normalizeFsdBudgetConfigV1(input.budget);
   const normalized = normalizeDeclaredFieldNames(input.declaredFieldNames);
   const classified = classifyDeclaredFsdSignals(normalized);
-  const windowSeconds = computeHistoricalWindowSecondsFromIso(input.window);
-  const windowCheck = validateHistoricalWindowAgainstBudget(windowSeconds, input.budget);
+  const windowCheck = validateHistoricalWindowForPlanning(input.window, budget);
   if (!windowCheck.ok) {
     return {
       window: input.window,
-      windowSeconds,
+      windowSeconds: 0,
       expectedBucketPositions: 0,
       chunks: [],
       catalogSignals: classified.map((signal) => ({
@@ -95,6 +101,8 @@ export function planFsdHistoricalQueries(input: {
       },
     };
   }
+
+  const windowSeconds = computeHistoricalWindowSecondsFromIso(input.window);
 
   const catalogSignals: FsdHistoricalSignalPlanV1[] = [];
   const floatSignals: FsdClassifiedSignalV1[] = [];
@@ -187,7 +195,7 @@ export function planFsdHistoricalQueries(input: {
 
   for (const group of chunkSortedSignals(
     remainingFloats,
-    input.budget.maxHistoricalFloatFieldsPerChunk,
+    budget.maxHistoricalFloatFieldsPerChunk,
   )) {
     const { selections, fieldNames } = buildFsdHistoricalSelectionsForFields(group);
     if (selections.length === 0) {
@@ -225,7 +233,7 @@ export function planFsdHistoricalQueries(input: {
 
   const maxHistoricalChunks = Math.max(
     0,
-    input.maxPlannedHistoricalRequests ?? input.budget.maxRequestsPerRun,
+    input.maxPlannedHistoricalRequests ?? budget.maxRequestsPerRun,
   );
   const allowedChunks = chunks.slice(0, maxHistoricalChunks);
   const overflowChunks = chunks.slice(maxHistoricalChunks);
@@ -246,10 +254,7 @@ export function planFsdHistoricalQueries(input: {
     }
   }
 
-  const budgetValidation = validatePlannedRequestCount(
-    allowedChunks.length,
-    input.budget,
-  );
+  const budgetValidation = validatePlannedRequestCount(allowedChunks.length, budget);
 
   const expectedBucketPositions = Math.ceil(windowSeconds);
 

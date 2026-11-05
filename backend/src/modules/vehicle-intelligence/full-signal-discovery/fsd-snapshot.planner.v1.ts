@@ -1,5 +1,6 @@
 import {
   type FsdBudgetConfigV1,
+  normalizeFsdBudgetConfigV1,
   resolveMaxSnapshotDocumentsFromRemainingBudget,
   sanitizeNonNegativeRequestBudget,
 } from './fsd-budget.contract.v1';
@@ -62,9 +63,10 @@ export function planFsdSnapshotQueries(input: {
   /** Max executable snapshot GraphQL documents allowed (remaining run budget slots). */
   maxSnapshotDocuments?: number;
 }): FsdSnapshotPlanV1 {
+  const budget = normalizeFsdBudgetConfigV1(input.budget);
   const normalized = normalizeDeclaredFieldNames(input.declaredFieldNames);
   const classified = classifyDeclaredFsdSignals(normalized);
-  const fieldsPerDocument = Math.max(1, input.budget.maxSnapshotFieldsPerDocument);
+  const fieldsPerDocument = budget.maxSnapshotFieldsPerDocument;
 
   const plannable: Array<{
     signal: FsdClassifiedSignalV1;
@@ -110,7 +112,7 @@ export function planFsdSnapshotQueries(input: {
   }
 
   const maxDocsFromBudget = resolveMaxSnapshotDocumentsFromRemainingBudget(
-    input.maxSnapshotDocuments ?? input.budget.maxRequestsPerRun,
+    input.maxSnapshotDocuments ?? budget.maxRequestsPerRun,
   );
   const maxDocsByFieldCapacity =
     plannable.length === 0 ? 0 : Math.ceil(plannable.length / fieldsPerDocument);
