@@ -151,7 +151,7 @@ export function summarizeSignalBucketObservations(input: {
   coSelectedFieldCount?: number;
 }): FsdCoverageSummaryV1 {
   const expectedBucketPositions = computeExpectedBucketPositions(input.window);
-  const seenExactTimestamps = new Set<number>();
+  const observationsByExactTimestamp = new Map<number, FsdBucketObservationV1[]>();
   const bucketObservations = new Map<number, FsdBucketObservationV1[]>();
   let duplicateTimestampsIgnored = 0;
   let collidingBucketObservationsIgnored = 0;
@@ -167,12 +167,24 @@ export function summarizeSignalBucketObservations(input: {
       outOfWindowObservations += 1;
       continue;
     }
-    if (seenExactTimestamps.has(obs.timestampMs)) {
-      duplicateTimestampsIgnored += 1;
-      continue;
+    const timestampGroup = observationsByExactTimestamp.get(obs.timestampMs);
+    if (timestampGroup) {
+      timestampGroup.push(obs);
+    } else {
+      observationsByExactTimestamp.set(obs.timestampMs, [obs]);
     }
-    seenExactTimestamps.add(obs.timestampMs);
+  }
 
+  const dedupedObservations: FsdBucketObservationV1[] = [];
+  for (const group of observationsByExactTimestamp.values()) {
+    if (group.length > 1) {
+      duplicateTimestampsIgnored += group.length - 1;
+    }
+    dedupedObservations.push(pickDominantBucketObservation(group));
+  }
+
+  for (const obs of dedupedObservations) {
+    const bucketSlot = mapTimestampToBucketSlot(input.window, obs.timestampMs)!;
     const existing = bucketObservations.get(bucketSlot);
     if (existing) {
       collidingBucketObservationsIgnored += 1;

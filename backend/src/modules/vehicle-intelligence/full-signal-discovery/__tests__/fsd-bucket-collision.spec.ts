@@ -80,6 +80,29 @@ describe('FSD-1 bucket collision coverage invariant', () => {
     expect(summary.validValueCoverageRatio).toBeLessThanOrEqual(1);
   });
 
+  it('mandatory — identical timestampMs null vs zero is order-independent at coverage 1.0', () => {
+    const fromMs = parseUtcIsoToEpochMs(oneSecondWindow.fromUtc);
+    const ts = fromMs + 100;
+    const forward = summarizeSignalBucketObservations({
+      window: oneSecondWindow,
+      observations: [
+        { timestampMs: ts, numericValue: null },
+        { timestampMs: ts, numericValue: 0 },
+      ],
+    });
+    const reverse = summarizeSignalBucketObservations({
+      window: oneSecondWindow,
+      observations: [
+        { timestampMs: ts, numericValue: 0 },
+        { timestampMs: ts, numericValue: null },
+      ],
+    });
+    expect(forward.duplicateTimestampsIgnored).toBe(1);
+    expect(forward.validValueBucketCount).toBe(1);
+    expect(forward.validValueCoverageRatio).toBe(1);
+    expect(reverse).toEqual(forward);
+  });
+
   it('P2E denominator parity remains 1538 expected positions', () => {
     expect(computeExpectedBucketPositions(FSD_P2E_HISTORICAL_WINDOW_V1)).toBe(1538);
   });
