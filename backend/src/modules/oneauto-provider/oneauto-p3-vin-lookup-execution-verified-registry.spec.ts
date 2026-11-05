@@ -94,6 +94,32 @@ describe('OneAuto execution-verified registry (VIN lookup + E1 service history)'
     expect(resolved.availabilityStatus).toBe('SKU_RUNTIME_DISABLED');
   });
 
+  it('uses EUR currency for configured OE_SERVICE_HISTORY_EU indicative price', () => {
+    process.env.ONEAUTO_SKU_OE_SERVICE_HISTORY_EU_RUNTIME_ENABLED = '1';
+    const catalogEntry = ONEAUTO_SERVICE_CATALOG.find(
+      (e) => e.serviceSku === 'OE_SERVICE_HISTORY_EU',
+    )!;
+    const resolved = resolveCatalogEntryForRuntime(catalogEntry, {
+      providerEnabled: true,
+      indicativePriceMinorBySku: { OE_SERVICE_HISTORY_EU: 300 },
+      pricingCatalogVersion: ONEAUTO_E1_SERVICE_HISTORY_EU_PRICING_SOURCE_VERSION,
+    });
+    expect(resolved.availabilityStatus).toBe('AVAILABLE');
+    expect(resolved.indicativePriceMinor).toBe(300);
+    expect(resolved.currency).toBe('EUR');
+  });
+
+  it('keeps VIN lookup catalog currency unchanged when price configured', () => {
+    const catalogEntry = ONEAUTO_SERVICE_CATALOG.find((e) => e.serviceSku === 'OE_VIN_LOOKUP_EU')!;
+    const resolved = resolveCatalogEntryForRuntime(catalogEntry, {
+      providerEnabled: true,
+      indicativePriceMinorBySku: { OE_VIN_LOOKUP_EU: 36 },
+      pricingCatalogVersion: ONEAUTO_P4_VIN_LOOKUP_EU_PRICING_SOURCE_VERSION,
+    });
+    expect(resolved.indicativePriceMinor).toBe(36);
+    expect(resolved.currency).toBe('GBP');
+  });
+
   it('allowlists vinlookup and servicehistory paths from seeded registry', () => {
     expect(isOneAutoPathAllowlisted('GET', 'ezyvin/vinlookup/')).toBe(true);
     expect(isOneAutoPathAllowlisted('GET', 'ezyvin/servicehistory/')).toBe(true);
