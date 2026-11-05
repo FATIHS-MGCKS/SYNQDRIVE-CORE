@@ -195,7 +195,7 @@ async function acquireWithLease(
     });
     await expect(
       repo.recordSignalEvidence({
-        auth: run.auth,
+        ...run.auth,
         stageId: null,
         stageType: 'CATALOG',
         signalName: 'speed',
@@ -423,7 +423,7 @@ async function acquireWithLease(
     });
     await expect(
       repo.recordSignalEvidence({
-        auth: runA.auth,
+        ...runA.auth,
         stageId: stageB.stageId,
         stageType: 'CATALOG',
         signalName: 'rpm',
@@ -436,7 +436,7 @@ async function acquireWithLease(
     const seed = await seedDimoBinding(prisma);
     const run = await acquireWithLease(repo, { ...seed, catalogFingerprint: 'evidence-race' });
     const payload = {
-      auth: run.auth,
+      ...run.auth,
       stageId: null as string | null,
       stageType: 'CATALOG' as const,
       signalName: 'odometer',

@@ -26,4 +26,4 @@ ALTER TABLE "fsd_discovery_signal_evidence"
   ADD CONSTRAINT "fsd_discovery_signal_evidence_stage_scope_fkey"
   FOREIGN KEY ("stage_id", "run_id", "stage_type")
   REFERENCES "fsd_discovery_stages"("id", "run_id", "stage_type")
-  ON DELETE SET NULL ON UPDATE CASCADE;
+  ON DELETE RESTRICT ON UPDATE CASCADE;

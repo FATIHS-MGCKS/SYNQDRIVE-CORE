@@ -9,6 +9,11 @@ import type {
 import type { PrismaService } from '@shared/database/prisma.service';
 import { acquirePgAdvisoryXactLock64 } from '@shared/database/pg-advisory-lock.util';
 import {
+  buildEffectiveEvidenceStateV1,
+  isEvidenceStateUnchangedV1,
+  type FsdDiscoveryEvidenceWritePayloadV1,
+} from './fsd-discovery-evidence-idempotency.v1';
+import {
   assertFsdDiscoveryRunTransition,
   assertFsdDiscoveryStageTransition,
   buildFsdDimoConnectionIdentityFingerprint,
@@ -24,8 +29,7 @@ type Tx = Prisma.TransactionClient;
 
 export type AcquireFsdDiscoveryRunResultV1 =
   | { kind: 'CREATED'; runId: string; version: number; runRevision: number }
-  | { kind: 'REPLAYED'; runId: string; version: number; runRevision: number; noOp: true }
-  | { kind: 'EXISTING'; runId: string; version: number; runRevision: number };
+  | { kind: 'REPLAYED'; runId: string; version: number; runRevision: number; noOp: true };
 
 export type TransitionFsdDiscoveryRunResultV1 =
   | { applied: true; version: number }
@@ -90,6 +94,61 @@ export class FsdDiscoveryPersistenceRepository {
     return link;
   }
 
+  private async assertActiveDimoSourceLinkForWrites(
+    tx: Tx,
+    scope: FsdDiscoveryRunScopeV1,
+    run: { dimoTokenId: number | null; connectionIdentityFingerprint: string | null },
+  ): Promise<void> {
+    const link = await tx.vehicleDataSourceLink.findFirst({
+      where: {
+        id: scope.providerSourceLinkId,
+        vehicleId: scope.vehicleId,
+        isActive: true,
+        supersededByLinkId: null,
+        deactivatedAt: null,
+        provider: 'DIMO',
+        sourceType: 'DIMO',
+        vehicle: { organizationId: scope.organizationId },
+      },
+      include: { dimoVehicle: true },
+    });
+    if (!link) {
+      throw new FsdDiscoveryPersistenceError(
+        'STALE_SOURCE_LINK',
+        'Source link is no longer active for discovery writes',
+      );
+    }
+    const tokenId = link.dimoVehicle?.tokenId ?? null;
+    if (run.dimoTokenId != null && tokenId !== run.dimoTokenId) {
+      throw new FsdDiscoveryPersistenceError(
+        'STALE_SOURCE_LINK',
+        'Source link DIMO token no longer matches run binding',
+      );
+    }
+    if (run.connectionIdentityFingerprint && link.dimoVehicleId && link.dimoVehicle) {
+      const computed = buildFsdDimoConnectionIdentityFingerprint({
+        dimoVehicleId: link.dimoVehicleId,
+        tokenId: link.dimoVehicle.tokenId,
+      });
+      if (run.connectionIdentityFingerprint !== computed) {
+        throw new FsdDiscoveryPersistenceError(
+          'STALE_SOURCE_LINK',
+          'Source link connection identity no longer matches run binding',
+        );
+      }
+    }
+  }
+
+  private connectionIdentityMatches(
+    active: { dimoTokenId: number | null; connectionIdentityFingerprint: string | null },
+    identity: FsdDiscoveryRunIdentityV1,
+  ): boolean {
+    return (
+      active.dimoTokenId === identity.dimoTokenId &&
+      active.connectionIdentityFingerprint === identity.connectionIdentityFingerprint
+    );
+  }
+
   private async allocateNextRunRevision(tx: Tx, providerSourceLinkId: string): Promise<number> {
     const agg = await tx.fsdDiscoveryRun.aggregate({
       where: { providerSourceLinkId },
@@ -114,11 +173,7 @@ export class FsdDiscoveryPersistenceRepository {
         },
       });
       if (active) {
-        const replay =
-          active.dimoTokenId === identity.dimoTokenId &&
-          active.connectionIdentityFingerprint === identity.connectionIdentityFingerprint &&
-          active.runRevision === identity.runRevision;
-        if (replay) {
+        if (this.connectionIdentityMatches(active, identity)) {
           return {
             kind: 'REPLAYED',
             runId: active.id,
@@ -127,12 +182,10 @@ export class FsdDiscoveryPersistenceRepository {
             noOp: true as const,
           };
         }
-        return {
-          kind: 'EXISTING',
-          runId: active.id,
-          version: active.version,
-          runRevision: active.runRevision,
-        };
+        throw new FsdDiscoveryPersistenceError(
+          'RUN_IDENTITY_CONFLICT',
+          'Active run exists for runKey with different connection identity',
+        );
       }
 
       await tx.fsdDiscoveryRun.updateMany({
@@ -197,6 +250,7 @@ export class FsdDiscoveryPersistenceRepository {
         'Run is not executable under the supplied lease/version fence',
       );
     }
+    await this.assertActiveDimoSourceLinkForWrites(tx, auth, run);
     return { runVersion: run.version };
   }
 
@@ -410,33 +464,38 @@ export class FsdDiscoveryPersistenceRepository {
     return stage;
   }
 
-  async recordSignalEvidence(input: {
-    auth: FsdDiscoveryWriteAuthorizationV1;
-    stageId: string | null;
-    stageType: FsdDiscoveryStageType;
-    signalName: string;
-    expectedEvidenceVersion?: number;
-    evidenceState: FsdDiscoverySignalEvidenceState;
-    declaredByProvider?: boolean;
-    schemaShape?: string | null;
-    queryPlanned?: boolean;
-    queryAccepted?: boolean | null;
-    observedValue?: boolean | null;
-    provenanceJson?: Prisma.InputJsonValue;
-    qualityJson?: Prisma.InputJsonValue;
-  }): Promise<{ evidenceId: string; created: boolean; noOp: boolean }> {
-    return this.withSourceLinkLock(input.auth, async (tx) => {
-      await this.fenceRunnableRun(tx, input.auth);
+  async recordSignalEvidence(
+    input: FsdDiscoveryWriteAuthorizationV1 & {
+      stageId?: string | null;
+      stageType: FsdDiscoveryStageType;
+      signalName: string;
+      expectedEvidenceVersion?: number;
+    } & FsdDiscoveryEvidenceWritePayloadV1,
+  ): Promise<{ evidenceId: string; created: boolean; noOp: boolean }> {
+    return this.withSourceLinkLock(input, async (tx) => {
+      await this.fenceRunnableRun(tx, input);
       await this.resolveEvidenceStage(tx, {
-        runId: input.auth.runId,
-        stageId: input.stageId,
+        runId: input.runId,
+        stageId: input.stageId ?? null,
         stageType: input.stageType,
       });
+
+      const createDefaults = {
+        stageId: input.stageId ?? null,
+        evidenceState: input.evidenceState,
+        declaredByProvider: true,
+        schemaShape: null as string | null,
+        queryPlanned: false,
+        queryAccepted: null as boolean | null,
+        observedValue: null as boolean | null,
+        provenanceJson: {} as Prisma.JsonValue,
+        qualityJson: {} as Prisma.JsonValue,
+      };
 
       const existing = await tx.fsdDiscoverySignalEvidence.findUnique({
         where: {
           runId_stageType_signalName: {
-            runId: input.auth.runId,
+            runId: input.runId,
             stageType: input.stageType,
             signalName: input.signalName,
           },
@@ -453,30 +512,37 @@ export class FsdDiscoveryPersistenceRepository {
             'Evidence version CAS conflict',
           );
         }
-        const unchanged =
-          existing.evidenceState === input.evidenceState &&
-          existing.stageId === input.stageId &&
-          existing.observedValue === (input.observedValue ?? existing.observedValue);
-        if (unchanged) {
+        const existingSnapshot = {
+          stageId: existing.stageId,
+          evidenceState: existing.evidenceState,
+          declaredByProvider: existing.declaredByProvider,
+          schemaShape: existing.schemaShape,
+          queryPlanned: existing.queryPlanned,
+          queryAccepted: existing.queryAccepted,
+          observedValue: existing.observedValue,
+          provenanceJson: existing.provenanceJson as Prisma.JsonValue,
+          qualityJson: existing.qualityJson as Prisma.JsonValue,
+        };
+        const effective = buildEffectiveEvidenceStateV1(existingSnapshot, input, createDefaults);
+        if (isEvidenceStateUnchangedV1(existingSnapshot, effective)) {
           return { evidenceId: existing.id, created: false, noOp: true };
         }
         const updated = await tx.fsdDiscoverySignalEvidence.updateMany({
           where: {
             id: existing.id,
-            runId: input.auth.runId,
+            runId: input.runId,
             version: existing.version,
           },
           data: {
-            stageId: input.stageId,
-            evidenceState: input.evidenceState,
-            declaredByProvider: input.declaredByProvider ?? existing.declaredByProvider,
-            schemaShape: input.schemaShape ?? existing.schemaShape,
-            queryPlanned: input.queryPlanned ?? existing.queryPlanned,
-            queryAccepted: input.queryAccepted ?? existing.queryAccepted,
-            observedValue: input.observedValue ?? existing.observedValue,
-            provenanceJson: (input.provenanceJson ??
-              existing.provenanceJson) as Prisma.InputJsonValue,
-            qualityJson: (input.qualityJson ?? existing.qualityJson) as Prisma.InputJsonValue,
+            stageId: effective.stageId,
+            evidenceState: effective.evidenceState,
+            declaredByProvider: effective.declaredByProvider,
+            schemaShape: effective.schemaShape,
+            queryPlanned: effective.queryPlanned,
+            queryAccepted: effective.queryAccepted,
+            observedValue: effective.observedValue,
+            provenanceJson: effective.provenanceJson as Prisma.InputJsonValue,
+            qualityJson: effective.qualityJson as Prisma.InputJsonValue,
             version: { increment: 1 },
           },
         });
@@ -489,20 +555,21 @@ export class FsdDiscoveryPersistenceRepository {
         return { evidenceId: existing.id, created: false, noOp: false };
       }
 
+      const effective = buildEffectiveEvidenceStateV1(null, input, createDefaults);
       const created = await tx.fsdDiscoverySignalEvidence.create({
         data: {
-          runId: input.auth.runId,
-          stageId: input.stageId,
+          runId: input.runId,
+          stageId: effective.stageId,
           stageType: input.stageType,
           signalName: input.signalName,
-          evidenceState: input.evidenceState,
-          declaredByProvider: input.declaredByProvider ?? true,
-          schemaShape: input.schemaShape ?? null,
-          queryPlanned: input.queryPlanned ?? false,
-          queryAccepted: input.queryAccepted ?? null,
-          observedValue: input.observedValue ?? null,
-          provenanceJson: input.provenanceJson ?? {},
-          qualityJson: input.qualityJson ?? {},
+          evidenceState: effective.evidenceState,
+          declaredByProvider: effective.declaredByProvider,
+          schemaShape: effective.schemaShape,
+          queryPlanned: effective.queryPlanned,
+          queryAccepted: effective.queryAccepted,
+          observedValue: effective.observedValue,
+          provenanceJson: effective.provenanceJson as Prisma.InputJsonValue,
+          qualityJson: effective.qualityJson as Prisma.InputJsonValue,
         },
       });
       return { evidenceId: created.id, created: true, noOp: false };

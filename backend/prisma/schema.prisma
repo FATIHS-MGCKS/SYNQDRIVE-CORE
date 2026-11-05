@@ -4982,6 +4982,7 @@ model FsdDiscoveryStage {
   evidence FsdDiscoverySignalEvidence[]
 
   @@unique([runId, stageType], map: "fsd_discovery_stages_run_stage_key")
+  @@unique([id, runId, stageType], map: "fsd_discovery_stages_id_run_stage_scope_key")
   @@index([runId, status])
   @@map("fsd_discovery_stages")
 }
@@ -5006,8 +5007,9 @@ model FsdDiscoverySignalEvidence {
   updatedAt          DateTime                        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   run   FsdDiscoveryRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
-  stage FsdDiscoveryStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  stage FsdDiscoveryStage? @relation(fields: [stageId, runId, stageType], references: [id, runId, stageType], onDelete: Restrict)
 
+  /// Composite FK `fsd_discovery_signal_evidence_stage_scope_fkey` (migration-managed, ON DELETE RESTRICT).
   @@unique([runId, stageType, signalName], map: "fsd_discovery_signal_evidence_run_stage_signal_key")
   @@index([runId, stageType])
   @@map("fsd_discovery_signal_evidence")

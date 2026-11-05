@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 export const FSD2_PERSISTENCE_MIGRATION_NAME = '20261104193000_fsd2_discovery_persistence_v1';
 export const FSD2_PERSISTENCE_H1H5_MIGRATION_NAME =
   '20261105193000_fsd2_persistence_architecture_h1_h5';
+export const FSD2_PERSISTENCE_C1_MIGRATION_NAME = '20261105203000_fsd2_c1_composite_fk_restrict';
 
 const BACKEND_ROOT = path.resolve(__dirname, '../../../../../');
 

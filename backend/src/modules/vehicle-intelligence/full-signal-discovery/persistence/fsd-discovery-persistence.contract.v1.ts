@@ -10,7 +10,8 @@ export type FsdDiscoveryRunScopeV1 = {
 
 export type FsdDiscoveryRunIdentityV1 = FsdDiscoveryRunScopeV1 & {
   runKey: string;
-  runRevision: number;
+  /** Ignored for replay matching; server allocates on create. */
+  runRevision?: number;
   dimoTokenId: number | null;
   connectionIdentityFingerprint: string | null;
 };
@@ -112,7 +113,8 @@ export class FsdDiscoveryPersistenceError extends Error {
       | 'STAGE_IMMUTABLE'
       | 'PLAN_FINGERPRINT_CONFLICT'
       | 'STAGE_SCOPE_VIOLATION'
-      | 'EVIDENCE_SCOPE_VIOLATION',
+      | 'EVIDENCE_SCOPE_VIOLATION'
+      | 'RUN_IDENTITY_CONFLICT',
     message: string,
   ) {
     super(message);
