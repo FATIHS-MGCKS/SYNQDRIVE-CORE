@@ -197,16 +197,54 @@ export class OneAutoOeServiceHistoryEuIngestionService {
       return evidence;
     }
 
+    return this.withProviderJobIngestionLock(providerJobId, async () => {
+      const lockedIngestion = await this.prisma.oneAutoOeServiceHistoryEuIngestion.findUnique({
+        where: { providerJobId: job.id },
+      });
+      if (lockedIngestion?.status === OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED) {
+        const linkCount = await this.prisma.oneAutoOeServiceHistoryEuIngestionEventLink.count({
+          where: { providerJobId: job.id },
+        });
+        const evidence = {
+          ...base,
+          outcome: 'ALREADY_SUCCEEDED' as const,
+          eventsDiscovered: lockedIngestion.eventsDiscovered,
+          eventsIngested: linkCount,
+          eventsLinked: linkCount,
+        };
+        this.emitOperationalEvidence(evidence);
+        return evidence;
+      }
+
     if (parsed.kind === 'SUCCESS_EMPTY_HISTORY') {
-      await this.finalizeIngestion(job, {
+      const recorded = await this.recordTerminalIngestionAudit(job, {
         discovered: 0,
         persisted: 0,
-        linked: 0,
-        malformedCount: 0,
         sourceResponseId: payload.responseId,
         sourceRetrievedAt: payload.fetchedAt,
+        terminalStatus: OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED,
+        malformedCount: 0,
       });
-      const evidence = { ...base, outcome: 'SKIPPED_EMPTY' as const, eventsDiscovered: 0, eventsIngested: 0 };
+      if (recorded === 'already_succeeded') {
+        const linkCount = await this.prisma.oneAutoOeServiceHistoryEuIngestionEventLink.count({
+          where: { providerJobId: job.id },
+        });
+        const evidence = {
+          ...base,
+          outcome: 'ALREADY_SUCCEEDED' as const,
+          eventsDiscovered: 0,
+          eventsIngested: linkCount,
+          eventsLinked: linkCount,
+        };
+        this.emitOperationalEvidence(evidence);
+        return evidence;
+      }
+      const evidence = {
+        ...base,
+        outcome: 'SUCCEEDED' as const,
+        eventsDiscovered: 0,
+        eventsIngested: 0,
+      };
       this.emitOperationalEvidence(evidence);
       return evidence;
     }
@@ -221,7 +259,18 @@ export class OneAutoOeServiceHistoryEuIngestionService {
         where: { providerJobId: job.id },
       });
       if (fresh?.status === OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED) {
-        return this.ingestFromSucceededJobInternal(providerJobId);
+        const linkCount = await this.prisma.oneAutoOeServiceHistoryEuIngestionEventLink.count({
+          where: { providerJobId: job.id },
+        });
+        const evidence = {
+          ...base,
+          outcome: 'ALREADY_SUCCEEDED' as const,
+          eventsDiscovered: fresh.eventsDiscovered,
+          eventsIngested: linkCount,
+          eventsLinked: linkCount,
+        };
+        this.emitOperationalEvidence(evidence);
+        return evidence;
       }
     }
 
@@ -313,6 +362,19 @@ export class OneAutoOeServiceHistoryEuIngestionService {
     };
     this.emitOperationalEvidence(evidence);
     return evidence;
+    });
+  }
+
+  private async withProviderJobIngestionLock<T>(
+    providerJobId: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    await this.prisma.$executeRaw`SELECT pg_advisory_lock(hashtext(${providerJobId}))`;
+    try {
+      return await fn();
+    } finally {
+      await this.prisma.$executeRaw`SELECT pg_advisory_unlock(hashtext(${providerJobId}))`;
+    }
   }
 
   private async persistEvent(input: {
@@ -436,32 +498,121 @@ export class OneAutoOeServiceHistoryEuIngestionService {
       sourceRetrievedAt: Date;
     },
   ): Promise<boolean> {
+    try {
+      await this.prisma.oneAutoOeServiceHistoryEuIngestion.create({
+        data: {
+          organizationId: job.organizationId,
+          vehicleId: job.vehicleId,
+          providerJobId: job.id,
+          status: OneAutoOeServiceHistoryEuIngestionStatus.PENDING,
+          eventsDiscovered: input.discovered,
+          eventsIngested: 0,
+          sourceResponseId: input.sourceResponseId,
+          sourceRetrievedAt: input.sourceRetrievedAt,
+        },
+      });
+      return true;
+    } catch (error) {
+      if (
+        !(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
+      ) {
+        throw error;
+      }
+    }
+
     const existing = await this.prisma.oneAutoOeServiceHistoryEuIngestion.findUnique({
       where: { providerJobId: job.id },
+      select: { status: true },
     });
     if (existing?.status === OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED) {
       return false;
     }
-    await this.prisma.oneAutoOeServiceHistoryEuIngestion.upsert({
-      where: { providerJobId: job.id },
-      create: {
-        organizationId: job.organizationId,
-        vehicleId: job.vehicleId,
+
+    const claimed = await this.prisma.oneAutoOeServiceHistoryEuIngestion.updateMany({
+      where: {
         providerJobId: job.id,
-        status: OneAutoOeServiceHistoryEuIngestionStatus.PENDING,
-        eventsDiscovered: input.discovered,
-        eventsIngested: 0,
-        sourceResponseId: input.sourceResponseId,
-        sourceRetrievedAt: input.sourceRetrievedAt,
+        status: { not: OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED },
       },
-      update: {
+      data: {
         status: OneAutoOeServiceHistoryEuIngestionStatus.PENDING,
         eventsDiscovered: input.discovered,
         sourceResponseId: input.sourceResponseId,
         sourceRetrievedAt: input.sourceRetrievedAt,
       },
     });
-    return true;
+    if (claimed.count > 0) {
+      return true;
+    }
+
+    const afterRace = await this.prisma.oneAutoOeServiceHistoryEuIngestion.findUnique({
+      where: { providerJobId: job.id },
+      select: { status: true },
+    });
+    return afterRace?.status !== OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED;
+  }
+
+  private async recordTerminalIngestionAudit(
+    job: { id: string; organizationId: string; vehicleId: string },
+    input: {
+      discovered: number;
+      persisted: number;
+      sourceResponseId: string;
+      sourceRetrievedAt: Date;
+      terminalStatus: OneAutoOeServiceHistoryEuIngestionStatus;
+      malformedCount: number;
+    },
+  ): Promise<'written' | 'already_succeeded'> {
+    try {
+      await this.prisma.oneAutoOeServiceHistoryEuIngestion.create({
+        data: {
+          organizationId: job.organizationId,
+          vehicleId: job.vehicleId,
+          providerJobId: job.id,
+          status: input.terminalStatus,
+          eventsDiscovered: input.discovered,
+          eventsIngested: input.persisted,
+          sourceResponseId: input.sourceResponseId,
+          sourceRetrievedAt: input.sourceRetrievedAt,
+          lastErrorCode:
+            input.malformedCount > 0 ? 'ONEAUTO_SERVICE_HISTORY_MALFORMED_EVENTS' : null,
+          lastErrorMessageRedacted:
+            input.malformedCount > 0
+              ? redactOneAutoErrorMessage(`${input.malformedCount} provider event(s) skipped`)
+              : null,
+        },
+      });
+      return 'written';
+    } catch (error) {
+      if (
+        !(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
+      ) {
+        throw error;
+      }
+    }
+
+    const updated = await this.prisma.oneAutoOeServiceHistoryEuIngestion.updateMany({
+      where: {
+        providerJobId: job.id,
+        status: { not: OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED },
+      },
+      data: {
+        status: input.terminalStatus,
+        eventsDiscovered: input.discovered,
+        eventsIngested: input.persisted,
+        sourceResponseId: input.sourceResponseId,
+        sourceRetrievedAt: input.sourceRetrievedAt,
+        lastErrorCode:
+          input.malformedCount > 0 ? 'ONEAUTO_SERVICE_HISTORY_MALFORMED_EVENTS' : null,
+        lastErrorMessageRedacted:
+          input.malformedCount > 0
+            ? redactOneAutoErrorMessage(`${input.malformedCount} provider event(s) skipped`)
+            : null,
+      },
+    });
+    if (updated.count === 0) {
+      return 'already_succeeded';
+    }
+    return 'written';
   }
 
   private async finalizeIngestion(
@@ -503,23 +654,6 @@ export class OneAutoOeServiceHistoryEuIngestionService {
             : null,
       },
     });
-
-    if (finalStatus === OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED) {
-      await this.prisma.oneAutoOeServiceHistoryEuIngestion.updateMany({
-        where: {
-          providerJobId: job.id,
-          status: OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED,
-        },
-        data: {
-          eventsDiscovered: input.discovered,
-          eventsIngested: input.persisted,
-          sourceResponseId: input.sourceResponseId,
-          sourceRetrievedAt: input.sourceRetrievedAt,
-          lastErrorCode: null,
-          lastErrorMessageRedacted: null,
-        },
-      });
-    }
   }
 
   private async markIngestionFailed(

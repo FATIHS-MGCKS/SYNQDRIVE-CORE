@@ -4000,6 +4000,7 @@ export const en = {
   'health.serviceHistory.performedActions': 'Work performed',
   'health.serviceHistory.incompleteExternalHint':
     'External source — not presented as complete or manufacturer-certified history.',
+  'health.serviceHistory.loadMore': 'Load more service events',
   'health.tasksAndSuggestions': 'Tasks & suggestions',
   'health.taskManagementHint': 'Visible under Task Management — closes automatically when the appointment is completed.',
   'health.serviceCompliance': 'Service & compliance',

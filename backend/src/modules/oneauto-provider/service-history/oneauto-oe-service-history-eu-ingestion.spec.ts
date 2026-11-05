@@ -123,6 +123,15 @@ function createHarness(options?: { enabled?: boolean }) {
   >();
 
   const oneAutoOeServiceHistoryEuIngestion = {
+    create: jest.fn().mockImplementation(async ({ data }: any) => {
+      const id = data.providerJobId as string;
+      ingestionRows.set(id, {
+        status: data.status,
+        eventsDiscovered: data.eventsDiscovered ?? 0,
+        eventsIngested: data.eventsIngested ?? 0,
+      });
+      return {};
+    }),
     upsert: jest.fn().mockImplementation(async ({ where, create, update }: any) => {
       const id = where.providerJobId as string;
       const existing = ingestionRows.get(id);
@@ -163,6 +172,7 @@ function createHarness(options?: { enabled?: boolean }) {
   };
 
   const prisma = {
+    $executeRaw: jest.fn().mockResolvedValue(0),
     oneAutoProviderJob: {
       findUnique: jest.fn(),
     },
@@ -380,6 +390,57 @@ describe('OneAuto OE_SERVICE_HISTORY_EU ingestion (offline)', () => {
     prisma.oneAutoProviderJob.findUnique.mockResolvedValue(null);
     const result = await svc.tryIngestFromSucceededJob(JOB_ID);
     expect(result.outcome).toBe('DISABLED');
+  });
+
+  it('persists SUCCEEDED 0/0 audit for empty provider history', async () => {
+    const { svc, prisma, ingestionRows } = createHarness();
+    prisma.oneAutoProviderJob.findUnique.mockResolvedValue({
+      ...jobRow(),
+      responses: [
+        {
+          id: 'resp-empty',
+          fetchedAt: new Date(),
+          httpStatus: 200,
+          responseBodyJson: {
+            success: true,
+            result: {
+              vehicle_identification_number: ARTEON_VIN,
+              service_events: [],
+            },
+          },
+        },
+      ],
+    });
+    prisma.vehicle.findFirst.mockResolvedValue({ vin: ARTEON_VIN });
+    const first = await svc.tryIngestFromSucceededJob(JOB_ID);
+    expect(first.outcome).toBe('SUCCEEDED');
+    expect(first.eventsIngested).toBe(0);
+    expect(ingestionRows.get(JOB_ID)?.status).toBe(OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED);
+
+    prisma.oneAutoProviderJob.findUnique.mockResolvedValue({
+      ...jobRow(),
+      oeServiceHistoryEuIngestion: {
+        status: OneAutoOeServiceHistoryEuIngestionStatus.SUCCEEDED,
+        eventsDiscovered: 0,
+        eventsIngested: 0,
+      },
+      responses: [
+        {
+          id: 'resp-empty',
+          fetchedAt: new Date(),
+          httpStatus: 200,
+          responseBodyJson: {
+            success: true,
+            result: {
+              vehicle_identification_number: ARTEON_VIN,
+              service_events: [],
+            },
+          },
+        },
+      ],
+    });
+    const second = await svc.tryIngestFromSucceededJob(JOB_ID);
+    expect(second.outcome).toBe('ALREADY_SUCCEEDED');
   });
 
   it('keeps two distinct events on the same calendar day', () => {

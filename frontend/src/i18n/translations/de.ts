@@ -4110,6 +4110,7 @@ export const de: Record<TranslationKey, string> = {
   'health.serviceHistory.performedActions': 'Durchgeführte Arbeiten',
   'health.serviceHistory.incompleteExternalHint':
     'Externe Herkunft — nicht als vollständige oder herstellerzertifizierte Historie ausgewiesen.',
+  'health.serviceHistory.loadMore': 'Weitere Serviceereignisse laden',
   'health.tasksAndSuggestions': 'Aufgaben & Vorschläge',
   'health.taskManagementHint': 'Sichtbar unter Task Management — wird automatisch geschlossen, sobald der Termin erledigt ist.',
   'health.serviceCompliance': 'Service & Compliance',

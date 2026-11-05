@@ -164,7 +164,7 @@
 - **HM/OEM:** `hasServiceBaseline` decoupled from imported OneAuto history; UI history cap 100 (count unchanged).
 - **Backfill:** Prisma-only CLI + dry-run plan validation (0 provider GET).
 - **Evidence:** `ONEAUTO_OE_SERVICE_HISTORY_INGESTION_V1.md` updated.
-- **Tests:** ingestion concurrency/cross-job/mapper/backfill-lib; service-compliance baseline regression.
+- **Tests:** ingestion concurrency/cross-job/mapper/backfill-lib; service-compliance baseline regression; `oneauto-oe-service-history-eu-postgres-ci.sh` (fresh + upgrade replay, real PG concurrency).
 
 ## P2.5E-P1 hardening — capture field coverage & safe publish (2026-11-02)
 

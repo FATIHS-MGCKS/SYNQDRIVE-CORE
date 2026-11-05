@@ -1,0 +1,47 @@
+name: OneAuto OE service history PostgreSQL
+
+on:
+  pull_request:
+    paths:
+      - 'backend/prisma/schema.prisma'
+      - 'backend/prisma/migrations/**'
+      - 'backend/src/modules/oneauto-provider/service-history/**'
+      - 'backend/src/modules/vehicle-intelligence/service-compliance/**'
+      - 'backend/scripts/test/oneauto-oe-service-history-eu-postgres-ci.sh'
+      - 'backend/scripts/test/ci-start-postgres.sh'
+      - 'backend/scripts/test/prisma-migrate-deploy-resilient.sh'
+      - 'backend/package.json'
+      - 'backend/package-lock.json'
+      - '.github/workflows/oneauto-oe-service-history-postgres-ci.yml'
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'cursor/oneauto-service-history-*'
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  DATABASE_URL: postgresql://synqdrive:synqdrive@127.0.0.1:5432/synqdrive_ci_ephemeral?schema=public
+
+jobs:
+  oneauto-service-history-postgres:
+    name: OneAuto OE service history migration + ingestion
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start PostgreSQL
+        run: bash backend/scripts/test/ci-start-postgres.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Migration replay + ingestion integration
+        working-directory: backend
+        run: |
+          npm ci
+          npx prisma generate
+          bash scripts/test/oneauto-oe-service-history-eu-postgres-ci.sh

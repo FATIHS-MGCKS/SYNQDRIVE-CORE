@@ -1,10 +1,19 @@
 -- OneAuto OE_SERVICE_HISTORY_EU → VehicleServiceEvent durable ingestion (V1)
 
-CREATE TYPE "OneAutoOeServiceHistoryEuIngestionStatus" AS ENUM ('PENDING', 'SUCCEEDED', 'FAILED', 'PARTIAL');
+DO $$
+BEGIN
+  CREATE TYPE "OneAutoOeServiceHistoryEuIngestionStatus" AS ENUM ('PENDING', 'SUCCEEDED', 'FAILED', 'PARTIAL');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TYPE "ServiceEventOrigin" ADD VALUE IF NOT EXISTS 'ONEAUTO';
 
 ALTER TABLE "vehicle_service_events"
+  ADD COLUMN IF NOT EXISTS "workshop_name" TEXT,
+  ADD COLUMN IF NOT EXISTS "provider" TEXT,
+  ADD COLUMN IF NOT EXISTS "cost_cents" INTEGER,
+  ADD COLUMN IF NOT EXISTS "document_url" TEXT,
   ADD COLUMN IF NOT EXISTS "one_auto_provider_job_id" TEXT,
   ADD COLUMN IF NOT EXISTS "external_source_event_key" TEXT,
   ADD COLUMN IF NOT EXISTS "one_auto_vehicle_historical_event_key" TEXT,
@@ -74,7 +83,12 @@ BEGIN
   END IF;
 END $$;
 
-CREATE TYPE "OneAutoOeServiceHistoryEuIngestionEventLinkKind" AS ENUM ('CREATED', 'LINKED_EXISTING');
+DO $$
+BEGIN
+  CREATE TYPE "OneAutoOeServiceHistoryEuIngestionEventLinkKind" AS ENUM ('CREATED', 'LINKED_EXISTING');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS "one_auto_oe_service_history_eu_ingestion_event_links" (
   "id" TEXT NOT NULL,

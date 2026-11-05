@@ -418,6 +418,10 @@ export function HealthErrorsView({
   const [serviceInfo, setServiceInfo] = useState<ServiceInfoStatus | null>(null);
   const [serviceInfoLoading, setServiceInfoLoading] = useState(true);
   const [serviceInfoError, setServiceInfoError] = useState(false);
+  const [serviceHistoryExtra, setServiceHistoryExtra] = useState<ServiceInfoStatus['serviceHistory']>([]);
+  const [serviceHistoryNextCursor, setServiceHistoryNextCursor] = useState<string | null>(null);
+  const [serviceHistoryHasMore, setServiceHistoryHasMore] = useState(false);
+  const [serviceHistoryLoadingMore, setServiceHistoryLoadingMore] = useState(false);
   const [hmTirePressure, setHmTirePressure] = useState<import('../../lib/api').HmTirePressureSignals | null>(null);
 
   useEffect(() => {
@@ -444,8 +448,15 @@ export function HealthErrorsView({
     api.vehicleIntelligence.tireHealthSummary(vehicleId).then(setTireHealth).catch(() => null);
     setServiceInfoLoading(true);
     setServiceInfoError(false);
+    setServiceHistoryExtra([]);
+    setServiceHistoryNextCursor(null);
+    setServiceHistoryHasMore(false);
     api.vehicleIntelligence.serviceInfoStatus(vehicleId)
-      .then(setServiceInfo)
+      .then((status) => {
+        setServiceInfo(status);
+        setServiceHistoryNextCursor(status.serviceHistoryNextCursor ?? null);
+        setServiceHistoryHasMore(Boolean(status.serviceHistoryHasMore));
+      })
       .catch(() => {
         setServiceInfo(null);
         setServiceInfoError(true);
@@ -477,9 +488,16 @@ export function HealthErrorsView({
     if (!showService || !vehicleId) return;
     setServiceInfoLoading(true);
     setServiceInfoError(false);
+    setServiceHistoryExtra([]);
+    setServiceHistoryNextCursor(null);
+    setServiceHistoryHasMore(false);
     api.vehicleIntelligence
       .serviceInfoStatus(vehicleId)
-      .then(setServiceInfo)
+      .then((status) => {
+        setServiceInfo(status);
+        setServiceHistoryNextCursor(status.serviceHistoryNextCursor ?? null);
+        setServiceHistoryHasMore(Boolean(status.serviceHistoryHasMore));
+      })
       .catch(() => {
         setServiceInfo(null);
         setServiceInfoError(true);
@@ -2437,9 +2455,9 @@ export function HealthErrorsView({
             <div className="mb-5">
               <h3 className={`text-sm font-semibold mb-2 text-foreground`}>Servicehistorie</h3>
               <p className="text-xs text-muted-foreground mb-4">{serviceHistoryDisclaimer()}</p>
-              {serviceInfo && serviceInfo.serviceHistory.length > 0 ? (
+              {serviceInfo && (serviceInfo.serviceHistory.length > 0 || serviceHistoryExtra.length > 0) ? (
                 <div className="space-y-3">
-                  {serviceInfo.serviceHistory.map((item) => (
+                  {[...serviceInfo.serviceHistory, ...serviceHistoryExtra].map((item) => (
                     <div key={item.id} className="flex items-start gap-3 py-2 border-b border-border last:border-0">
                       <div className="shrink-0 min-w-0 flex-1">
                         <p className={`text-sm font-semibold text-foreground`}>{formatServiceEventTypeDe(item.eventType)}</p>
@@ -2471,6 +2489,30 @@ export function HealthErrorsView({
                       </span>
                     </div>
                   ))}
+                  {serviceHistoryHasMore && serviceHistoryNextCursor ? (
+                    <button
+                      type="button"
+                      disabled={serviceHistoryLoadingMore || !vehicleId}
+                      className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                      onClick={() => {
+                        if (!vehicleId || !serviceHistoryNextCursor) return;
+                        setServiceHistoryLoadingMore(true);
+                        api.vehicleIntelligence
+                          .serviceHistoryPage(vehicleId, { cursor: serviceHistoryNextCursor })
+                          .then((page) => {
+                            setServiceHistoryExtra((prev) => [...prev, ...page.items]);
+                            setServiceHistoryNextCursor(page.nextCursor);
+                            setServiceHistoryHasMore(page.hasMore);
+                          })
+                          .catch(() => null)
+                          .finally(() => setServiceHistoryLoadingMore(false));
+                      }}
+                    >
+                      {serviceHistoryLoadingMore
+                        ? '…'
+                        : t('health.serviceHistory.loadMore' as never)}
+                    </button>
+                  ) : null}
                 </div>
               ) : (
                 <p className={`text-xs text-muted-foreground/70`}>Noch keine Serviceereignisse dokumentiert</p>
