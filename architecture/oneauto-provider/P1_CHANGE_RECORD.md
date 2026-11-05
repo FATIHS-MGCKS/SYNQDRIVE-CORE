@@ -141,6 +141,19 @@
 - **Evidence:** `P4_E4_CALLBACK_URL_REDACTION_REMEDIATION.md` (historical token exposure plan — no prod cleanup).
 - **Tests:** `oneauto-e4-failed-callback-recovery.spec.ts`.
 - **Non-effects:** No production replay in PR; no provider HTTP; Tesla job remains non-recoverable (provider `success:false`).
+- **E4-L2b (hardening):** `persistFullDataCallbackSuccessInTransaction` transitions job before writing audit/callback rows; recovery tx re-validates FAILED/error/org/vehicle/retention; CLI uses `OneAutoE4FailedCallbackRecoveryCliModule` (no Workers/Schedule/Bull).
+
+## E1 — OE_SERVICE_HISTORY_EU Master Admin (2026-11-05, draft PR)
+
+- **Scope:** `OE_SERVICE_HISTORY_EU` on `GET ezyvin/servicehistory/` with E4 `CALLBACK_FULL_DATA` (one initial GET, zero retrieval GET/poll/retry).
+- **Registry:** `buildExecutionVerifiedOeServiceHistoryEuFullDataCallback()`; pricing version `synqdrive-e1-service-history-eu-callback-v1`; DE PrePay reference 300 EUR minor (operator-configured).
+- **Gates:** `ONEAUTO_SKU_OE_SERVICE_HISTORY_EU_RUNTIME_ENABLED=1` required (default OFF); global callback flags unchanged; no deploy-time paid authorization.
+- **Payload:** Bare + wrapped callback envelopes; `service_events[]` validation; empty history vs provider failure vs 206 partial.
+- **Budget:** Allowlisted test orgs only — `ONEAUTO_E1_SERVICE_HISTORY_TEST_ORG_IDS` + `ONEAUTO_E1_SERVICE_HISTORY_TEST_ORG_BUDGET_CAP_MINOR` (does not raise global cap).
+- **UI:** Master `OneAutoServiceHistoryResultPanel` (9 locales for new keys; pl/fr/cs/nl/es/tr/it serviceHistory strings English pending native review).
+- **Evidence:** `architecture/oneauto-provider/evidence/E1_SERVICE_HISTORY_EU_CALLBACK_V1.md`
+- **Tests:** `oneauto-e1-service-history-eu.spec.ts`; registry specs updated for second SKU.
+- **Non-effects:** No production env activation; no vehicle service-history import; no OEM spec overwrite.
 
 ## P2.5E-P1 hardening — capture field coverage & safe publish (2026-11-02)
 

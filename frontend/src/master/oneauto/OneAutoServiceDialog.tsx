@@ -25,6 +25,7 @@ import {
   safeJsonPreview,
   serviceSkuTranslationBase,
 } from './oneauto-ui.util';
+import { OneAutoServiceHistoryResultPanel } from './OneAutoServiceHistoryResultPanel';
 
 type DialogPhase = 'catalog' | 'quote' | 'job' | 'result';
 
@@ -156,6 +157,7 @@ export function OneAutoServiceDialog({
   const canSelectForQuote = (entry: OneAutoCatalogService): boolean => {
     if (entry.availabilityStatus === 'DISABLED_FLAG') return false;
     if (entry.availabilityStatus === 'CONTRACT_UNVERIFIED') return false;
+    if (entry.availabilityStatus === 'SKU_RUNTIME_DISABLED') return false;
     return entry.executable === true && entry.availabilityStatus === 'AVAILABLE';
   };
 
@@ -590,6 +592,10 @@ export function OneAutoServiceDialog({
                     ? safeJsonPreview(result.latestResponse.responseBodyJson)
                     : t('master.oneAuto.resultFallback' as never)}
                 </pre>
+                {result.job.serviceSku === 'OE_SERVICE_HISTORY_EU' &&
+                result.job.status === 'SUCCEEDED' ? (
+                  <OneAutoServiceHistoryResultPanel result={result} />
+                ) : null}
               </div>
             ) : null}
           </div>
