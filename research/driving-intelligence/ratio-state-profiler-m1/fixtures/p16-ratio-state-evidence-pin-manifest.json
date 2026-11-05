@@ -1,0 +1,199 @@
+{
+  "schema": "DS4_RPM_P16_RATIO_STATE_EVIDENCE_PIN_V1",
+  "operation": "DS4_RPM_P16_RATIO_STATE_EVIDENCE_PIN",
+  "mode": "STRICT_OFFLINE_READ_ONLY",
+  "generated_at_utc": "2026-11-05T23:10:00Z",
+  "trip_id": "98d2a8e0-8b7d-4529-bf76-acee44d61fbe",
+  "vehicle_label": "TIG22",
+  "scientific_baseline_role": "M1_RATIO_STATE_PROFILER_V1_EVIDENCE_PIN",
+  "upstream_research": [
+    "ds4-rpm-p6-fable-intelligence-research.md",
+    "ds4-rpm-p8-ratio-pairing-authority-audit.json",
+    "ds4-rpm-p15-existing-evidence-attestation-audit.json"
+  ],
+  "SOURCE_INTEGRITY": {
+    "verdict": "COMPLETE",
+    "validator": {
+      "path": "/opt/cursor/artifacts/ds4-rpm-p7-ratio-state-validation.py",
+      "sha256": "e2998eef98f7028b60863f0a442fbd739e57c65e3ec3f1f5bcdd56e794e559c0",
+      "version_label": "P7_M1_OFFLINE_VALIDATOR_UNVERSIONED",
+      "modified_note": "Script unchanged this operation"
+    },
+    "sealed_inputs": [
+      {
+        "role": "video_1hz_reference",
+        "repo_relative": "research/driving-intelligence/evaluations/ds4-speed-video-reference-20261023/inputs/tiguan-20261022/reference/TIGUAN_2026-10-22_1Hz.csv",
+        "sha256": "9c8933c223e58706d1cc1ce82fe8c623e2429d3bd1f4f570e10353f9f3b9aaa2",
+        "data_lines_including_header": 1465,
+        "reference_readable_claim": "1417 (video eval summary \u2014 not recomputed here)"
+      },
+      {
+        "role": "p5_optical_qc_overlay",
+        "path": "/opt/cursor/artifacts/tig22-p5-package/TIG22_P5_OPTICAL_QC_360ROWS.csv",
+        "sha256": "f4818955f497e3c3a36def76fe6d257e715b0e6610db658cfef8c93b5f4bb0b6",
+        "data_rows": 360,
+        "p5_evidence_class_counts": {
+          "POSITIVE_RPM_VISUAL_CANDIDATE": 255,
+          "RPM_NOT_OPTICALLY_VERIFIABLE": 56,
+          "VISIBLE_NEAR_ZERO_UNCALIBRATED": 49
+        }
+      },
+      {
+        "role": "sealed_s4_r1_obd",
+        "repo_relative": "research/driving-intelligence/evaluations/ds4-speed-video-reference-20261023/inputs/tiguan-20261022/snapshots/di_v0_s4_evidence_container.bin",
+        "sha256": "22e2a662af3a07458e5713bd004f563e9d038c86fb89f3353d39b8e7ea3504b3",
+        "size_bytes": 886052
+      },
+      {
+        "role": "analysis_windows_optional",
+        "repo_relative": "research/driving-intelligence/evaluations/ds4-speed-video-reference-20261023/inputs/tiguan-20261022/reference/TIGUAN_2026-10-22_analysis_windows.csv",
+        "present": true
+      }
+    ],
+    "missing_orchestrator_inputs": {
+      "fetch_e13a_invalidation_register": "NOT_FOUND_IN_REPO \u2014 P15 documents; do not reuse pre-E13A invalidated Fetch statistics in this pin"
+    },
+    "sample_selection_video": {
+      "filters": [
+        "p5_evidence_class == POSITIVE_RPM_VISUAL_CANDIDATE",
+        "source_speed_display_kmh and p5_candidate_rpm present",
+        "speed_kmh > v_min (primary v_min=20)",
+        "exclude video_second in {0, 179} per clip"
+      ],
+      "rpm_uncertainty_assumption_rpm": 500,
+      "pairing_authority": "VIDEO_SAME_FRAME_NOMINAL"
+    },
+    "cohort_boundaries": {
+      "video_x_r1": "BLOCKED \u2014 never joined",
+      "ds4_x_rpm": "BLOCKED \u2014 P15 timestamp ceiling",
+      "gear_labels": "FORBIDDEN"
+    }
+  },
+  "P7_REPRODUCTION_VERDICT": {
+    "status": "MATCH",
+    "run_at_utc": "2026-11-05T23:08:08Z",
+    "output_path": "/opt/cursor/artifacts/ds4-rpm-p7-ratio-state-offline-validation.json",
+    "output_sha256": "35d86a6eaf4f1e6145a029308717a293e28f27affbd989b7eb643e605f9aaca3",
+    "p7_validation_content_sha256_excluding_generated_at": "b3aa7e26e26fa1bfa6af0665952a3278595d9fc40f3d474d74cdc87b41c4bef6",
+    "expected_reference_comparison": {
+      "video_pairs_n": {
+        "expected": 242,
+        "observed": 242,
+        "match": true
+      },
+      "block5_subsample_n": {
+        "expected_approx": 49,
+        "observed": 49,
+        "match": true
+      },
+      "top_ratio_modes_rpm_per_kmh": {
+        "expected": [
+          22.5,
+          37.5,
+          45.0,
+          50.0
+        ],
+        "observed_raw_order": [
+          22.5,
+          37.5,
+          50.0,
+          45.0
+        ],
+        "match": true,
+        "note": "Order of 50 vs 45 swapped by count; both within expected set"
+      }
+    },
+    "discrepancies": []
+  },
+  "derived_validation_statistics": {
+    "VIDEO_PAIR_COUNT": 242,
+    "BLOCK5_SAMPLE_COUNT": 49,
+    "ratio_median_vmin_20": 32.67,
+    "fable_band_counts_vmin_20": {
+      "20-25": 67,
+      "40-45": 51,
+      "55-60": 22
+    },
+    "rpm_pm500_smear_modes_persist": true,
+    "block5_preserves_major_modes": true,
+    "r1_same_row_vmin_20_n": 442,
+    "r1_pairing_authority": "SAME_EVIDENCE_ROW_INTERVAL_ONLY"
+  },
+  "RATIO_MODE_REPRODUCTION": {
+    "raw_peaks_vmin_20": [
+      {
+        "mode_rpm_per_kmh": 22.5,
+        "count": 26,
+        "fraction": 0.107
+      },
+      {
+        "mode_rpm_per_kmh": 37.5,
+        "count": 16,
+        "fraction": 0.066
+      },
+      {
+        "mode_rpm_per_kmh": 50.0,
+        "count": 14,
+        "fraction": 0.058
+      },
+      {
+        "mode_rpm_per_kmh": 45.0,
+        "count": 13,
+        "fraction": 0.054
+      }
+    ],
+    "reference_alignment": "Matches historical P7 pin within exact counts"
+  },
+  "MODE_UNCERTAINTY_ANALYSIS": {
+    "rpm_quantization_pm500": "Multimodal structure persists under smear (modes_persist=true)",
+    "speed_integer_denominator": "INCONCLUSIVE at low v; mitigated by v>20",
+    "consecutive_1hz_autocorrelation": "WARNING \u2014 block-5 required for independence claims",
+    "display_smoothing": "UNVERIFIED \u2014 no hardware timestamps (P15)",
+    "r1_not_independent_ground_truth_for_video": true
+  },
+  "P8_PAIRING_AUTHORITY_VERDICT": {
+    "video_cohort": "VIDEO_SAME_FRAME_NOMINAL / ELIGIBLE_FOR_M1_DESCRIPTIVE",
+    "r1_cohort": "SAME_EVIDENCE_ROW_INTERVAL_ONLY / ELIGIBLE_FOR_M1_DESCRIPTIVE same-row only",
+    "cross_cohort": "BLOCKED",
+    "historical_r1_veto": "ACTIVE \u2014 hasUncertainHistoricalObdRecordTime(RUPTELA_R1); no point-time bypass"
+  },
+  "M1_OFFLINE_ELIGIBILITY": {
+    "decision": "CONDITIONAL_GO_SINGLE_VEHICLE_DESCRIPTIVE",
+    "supported_inputs": [
+      "Sealed TIG22 P5 QC + 1Hz video reference (video cohort)",
+      "Sealed TIG22 S4 r1_obd container (same-row cohort)"
+    ],
+    "ratio_restrictions": [
+      "rpm/speed_kmh with v>v_min",
+      "exclude QC-non-admissible classes",
+      "no cross-source denominator swap"
+    ],
+    "confidence_semantics": {
+      "HIGH": "Mode stable in raw + block5 + \u00b1500 smear; optional R1 mode-family corroboration without join",
+      "NOT_HIGH_MEANS": "Not a verified physical gear number"
+    },
+    "NOT_AVAILABLE": [
+      "Undeclared pairing authority",
+      "n_eligible < 30",
+      "Missing sealed input or hash mismatch",
+      "Cross-cohort join request"
+    ],
+    "mode_separability": "Dominant modes separated by \u22652.5 rpm/kmh bin width; speed-band sampling uneven (n=78 at 80 km/h band vs n=13 at 20)",
+    "no_gear_label_guard": "ENFORCED"
+  },
+  "M2_SHIFT_DETECTION_STATUS": {
+    "decision": "NO_GO",
+    "video_candidate_events": 3,
+    "reason": "1 Hz + display latency; P8 M2 shift detector NO_GO unchanged"
+  },
+  "SCIENTIFIC_LIMITATIONS": [
+    "Single vehicle TIG22",
+    "Physical sample synchrony unproven for video and R1",
+    "P15 closes DS4\u00d7RPM temporal attestation \u2014 no Fetch payload pin",
+    "R1 corroboration is distributional only",
+    "HIGH confidence \u2260 gear identity"
+  ],
+  "SINGLE_NEXT_TECHNICAL_ACTION": "Owner approval to commit pairingAuthority manifest + offline M1 harness under research/ (separate PR); use THIS manifest sha256 as baseline gate \u2014 do not change validator filters without new pin operation",
+  "STOP": "ORCHESTRATOR_REVIEW",
+  "manifest_sha256_self": "5774d38fa2bb96adc89fbe04ca4f37b6ca7b730e06d0febd31bb50b7d9f704e6"
+}
