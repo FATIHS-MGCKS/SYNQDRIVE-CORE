@@ -13,6 +13,12 @@ import {
   parseOeServiceHistoryEuProviderResult,
 } from './service-history/oneauto-service-history-eu-provider.util';
 import { ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU } from './service-history/oneauto-service-history-eu.types';
+import {
+  assertOeServiceScheduleEuJobBinding,
+  extractOeServiceScheduleEuProviderResult,
+  parseOeServiceScheduleEuProviderResult,
+} from './service-schedule/oneauto-oe-service-schedule-eu-provider.util';
+import { ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU } from './service-schedule/oneauto-service-schedule-eu.types';
 
 export type OneAutoFullDataCallbackRejectionCode =
   | 'ONEAUTO_CALLBACK_PAYLOAD_MALFORMED'
@@ -136,6 +142,16 @@ export function evaluateOneAutoFullDataCallbackPayload(input: {
 
   if (input.contract.serviceSku === ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU) {
     return evaluateOeServiceHistoryEuFullDataResult({
+      envelope,
+      wrapped,
+      wrapperStatus,
+      jobVinSnapshot: input.jobVinSnapshot,
+      vehicleVin: input.vehicleVin,
+    });
+  }
+
+  if (input.contract.serviceSku === ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU) {
+    return evaluateOeServiceScheduleEuFullDataResult({
       envelope,
       wrapped,
       wrapperStatus,
@@ -301,6 +317,85 @@ function evaluateOeServiceHistoryEuFullDataResult(input: {
   };
 }
 
+function evaluateOeServiceScheduleEuFullDataResult(input: {
+  envelope: Record<string, unknown>;
+  wrapped: boolean;
+  wrapperStatus: number | null;
+  jobVinSnapshot: string;
+  vehicleVin: string | null;
+}): OneAutoFullDataCallbackEvaluation {
+  const result = extractOeServiceScheduleEuProviderResult(input.envelope);
+  if (!result) {
+    return {
+      ok: false,
+      code: 'ONEAUTO_CALLBACK_PAYLOAD_INCOMPLETE',
+      diagnostic: {
+        reason: 'missing_result_object',
+        wrapped: input.wrapped,
+        wrapperStatus: input.wrapperStatus,
+      },
+      envelope: input.envelope,
+      wrapperStatus: input.wrapperStatus,
+    };
+  }
+
+  const binding = assertOeServiceScheduleEuJobBinding({
+    serviceSku: ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU,
+    jobVinSnapshot: input.jobVinSnapshot,
+    vehicleVin: input.vehicleVin,
+    providerResponseBody: input.envelope,
+  });
+  if (!binding.ok) {
+    return {
+      ok: false,
+      code: 'ONEAUTO_CALLBACK_VIN_MISMATCH',
+      diagnostic: {
+        bindingCode: binding.code,
+        wrapped: input.wrapped,
+        wrapperStatus: input.wrapperStatus,
+      },
+      envelope: input.envelope,
+      wrapperStatus: input.wrapperStatus,
+    };
+  }
+
+  const parsed = parseOeServiceScheduleEuProviderResult(result);
+  if (parsed.kind === 'INVALID_SHAPE') {
+    return {
+      ok: false,
+      code: 'ONEAUTO_CALLBACK_PAYLOAD_INCOMPLETE',
+      diagnostic: {
+        reason: parsed.reason,
+        wrapped: input.wrapped,
+        wrapperStatus: input.wrapperStatus,
+      },
+      envelope: input.envelope,
+      wrapperStatus: input.wrapperStatus,
+    };
+  }
+
+  if (normalizeVin(parsed.vehicleIdentificationNumber) !== binding.normalizedVin) {
+    return {
+      ok: false,
+      code: 'ONEAUTO_CALLBACK_VIN_MISMATCH',
+      diagnostic: {
+        reason: 'result_vin_mismatch',
+        wrapped: input.wrapped,
+        wrapperStatus: input.wrapperStatus,
+      },
+      envelope: input.envelope,
+      wrapperStatus: input.wrapperStatus,
+    };
+  }
+
+  return {
+    ok: true,
+    result: parsed.rawResult,
+    envelope: input.envelope,
+    wrapperStatus: input.wrapperStatus,
+  };
+}
+
 export function isOeVinLookupEuFullDataCallbackSku(serviceSku: string): boolean {
   return serviceSku === ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU;
 }
@@ -309,6 +404,11 @@ export function isOeVinLookupEuFullDataCallbackSku(serviceSku: string): boolean 
 export function isOneAutoFullDataCallbackSku(serviceSku: string): boolean {
   return (
     serviceSku === ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU ||
-    serviceSku === ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU
+    serviceSku === ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU ||
+    serviceSku === ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU
   );
+}
+
+export function isOeServiceScheduleEuFullDataCallbackSku(serviceSku: string): boolean {
+  return serviceSku === ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU;
 }

@@ -26,6 +26,7 @@ import {
   serviceSkuTranslationBase,
 } from './oneauto-ui.util';
 import { OneAutoServiceHistoryResultPanel } from './OneAutoServiceHistoryResultPanel';
+import { OneAutoServiceScheduleResultPanel } from './OneAutoServiceScheduleResultPanel';
 
 type DialogPhase = 'catalog' | 'quote' | 'job' | 'result';
 
@@ -595,6 +596,10 @@ export function OneAutoServiceDialog({
                 {result.job.serviceSku === 'OE_SERVICE_HISTORY_EU' &&
                 result.job.status === 'SUCCEEDED' ? (
                   <OneAutoServiceHistoryResultPanel result={result} />
+                ) : null}
+                {result.job.serviceSku === 'OE_SERVICE_SCHEDULE' &&
+                result.job.status === 'SUCCEEDED' ? (
+                  <OneAutoServiceScheduleResultPanel result={result} />
                 ) : null}
               </div>
             ) : null}

@@ -77,6 +77,31 @@ export function buildExecutionVerifiedOeServiceHistoryEuFullDataCallback(): OneA
   };
 }
 
+/**
+ * Builder for future attestation only — intentionally NOT seeded in `seedOneAutoExecutionVerifiedRegistry`.
+ * OE_SERVICE_SCHEDULE remains DOCUMENTED / non-executable until service-specific callback evidence exists.
+ */
+export function buildExecutionVerifiedOeServiceScheduleEuFullDataCallbackForAttestationOnly(): OneAutoExecutionVerifiedProviderContract {
+  const documented = getDocumentedOneAutoContract('OE_SERVICE_SCHEDULE');
+  if (!documented) {
+    throw new Error('OE_SERVICE_SCHEDULE documented contract missing');
+  }
+  return {
+    ...documented,
+    evidenceState: 'EXECUTION_VERIFIED',
+    asyncPollSameUrlWithoutNewCharge: false,
+    http206CompleteSuccessAllowed: false,
+    asyncCompletionMode: 'CALLBACK_FULL_DATA',
+    catalogExecutionMode: 'ASYNC_CAPABLE',
+    asyncCapability: 'ASYNC_CAPABLE',
+    pricingSourceVersion: 'synqdrive-p1-oe-service-schedule-draft-v1',
+    evidenceSources: [
+      ...documented.evidenceSources,
+      'architecture/oneauto-provider/evidence/P1_OE_SERVICE_SCHEDULE_INTEGRATION_DRAFT.md',
+    ],
+  };
+}
+
 export const ONEAUTO_EXECUTION_VERIFIED_SKUS_READONLY = [
   'OE_VIN_LOOKUP_EU',
   'OE_SERVICE_HISTORY_EU',

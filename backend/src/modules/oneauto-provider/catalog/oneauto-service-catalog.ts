@@ -111,8 +111,10 @@ export function resolveCatalogEntryForRuntime(
   else if (configuredPrice == null) availabilityStatus = 'PRICE_NOT_CONFIGURED';
   else availabilityStatus = 'AVAILABLE';
   const verified = getExecutionVerifiedOneAutoContract(entry.serviceSku);
-  const currency =
-    entry.serviceSku === 'OE_SERVICE_HISTORY_EU' && configuredPrice != null ? 'EUR' : entry.currency;
+  const eurWhenPriced =
+    (entry.serviceSku === 'OE_SERVICE_HISTORY_EU' || entry.serviceSku === 'OE_SERVICE_SCHEDULE') &&
+    configuredPrice != null;
+  const currency = eurWhenPriced ? 'EUR' : entry.currency;
   return {
     ...entry,
     executionMode: verified?.catalogExecutionMode ?? entry.executionMode,
