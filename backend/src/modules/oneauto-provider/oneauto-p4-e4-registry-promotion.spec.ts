@@ -85,6 +85,7 @@ describe('OneAuto E4 registry promotion (CALLBACK_FULL_DATA seed)', () => {
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     await svc.processJob('j-reg', 'initial');
     expect(http.executeProviderGet).toHaveBeenCalledWith(
@@ -121,6 +122,7 @@ describe('OneAuto E4 registry promotion (CALLBACK_FULL_DATA seed)', () => {
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     await svc.processJob('j-reg', 'initial');
     expect(http.executeProviderGet).toHaveBeenCalledWith(
@@ -155,6 +157,7 @@ describe('OneAuto E4 registry promotion (CALLBACK_FULL_DATA seed)', () => {
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     await svc.processJob('j-reg', 'initial');
     expect(prisma.oneAutoProviderJob.update).toHaveBeenCalledWith(
@@ -215,6 +218,7 @@ describe('OneAuto E4 registry promotion (CALLBACK_FULL_DATA seed)', () => {
       config,
       queue as never,
       materialize as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const result = await callbackSvc.ingestProviderCallback({
       deliveryToken,
@@ -267,6 +271,7 @@ describe('OneAuto E4 registry promotion (CALLBACK_FULL_DATA seed)', () => {
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+        { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const { deliveryToken } = generateOneAutoCallbackDeliveryToken();
     const result = await svc.ingestProviderCallback({
@@ -309,6 +314,7 @@ describe('OneAuto E4 registry promotion (CALLBACK_FULL_DATA seed)', () => {
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const { deliveryToken } = generateOneAutoCallbackDeliveryToken();
     const result = await svc.ingestProviderCallback({
@@ -360,6 +366,7 @@ describe('OneAuto E4 registry promotion (CALLBACK_FULL_DATA seed)', () => {
       config,
       queue as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const { deliveryToken } = generateOneAutoCallbackDeliveryToken();
     const result = await svc.ingestProviderCallback({

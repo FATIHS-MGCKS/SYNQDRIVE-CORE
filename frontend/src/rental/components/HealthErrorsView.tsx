@@ -472,6 +472,21 @@ export function HealthErrorsView({
       .catch(() => setBatteryRecentTrips([]));
   }, [showBattery, vehicleId]);
 
+  // Refresh service history when the Service modal opens (post-OneAuto ingestion without full reload).
+  useEffect(() => {
+    if (!showService || !vehicleId) return;
+    setServiceInfoLoading(true);
+    setServiceInfoError(false);
+    api.vehicleIntelligence
+      .serviceInfoStatus(vehicleId)
+      .then(setServiceInfo)
+      .catch(() => {
+        setServiceInfo(null);
+        setServiceInfoError(true);
+      })
+      .finally(() => setServiceInfoLoading(false));
+  }, [showService, vehicleId]);
+
   // Load active auto-tasks for this vehicle when the Service modal opens.
   // Filters to system-generated tasks (source INSIGHT_*) that are still open.
   useEffect(() => {
@@ -2425,16 +2440,35 @@ export function HealthErrorsView({
               {serviceInfo && serviceInfo.serviceHistory.length > 0 ? (
                 <div className="space-y-3">
                   {serviceInfo.serviceHistory.map((item) => (
-                    <div key={item.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                    <div key={item.id} className="flex items-start gap-3 py-2 border-b border-border last:border-0">
                       <div className="shrink-0 min-w-0 flex-1">
                         <p className={`text-sm font-semibold text-foreground`}>{formatServiceEventTypeDe(item.eventType)}</p>
                         <p className={`text-xs text-muted-foreground`}>
-                          {new Date(item.date).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })}
-                          {item.odometerKm != null ? ` · ${item.odometerKm.toLocaleString('de-DE')} km` : ''}
+                          {new Date(item.date).toLocaleDateString(locale === 'de' ? 'de-DE' : locale, { day: 'numeric', month: 'long', year: 'numeric' })}
+                          {item.odometerKm != null ? ` · ${item.odometerKm.toLocaleString(locale === 'de' ? 'de-DE' : locale)} km` : ''}
                           {item.workshopName ? ` · ${item.workshopName}` : ''}
                         </p>
+                        {item.providerServiceType ? (
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {t('health.serviceHistory.providerType' as never)}: {item.providerServiceType}
+                          </p>
+                        ) : null}
+                        {item.performedActions && item.performedActions.length > 0 ? (
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {t('health.serviceHistory.performedActions' as never)}: {item.performedActions.join(' · ')}
+                          </p>
+                        ) : null}
+                        {item.externalSource ? (
+                          <p className="text-[10px] text-muted-foreground/80 mt-1">
+                            {t('health.serviceHistory.incompleteExternalHint' as never)}
+                          </p>
+                        ) : null}
                       </div>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground shrink-0">Dokumentiert</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground shrink-0">
+                        {item.externalSource
+                          ? t('health.serviceHistory.sourceOneAuto' as never)
+                          : t('health.serviceHistory.sourceManual' as never)}
+                      </span>
                     </div>
                   ))}
                 </div>

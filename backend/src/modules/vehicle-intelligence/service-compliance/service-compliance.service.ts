@@ -24,6 +24,15 @@ import type { ComplianceOperationalVehicle } from './service-compliance-operatio
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DAYS_PER_MONTH = 30.44;
 
+function extractPerformedActionsFromSourcePayload(sourcePayloadJson: unknown): string[] {
+  if (!sourcePayloadJson || typeof sourcePayloadJson !== 'object' || Array.isArray(sourcePayloadJson)) {
+    return [];
+  }
+  const actions = (sourcePayloadJson as Record<string, unknown>).service_actions;
+  if (!Array.isArray(actions)) return [];
+  return actions.map((item) => String(item).trim()).filter(Boolean);
+}
+
 export interface VehicleComplianceFields {
   lastTuvDate: Date | null;
   nextTuvDate: Date | null;
@@ -66,6 +75,11 @@ export interface ServiceInfoStatusDto {
     odometerKm: number | null;
     workshopName: string | null;
     notes: string | null;
+    origin: string;
+    provider: string | null;
+    providerServiceType: string | null;
+    performedActions: string[];
+    externalSource: boolean;
   }>;
   tuvHistory: Array<{
     id: string;
@@ -458,14 +472,32 @@ export class ServiceComplianceService {
       odometerKm: number | null;
       workshopName: string | null;
       notes: string | null;
-    }) => ({
-      id: e.id,
-      eventType: e.eventType,
-      date: e.eventDate.toISOString(),
-      odometerKm: e.odometerKm,
-      workshopName: e.workshopName,
-      notes: e.notes,
-    });
+      origin: string;
+      provider: string | null;
+      sourcePayloadJson: unknown;
+    }) => {
+      const performedActions = extractPerformedActionsFromSourcePayload(e.sourcePayloadJson);
+      const providerServiceType =
+        e.sourcePayloadJson &&
+        typeof e.sourcePayloadJson === 'object' &&
+        !Array.isArray(e.sourcePayloadJson) &&
+        typeof (e.sourcePayloadJson as Record<string, unknown>).service_type === 'string'
+          ? String((e.sourcePayloadJson as Record<string, unknown>).service_type)
+          : null;
+      return {
+        id: e.id,
+        eventType: e.eventType,
+        date: e.eventDate.toISOString(),
+        odometerKm: e.odometerKm,
+        workshopName: e.workshopName,
+        notes: e.notes,
+        origin: e.origin,
+        provider: e.provider,
+        providerServiceType,
+        performedActions,
+        externalSource: e.origin === 'ONEAUTO',
+      };
+    };
 
     const { nextService, tuvBokraft } = compliance;
     const tracked = nextService.trackingStatus === 'TRACKED';

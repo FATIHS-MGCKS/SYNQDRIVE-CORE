@@ -133,6 +133,7 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
     const svc = new OneAutoE4FailedCallbackRecoveryService(
       prisma as never,
       materialize as never,
+      { tryIngestFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'DISABLED' }) } as never,
     );
 
     const result = await svc.recoverFailedFullDataCallbackJob({
@@ -179,6 +180,7 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
     const svc = new OneAutoE4FailedCallbackRecoveryService(
       prisma as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'DISABLED' }) } as never,
     );
     const result = await svc.recoverFailedFullDataCallbackJob({
       jobId: VW_JOB_ID,
@@ -205,6 +207,7 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
     const svc = new OneAutoE4FailedCallbackRecoveryService(
       prisma as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'DISABLED' }) } as never,
     );
     const result = await svc.recoverFailedFullDataCallbackJob({
       jobId: VW_JOB_ID,
@@ -224,6 +227,7 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
     const svc = new OneAutoE4FailedCallbackRecoveryService(
       prisma as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'DISABLED' }) } as never,
     );
     const result = await svc.recoverFailedFullDataCallbackJob({
       jobId: VW_JOB_ID,
@@ -246,6 +250,7 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
     const svc = new OneAutoE4FailedCallbackRecoveryService(
       prisma as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'DISABLED' }) } as never,
     );
     const result = await svc.recoverFailedFullDataCallbackJob({
       jobId: VW_JOB_ID,
@@ -274,6 +279,7 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
     const svc = new OneAutoE4FailedCallbackRecoveryService(
       prisma as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'DISABLED' }) } as never,
     );
     const result = await svc.recoverFailedFullDataCallbackJob({
       jobId: VW_JOB_ID,
@@ -310,6 +316,7 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
       const svc = new OneAutoE4FailedCallbackRecoveryService(
         prisma as never,
         { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'DISABLED' }) } as never,
       );
       const result = await svc.recoverFailedFullDataCallbackJob({
         jobId: VW_JOB_ID,
@@ -359,9 +366,11 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
         $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<string>) => fn(tx)),
       };
       const materialize = { tryMaterializeFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'CREATED' }) };
+      const ingestion = { tryIngestFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'SUCCEEDED' }) };
       const svc = new OneAutoE4FailedCallbackRecoveryService(
         prisma as never,
         materialize as never,
+        ingestion as never,
       );
 
       const [first, second] = await Promise.all([
@@ -404,6 +413,7 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
     const svc = new OneAutoE4FailedCallbackRecoveryService(
       prisma as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'DISABLED' }) } as never,
     );
     const result = await svc.recoverFailedFullDataCallbackJob({
       jobId: VW_JOB_ID,
@@ -421,6 +431,7 @@ describe('OneAuto E4 failed callback recovery (offline)', () => {
     const svc = new OneAutoE4FailedCallbackRecoveryService(
       { oneAutoProviderJob: { findFirst: jest.fn() } } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn().mockResolvedValue({ outcome: 'DISABLED' }) } as never,
     );
     const result = await svc.recoverFailedFullDataCallbackJob({
       jobId: VW_JOB_ID,

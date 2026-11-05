@@ -21,7 +21,7 @@ const NO_TRACKING_DESCRIPTION =
   'Für dieses Fahrzeug liefert HM/OEM aktuell keine Serviceinformationen. SynqDrive zeigt deshalb keinen geschätzten nächsten Service an.';
 
 const HISTORY_DISCLAIMER =
-  'Die Servicehistorie dient nur der Dokumentation. Ereignisse wie Reparatur oder Ölwechsel setzen den nächsten Service nicht zurück — Next Service kommt ausschließlich von HM/OEM.';
+  'Die Servicehistorie dient nur der Dokumentation. Ereignisse wie Reparatur oder Ölwechsel setzen den nächsten Service nicht zurück — Next Service kommt ausschließlich von HM/OEM. Externe OneAuto-Einträge sind keine Hersteller-Zertifizierung und können unvollständig sein.';
 
 export function hmTrackedServiceKm(si: ServiceInfoStatus | null | undefined): number | null {
   if (si?.nextService?.trackingStatus !== 'TRACKED') return null;

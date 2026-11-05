@@ -72,4 +72,7 @@ export default registerAs('oneautoProvider', () => ({
   /** E1: comma-separated org UUIDs allowed a higher daily cap for OE_SERVICE_HISTORY_EU test executes only. */
   e1ServiceHistoryTestOrgIds: loadE1ServiceHistoryTestOrgIdsFromEnv(),
   e1ServiceHistoryTestOrgBudgetCapMinor: loadE1ServiceHistoryTestOrgBudgetCapMinorFromEnv(),
+  /** V1: persist OE_SERVICE_HISTORY_EU provider events into VehicleServiceEvent after successful jobs. */
+  oeServiceHistoryIngestionEnabled:
+    (process.env.ONEAUTO_OE_SERVICE_HISTORY_INGESTION_ENABLED ?? 'false') === 'true',
 }));

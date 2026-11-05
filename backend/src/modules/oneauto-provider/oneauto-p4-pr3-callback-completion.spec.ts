@@ -93,6 +93,7 @@ describe('OneAuto P4 PR3 callback completion (offline, flags default OFF)', () =
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     await svc.processJob('j1', 'initial');
     expect(http.executeProviderGet).toHaveBeenCalledWith(
@@ -140,6 +141,7 @@ describe('OneAuto P4 PR3 callback completion (offline, flags default OFF)', () =
       config,
       queue as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+        { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const result = await svc.ingestProviderCallback({
       deliveryToken,
@@ -168,6 +170,7 @@ describe('OneAuto P4 PR3 callback completion (offline, flags default OFF)', () =
       config,
       { add: jest.fn() } as never,
       { tryMaterializeFromSucceededJob: jest.fn() } as never,
+      { tryIngestFromSucceededJob: jest.fn() } as never,
     );
     const result = await svc.ingestProviderCallback({
       deliveryToken: 'x',

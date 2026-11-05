@@ -4104,6 +4104,12 @@ export const de: Record<TranslationKey, string> = {
   'health.restingVoltageOnly': 'Nur qualifizierte Ruhespannungs-Messungen — keine Lade- oder Live-Spannung.',
   'health.noMeasurementsYet': 'Noch keine Messungen verfügbar',
   'health.noServiceEvents': 'Noch keine Serviceereignisse dokumentiert',
+  'health.serviceHistory.sourceManual': 'Manuell dokumentiert',
+  'health.serviceHistory.sourceOneAuto': 'OneAuto (extern)',
+  'health.serviceHistory.providerType': 'Serviceart (Anbieter)',
+  'health.serviceHistory.performedActions': 'Durchgeführte Arbeiten',
+  'health.serviceHistory.incompleteExternalHint':
+    'Externe Herkunft — nicht als vollständige oder herstellerzertifizierte Historie ausgewiesen.',
   'health.tasksAndSuggestions': 'Aufgaben & Vorschläge',
   'health.taskManagementHint': 'Sichtbar unter Task Management — wird automatisch geschlossen, sobald der Termin erledigt ist.',
   'health.serviceCompliance': 'Service & Compliance',

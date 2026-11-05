@@ -9751,7 +9751,8 @@ export type ServiceEventOrigin =
   | 'AI_UPLOAD'
   | 'WORKSHOP_DOCUMENT'
   | 'IMPORT'
-  | 'OEM';
+  | 'OEM'
+  | 'ONEAUTO';
 
 export type ServiceEventType =
   | 'OIL_CHANGE'
@@ -9861,7 +9862,19 @@ export interface ServiceInfoStatus {
   bokraftRemainingDays: number | null;
   bokraftOverdue: boolean;
   bokraftLastDate: string | null;
-  serviceHistory: Array<{ id: string; eventType: string; date: string; odometerKm: number | null; workshopName: string | null; notes: string | null }>;
+  serviceHistory: Array<{
+    id: string;
+    eventType: string;
+    date: string;
+    odometerKm: number | null;
+    workshopName: string | null;
+    notes: string | null;
+    origin?: ServiceEventOrigin;
+    provider?: string | null;
+    providerServiceType?: string | null;
+    performedActions?: string[];
+    externalSource?: boolean;
+  }>;
   tuvHistory: Array<{ id: string; eventType: string; date: string; odometerKm: number | null; workshopName: string | null; notes: string | null }>;
   bokraftHistory: Array<{ id: string; eventType: string; date: string; odometerKm: number | null; workshopName: string | null; notes: string | null }>;
   /** Phase 3: set to true when HM Health is active and overrides km/months values */

@@ -14,6 +14,7 @@ import {
 } from './oneauto-e4-failed-callback-recovery.constants';
 import { ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU } from './oem-specification/oneauto-vin-lookup-oem-suggestion.types';
 import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
+import { OneAutoOeServiceHistoryEuIngestionService } from './service-history/oneauto-oe-service-history-eu-ingestion.service';
 
 export type OneAutoE4FailedCallbackRecoveryOutcome =
   | 'AUTHORIZATION_DENIED'
@@ -53,6 +54,7 @@ export class OneAutoE4FailedCallbackRecoveryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly materialization: OneAutoOemVinLookupEuSuggestionMaterializationService,
+    private readonly oeServiceHistoryIngestion: OneAutoOeServiceHistoryEuIngestionService,
   ) {}
 
   /**
@@ -338,6 +340,7 @@ export class OneAutoE4FailedCallbackRecoveryService {
     }
 
     const materialization = await this.materialization.tryMaterializeFromSucceededJob(job.id);
+    const serviceHistoryIngestion = await this.oeServiceHistoryIngestion.tryIngestFromSucceededJob(job.id);
     this.logger.log(
       JSON.stringify({
         kind: 'ONEAUTO_E4_FAILED_CALLBACK_RECOVERY',
@@ -346,6 +349,7 @@ export class OneAutoE4FailedCallbackRecoveryService {
         vehicleId: job.vehicleId,
         inboxRowId: inbox.id,
         materializationOutcome: materialization.outcome,
+        serviceHistoryIngestionOutcome: serviceHistoryIngestion.outcome,
       }),
     );
 

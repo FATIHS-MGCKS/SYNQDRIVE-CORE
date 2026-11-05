@@ -19,7 +19,9 @@ import {
 import { persistFullDataCallbackSuccessInTransaction } from './oneauto-e4-full-data-callback-completion.util';
 import { redactOneAutoErrorMessage, redactProviderResponseBody } from './oneauto-provider-redact.util';
 import { ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU } from './oem-specification/oneauto-vin-lookup-oem-suggestion.types';
+import { ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU } from './service-history/oneauto-service-history-eu.types';
 import { OneAutoOemVinLookupEuSuggestionMaterializationService } from './oem-specification/oneauto-oem-vin-lookup-eu-suggestion-materialization.service';
+import { OneAutoOeServiceHistoryEuIngestionService } from './service-history/oneauto-oe-service-history-eu-ingestion.service';
 import { isOneAutoSkuRuntimeExecutionEnabled } from './oneauto-sku-runtime-activation.util';
 
 export type OneAutoCallbackIngestResult =
@@ -53,6 +55,7 @@ export class OneAutoProviderCallbackService {
     private readonly config: ConfigService,
     @InjectQueue(QUEUE_NAMES.ONEAUTO_PROVIDER) private readonly queue: Queue<OneAutoProviderJobPayload>,
     private readonly oemSuggestionMaterialization: OneAutoOemVinLookupEuSuggestionMaterializationService,
+    private readonly oeServiceHistoryIngestion: OneAutoOeServiceHistoryEuIngestionService,
   ) {}
 
   private runtimeCfg(): RuntimeCallbackCfg {
@@ -301,11 +304,18 @@ export class OneAutoProviderCallbackService {
       return { ok: true, status: 'pending_initial_dispatch' };
     }
 
+    await this.runPostSuccessSideEffects(job);
+    this.logger.log(`OneAuto full-data callback completed job ${job.id}`);
+    return { ok: true, status: 'completed' };
+  }
+
+  private async runPostSuccessSideEffects(job: { id: string; serviceSku: string }): Promise<void> {
     if (job.serviceSku === ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU) {
       await this.oemSuggestionMaterialization.tryMaterializeFromSucceededJob(job.id);
     }
-    this.logger.log(`OneAuto full-data callback completed job ${job.id}`);
-    return { ok: true, status: 'completed' };
+    if (job.serviceSku === ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU) {
+      await this.oeServiceHistoryIngestion.tryIngestFromSucceededJob(job.id);
+    }
   }
 
   private async failJobFromCallback(jobId: string, code: string, message: string): Promise<void> {
