@@ -15,6 +15,12 @@
 | Master Admin UI | `OneAutoServiceScheduleResultPanel` + parser util (sections A–E, read-only). |
 | Persistence | Reuses `OneAutoProviderResponse` only — **no** `VehicleServiceEvent` / HM-OEM mutation. |
 
+## Review corrections (2026-11-05)
+
+- Protected inventory: `hardcoded-copy-inventory.json` unchanged vs `main` (product copy in `master.oneAuto.*` only).
+- Strict nested validation: `oneauto-oe-service-schedule-field-validation.util.ts` (backend + mirrored frontend).
+- UI integrity states: `VALID_WITH_SERVICES`, `VALID_EMPTY`, `MALFORMED_OR_PARTIAL`, `VIN_MISMATCH`, `RESPONSE_UNAVAILABLE` with localized fallbacks; raw JSON remains in dialog preview.
+
 ## Explicitly **not** done
 
 - **Not** added to `seedOneAutoExecutionVerifiedRegistry` — execute path remains `CONTRACT_UNVERIFIED`.
