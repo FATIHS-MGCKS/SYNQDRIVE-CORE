@@ -101,4 +101,21 @@ export const masterOneAutoCs = {
   'master.oneAuto.serviceHistory.columns.workshop': 'Workshop',
   'master.oneAuto.serviceHistory.columns.type': 'Service type',
   'master.oneAuto.serviceHistory.columns.actions': 'Actions',
+  'master.oneAuto.serviceSchedule.title': 'Servisní plán (pouze ke čtení)',
+  'master.oneAuto.serviceSchedule.empty': 'Pro toto VIN nejsou žádné položky plánu.',
+  'master.oneAuto.serviceSchedule.providerSource': 'Zdroj poskytovatele / HTTP stav',
+  'master.oneAuto.serviceSchedule.section.normal': 'Pravidelná údržba',
+  'master.oneAuto.serviceSchedule.section.extra': 'Dodatečná údržba',
+  'master.oneAuto.serviceSchedule.section.tasks': 'Požadované práce / akce',
+  'master.oneAuto.serviceSchedule.section.parts': 'Požadované díly a OE reference',
+  'master.oneAuto.serviceSchedule.section.workTime': 'Pracovní čas',
+  'master.oneAuto.serviceSchedule.columns.interval': 'Interval',
+  'master.oneAuto.serviceSchedule.columns.description': 'Popis',
+  'master.oneAuto.serviceSchedule.hoursUnit': ' h',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'VIN strukturovaného plánu neodpovídá tomuto jobu — plán se nezobrazuje. Viz surová odpověď níže.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Payload plánu je neúplný nebo chybný — strukturovaný plán se nezobrazuje. Viz surová odpověď níže.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Žádný čitelný payload plánu — strukturovaný plán se nezobrazuje. Viz surová odpověď níže.',
 } as const;

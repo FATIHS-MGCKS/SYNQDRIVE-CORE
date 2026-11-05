@@ -101,4 +101,21 @@ export const masterOneAutoTr = {
   'master.oneAuto.serviceHistory.columns.workshop': 'Workshop',
   'master.oneAuto.serviceHistory.columns.type': 'Service type',
   'master.oneAuto.serviceHistory.columns.actions': 'Actions',
+  'master.oneAuto.serviceSchedule.title': 'Bakım planı (salt okunur)',
+  'master.oneAuto.serviceSchedule.empty': 'Bu VIN için plan kalemi yok.',
+  'master.oneAuto.serviceSchedule.providerSource': 'Sağlayıcı kaynağı / HTTP durumu',
+  'master.oneAuto.serviceSchedule.section.normal': 'Düzenli bakım',
+  'master.oneAuto.serviceSchedule.section.extra': 'Ek bakım',
+  'master.oneAuto.serviceSchedule.section.tasks': 'Gerekli işler / eylemler',
+  'master.oneAuto.serviceSchedule.section.parts': 'Gerekli parçalar ve OE referansları',
+  'master.oneAuto.serviceSchedule.section.workTime': 'İş süresi',
+  'master.oneAuto.serviceSchedule.columns.interval': 'Aralık',
+  'master.oneAuto.serviceSchedule.columns.description': 'Açıklama',
+  'master.oneAuto.serviceSchedule.hoursUnit': ' sa',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'Yapılandırılmış plan VIN\'i bu işle eşleşmiyor — plan gösterilmiyor. Ham yanıt aşağıda.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Plan yükü eksik veya hatalı — yapılandırılmış plan gösterilmiyor. Ham yanıt aşağıda.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Okunabilir plan yükü yok — yapılandırılmış plan gösterilmiyor. Ham yanıt aşağıda.',
 } as const;

@@ -101,4 +101,21 @@ export const masterOneAutoIt = {
   'master.oneAuto.serviceHistory.columns.workshop': 'Workshop',
   'master.oneAuto.serviceHistory.columns.type': 'Service type',
   'master.oneAuto.serviceHistory.columns.actions': 'Actions',
+  'master.oneAuto.serviceSchedule.title': 'Piano di manutenzione (sola lettura)',
+  'master.oneAuto.serviceSchedule.empty': 'Nessuna voce di piano per questo VIN.',
+  'master.oneAuto.serviceSchedule.providerSource': 'Fonte provider / stato HTTP',
+  'master.oneAuto.serviceSchedule.section.normal': 'Manutenzione ordinaria',
+  'master.oneAuto.serviceSchedule.section.extra': 'Manutenzione aggiuntiva',
+  'master.oneAuto.serviceSchedule.section.tasks': 'Lavori / azioni richiesti',
+  'master.oneAuto.serviceSchedule.section.parts': 'Parti richieste e riferimenti OE',
+  'master.oneAuto.serviceSchedule.section.workTime': 'Tempo di lavoro',
+  'master.oneAuto.serviceSchedule.columns.interval': 'Intervallo',
+  'master.oneAuto.serviceSchedule.columns.description': 'Descrizione',
+  'master.oneAuto.serviceSchedule.hoursUnit': ' h',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'Il VIN del piano strutturato non corrisponde a questo job — piano non mostrato. Vedi risposta grezza sotto.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Payload piano incompleto o non valido — piano strutturato non mostrato. Vedi risposta grezza sotto.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Nessun payload piano leggibile — piano strutturato non mostrato. Vedi risposta grezza sotto.',
 } as const;

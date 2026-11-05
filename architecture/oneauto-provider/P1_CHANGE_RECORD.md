@@ -172,3 +172,10 @@
 - **File write safety:** Temp-file create in destination dir (0600) → atomic rename; no partial final artifacts; concurrent publish tests; path/symlink guards unchanged.
 - **Tests:** Dedicated HTTP 200 non-JSON guard (no artifact; fingerprint `nonJsonBody`); existing VIN mismatch / 202 / 206 / `success:false` regressions retained.
 - **Non-effects:** Unchanged from P2.5E-P1 baseline (no live API in CI, no EXECUTION_VERIFIED, no vehicle writes).
+
+## P1 — OE Service Schedule integration draft (2026-11-05)
+
+- **Scope:** Documented SKU `OE_SERVICE_SCHEDULE` parser, E4 callback evaluation prep, SKU runtime gate, Master Admin read-only result panel.
+- **Evidence:** `architecture/oneauto-provider/evidence/P1_OE_SERVICE_SCHEDULE_INTEGRATION_DRAFT.md`
+- **Tests:** `oneauto-oe-service-schedule-eu-provider.util.spec.ts`, `oneauto-p1-oe-service-schedule-integration.spec.ts`, `oneauto-sku-runtime-activation.util.spec.ts`
+- **Non-effects:** Not seeded in execution-verified registry; no provider HTTP; no VehicleServiceEvent / HM-OEM writes; `ONEAUTO_SKU_OE_SERVICE_SCHEDULE_RUNTIME_ENABLED` default OFF.

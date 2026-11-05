@@ -101,4 +101,21 @@ export const masterOneAutoNl = {
   'master.oneAuto.serviceHistory.columns.workshop': 'Workshop',
   'master.oneAuto.serviceHistory.columns.type': 'Service type',
   'master.oneAuto.serviceHistory.columns.actions': 'Actions',
+  'master.oneAuto.serviceSchedule.title': 'Onderhoudsschema (alleen-lezen)',
+  'master.oneAuto.serviceSchedule.empty': 'Geen schema-items voor dit VIN.',
+  'master.oneAuto.serviceSchedule.providerSource': 'Bron provider / HTTP-status',
+  'master.oneAuto.serviceSchedule.section.normal': 'Regulier onderhoud',
+  'master.oneAuto.serviceSchedule.section.extra': 'Extra onderhoud',
+  'master.oneAuto.serviceSchedule.section.tasks': 'Vereiste werkzaamheden / acties',
+  'master.oneAuto.serviceSchedule.section.parts': 'Vereiste onderdelen & OE-referenties',
+  'master.oneAuto.serviceSchedule.section.workTime': 'Werktijd',
+  'master.oneAuto.serviceSchedule.columns.interval': 'Interval',
+  'master.oneAuto.serviceSchedule.columns.description': 'Beschrijving',
+  'master.oneAuto.serviceSchedule.hoursUnit': ' u',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'VIN van het gestructureerde plan komt niet overeen met deze job — plan niet getoond. Zie ruwe response hieronder.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Plan-payload onvolledig of ongeldig — gestructureerd plan niet getoond. Zie ruwe response hieronder.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Geen leesbare plan-payload — gestructureerd plan niet getoond. Zie ruwe response hieronder.',
 } as const;

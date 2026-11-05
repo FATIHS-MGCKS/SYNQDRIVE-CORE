@@ -101,4 +101,21 @@ export const masterOneAutoPl = {
   'master.oneAuto.serviceHistory.columns.workshop': 'Workshop',
   'master.oneAuto.serviceHistory.columns.type': 'Service type',
   'master.oneAuto.serviceHistory.columns.actions': 'Actions',
+  'master.oneAuto.serviceSchedule.title': 'Harmonogram serwisu (tylko odczyt)',
+  'master.oneAuto.serviceSchedule.empty': 'Brak pozycji harmonogramu dla tego VIN.',
+  'master.oneAuto.serviceSchedule.providerSource': 'Źródło dostawcy / status HTTP',
+  'master.oneAuto.serviceSchedule.section.normal': 'Regularna konserwacja',
+  'master.oneAuto.serviceSchedule.section.extra': 'Dodatkowa konserwacja',
+  'master.oneAuto.serviceSchedule.section.tasks': 'Wymagane prace / czynności',
+  'master.oneAuto.serviceSchedule.section.parts': 'Wymagane części i numery OE',
+  'master.oneAuto.serviceSchedule.section.workTime': 'Czas pracy',
+  'master.oneAuto.serviceSchedule.columns.interval': 'Interwał',
+  'master.oneAuto.serviceSchedule.columns.description': 'Opis',
+  'master.oneAuto.serviceSchedule.hoursUnit': ' h',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'VIN planu nie zgadza się z tym zleceniem — plan nie jest wyświetlany. Zobacz surową odpowiedź poniżej.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Payload planu jest niepełny lub błędny — plan nie jest wyświetlany. Zobacz surową odpowiedź poniżej.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Brak czytelnego payloadu planu — plan nie jest wyświetlany. Zobacz surową odpowiedź poniżej.',
 } as const;

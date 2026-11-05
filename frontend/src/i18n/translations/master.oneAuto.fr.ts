@@ -101,4 +101,21 @@ export const masterOneAutoFr = {
   'master.oneAuto.serviceHistory.columns.workshop': 'Workshop',
   'master.oneAuto.serviceHistory.columns.type': 'Service type',
   'master.oneAuto.serviceHistory.columns.actions': 'Actions',
+  'master.oneAuto.serviceSchedule.title': 'Plan entretien (référence, lecture seule)',
+  'master.oneAuto.serviceSchedule.empty': 'Aucune entrée de plan pour ce VIN.',
+  'master.oneAuto.serviceSchedule.providerSource': 'Source fournisseur / statut HTTP',
+  'master.oneAuto.serviceSchedule.section.normal': 'Entretien régulier',
+  'master.oneAuto.serviceSchedule.section.extra': 'Entretien supplémentaire',
+  'master.oneAuto.serviceSchedule.section.tasks': 'Travaux / actions requis',
+  'master.oneAuto.serviceSchedule.section.parts': 'Pièces requises et références OE',
+  'master.oneAuto.serviceSchedule.section.workTime': 'Temps de travail',
+  'master.oneAuto.serviceSchedule.columns.interval': 'Intervalle',
+  'master.oneAuto.serviceSchedule.columns.description': 'Description',
+  'master.oneAuto.serviceSchedule.hoursUnit': ' h',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'Le VIN du plan structuré ne correspond pas à ce job — plan non affiché. Voir la réponse brute ci-dessous.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Payload plan incomplet ou invalide — plan structuré non affiché. Voir la réponse brute ci-dessous.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Aucune payload plan lisible — plan structuré non affiché. Voir la réponse brute ci-dessous.',
 } as const;

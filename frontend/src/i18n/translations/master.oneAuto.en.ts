@@ -101,4 +101,21 @@ export const masterOneAutoEn = {
   'master.oneAuto.serviceHistory.columns.workshop': 'Workshop',
   'master.oneAuto.serviceHistory.columns.type': 'Service type',
   'master.oneAuto.serviceHistory.columns.actions': 'Actions',
+  'master.oneAuto.serviceSchedule.title': 'Service schedule (read-only reference)',
+  'master.oneAuto.serviceSchedule.empty': 'No maintenance schedule items returned for this VIN.',
+  'master.oneAuto.serviceSchedule.providerSource': 'Provider source / HTTP status',
+  'master.oneAuto.serviceSchedule.section.normal': 'Regular maintenance',
+  'master.oneAuto.serviceSchedule.section.extra': 'Additional maintenance',
+  'master.oneAuto.serviceSchedule.section.tasks': 'Required work / actions',
+  'master.oneAuto.serviceSchedule.section.parts': 'Required parts & OE references',
+  'master.oneAuto.serviceSchedule.section.workTime': 'Work time',
+  'master.oneAuto.serviceSchedule.columns.interval': 'Interval',
+  'master.oneAuto.serviceSchedule.columns.description': 'Description',
+  'master.oneAuto.serviceSchedule.hoursUnit': ' h',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'Structured schedule VIN does not match this job — maintenance plan not shown. See raw provider response below.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Provider schedule payload is incomplete or malformed — structured plan not shown. See raw provider response below.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'No readable schedule payload — structured plan not shown. See raw provider response below.',
 } as const;

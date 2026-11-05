@@ -101,4 +101,21 @@ export const masterOneAutoDe = {
   'master.oneAuto.serviceHistory.columns.workshop': 'Werkstatt',
   'master.oneAuto.serviceHistory.columns.type': 'Servicetyp',
   'master.oneAuto.serviceHistory.columns.actions': 'Maßnahmen',
+  'master.oneAuto.serviceSchedule.title': 'Wartungsplan (Referenz, schreibgeschützt)',
+  'master.oneAuto.serviceSchedule.empty': 'Keine Wartungspositionen für diese FIN.',
+  'master.oneAuto.serviceSchedule.providerSource': 'Anbieterquelle / HTTP-Status',
+  'master.oneAuto.serviceSchedule.section.normal': 'Regelmäßige Wartung',
+  'master.oneAuto.serviceSchedule.section.extra': 'Zusätzliche Wartung',
+  'master.oneAuto.serviceSchedule.section.tasks': 'Erforderliche Arbeiten / Aktionen',
+  'master.oneAuto.serviceSchedule.section.parts': 'Erforderliche Teile & OE-Referenzen',
+  'master.oneAuto.serviceSchedule.section.workTime': 'Arbeitszeit',
+  'master.oneAuto.serviceSchedule.columns.interval': 'Intervall',
+  'master.oneAuto.serviceSchedule.columns.description': 'Beschreibung',
+  'master.oneAuto.serviceSchedule.hoursUnit': ' h',
+  'master.oneAuto.serviceSchedule.integrity.vinMismatch':
+    'Strukturierter Plan-VIN stimmt nicht mit diesem Auftrag überein — Wartungsplan wird nicht angezeigt. Rohantwort unten.',
+  'master.oneAuto.serviceSchedule.integrity.malformed':
+    'Anbieter-Payload unvollständig oder fehlerhaft — strukturierter Plan wird nicht angezeigt. Rohantwort unten.',
+  'master.oneAuto.serviceSchedule.integrity.unavailable':
+    'Keine lesbare Plan-Payload — strukturierter Plan wird nicht angezeigt. Rohantwort unten.',
 } as const;

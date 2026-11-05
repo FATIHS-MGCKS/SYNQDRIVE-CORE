@@ -1,4 +1,5 @@
 import { ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU } from './service-history/oneauto-service-history-eu.types';
+import { ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU } from './service-schedule/oneauto-service-schedule-eu.types';
 import { ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU } from './oem-specification/oneauto-vin-lookup-oem-suggestion.types';
 
 export const ONEAUTO_SKU_RUNTIME_ENV_SUFFIX = '_RUNTIME_ENABLED' as const;
@@ -6,6 +7,10 @@ export const ONEAUTO_SKU_RUNTIME_ENV_SUFFIX = '_RUNTIME_ENABLED' as const;
 /** Explicit opt-in for paid OE Service History EU (default OFF). */
 export const ONEAUTO_OE_SERVICE_HISTORY_EU_RUNTIME_ENABLED_ENV =
   `ONEAUTO_SKU_${ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU}${ONEAUTO_SKU_RUNTIME_ENV_SUFFIX}` as const;
+
+/** Explicit opt-in for paid OE Service Schedule (default OFF). */
+export const ONEAUTO_OE_SERVICE_SCHEDULE_EU_RUNTIME_ENABLED_ENV =
+  `ONEAUTO_SKU_${ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU}${ONEAUTO_SKU_RUNTIME_ENV_SUFFIX}` as const;
 
 /**
  * When unset, VIN lookup retains legacy behaviour (global One Auto gates only).
@@ -26,6 +31,9 @@ function envExplicitlyFalse(name: string): boolean {
 export function isOneAutoSkuRuntimeExecutionEnabled(serviceSku: string): boolean {
   if (serviceSku === ONEAUTO_OE_SERVICE_HISTORY_EU_SERVICE_SKU) {
     return envTruthy(ONEAUTO_OE_SERVICE_HISTORY_EU_RUNTIME_ENABLED_ENV);
+  }
+  if (serviceSku === ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU) {
+    return envTruthy(ONEAUTO_OE_SERVICE_SCHEDULE_EU_RUNTIME_ENABLED_ENV);
   }
   if (serviceSku === ONEAUTO_OEM_VIN_LOOKUP_EU_SERVICE_SKU) {
     if (envExplicitlyFalse(ONEAUTO_OE_VIN_LOOKUP_EU_RUNTIME_ENABLED_ENV)) {

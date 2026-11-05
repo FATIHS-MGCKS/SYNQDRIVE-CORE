@@ -36,6 +36,15 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'oneauto-oe-service-schedule-p1-2026-11-05',
+    title: 'One Auto P1 — OE Service Schedule (draft integration, non-executable)',
+    summary:
+      'Parser + E4 callback prep + fail-closed SKU runtime gate + Master Admin schedule result panel; 210 EUR indicative display; no execution-verified promotion.',
+    technical:
+      'backend: service-schedule/*, oneauto-callback-full-data.util, oneauto-sku-runtime-activation ONEAUTO_SKU_OE_SERVICE_SCHEDULE_RUNTIME_ENABLED; frontend: OneAutoServiceScheduleResultPanel + i18n (9 locales); evidence P1_OE_SERVICE_SCHEDULE_INTEGRATION_DRAFT.md. No provider HTTP, no ingestion.',
+    tags: ['oneauto', 'master', 'p1'],
+  },
+  {
     id: 'oneauto-oe-service-history-ingestion-v1-2026-11-05',
     title: 'OneAuto OE_SERVICE_HISTORY_EU → VehicleServiceEvent ingestion (V1 draft)',
     summary:
