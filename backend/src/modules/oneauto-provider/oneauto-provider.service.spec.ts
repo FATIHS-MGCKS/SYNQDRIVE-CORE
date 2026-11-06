@@ -195,6 +195,8 @@ describe('OneAutoProviderService cost and idempotency', () => {
   });
 
   describe('getLatestSucceededJobId', () => {
+    const EXPECTED_VIN = 'WBA12345678901234';
+
     it('returns null when no succeeded schedule job exists', async () => {
       prisma.oneAutoProviderJob.findFirst.mockResolvedValue(null);
       const out = await service.getLatestSucceededJobId('org1', 'v1', 'OE_SERVICE_SCHEDULE');
@@ -206,6 +208,7 @@ describe('OneAutoProviderService cost and idempotency', () => {
             vehicleId: 'v1',
             serviceSku: 'OE_SERVICE_SCHEDULE',
             status: OneAutoProviderJobStatus.SUCCEEDED,
+            vinSnapshot: EXPECTED_VIN,
           }),
           orderBy: { updatedAt: 'desc' },
           select: { id: true },
@@ -213,10 +216,63 @@ describe('OneAutoProviderService cost and idempotency', () => {
       );
     });
 
-    it('returns latest succeeded job id', async () => {
+    it('returns latest succeeded job id when vinSnapshot matches current vehicle VIN', async () => {
       prisma.oneAutoProviderJob.findFirst.mockResolvedValue({ id: 'job-sched-1' });
       const out = await service.getLatestSucceededJobId('org1', 'v1', 'OE_SERVICE_SCHEDULE');
       expect(out).toEqual({ jobId: 'job-sched-1' });
+      expect(prisma.oneAutoProviderJob.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            organizationId: 'org1',
+            vehicleId: 'v1',
+            serviceSku: 'OE_SERVICE_SCHEDULE',
+            status: OneAutoProviderJobStatus.SUCCEEDED,
+            vinSnapshot: EXPECTED_VIN,
+          }),
+        }),
+      );
+    });
+
+    it('returns null when succeeded job exists only for a different historical VIN on the same vehicle', async () => {
+      /** DB enforces vinSnapshot — no row matches current normalized VIN */
+      prisma.oneAutoProviderJob.findFirst.mockResolvedValue(null);
+      prisma.vehicle.findFirst.mockResolvedValue({
+        id: 'v1',
+        organizationId: 'org1',
+        vin: 'WBADT43452G123456',
+      });
+      const out = await service.getLatestSucceededJobId('org1', 'v1', 'OE_SERVICE_SCHEDULE');
+      expect(out).toEqual({ jobId: null });
+      expect(prisma.oneAutoProviderJob.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            vinSnapshot: 'WBADT43452G123456',
+          }),
+        }),
+      );
+    });
+
+    it('scopes vehicle load and job query by organizationId and vehicleId', async () => {
+      prisma.vehicle.findFirst.mockResolvedValue({
+        id: 'veh-z',
+        organizationId: 'org-z',
+        vin: EXPECTED_VIN,
+      });
+      prisma.oneAutoProviderJob.findFirst.mockResolvedValue(null);
+      await service.getLatestSucceededJobId('org-z', 'veh-z', 'OE_SERVICE_SCHEDULE');
+      expect(prisma.vehicle.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'veh-z', organizationId: 'org-z' },
+        }),
+      );
+      expect(prisma.oneAutoProviderJob.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            organizationId: 'org-z',
+            vehicleId: 'veh-z',
+          }),
+        }),
+      );
     });
   });
 });

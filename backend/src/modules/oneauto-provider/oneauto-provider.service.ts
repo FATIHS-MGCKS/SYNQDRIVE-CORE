@@ -285,12 +285,15 @@ export class OneAutoProviderService {
   async getLatestSucceededJobId(orgId: string, vehicleId: string, serviceSku: string) {
     const { vehicle } = await this.loadVehicleAndSku(orgId, vehicleId, serviceSku);
     this.assertVehicleBinding(orgId, vehicleId, vehicle.vin);
+    const vinNormalized = normalizeVin(vehicle.vin)!;
     const job = await this.prisma.oneAutoProviderJob.findFirst({
       where: {
         organizationId: orgId,
         vehicleId,
         serviceSku,
         status: OneAutoProviderJobStatus.SUCCEEDED,
+        /** Ignore succeeded rows from a prior VIN on the same vehicle id */
+        vinSnapshot: vinNormalized,
       },
       orderBy: { updatedAt: 'desc' },
       select: { id: true },

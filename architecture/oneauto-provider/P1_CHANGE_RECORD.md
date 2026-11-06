@@ -195,6 +195,6 @@
 
 ## OE_SERVICE_SCHEDULE_V1_REVIEW_CORRECTION — read-only stored result access (2026-11-06)
 
-- **Scope:** Master Admin GET `admin/organizations/:orgId/oneauto/vehicles/:vehicleId/jobs/latest-succeeded?serviceSku=` returns `{ jobId: string | null }` from Prisma (latest `SUCCEEDED` for org + vehicle + SKU). Reuses `loadVehicleAndSku` + `assertVehicleBinding`. Dialog action loads the manual via existing `getJobResult(jobId)` only — **no** `quote`, **no** `execute`, **no** provider HTTP or queue enqueue.
+- **Scope:** Master Admin GET `admin/organizations/:orgId/oneauto/vehicles/:vehicleId/jobs/latest-succeeded?serviceSku=` returns `{ jobId: string | null }` from Prisma (latest `SUCCEEDED` for org + vehicle + SKU **where `vinSnapshot` equals the current vehicle VIN after normalization**). Reuses `loadVehicleAndSku` + `assertVehicleBinding`. Dialog action loads the manual via existing `getJobResult(jobId)` only — **no** `quote`, **no** `execute`, **no** provider HTTP or queue enqueue.
 - **Tests:** `oneauto-provider.service.spec.ts` (`getLatestSucceededJobId`); `OneAutoServiceDialog.test.tsx` (stored plan: no quote/execute, reopen does not require repurchase path); `oneauto-service-schedule-result.util.test.ts` (nested task/part null shapes).
 - **Non-effects:** No migration; no Service History changes; no C63/Arteon job recovery; no callback pricing or execution path changes.
