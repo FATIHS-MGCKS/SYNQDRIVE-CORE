@@ -2713,3 +2713,12 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** S4 physics/C5.1; **no** scoring; **no** production env activation; **no** automatic historical backfill |
 | REMAINING | Owner sets `TRIP_DI_BOUNDARY_ADMISSION_RECOVERY_ACTIVATED_AT_UTC` + writer flag in controlled rollout; historical trips (e.g. `2245f107…`) require separate approval |
 
+### 2026-11-06 — DS4 DBI W0 MBF offline kernel: E9 point-process null, D8 exposure window, provenance fail-closed
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Research-only MBF W0 kernel (`ds4-dbi-w0-mbf-kernel.v1`): D8 burstiness on fixed trip-exposure interval `[t0, t0+E_s)`; E9 compares regular / clustered / uniform random null with seeded null distribution; default `evidenceOrigin` does not infer sealed real; `independentScientificValidationStatus: NOT_EVALUATED` until verified sealed-real loader; removed misleading validation / JSON-vs-seal fingerprint pairing; targeted Jest spec + offline CLI alignment; regenerated `production-database-guard-bundle.manifest.sha256` for `backend/package.json` hash (guard unchanged) |
+| WHY | H7: multiset shuffle made IOD degenerate under sorted IOD; H8: provenance contract must not treat synthetic as sealed or conflate digests; CI: manifest drift caused Production DB guard hash mismatch |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (12 tests); offline CLI `--json` E9 scenarios KNOWN; `bash architecture/scripts/validate-module-registry.sh` (Driving Intelligence registry row unchanged) |
+| NON_EFFECTS | **No** C4/L3/FSM; **no** DS4×RPM joins; **no** product integration; **no** production/VPS/DB access |
+
