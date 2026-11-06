@@ -14,7 +14,8 @@ export type Fsd3MockProviderModeV1 =
   | 'LARGE_CATALOG_300'
   | 'PARTIAL_GRAPHQL_ERRORS'
   | 'AMBIGUOUS_GRAPHQL_ERRORS'
-  | 'HTTP_422_DOCUMENT';
+  | 'HTTP_422_DOCUMENT'
+  | 'CATALOG_HTTP_500';
 
 export function buildFsd3TeslaMockCatalogResultV1(): Fsd3ProviderCatalogResultV1 {
   return {
@@ -55,11 +56,17 @@ export function createFsd3MockDiscoveryProvider(input: {
   const teslaValues = buildFsd3TeslaMockSnapshotValues();
   const rejectedFingerprints = new Set<string>();
   let snapshotCallCount = 0;
+  let catalogCallCount = 0;
 
   return {
+    providerKind: 'mock' as const,
     async fetchAvailableSignals(): Promise<Fsd3ProviderCatalogResultV1> {
+      catalogCallCount += 1;
       if (input.catalogDelayMs && input.catalogDelayMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, input.catalogDelayMs));
+      }
+      if (input.mode === 'CATALOG_HTTP_500') {
+        return { availableSignals: [], httpStatus: 500 };
       }
       return { availableSignals: catalog, httpStatus: 200 };
     },
@@ -111,5 +118,23 @@ export function createFsd3MockDiscoveryProvider(input: {
     getSnapshotCallCount(): number {
       return snapshotCallCount;
     },
-  } as Fsd3DiscoveryProviderPortV1 & { getSnapshotCallCount(): number };
+    getCatalogCallCount(): number {
+      return catalogCallCount;
+    },
+  } as Fsd3DiscoveryProviderPortV1 & {
+    getSnapshotCallCount(): number;
+    getCatalogCallCount(): number;
+  };
+}
+
+export function createFsd3LiveStubDiscoveryProvider(): Fsd3DiscoveryProviderPortV1 {
+  return {
+    providerKind: 'live',
+    async fetchAvailableSignals() {
+      throw new Error('live provider should not run in tests');
+    },
+    async executeSnapshotDocument() {
+      throw new Error('live provider should not run in tests');
+    },
+  };
 }

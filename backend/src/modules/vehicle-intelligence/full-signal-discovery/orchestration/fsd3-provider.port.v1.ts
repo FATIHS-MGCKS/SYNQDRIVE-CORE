@@ -20,7 +20,10 @@ export type Fsd3ProviderSnapshotResultV1 = {
   valuesByField?: Readonly<Record<string, Fsd3ProviderSnapshotFieldValueV1>>;
 };
 
+export type Fsd3ProviderKindV1 = 'mock' | 'live';
+
 export type Fsd3DiscoveryProviderPortV1 = {
+  providerKind: Fsd3ProviderKindV1;
   fetchAvailableSignals(input: { tokenId: number }): Promise<Fsd3ProviderCatalogResultV1>;
   executeSnapshotDocument(input: {
     tokenId: number;

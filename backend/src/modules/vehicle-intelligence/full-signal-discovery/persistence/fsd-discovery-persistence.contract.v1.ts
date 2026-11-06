@@ -114,7 +114,10 @@ export class FsdDiscoveryPersistenceError extends Error {
       | 'PLAN_FINGERPRINT_CONFLICT'
       | 'STAGE_SCOPE_VIOLATION'
       | 'EVIDENCE_SCOPE_VIOLATION'
-      | 'RUN_IDENTITY_CONFLICT',
+      | 'RUN_IDENTITY_CONFLICT'
+      | 'BUDGET_EXHAUSTED'
+      | 'PROVIDER_DISPATCH_BLOCKED'
+      | 'RESUME_NOT_SAFE',
     message: string,
   ) {
     super(message);

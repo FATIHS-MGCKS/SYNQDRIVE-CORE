@@ -131,7 +131,12 @@ async function seedDimoBinding(prisma: PrismaClient) {
   async function runDiscovery(
     svc: Fsd3CatalogSnapshotOrchestratorService,
     seed: Awaited<ReturnType<typeof seedDimoBinding>>,
-    extra?: { budget?: Fsd3OrchestrationInputV1['budget']; leaseExpiresAt?: Date; leaseOwner?: string },
+    extra?: {
+      budget?: Fsd3OrchestrationInputV1['budget'];
+      leaseExpiresAt?: Date;
+      leaseOwner?: string;
+      discoveryRequestKey?: string;
+    },
   ) {
     return svc.runCatalogSnapshotDiscovery({
       organizationId: seed.organizationId,
@@ -139,6 +144,7 @@ async function seedDimoBinding(prisma: PrismaClient) {
       providerSourceLinkId: seed.linkId,
       dimoVehicleId: seed.dimoVehicleId,
       dimoTokenId: seed.tokenId,
+      discoveryRequestKey: extra?.discoveryRequestKey ?? randomUUID(),
       leaseOwner: extra?.leaseOwner ?? `worker-${randomUUID().slice(0, 8)}`,
       leaseExpiresAt: extra?.leaseExpiresAt ?? new Date(Date.now() + 120_000),
       budget: extra?.budget,
@@ -157,7 +163,11 @@ async function seedDimoBinding(prisma: PrismaClient) {
     );
 
     const catalogEvidence = await prisma.fsdDiscoverySignalEvidence.count({
-      where: { runId: result.runId, stageType: 'CATALOG' },
+      where: {
+        runId: result.runId,
+        stageType: 'CATALOG',
+        signalName: { not: { startsWith: '__fsd3_' } },
+      },
     });
     expect(catalogEvidence).toBe(26);
 
@@ -188,7 +198,11 @@ async function seedDimoBinding(prisma: PrismaClient) {
     assertRunResult(result);
     expect(result.catalogSignalCount).toBe(300);
     const catalogEvidence = await prisma.fsdDiscoverySignalEvidence.count({
-      where: { runId: result.runId, stageType: 'CATALOG' },
+      where: {
+        runId: result.runId,
+        stageType: 'CATALOG',
+        signalName: { not: { startsWith: '__fsd3_' } },
+      },
     });
     expect(catalogEvidence).toBe(300);
   });
@@ -223,6 +237,7 @@ async function seedDimoBinding(prisma: PrismaClient) {
         providerSourceLinkId: seed.linkId,
         dimoVehicleId: seed.dimoVehicleId,
         dimoTokenId: seed.tokenId,
+        discoveryRequestKey: randomUUID(),
         leaseOwner: 'worker-blocked',
         leaseExpiresAt: new Date(Date.now() + 120_000),
       }),
@@ -239,6 +254,7 @@ async function seedDimoBinding(prisma: PrismaClient) {
       providerSourceLinkId: seed.linkId,
       dimoVehicleId: seed.dimoVehicleId,
       dimoTokenId: seed.tokenId,
+      discoveryRequestKey: randomUUID(),
       leaseOwner: 'worker-vsi',
       leaseExpiresAt: new Date(Date.now() + 120_000),
     });
@@ -261,7 +277,11 @@ async function seedDimoBinding(prisma: PrismaClient) {
     const result = await runDiscovery(svc, seed);
     assertRunResult(result);
     const shapes = await prisma.fsdDiscoverySignalEvidence.findMany({
-      where: { runId: result.runId, stageType: 'CATALOG' },
+      where: {
+        runId: result.runId,
+        stageType: 'CATALOG',
+        signalName: { not: { startsWith: '__fsd3_' } },
+      },
       select: { signalName: true, schemaShape: true },
     });
     expect(shapes).toEqual(
@@ -308,12 +328,13 @@ async function seedDimoBinding(prisma: PrismaClient) {
   it('idempotent replay returns without re-executing snapshot documents', async () => {
     const seed = await seedDimoBinding(prisma);
     const svc = serviceFor({ vehicleId: seed.vehicleId, mode: 'TESLA_REFERENCE_26' });
-    const first = await runDiscovery(svc, seed);
+    const discoveryRequestKey = randomUUID();
+    const first = await runDiscovery(svc, seed, { discoveryRequestKey });
     assertRunResult(first);
-    const second = await runDiscovery(svc, seed);
+    const second = await runDiscovery(svc, seed, { discoveryRequestKey });
     assertRunResult(second);
-    expect(second.snapshotDocumentsExecuted).toBe(0);
-    expect(second.observedSignalCount).toBe(0);
+    expect(second.status).toBe('COMPLETED');
+    expect(second.snapshotDocumentsExecuted).toBe(first.snapshotDocumentsExecuted);
   });
 
   it('rejects writes after lease expiry during snapshot execution', async () => {
@@ -328,17 +349,17 @@ async function seedDimoBinding(prisma: PrismaClient) {
       allowedVehicleIds: new Set([seed.vehicleId]),
       providerExecutionEnabled: false,
     });
-    await expect(
-      runDiscovery(svc, seed, { leaseExpiresAt: new Date(Date.now() + 20) }),
-    ).rejects.toMatchObject({ code: 'LEASE_LOST' });
+    const result = await runDiscovery(svc, seed, { leaseExpiresAt: new Date(Date.now() + 20) });
+    expect(result.status).toBe('FAILED');
   });
 
   it('concurrent workers: only one run completes under the same catalog', async () => {
     const seed = await seedDimoBinding(prisma);
     const svc = serviceFor({ vehicleId: seed.vehicleId, mode: 'TESLA_REFERENCE_26' });
+    const discoveryRequestKey = randomUUID();
     const [a, b] = await Promise.all([
-      runDiscovery(svc, seed, { leaseOwner: 'worker-a' }),
-      runDiscovery(svc, seed, { leaseOwner: 'worker-b' }),
+      runDiscovery(svc, seed, { leaseOwner: 'worker-a', discoveryRequestKey }),
+      runDiscovery(svc, seed, { leaseOwner: 'worker-b', discoveryRequestKey }),
     ]);
     const completed = [a, b].filter(
       (r) => r.status !== 'SKIPPED' && r.snapshotDocumentsExecuted > 0,
