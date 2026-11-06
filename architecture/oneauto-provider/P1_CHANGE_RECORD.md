@@ -186,3 +186,9 @@
 - **Evidence:** `architecture/oneauto-provider/evidence/OE_SERVICE_SCHEDULE_EU_EXECUTION_ACTIVATION.md`
 - **Tests:** `oneauto-oe-service-schedule-eu-execution.spec.ts`; updated P1/P3 registry specs.
 - **Non-effects:** No schema migration; no new Master routes; runtime SKU flag default OFF; live provider attestation not claimed.
+
+## SYNQDRIVE_OE_SERVICE_SCHEDULE_DIGITAL_MANUAL_V1 — Master UI + null-shaped optional fields (2026-11-06, draft PR)
+
+- **Scope:** `OE_SERVICE_SCHEDULE` successful job result presents a read-only **digital maintenance manual** (searchable accordions, normal vs extra sections, summary counts, disclaimers). Raw provider JSON moves below into a **collapsed** technical-details block. Optional fields that arrive as JSON **null** (`service_kms`, `part_grade`, `oe_part_number`, etc.) validate as absent on backend and parse as absent on frontend (mirror).
+- **Tests:** `frontend/.../OneAutoServiceScheduleResultPanel.test.tsx` (sanitized 9+21 fixture, search + accordion expand/collapse), `oneauto-service-schedule-result.util.test.ts`, `oneauto-oe-service-schedule-field-validation.util.spec.ts`.
+- **Non-effects:** No paid provider calls; no callback execution changes; no job recovery; no vehicle or service-history writes; Mercedes/C63 and unrelated SKUs unchanged beyond schedule success layout.

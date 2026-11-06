@@ -56,6 +56,7 @@ function unwrapEnvelope(body: unknown): Record<string, unknown> | null {
 function readOptionalNonNegativeInteger(raw: Record<string, unknown>, key: string): number | null {
   if (!Object.prototype.hasOwnProperty.call(raw, key)) return null;
   const value = raw[key];
+  if (value === null) return null;
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) return null;
   return value;
 }
@@ -63,6 +64,7 @@ function readOptionalNonNegativeInteger(raw: Record<string, unknown>, key: strin
 function readOptionalNonNegativeNumber(raw: Record<string, unknown>, key: string): number | null {
   if (!Object.prototype.hasOwnProperty.call(raw, key)) return null;
   const value = raw[key];
+  if (value === null) return null;
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return null;
   return value;
 }

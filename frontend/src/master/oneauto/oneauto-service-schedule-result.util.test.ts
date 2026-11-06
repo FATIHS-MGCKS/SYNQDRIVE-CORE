@@ -135,6 +135,30 @@ describe('parseServiceScheduleFromJobResult', () => {
     expect(parsed.normalServices[0].serviceMonths).toBeNull();
   });
 
+  it('accepts JSON null on optional numeric fields and maps parts with null oe_part_number', () => {
+    const parsed = parseServiceScheduleFromJobResult(
+      resultWithBody({
+        success: true,
+        result: {
+          vehicle_identification_number: 'WBA12345678901234',
+          normal_services: [
+            {
+              service_description: 'Brake fluid',
+              service_kms: null,
+              service_miles: null,
+              service_tasks: [{ task_action: 'Replace', task_description: 'Fluid' }],
+              service_parts: [{ part_desc: 'Dot 4', oe_part_number: null, part_grade: null }],
+            },
+          ],
+          extra_services: [],
+        },
+      }),
+    );
+    expect(parsed.integrity).toBe('VALID_WITH_SERVICES');
+    expect(parsed.normalServices[0].serviceKms).toBeNull();
+    expect(parsed.normalServices[0].parts[0].oePartNumber).toBeNull();
+  });
+
   it('unwraps wrapped callback envelope', () => {
     const parsed = parseServiceScheduleFromJobResult(
       resultWithBody({

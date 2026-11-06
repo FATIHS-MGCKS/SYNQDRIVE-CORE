@@ -3,6 +3,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { AppDialog } from '../../components/patterns/app-dialog';
 import { Button } from '../../components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../components/ui/collapsible';
 import { MfaStepUpDialog } from '../../components/mfa/MfaStepUpDialog';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { getErrorMessage } from '../../lib/api';
@@ -69,6 +70,7 @@ export function OneAutoServiceDialog({
   const [job, setJob] = useState<OneAutoJobDto | null>(null);
   const [result, setResult] = useState<OneAutoJobResultResponse | null>(null);
   const [mfaOpen, setMfaOpen] = useState(false);
+  const [scheduleTechnicalOpen, setScheduleTechnicalOpen] = useState(false);
   const idempotencyKeyRef = useRef<string | null>(null);
   const pollAttemptRef = useRef(0);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,6 +85,7 @@ export function OneAutoServiceDialog({
     setExecuteError(null);
     setJob(null);
     setResult(null);
+    setScheduleTechnicalOpen(false);
     idempotencyKeyRef.current = null;
     pollAttemptRef.current = 0;
     if (pollTimerRef.current) {
@@ -132,6 +135,12 @@ export function OneAutoServiceDialog({
   useEffect(() => {
     if (!open) resetFlow();
   }, [open, resetFlow]);
+
+  useEffect(() => {
+    if (result?.job.serviceSku === 'OE_SERVICE_SCHEDULE' && result.job.status === 'SUCCEEDED') {
+      setScheduleTechnicalOpen(false);
+    }
+  }, [result?.job.id, result?.job.serviceSku, result?.job.status]);
 
   const translateSku = (sku: string, field: 'name' | 'description'): string => {
     const key = `${serviceSkuTranslationBase(sku)}.${field}` as never;
@@ -585,22 +594,47 @@ export function OneAutoServiceDialog({
                     <dd className="inline">{maskVin(result.job.vinSnapshot)}</dd>
                   </div>
                 </dl>
-                <pre
-                  className="text-xs rounded-lg border border-border bg-muted/40 p-3 overflow-auto max-h-64 font-mono"
-                  data-testid="oneauto-result-body"
-                >
-                  {result.latestResponse?.responseBodyJson != null
-                    ? safeJsonPreview(result.latestResponse.responseBodyJson)
-                    : t('master.oneAuto.resultFallback' as never)}
-                </pre>
-                {result.job.serviceSku === 'OE_SERVICE_HISTORY_EU' &&
-                result.job.status === 'SUCCEEDED' ? (
-                  <OneAutoServiceHistoryResultPanel result={result} />
-                ) : null}
-                {result.job.serviceSku === 'OE_SERVICE_SCHEDULE' &&
-                result.job.status === 'SUCCEEDED' ? (
-                  <OneAutoServiceScheduleResultPanel result={result} />
-                ) : null}
+                {result.job.serviceSku === 'OE_SERVICE_SCHEDULE' && result.job.status === 'SUCCEEDED' ? (
+                  <>
+                    <OneAutoServiceScheduleResultPanel result={result} vehicleLabel={vehicleLabel} />
+                    <Collapsible
+                      open={scheduleTechnicalOpen}
+                      onOpenChange={setScheduleTechnicalOpen}
+                      data-testid="oneauto-schedule-technical-collapsible"
+                    >
+                      <CollapsibleTrigger asChild>
+                        <Button type="button" variant="ghost" size="sm" className="h-auto px-0 py-1 font-normal text-xs text-muted-foreground">
+                          {t('master.oneAuto.resultTechnicalDetails')}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <pre
+                          className="text-xs rounded-lg border border-border bg-muted/40 p-3 overflow-auto max-h-64 font-mono max-w-full break-words whitespace-pre-wrap"
+                          data-testid="oneauto-result-body"
+                        >
+                          {result.latestResponse?.responseBodyJson != null
+                            ? safeJsonPreview(result.latestResponse.responseBodyJson)
+                            : t('master.oneAuto.resultFallback' as never)}
+                        </pre>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </>
+                ) : (
+                  <>
+                    <pre
+                      className="text-xs rounded-lg border border-border bg-muted/40 p-3 overflow-auto max-h-64 font-mono max-w-full break-words whitespace-pre-wrap"
+                      data-testid="oneauto-result-body"
+                    >
+                      {result.latestResponse?.responseBodyJson != null
+                        ? safeJsonPreview(result.latestResponse.responseBodyJson)
+                        : t('master.oneAuto.resultFallback' as never)}
+                    </pre>
+                    {result.job.serviceSku === 'OE_SERVICE_HISTORY_EU' &&
+                    result.job.status === 'SUCCEEDED' ? (
+                      <OneAutoServiceHistoryResultPanel result={result} />
+                    ) : null}
+                  </>
+                )}
               </div>
             ) : null}
           </div>
