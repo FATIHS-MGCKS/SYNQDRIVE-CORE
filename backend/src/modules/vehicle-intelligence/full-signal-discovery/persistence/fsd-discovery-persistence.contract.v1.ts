@@ -117,7 +117,8 @@ export class FsdDiscoveryPersistenceError extends Error {
       | 'RUN_IDENTITY_CONFLICT'
       | 'BUDGET_EXHAUSTED'
       | 'PROVIDER_DISPATCH_BLOCKED'
-      | 'RESUME_NOT_SAFE',
+      | 'RESUME_NOT_SAFE'
+      | 'ACTIVE_RUN_CONFLICT',
     message: string,
   ) {
     super(message);

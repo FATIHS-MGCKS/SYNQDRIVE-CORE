@@ -250,6 +250,80 @@ export class FsdDiscoveryPersistenceRepository {
     });
   }
 
+  /**
+   * FSD-4 admission: never invalidates other executable runs on the same source link.
+   * Fail-closed when another PENDING/IN_PROGRESS run with a different runKey exists.
+   */
+  async acquireHistoricalRunWithIdempotency(
+    identity: FsdDiscoveryRunIdentityV1,
+  ): Promise<AcquireFsdDiscoveryRunResultV1> {
+    return this.withSourceLinkLock(identity, async (tx) => {
+      await this.validateDimoSourceLink(tx, identity);
+
+      const sameKey = await tx.fsdDiscoveryRun.findFirst({
+        where: {
+          organizationId: identity.organizationId,
+          vehicleId: identity.vehicleId,
+          providerSourceLinkId: identity.providerSourceLinkId,
+          runKey: identity.runKey,
+          invalidatedAt: null,
+        },
+      });
+      if (sameKey) {
+        if (this.connectionIdentityMatches(sameKey, identity)) {
+          return {
+            kind: 'REPLAYED',
+            runId: sameKey.id,
+            version: sameKey.version,
+            runRevision: sameKey.runRevision,
+            noOp: true as const,
+          };
+        }
+        throw new FsdDiscoveryPersistenceError(
+          'RUN_IDENTITY_CONFLICT',
+          'Active run exists for runKey with different connection identity',
+        );
+      }
+
+      const conflicting = await tx.fsdDiscoveryRun.findFirst({
+        where: {
+          organizationId: identity.organizationId,
+          vehicleId: identity.vehicleId,
+          providerSourceLinkId: identity.providerSourceLinkId,
+          invalidatedAt: null,
+          status: { in: [...FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES] },
+          runKey: { not: identity.runKey },
+        },
+      });
+      if (conflicting) {
+        throw new FsdDiscoveryPersistenceError(
+          'ACTIVE_RUN_CONFLICT',
+          'Another executable discovery run is active on this source link',
+        );
+      }
+
+      const runRevision = await this.allocateNextRunRevision(tx, identity.providerSourceLinkId);
+      const created = await tx.fsdDiscoveryRun.create({
+        data: {
+          organizationId: identity.organizationId,
+          vehicleId: identity.vehicleId,
+          providerSourceLinkId: identity.providerSourceLinkId,
+          runKey: identity.runKey,
+          runRevision,
+          dimoTokenId: identity.dimoTokenId,
+          connectionIdentityFingerprint: identity.connectionIdentityFingerprint,
+          status: 'PENDING',
+        },
+      });
+      return {
+        kind: 'CREATED',
+        runId: created.id,
+        version: created.version,
+        runRevision: created.runRevision,
+      };
+    });
+  }
+
   private async fenceRunnableRun(
     tx: Tx,
     auth: FsdDiscoveryWriteAuthorizationV1,
@@ -736,25 +810,42 @@ export class FsdDiscoveryPersistenceRepository {
     observedSignalCount: number;
     deferredSignalCount: number;
     rejectedDocumentEvidenceCount: number;
+    historicalCoverageSignalCount: number;
   }> {
     const catalogSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
       where: {
         runId,
         stageType: 'CATALOG',
-        signalName: { not: { startsWith: '__fsd3_' } },
+        signalName: { not: { startsWith: '__' } },
       },
     });
     const observedSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
       where: { runId, stageType: 'SNAPSHOT', observedValue: true },
     });
     const deferredSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
-      where: { runId, stageType: 'SNAPSHOT', evidenceState: 'DEFERRED' },
+      where: {
+        runId,
+        OR: [
+          { stageType: 'SNAPSHOT', evidenceState: 'DEFERRED' },
+          { stageType: 'HISTORICAL', evidenceState: 'DEFERRED' },
+        ],
+      },
     });
     const rejectedDocumentEvidenceCount = await this.prisma.fsdDiscoverySignalEvidence.count({
       where: {
         runId,
-        stageType: 'SNAPSHOT',
-        signalName: { startsWith: '__fsd3_rejected_document__:' },
+        OR: [
+          { stageType: 'SNAPSHOT', signalName: { startsWith: '__fsd3_rejected_document__:' } },
+          { stageType: 'HISTORICAL', signalName: { startsWith: '__fsd4_rejected_historical__:' } },
+        ],
+      },
+    });
+    const historicalCoverageSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
+      where: {
+        runId,
+        stageType: 'HISTORICAL',
+        observedValue: true,
+        signalName: { not: { startsWith: '__' } },
       },
     });
     return {
@@ -762,6 +853,7 @@ export class FsdDiscoveryPersistenceRepository {
       observedSignalCount,
       deferredSignalCount,
       rejectedDocumentEvidenceCount,
+      historicalCoverageSignalCount,
     };
   }
 
