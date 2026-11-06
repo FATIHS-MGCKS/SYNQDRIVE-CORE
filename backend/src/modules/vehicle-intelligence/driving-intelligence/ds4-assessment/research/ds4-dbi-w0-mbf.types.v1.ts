@@ -6,7 +6,12 @@
 export type Ds4DbiW0QualityTierV1 = 'STRICT' | 'RELAXED';
 
 /** Provenance for scientific interpretation — never conflate synthetic with sealed real. */
-export type Ds4DbiW0EvidenceOriginV1 = 'SEALED_REAL_C4' | 'SYNTHETIC_P2_ENRICHMENT' | 'SYNTHETIC_CONTROL';
+export type Ds4DbiW0EvidenceOriginV1 =
+  | 'SEALED_REAL_C4'
+  | 'SYNTHETIC_P2_ENRICHMENT'
+  | 'SYNTHETIC_CONTROL'
+  /** Caller omitted explicit origin — not sealed real; treat as synthetic/unspecified. */
+  | 'SYNTHETIC_UNSPECIFIED';
 
 export const DS4_DBI_W0_STRICT_SPEED_QUALITIES: ReadonlySet<string> = new Set(['OK']);
 
@@ -48,12 +53,12 @@ export type Ds4DbiW0MbfReasonCodeV1 =
   | 'MBF_W0_INSUFFICIENT_ES_OR_STOPS_FOR_STOP_STRUCTURE'
   | 'MBF_W0_INSUFFICIENT_EVENTS_FOR_BURSTINESS'
   | 'MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS'
+  | 'MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW'
   | 'MBF_W0_GAP_BREAKS_CONSECUTIVE_CHAIN'
   | 'MBF_W0_NOT_EVALUABLE_STOP_AUTHORITY_NOT_DIRECT'
   | 'MBF_W0_FAIL_CLOSED_MIXED_SPEED_AUTHORITY'
   | 'MBF_W0_FAIL_CLOSED_SOURCE_BUNDLE_MISMATCH'
   | 'MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH'
-  | 'MBF_W0_FAIL_CLOSED_SEALED_FINGERPRINT_MISMATCH'
   | 'MBF_W0_FAIL_CLOSED_CORRUPT_LABEL_TIME_ORDER'
   | 'MBF_W0_FAIL_CLOSED_DUPLICATE_SPEED_LABEL'
   | 'MBF_W0_FAIL_CLOSED_INVALID_SPEED_VALUE'
@@ -77,10 +82,14 @@ export type Ds4DbiW0TripKernelResultV1 = {
   /** Kernel code path exercised; does not imply sealed real-data validation. */
   implementationWorks: boolean;
   /**
-   * True only when evidenceOrigin is SEALED_REAL_C4 and no fail-closed / integrity input rejection fired.
-   * Synthetic runs may still compute metrics — this stays false.
+   * Sealed-real C4 path only: true when evidenceOrigin is SEALED_REAL_C4, no fail-closed integrity fires,
+   * and D4–D8 are all KNOWN (necessary but NOT sufficient for scientific validation).
    */
-  realDataValidationPassed: boolean;
+  sealedRealC4StatisticalEligibility: boolean;
+  /**
+   * Independent scientific validation of real C4 behavior — NOT_EVALUATED until a verified sealed-real loader exists.
+   */
+  independentScientificValidationStatus: 'NOT_EVALUATED';
   tripId: string;
   sourceMotionRunId: string;
   qualityTier: Ds4DbiW0QualityTierV1;
@@ -120,6 +129,9 @@ export type Ds4DbiW0TripKernelResultV1 = {
     emptyWindowCount: number | null;
     totalWindowSlots: number | null;
     eventCount: number | null;
+    observationWindowStartMsUtc: number | null;
+    observationWindowEndMsUtc: number | null;
+    observationWindowDurationSeconds: number | null;
     reasonCodes: Ds4DbiW0MbfReasonCodeV1[];
   };
   diagnostics: {

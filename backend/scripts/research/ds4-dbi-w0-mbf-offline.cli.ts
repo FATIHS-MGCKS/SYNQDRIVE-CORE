@@ -20,7 +20,10 @@ import {
 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-layer2-p2-pinned-11.attestation.v1';
 import type { Ds4Layer2P4bP2AdmissibleEventRowV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-layer2-p4b-event-kinematics-evidence.v1.contract';
 import { buildDs4Layer2P4bSyntheticPayloadsFromP2EventsV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-layer2-p4b-test-payload-synth.v1';
-import { computeDs4DbiW0MbfFromPayloadV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-mbf-kernel.v1';
+import {
+  computeDs4DbiW0D8BurstinessFromObservationWindowV1,
+  computeDs4DbiW0MbfFromPayloadV1,
+} from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-mbf-kernel.v1';
 import type {
   Ds4DbiW0QualityTierV1,
   Ds4DbiW0TripKernelResultV1,
@@ -41,18 +44,30 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-function seededShuffleMsInPlace(startsMs: number[], seed: number): void {
-  const rand = mulberry32(seed);
-  for (let i = startsMs.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rand() * (i + 1));
-    const tmp = startsMs[i]!;
-    startsMs[i] = startsMs[j]!;
-    startsMs[j] = tmp;
-  }
-}
-
 function msToIsoLabelZ(ms: number): string {
   return new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+/**
+ * E9 null-process: one independent Uniform draw in each of the first 10 six-minute bins (guarantees ≥10 non‑empty windows),
+ * then additional independent draws until n unique event times (same count n, not multiset-preserving vs regular).
+ */
+function sampleE9UniformNullOffsetsV1(n: number, horizonMs: number, seed: number): number[] {
+  const windowMs = 60_000;
+  const rand = mulberry32(seed);
+  const uniq = new Set<number>();
+  const numBins = Math.floor(horizonMs / windowMs);
+  for (let w = 0; w < Math.min(10, numBins); w += 1) {
+    const binStart = w * windowMs;
+    const binEnd = Math.min((w + 1) * windowMs, horizonMs) - 2000;
+    uniq.add(binStart + Math.floor(rand() * Math.max(1, binEnd - binStart)));
+  }
+  let guard = 0;
+  while (uniq.size < n && guard < n * 100_000) {
+    guard += 1;
+    uniq.add(Math.floor(rand() * Math.max(1, horizonMs - 2000)));
+  }
+  return [...uniq].sort((a, b) => a - b).slice(0, n);
 }
 
 const fixtureDir = join(
@@ -233,28 +248,31 @@ function enrichSyntheticPayloadForW0V1(
 function runSyntheticControlsV1(): {
   e7: { scenario: string; d5Rough: number | null; reasonSample: string[] }[];
   e9: {
-    scenario: string;
-    seed: number;
-    d8Before: {
-      status: string;
-      indexOfDispersion: number | null;
-      nonEmptyWindowCount: number | null;
-      emptyWindowCount: number | null;
-      totalWindowSlots: number | null;
+    observationWindow: {
+      durationSeconds: number;
+      startLabelUtc: string;
+      endLabelUtc: string;
     };
-    d8After: {
-      status: string;
-      indexOfDispersion: number | null;
-      nonEmptyWindowCount: number | null;
-      emptyWindowCount: number | null;
-      totalWindowSlots: number | null;
+    eventCount: number;
+    baseSeed: number;
+    scenarios: {
+      name: 'regular_spacing' | 'clustered' | 'uniform_random_null';
+      seed: number;
+      d8: ReturnType<typeof computeDs4DbiW0D8BurstinessFromObservationWindowV1>;
+    }[];
+    nullDistribution: {
+      draws: number;
+      seedStrideStart: number;
+      iodValues: number[];
+      meanIod: number | null;
     };
-  }[];
+  };
   e10: { scenario: string; d4Status: string; reasons: string[]; observedFingerprintPrefix: string }[];
 } {
   const baseTime = '2026-01-01T12:00:00Z';
   const mkPayload = (overrides: Partial<DiV0MotionCoreShadowPayloadV1>): DiV0MotionCoreShadowPayloadV1 => {
-    const labelSeconds = 200;
+    /** 720s of 1Hz labels ≥ trip exposure (660s) used for D8 window anchoring. */
+    const labelSeconds = 720;
     const speeds: DiV0MotionCoreShadowPayloadV1['speeds'] = [];
     const fsm: DiV0MotionCoreShadowPayloadV1['fsmLabels'] = [];
     const stopEpisodes: MotionFsmStopEpisode[] = [];
@@ -356,7 +374,8 @@ function runSyntheticControlsV1(): {
     speedAuthority: 'C4_ONLY',
     shadowBundleVersion: 'CTRL',
     contentFingerprint: 'a'.repeat(64),
-    exposureSecondsEs: 200,
+    /** Grounds D8 in [t0, t0+660s) including empty trailing windows vs event-only span. */
+    exposureSecondsEs: 660,
     distanceKm: 1,
   };
 
@@ -368,17 +387,27 @@ function runSyntheticControlsV1(): {
       speedKmh: 40 + (i % 3 === 0 ? 0.2 : i % 3 === 1 ? -0.15 : 0),
     };
   }
-  /** One event per ≥60s window so D8 has ≥10 non-empty windows (preregistered min). */
-  noisy.events = Array.from({ length: 12 }, (_, j) => ({
-    kind: 'ACCELERATION',
-    startLabel: bucketLabelPlusSeconds(baseTime, j * 61),
-    endLabel: bucketLabelPlusSeconds(baseTime, j * 61 + 1),
-    startSpeedKmh: 40,
-    endSpeedKmh: 41,
-    deltaKmh: 1,
-    quality: 'OK',
-    flags: [],
-  }));
+  const t0ms = parseBucketLabelMs(bucketLabelPlusSeconds(baseTime, 0));
+  const horizonMs = meta.exposureSecondsEs * 1000;
+  const nEv = 12;
+  const windowMs = 60_000;
+  const eventOffsetsRegular = Array.from({ length: nEv }, (_, j) => Math.min(horizonMs - 2000, j * 55_000));
+  const eventOffsetsClustered: number[] = [5000, 25_000, windowMs + 5000, windowMs + 25_000];
+  for (let w = 2; w <= 9; w += 1) {
+    eventOffsetsClustered.push(w * windowMs + 30_000);
+  }
+  const eventsFromOffsets = (offsets: number[]): DiV0MotionCoreShadowPayloadV1['events'] =>
+    offsets.map((off) => ({
+      kind: 'ACCELERATION' as const,
+      startLabel: msToIsoLabelZ(t0ms + off),
+      endLabel: msToIsoLabelZ(t0ms + off + 1000),
+      startSpeedKmh: 40,
+      endSpeedKmh: 41,
+      deltaKmh: 1,
+      quality: 'OK' as const,
+      flags: [],
+    }));
+  noisy.events = eventsFromOffsets(eventOffsetsRegular);
   const rNoise = computeDs4DbiW0MbfFromPayloadV1({
     payload: noisy,
     tripMeta: meta,
@@ -415,34 +444,39 @@ function runSyntheticControlsV1(): {
     evidenceOrigin: 'SYNTHETIC_CONTROL',
   });
 
-  // E9: seeded randomization of event start times (preserves duration; same multiset of timestamps → no duplicate-start fail)
-  const e9Seed = 0xe9c00142;
-  const permuted = mkPayload({});
-  permuted.events = noisy.events.map((e) => ({ ...e }));
-  const startsMs = permuted.events.map((e) => parseBucketLabelMs(e.startLabel));
-  seededShuffleMsInPlace(startsMs, e9Seed);
-  for (let i = 0; i < permuted.events.length; i += 1) {
-    const s = startsMs[i]!;
-    permuted.events[i] = {
-      ...permuted.events[i]!,
-      startLabel: msToIsoLabelZ(s),
-      endLabel: msToIsoLabelZ(s + 1000),
-    };
+  // E9: point-process null — same n, fixed exposure window, independent Uniform draws; compare to regular/clustered
+  const e9BaseSeed = 0xe9d00142;
+  const speedLabsE9 = noisy.speeds.map((s) => s.bucketLabelUtc);
+  const eventOffsetsRandom = sampleE9UniformNullOffsetsV1(nEv, horizonMs, e9BaseSeed);
+  const d8Regular = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+    tripMeta: meta,
+    speedLabelsUtc: speedLabsE9,
+    events: eventsFromOffsets(eventOffsetsRegular),
+  });
+  const d8Clustered = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+    tripMeta: meta,
+    speedLabelsUtc: speedLabsE9,
+    events: eventsFromOffsets(eventOffsetsClustered),
+  });
+  const d8RandomPrimary = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+    tripMeta: meta,
+    speedLabelsUtc: speedLabsE9,
+    events: eventsFromOffsets(eventOffsetsRandom),
+  });
+  const nullIods: number[] = [];
+  const nullDraws = 50;
+  for (let k = 1; k <= nullDraws; k += 1) {
+    const offs = sampleE9UniformNullOffsetsV1(nEv, horizonMs, e9BaseSeed + k);
+    const rr = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+      tripMeta: meta,
+      speedLabelsUtc: speedLabsE9,
+      events: eventsFromOffsets(offs),
+    });
+    if (rr.indexOfDispersion != null && Number.isFinite(rr.indexOfDispersion)) {
+      nullIods.push(rr.indexOfDispersion);
+    }
   }
-  const before = computeDs4DbiW0MbfFromPayloadV1({
-    payload: noisy,
-    tripMeta: meta,
-    qualityTier: 'STRICT',
-    syntheticScenarioTag: 'E9_BASE',
-    evidenceOrigin: 'SYNTHETIC_CONTROL',
-  });
-  const after = computeDs4DbiW0MbfFromPayloadV1({
-    payload: permuted,
-    tripMeta: meta,
-    qualityTier: 'STRICT',
-    syntheticScenarioTag: 'E9_RANDOMIZED_TIMES',
-    evidenceOrigin: 'SYNTHETIC_CONTROL',
-  });
+  const meanNullIod = nullIods.length > 0 ? nullIods.reduce((a, b) => a + b, 0) / nullIods.length : null;
 
   // E10: fingerprint mismatch
   const observedFp = createHash('sha256').update(JSON.stringify(noisy)).digest('hex');
@@ -469,26 +503,26 @@ function runSyntheticControlsV1(): {
       },
       { scenario: 'short_sparse', d5Rough: rShort.d5SpeedRoughnessMeanAbsDeltaKmhPerS.value, reasonSample: rShort.d4SpeedVariabilityRobustCv.reasonCodes.slice(0, 4) },
     ],
-    e9: [
-      {
-        scenario: 'event_start_time_seeded_shuffle',
-        seed: e9Seed,
-        d8Before: {
-          status: before.d8Burstiness.status,
-          indexOfDispersion: before.d8Burstiness.indexOfDispersion,
-          nonEmptyWindowCount: before.d8Burstiness.nonEmptyWindowCount,
-          emptyWindowCount: before.d8Burstiness.emptyWindowCount,
-          totalWindowSlots: before.d8Burstiness.totalWindowSlots,
-        },
-        d8After: {
-          status: after.d8Burstiness.status,
-          indexOfDispersion: after.d8Burstiness.indexOfDispersion,
-          nonEmptyWindowCount: after.d8Burstiness.nonEmptyWindowCount,
-          emptyWindowCount: after.d8Burstiness.emptyWindowCount,
-          totalWindowSlots: after.d8Burstiness.totalWindowSlots,
-        },
+    e9: {
+      observationWindow: {
+        durationSeconds: meta.exposureSecondsEs,
+        startLabelUtc: msToIsoLabelZ(t0ms),
+        endLabelUtc: msToIsoLabelZ(t0ms + horizonMs),
       },
-    ],
+      eventCount: nEv,
+      baseSeed: e9BaseSeed,
+      scenarios: [
+        { name: 'regular_spacing', seed: e9BaseSeed, d8: d8Regular },
+        { name: 'clustered', seed: e9BaseSeed, d8: d8Clustered },
+        { name: 'uniform_random_null', seed: e9BaseSeed, d8: d8RandomPrimary },
+      ],
+      nullDistribution: {
+        draws: nullDraws,
+        seedStrideStart: e9BaseSeed + 1,
+        iodValues: nullIods,
+        meanIod: meanNullIod,
+      },
+    },
     e10: [
       {
         scenario: 'fingerprint_mismatch',
@@ -624,7 +658,7 @@ async function main(): Promise<void> {
     tripResultsStrict: results,
     syntheticControls: controls,
     scientificNote:
-      'evidenceOrigin=SYNTHETIC_P2_ENRICHMENT: 1Hz speeds/FSM/stops are research synthetic from sealed P2 timing, not raw sealed C4 gzip. sealedReferenceContentFingerprintSha256 is attested P2 metadata only; canonical JSON digest differs (MBF_W0_FAIL_CLOSED_SEALED_FINGERPRINT_MISMATCH expected unless using pure sealed payloads). implementationWorks !== realDataValidationPassed. D4–D8 thresholds are preregistered candidates.',
+      'evidenceOrigin=SYNTHETIC_P2_ENRICHMENT: 1Hz speeds/FSM/stops are synthetic from sealed P2 timing (not raw sealed C4 gzip). sealedReferenceContentFingerprintSha256 is CSV attestation metadata only — never compared to JSON.stringify(payload) digest unless explicit SEALED_REAL_C4 contract exists. independentScientificValidationStatus is always NOT_EVALUATED until a verified sealed-real loader exists. sealedRealC4StatisticalEligibility is false for synthetic paths. D8 uses fixed trip exposureSecondsEs as observation horizon from min(first speed, first event start). D4–D8 thresholds are preregistered candidates.',
     realVsSyntheticBoundary:
       'SYNTHETIC_CONTROL / SYNTHETIC_P2_ENRICHMENT: speed-based metrics are methodological only. SEALED_REAL_C4 reserved for future unmodified shadow exports.',
   };

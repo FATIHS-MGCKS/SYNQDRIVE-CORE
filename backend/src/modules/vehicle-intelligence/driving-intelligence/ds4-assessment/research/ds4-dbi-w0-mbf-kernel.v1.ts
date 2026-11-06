@@ -27,7 +27,6 @@ const FAIL_CLOSED_CODES = new Set<Ds4DbiW0MbfReasonCodeV1>([
   'MBF_W0_FAIL_CLOSED_MIXED_SPEED_AUTHORITY',
   'MBF_W0_FAIL_CLOSED_SOURCE_BUNDLE_MISMATCH',
   'MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH',
-  'MBF_W0_FAIL_CLOSED_SEALED_FINGERPRINT_MISMATCH',
   'MBF_W0_FAIL_CLOSED_CORRUPT_LABEL_TIME_ORDER',
   'MBF_W0_FAIL_CLOSED_DUPLICATE_SPEED_LABEL',
   'MBF_W0_FAIL_CLOSED_INVALID_SPEED_VALUE',
@@ -458,11 +457,30 @@ function computeD6V1(input: {
   };
 }
 
-function computeD8V1(
-  events: DiV0MotionCoreShadowPayloadV1['events'],
-  failClosed: boolean,
-): Ds4DbiW0TripKernelResultV1['d8Burstiness'] {
-  if (failClosed) {
+/** Exported for E9 null-process studies and tests — same D8 counting rules as the kernel. */
+export function computeDs4DbiW0D8BurstinessFromObservationWindowV1(input: {
+  tripMeta: Ds4DbiW0TripMetaV1 | null;
+  speedLabelsUtc: readonly string[];
+  events: DiV0MotionCoreShadowPayloadV1['events'];
+}): {
+  status: 'KNOWN' | 'ABSTAIN';
+  indexOfDispersion: number | null;
+  shareNextEventWithin30s: number | null;
+  windowCount: number | null;
+  nonEmptyWindowCount: number | null;
+  emptyWindowCount: number | null;
+  totalWindowSlots: number | null;
+  eventCount: number | null;
+  observationWindowStartMsUtc: number | null;
+  observationWindowEndMsUtc: number | null;
+  observationWindowDurationSeconds: number | null;
+  reasonCodes: Ds4DbiW0MbfReasonCodeV1[];
+} {
+  const admitted = input.events.filter((e) => e.quality === 'OK');
+  const nEv = admitted.length;
+  const windowMs = DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.burstWindowSeconds * 1000;
+
+  if (!input.tripMeta || !(input.tripMeta.exposureSecondsEs > 0) || !Number.isFinite(input.tripMeta.exposureSecondsEs)) {
     return {
       status: 'ABSTAIN',
       indexOfDispersion: null,
@@ -471,12 +489,32 @@ function computeD8V1(
       nonEmptyWindowCount: null,
       emptyWindowCount: null,
       totalWindowSlots: null,
-      eventCount: null,
-      reasonCodes: [],
+      eventCount: nEv,
+      observationWindowStartMsUtc: null,
+      observationWindowEndMsUtc: null,
+      observationWindowDurationSeconds: null,
+      reasonCodes: ['MBF_W0_NOT_EVALUABLE_NO_TRIP_META', 'MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW'],
     };
   }
-  const admitted = events.filter((e) => e.quality === 'OK');
-  const nEv = admitted.length;
+
+  const esMs = Math.round(input.tripMeta.exposureSecondsEs * 1000);
+  if (esMs < windowMs) {
+    return {
+      status: 'ABSTAIN',
+      indexOfDispersion: null,
+      shareNextEventWithin30s: null,
+      windowCount: null,
+      nonEmptyWindowCount: null,
+      emptyWindowCount: null,
+      totalWindowSlots: null,
+      eventCount: nEv,
+      observationWindowStartMsUtc: null,
+      observationWindowEndMsUtc: null,
+      observationWindowDurationSeconds: null,
+      reasonCodes: ['MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW'],
+    };
+  }
+
   if (nEv < DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.minEventsD8) {
     return {
       status: 'ABSTAIN',
@@ -487,24 +525,59 @@ function computeD8V1(
       emptyWindowCount: null,
       totalWindowSlots: null,
       eventCount: nEv,
+      observationWindowStartMsUtc: null,
+      observationWindowEndMsUtc: null,
+      observationWindowDurationSeconds: null,
       reasonCodes: ['MBF_W0_INSUFFICIENT_EVENTS_FOR_BURSTINESS'],
     };
   }
-  const starts = admitted.map((e) => parseBucketLabelMs(e.startLabel)).sort((a, b) => a - b);
-  const t0 = starts[0]!;
-  const t1 = starts[starts.length - 1]!;
-  const windowMs = DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.burstWindowSeconds * 1000;
-  const totalWindowSlots = Math.max(1, Math.floor((t1 - t0) / windowMs) + 1);
-  const countsByWindow = new Map<number, number>();
+
+  let minSpeedMs = Number.POSITIVE_INFINITY;
+  for (const lab of input.speedLabelsUtc) {
+    const t = parseBucketLabelMs(lab);
+    if (Number.isFinite(t)) {
+      minSpeedMs = Math.min(minSpeedMs, t);
+    }
+  }
+  const startsRaw = admitted.map((e) => parseBucketLabelMs(e.startLabel));
+  const minEventMs = Math.min(...startsRaw);
+  const t0 =
+    Number.isFinite(minSpeedMs) && minSpeedMs < Number.POSITIVE_INFINITY
+      ? Math.min(minSpeedMs, minEventMs)
+      : minEventMs;
+  const t1 = t0 + esMs;
+
+  for (const t of startsRaw) {
+    if (t < t0 || t >= t1) {
+      return {
+        status: 'ABSTAIN',
+        indexOfDispersion: null,
+        shareNextEventWithin30s: null,
+        windowCount: null,
+        nonEmptyWindowCount: null,
+        emptyWindowCount: null,
+        totalWindowSlots: null,
+        eventCount: nEv,
+        observationWindowStartMsUtc: t0,
+        observationWindowEndMsUtc: t1,
+        observationWindowDurationSeconds: esMs / 1000,
+        reasonCodes: ['MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW'],
+      };
+    }
+  }
+
+  const totalWindowSlots = Math.max(1, Math.ceil(esMs / windowMs));
+  const counts = new Array<number>(totalWindowSlots).fill(0);
+  const starts = [...startsRaw].sort((a, b) => a - b);
   for (const t of starts) {
     const w = Math.floor((t - t0) / windowMs);
-    const clamped = Math.min(Math.max(w, 0), totalWindowSlots - 1);
-    countsByWindow.set(clamped, (countsByWindow.get(clamped) ?? 0) + 1);
+    const wi = Math.min(Math.max(w, 0), totalWindowSlots - 1);
+    counts[wi] += 1;
   }
-  const nonEmpty = countsByWindow.size;
-  const emptyWindowCount = totalWindowSlots - nonEmpty;
+  const nonEmpty = counts.filter((c) => c > 0).length;
+  const emptyWindowCount = counts.filter((c) => c === 0).length;
   let sumSq = 0;
-  for (const c of countsByWindow.values()) {
+  for (const c of counts) {
     sumSq += c * c;
   }
   if (nonEmpty < DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.minNonEmptyWindowsD8) {
@@ -517,9 +590,13 @@ function computeD8V1(
       emptyWindowCount,
       totalWindowSlots,
       eventCount: nEv,
+      observationWindowStartMsUtc: t0,
+      observationWindowEndMsUtc: t1,
+      observationWindowDurationSeconds: esMs / 1000,
       reasonCodes: ['MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS'],
     };
   }
+
   const mean = nEv / totalWindowSlots;
   const variance =
     totalWindowSlots > 1 ? (sumSq - (nEv * nEv) / totalWindowSlots) / (totalWindowSlots - 1) : 0;
@@ -542,7 +619,53 @@ function computeD8V1(
     emptyWindowCount,
     totalWindowSlots,
     eventCount: nEv,
+    observationWindowStartMsUtc: t0,
+    observationWindowEndMsUtc: t1,
+    observationWindowDurationSeconds: esMs / 1000,
     reasonCodes: ['MBF_W0_OK'],
+  };
+}
+
+function computeD8V1(
+  payload: DiV0MotionCoreShadowPayloadV1,
+  tripMeta: Ds4DbiW0TripMetaV1 | null,
+  failClosed: boolean,
+): Ds4DbiW0TripKernelResultV1['d8Burstiness'] {
+  if (failClosed) {
+    return {
+      status: 'ABSTAIN',
+      indexOfDispersion: null,
+      shareNextEventWithin30s: null,
+      windowCount: null,
+      nonEmptyWindowCount: null,
+      emptyWindowCount: null,
+      totalWindowSlots: null,
+      eventCount: null,
+      observationWindowStartMsUtc: null,
+      observationWindowEndMsUtc: null,
+      observationWindowDurationSeconds: null,
+      reasonCodes: [],
+    };
+  }
+  const speedLabs = payload.speeds.map((s) => s.bucketLabelUtc);
+  const core = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+    tripMeta,
+    speedLabelsUtc: speedLabs,
+    events: payload.events,
+  });
+  return {
+    status: core.status,
+    indexOfDispersion: core.indexOfDispersion,
+    shareNextEventWithin30s: core.shareNextEventWithin30s,
+    windowCount: core.windowCount,
+    nonEmptyWindowCount: core.nonEmptyWindowCount,
+    emptyWindowCount: core.emptyWindowCount,
+    totalWindowSlots: core.totalWindowSlots,
+    eventCount: core.eventCount,
+    observationWindowStartMsUtc: core.observationWindowStartMsUtc,
+    observationWindowEndMsUtc: core.observationWindowEndMsUtc,
+    observationWindowDurationSeconds: core.observationWindowDurationSeconds,
+    reasonCodes: core.reasonCodes,
   };
 }
 
@@ -559,16 +682,12 @@ function emptyTripResultV1(
   const merged = [...new Set(input.reasons)];
   const fc = merged.filter((c) => FAIL_CLOSED_CODES.has(c));
   const failClosed = fc.length > 0;
-  const realData =
-    input.evidenceOrigin === 'SEALED_REAL_C4' &&
-    !failClosed &&
-    !merged.some((c) => c === 'MBF_W0_NOT_EVALUABLE_NO_MOTION_PAYLOAD' || c.startsWith('MBF_W0_NOT_EVALUABLE'));
-
   return {
     contractVersion: 'ds4-dbi-w0-mbf-kernel-v1',
     evidenceOrigin: input.evidenceOrigin,
     implementationWorks: true,
-    realDataValidationPassed: Boolean(realData),
+    sealedRealC4StatisticalEligibility: false,
+    independentScientificValidationStatus: 'NOT_EVALUATED',
     tripId: input.tripMeta?.tripId ?? 'UNKNOWN',
     sourceMotionRunId: input.tripMeta?.sourceMotionRunId ?? 'UNKNOWN',
     qualityTier: input.qualityTier,
@@ -619,6 +738,9 @@ function emptyTripResultV1(
       emptyWindowCount: null,
       totalWindowSlots: null,
       eventCount: null,
+      observationWindowStartMsUtc: null,
+      observationWindowEndMsUtc: null,
+      observationWindowDurationSeconds: null,
       reasonCodes: merged,
     },
     diagnostics: {
@@ -659,7 +781,7 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
   }
 
   const evidenceOrigin: Ds4DbiW0EvidenceOriginV1 =
-    input.evidenceOrigin ?? (input.syntheticScenarioTag ? 'SYNTHETIC_CONTROL' : 'SEALED_REAL_C4');
+    input.evidenceOrigin ?? (input.syntheticScenarioTag ? 'SYNTHETIC_CONTROL' : 'SYNTHETIC_UNSPECIFIED');
 
   const sealedRef = input.sealedReferenceContentFingerprintSha256 ?? null;
 
@@ -681,15 +803,6 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
   if (input.expectedContentFingerprint && observedFp !== input.expectedContentFingerprint) {
     pushReason('MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH');
   }
-  if (
-    sealedRef &&
-    evidenceOrigin === 'SEALED_REAL_C4' &&
-    observedFp !== sealedRef.toLowerCase() &&
-    observedFp !== sealedRef
-  ) {
-    pushReason('MBF_W0_FAIL_CLOSED_SEALED_FINGERPRINT_MISMATCH');
-  }
-
   const bundleObs = payload.contract.algorithmVersions.bundle;
   if (input.expectedShadowBundleVersion && bundleObs !== input.expectedShadowBundleVersion) {
     pushReason('MBF_W0_FAIL_CLOSED_SOURCE_BUNDLE_MISMATCH');
@@ -794,7 +907,7 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
     });
   }
 
-  const d8Full = computeD8V1(payload.events, failClosed);
+  const d8Full = computeD8V1(payload, input.tripMeta, failClosed);
 
   const d4: Ds4DbiW0SingleMetricResultV1 = {
     status: failClosed ? 'ABSTAIN' : d4Full.status,
@@ -843,7 +956,7 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
 
   const implementationWorks = true;
 
-  const realDataValidationPassed =
+  const sealedRealC4StatisticalEligibility =
     evidenceOrigin === 'SEALED_REAL_C4' &&
     !failClosed &&
     d4.status === 'KNOWN' &&
@@ -855,7 +968,8 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
     contractVersion: 'ds4-dbi-w0-mbf-kernel-v1',
     evidenceOrigin,
     implementationWorks,
-    realDataValidationPassed,
+    sealedRealC4StatisticalEligibility,
+    independentScientificValidationStatus: 'NOT_EVALUATED',
     tripId: input.tripMeta?.tripId ?? 'UNKNOWN',
     sourceMotionRunId: input.tripMeta?.sourceMotionRunId ?? 'UNKNOWN',
     qualityTier: input.qualityTier,

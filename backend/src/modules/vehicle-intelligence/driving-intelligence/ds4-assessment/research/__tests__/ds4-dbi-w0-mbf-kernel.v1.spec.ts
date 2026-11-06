@@ -1,7 +1,10 @@
 import { createHash } from 'crypto';
 import type { MotionFsmStopEpisode } from '../../../core/kinematics/motion-fsm';
 import type { DiV0MotionCoreShadowPayloadV1 } from '../../../motion-core-shadow-worker/di-v0-motion-core-shadow.types';
-import { computeDs4DbiW0MbfFromPayloadV1 } from '../ds4-dbi-w0-mbf-kernel.v1';
+import {
+  computeDs4DbiW0D8BurstinessFromObservationWindowV1,
+  computeDs4DbiW0MbfFromPayloadV1,
+} from '../ds4-dbi-w0-mbf-kernel.v1';
 
 describe('ds4-dbi-w0-mbf-kernel.v1', () => {
   const baseContract: DiV0MotionCoreShadowPayloadV1['contract'] = {
@@ -122,7 +125,8 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     speedAuthority: 'C4_ONLY',
     shadowBundleVersion: 'x',
     contentFingerprint: 'a'.repeat(64),
-    exposureSecondsEs: 130,
+    /** Must cover all event starts under D8 fixed exposure window [t0, t0+Es). */
+    exposureSecondsEs: 900,
     distanceKm: 2,
   };
 
@@ -135,10 +139,23 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
       evidenceOrigin: 'SYNTHETIC_CONTROL',
     });
     expect(r.evidenceOrigin).toBe('SYNTHETIC_CONTROL');
-    expect(r.realDataValidationPassed).toBe(false);
+    expect(r.independentScientificValidationStatus).toBe('NOT_EVALUATED');
+    expect(r.sealedRealC4StatisticalEligibility).toBe(false);
     expect(r.d5SpeedRoughnessMeanAbsDeltaKmhPerS.status).toBe('KNOWN');
     expect(r.d5SpeedRoughnessMeanAbsDeltaKmhPerS.value).not.toBeNull();
     expect(r.d5SpeedRoughnessMeanAbsDeltaKmhPerS.value!).toBeLessThan(0.5);
+  });
+
+  it('H8: omitting evidenceOrigin defaults to SYNTHETIC_UNSPECIFIED, not sealed real', () => {
+    const payload = mkMovingSeries(130, 40);
+    const r = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta: meta,
+      qualityTier: 'STRICT',
+    });
+    expect(r.evidenceOrigin).toBe('SYNTHETIC_UNSPECIFIED');
+    expect(r.sealedRealC4StatisticalEligibility).toBe(false);
+    expect(r.independentScientificValidationStatus).toBe('NOT_EVALUATED');
   });
 
   it('H1: global fail-closed strips all D4/D5/D6/D8 numeric fields on fingerprint mismatch', () => {
@@ -165,6 +182,20 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     expect(r.d4SpeedVariabilityRobustCv.reasonCodes).toContain('MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH');
   });
 
+  it('H1: bundle mismatch fails closed across metrics', () => {
+    const payload = mkMovingSeries(130, 40);
+    const r = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta: meta,
+      qualityTier: 'STRICT',
+      expectedShadowBundleVersion: 'WRONG_BUNDLE',
+      evidenceOrigin: 'SYNTHETIC_CONTROL',
+    });
+    expect(r.diagnostics.failClosedReasons).toContain('MBF_W0_FAIL_CLOSED_SOURCE_BUNDLE_MISMATCH');
+    expect(r.d4SpeedVariabilityRobustCv.value).toBeNull();
+    expect(r.d8Burstiness.indexOfDispersion).toBeNull();
+  });
+
   it('H4: duplicate speed label timestamp fails closed with null metrics', () => {
     const payload = mkMovingSeries(130, 40);
     const dupLab = payload.speeds[50]!.bucketLabelUtc;
@@ -174,6 +205,15 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     expect(r.diagnostics.failClosedReasons).toContain('MBF_W0_FAIL_CLOSED_DUPLICATE_SPEED_LABEL');
     expect(r.d4SpeedVariabilityRobustCv.value).toBeNull();
     expect(r.d5SpeedRoughnessMeanAbsDeltaKmhPerS.value).toBeNull();
+  });
+
+  it('H4: duplicate event start times fail closed', () => {
+    const payload = mkMovingSeries(130, 40);
+    const t = payload.events[0]!.startLabel;
+    payload.events[1] = { ...payload.events[1]!, startLabel: t, endLabel: t };
+    const r = computeDs4DbiW0MbfFromPayloadV1({ payload, tripMeta: meta, qualityTier: 'STRICT', evidenceOrigin: 'SYNTHETIC_CONTROL' });
+    expect(r.diagnostics.failClosedReasons).toContain('MBF_W0_FAIL_CLOSED_DUPLICATE_EVENT_START_TIME');
+    expect(r.d8Burstiness.indexOfDispersion).toBeNull();
   });
 
   it('H4: FSM row missing for a speed label fails closed', () => {
@@ -197,6 +237,85 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     }
     const r = computeDs4DbiW0MbfFromPayloadV1({ payload, tripMeta: meta, qualityTier: 'STRICT', evidenceOrigin: 'SYNTHETIC_CONTROL' });
     expect(r.d6StopStructure.movingRunSplitReasonSample).toContain('MBF_W0_GAP_BREAKS_CONSECUTIVE_CHAIN');
+  });
+
+  it('D8 uses fixed exposure window anchored at min(speed, event) starts', () => {
+    const payload = mkMovingSeries(130, 40);
+    const r = computeDs4DbiW0MbfFromPayloadV1({ payload, tripMeta: meta, qualityTier: 'STRICT', evidenceOrigin: 'SYNTHETIC_CONTROL' });
+    expect(r.d8Burstiness.observationWindowDurationSeconds).toBe(meta.exposureSecondsEs);
+    expect(r.d8Burstiness.status).toBe('KNOWN');
+  });
+
+  it('E9: clustered inter-event gaps vs regular spacing (shareWithin30s not invariant; fixed Es window)', () => {
+    const t0 = '2026-01-01T12:00:00Z';
+    const t0ms = Date.parse(t0);
+    const esSec = 660;
+    const horizonMs = esSec * 1000;
+    const windowMs = 60_000;
+    const nEv = 12;
+    const speedLabs = Array.from({ length: 720 }, (_, i) => new Date(t0ms + i * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+    const mkEv = (offsetsMs: number[]) =>
+      offsetsMs.map((off) => ({
+        kind: 'ACCELERATION' as const,
+        startLabel: new Date(t0ms + off).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        endLabel: new Date(t0ms + off + 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        startSpeedKmh: 40,
+        endSpeedKmh: 41,
+        deltaKmh: 1,
+        quality: 'OK' as const,
+        flags: [],
+      }));
+    const regular = Array.from({ length: nEv }, (_, j) => Math.min(horizonMs - 2000, j * 55_000));
+    const rand = (seed: number) => {
+      let a = seed >>> 0;
+      return () => {
+        a += 0x6d2b79f5;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    };
+    /** One Uniform draw per 60s bin — ≥10 non-empty windows; independently randomized (not multiset of regular starts). */
+    const rdraw = rand(0xe9beef00);
+    const nullOffsets: number[] = [];
+    for (let w = 0; w < 10; w += 1) {
+      const binStart = w * windowMs;
+      const binEnd = Math.min((w + 1) * windowMs, horizonMs) - 2000;
+      nullOffsets.push(binStart + Math.floor(rdraw() * Math.max(1, binEnd - binStart)));
+    }
+    nullOffsets.push(600_000 + 1000, 600_000 + 8000);
+    /** Two 20s pairs (windows 0–1) + one mid-window event in windows 2–9 → 12 events, 10 non-empty windows, high shareWithin30s vs regular. */
+    const clustered: number[] = [
+      5000,
+      25_000,
+      windowMs + 5000,
+      windowMs + 25_000,
+    ];
+    for (let w = 2; w <= 9; w += 1) {
+      clustered.push(w * windowMs + 30_000);
+    }
+
+    const tripMetaLocal = { ...meta, exposureSecondsEs: esSec };
+    const dReg = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+      tripMeta: tripMetaLocal,
+      speedLabelsUtc: speedLabs,
+      events: mkEv(regular),
+    });
+    const dNull = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+      tripMeta: tripMetaLocal,
+      speedLabelsUtc: speedLabs,
+      events: mkEv(nullOffsets.sort((a, b) => a - b)),
+    });
+    const dClust = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+      tripMeta: tripMetaLocal,
+      speedLabelsUtc: speedLabs,
+      events: mkEv(clustered.sort((a, b) => a - b)),
+    });
+    expect(dReg.status).toBe('KNOWN');
+    expect(dNull.status).toBe('KNOWN');
+    expect(dClust.status).toBe('KNOWN');
+    expect(dClust.shareNextEventWithin30s!).toBeGreaterThan(dReg.shareNextEventWithin30s!);
   });
 
   it('recomputing same payload is deterministic', () => {
