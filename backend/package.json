@@ -191,7 +191,7 @@
     "research:ds4-layer2-p4e-a5-a6-consistency": "ts-node -r tsconfig-paths/register scripts/research/ds4-layer2-p4e-a5-a6-consistency.cli.ts",
     "research:ds4-dbi-w0-mbf-offline": "ts-node -r tsconfig-paths/register scripts/research/ds4-dbi-w0-mbf-offline.cli.ts",
     "test:di:ds4-layer2-p4e-a5-a6": "jest ds4-layer2-p4e-a5-a6 --runInBand",
-    "test:di:ds4-dbi-w0-mbf": "jest ds4-dbi-w0-mbf-kernel --runInBand",
+    "test:di:ds4-dbi-w0-mbf": "jest ds4-dbi-w0-mbf-kernel ds4-dbi-w0-e9-null-selection-report --runInBand",
     "research:ds4-layer2-export": "ts-node scripts/research/ds4-layer2-historical-export.cli.ts",
     "test:di:ds4-assessment:postgres": "DI_V0_S4A_POSTGRES_INTEGRATION=1 DI_V0_DS4_ASSESSMENT_POSTGRES_INTEGRATION=1 jest --runInBand --forceExit src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/__tests__/ds4-assessment.postgres.integration.spec.ts src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/__tests__/ds4-assessment-outbox.postgres.integration.spec.ts src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/__tests__/ds4-assessment-worker.postgres.integration.spec.ts src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/__tests__/ds4-assessment-processor-tenancy.postgres.integration.spec.ts",
     "test:di:ds4-assessment:postgres:ci": "DI_V0_S4A_POSTGRES_REQUIRED=1 bash scripts/test/di-v0-ds4-assessment-postgres-ci.sh",

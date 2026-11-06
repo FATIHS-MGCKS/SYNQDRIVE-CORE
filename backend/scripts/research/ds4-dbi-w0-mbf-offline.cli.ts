@@ -31,6 +31,7 @@ import type {
 import type { DiV0MotionCoreShadowPayloadV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/motion-core-shadow-worker/di-v0-motion-core-shadow.types';
 import type { MotionFsmState, MotionFsmStopEpisode } from '../../src/modules/vehicle-intelligence/driving-intelligence/core/kinematics/motion-fsm';
 import { bucketLabelPlusSeconds, parseBucketLabelMs } from '../../src/modules/vehicle-intelligence/driving-intelligence/core/kinematics/motion-core-grid';
+import { buildE9NullDistributionSelectionBlockV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-e9-null-selection-report.v1';
 
 /** Deterministic PRNG for E9 (LCG-style; research control only). */
 function mulberry32(seed: number): () => number {
@@ -353,9 +354,15 @@ function runSyntheticControlsV1(): {
         model: 'OCCUPANCY_CONDITIONED_NULL';
         selectionLimitation: string;
         draws: number;
+        totalDraws: number;
         seedStrideStart: number;
         acceptedCount: number;
         abstainedCount: number;
+        empiricalEligibilityRate: number;
+        abstentionReasonCounts: Record<string, number>;
+        selectionHazard: ReturnType<typeof buildE9NullDistributionSelectionBlockV1>['selectionHazard'];
+        interpretationLimitation: string;
+        constructionSemantics: string;
         iodValuesAcceptedOnly: number[];
         meanIodAcceptedOnly: number | null;
         drawRecords: E9NullMonteCarloDrawRecordV1[];
@@ -364,9 +371,21 @@ function runSyntheticControlsV1(): {
         model: 'UNRESTRICTED_UNIFORM_ON_EXPOSURE';
         selectionLimitation: string;
         draws: number;
+        totalDraws: number;
         seedStrideStart: number;
         acceptedCount: number;
         abstainedCount: number;
+        empiricalEligibilityRate: number;
+        abstentionReasonCounts: Record<string, number>;
+        selectionHazard: ReturnType<typeof buildE9NullDistributionSelectionBlockV1>['selectionHazard'];
+        interpretationLimitation: string;
+        constructionSemantics: string;
+        externalEligibilityScaleEvidence?: {
+          source: string;
+          totalTrials: number;
+          estimatedEligibilityRateApprox: number;
+          methodologyNote: string;
+        };
         iodValuesAcceptedOnly: number[];
         meanIodAcceptedOnly: number | null;
         drawRecords: E9NullMonteCarloDrawRecordV1[];
@@ -649,7 +668,7 @@ function runSyntheticControlsV1(): {
           name: 'occupancy_conditioned_null',
           nullModel: 'OCCUPANCY_CONDITIONED_NULL',
           description:
-            'Conditions on at least one event in each of the first ten 60s windows, then fills remaining slots — not an unrestricted uniform-time null.',
+            'Occupancy-enforcing construction: one Uniform draw per first ten 60s bins, then unique-offset fill to n — not an exact IID-uniform-on-exposure conditional nor an unrestricted uniform-time null.',
           seed: e9BaseSeed,
           d8: d8OccupancyNullPrimary,
         },
@@ -664,21 +683,29 @@ function runSyntheticControlsV1(): {
       ],
       scientificInterpretation: {
         summary:
-          'Compare structured layouts to two distinct null constructions: OCCUPANCY_CONDITIONED_NULL (forces occupancy in early bins) vs UNRESTRICTED_UNIFORM_ON_EXPOSURE (no empty-window forcing). Monte Carlo lists every draw; IOD summaries use D8-accepted draws only.',
+          'Compare structured layouts to two distinct null constructions: OCCUPANCY_CONDITIONED_NULL (occupancy-enforcing in early bins; not an exact conditional-IID-uniform reference) vs UNRESTRICTED_UNIFORM_ON_EXPOSURE (no empty-window forcing; censored by the same D8 support gate). Monte Carlo lists every draw; IOD summaries use D8-accepted draws only.',
         monteCarloDoesNotImplyValidation:
           'Finite synthetic IOD values from this harness do not constitute scientific validation of E9 or W0; research-only reporting.',
         d8SupportGate:
-          'D8 may ABSTAIN per preregistered gates (e.g. MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS); abstentions are reported per draw, not silently dropped without record.',
+          'D8 may ABSTAIN per preregistered gates (e.g. MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS); abstentions are reported per draw, not silently dropped without record. Unrestricted uniform draws evaluated through D8 yield a censored reference — empiricalEligibilityRate is from this batch; see externalEligibilityScaleEvidence for a separate large-trial scale estimate.',
       },
       nullDistributions: {
         occupancyConditionedNull: {
           model: 'OCCUPANCY_CONDITIONED_NULL',
           selectionLimitation:
-            'Conditions on nonempty first ten 60s bins; biases toward spread occupancy vs unrestricted uniform.',
+            'Occupancy-enforcing (nonempty first ten 60s bins by construction); biases toward spread occupancy vs unrestricted uniform — not identical to a formal conditional IID-uniform distribution on the full support.',
           draws: nullDraws,
+          ...buildE9NullDistributionSelectionBlockV1({
+            model: 'OCCUPANCY_CONDITIONED_NULL',
+            totalDraws: nullDraws,
+            mc: conditionedMc,
+            interpretationLimitation:
+              'Accepted-only IOD here reflects D8-eligible draws under this construction; the sampler enforces early-bin occupancy rather than sampling from a fully explicit conditional IID-uniform law.',
+            constructionSemantics:
+              'OCCUPANCY_CONDITIONED_NULL: one independent Uniform draw in each of the first ten 60s bins, then additional Uniform draws on [0, Es−1s) until n unique start offsets — an occupancy-enforcing recipe, not an exact conditional IID-uniform on exposure.',
+            includeExternalEligibilityEvidence: false,
+          }),
           seedStrideStart: e9BaseSeed + 1,
-          acceptedCount: conditionedMc.acceptedCount,
-          abstainedCount: conditionedMc.abstainedCount,
           iodValuesAcceptedOnly: conditionedMc.acceptedIOD,
           meanIodAcceptedOnly: conditionedMc.meanIod,
           drawRecords: conditionedMc.drawRecords,
@@ -686,11 +713,19 @@ function runSyntheticControlsV1(): {
         unrestrictedUniformNull: {
           model: 'UNRESTRICTED_UNIFORM_ON_EXPOSURE',
           selectionLimitation:
-            'Independent uniform start times only; duplicate offsets collapse to same 60s bin in D8 (not deduped). Abstention when D8 support gate fails.',
+            'Independent uniform start times on [0, Es−1s) with replacement; duplicate offsets stack in D8 bins. D8 support-gate censoring is severe for (Es=660s, n=12, minNonemptyWindows=10) — accepted-only IOD is not the full marginal unrestricted law.',
           draws: nullDraws,
+          ...buildE9NullDistributionSelectionBlockV1({
+            model: 'UNRESTRICTED_UNIFORM_ON_EXPOSURE',
+            totalDraws: nullDraws,
+            mc: unrestrictedMc,
+            interpretationLimitation:
+              'D8 preregistered support gate (min events + min nonempty 60s windows) censors most unrestricted draws; empiricalEligibilityRate is the observed acceptance in this batch only (0 accepted does not imply true eligibility is zero). externalEligibilityScaleEvidence records a separate audited large-MC scale rate.',
+            constructionSemantics:
+              'UNRESTRICTED_UNIFORM_ON_EXPOSURE: n independent Uniform draws of event start offset on [0, Es−1s); empty 60s bins allowed; duplicates allowed (D8 counts stack in-bin).',
+            includeExternalEligibilityEvidence: true,
+          }),
           seedStrideStart: e9BaseSeed + 1 + nullDraws,
-          acceptedCount: unrestrictedMc.acceptedCount,
-          abstainedCount: unrestrictedMc.abstainedCount,
           iodValuesAcceptedOnly: unrestrictedMc.acceptedIOD,
           meanIodAcceptedOnly: unrestrictedMc.meanIod,
           drawRecords: unrestrictedMc.drawRecords,
@@ -832,7 +867,7 @@ async function main(): Promise<void> {
     tripResultsStrict: results,
     syntheticControls: controls,
     scientificNote:
-      'evidenceOrigin=SYNTHETIC_P2_ENRICHMENT: 1Hz speeds/FSM/stops are synthetic from sealed P2 timing (not raw sealed C4 gzip). sealedReferenceContentFingerprintSha256 is CSV attestation metadata only — never compared to JSON.stringify(payload) digest unless explicit SEALED_REAL_C4 contract exists. independentScientificValidationStatus is always NOT_EVALUATED until a verified sealed-real loader exists. sealedRealC4StatisticalEligibility is false for synthetic paths. D8 uses fixed trip exposureSecondsEs as observation horizon from min(first speed, first event start). E9 syntheticControls distinguishes OCCUPANCY_CONDITIONED_NULL from UNRESTRICTED_UNIFORM_ON_EXPOSURE; Monte Carlo records every draw including D8 ABSTAIN — finite accepted IOD summaries are not validation. D4–D8 thresholds are preregistered candidates.',
+      'evidenceOrigin=SYNTHETIC_P2_ENRICHMENT: 1Hz speeds/FSM/stops are synthetic from sealed P2 timing (not raw sealed C4 gzip). sealedReferenceContentFingerprintSha256 is CSV attestation metadata only — never compared to JSON.stringify(payload) digest unless explicit SEALED_REAL_C4 contract exists. independentScientificValidationStatus is always NOT_EVALUATED until a verified sealed-real loader exists. sealedRealC4StatisticalEligibility is false for synthetic paths. D8 uses fixed trip exposureSecondsEs as observation horizon from min(first speed, first event start). E9 syntheticControls distinguishes OCCUPANCY_CONDITIONED_NULL from UNRESTRICTED_UNIFORM_ON_EXPOSURE; OCCUPANCY_CONDITIONED_NULL is an occupancy-enforcing construction (not an exact conditional IID-uniform reference). E9 nullDistributions report empiricalEligibilityRate from the batch and abstentionReasonCounts; unrestricted reference distributions are censored by the D8 support gate — use externalEligibilityScaleEvidence for a separate large-trial scale estimate, not a substitute for empirical batch rates. Monte Carlo records every draw including D8 ABSTAIN — finite accepted IOD summaries are not validation. D4–D8 thresholds are preregistered candidates.',
     realVsSyntheticBoundary:
       'SYNTHETIC_CONTROL / SYNTHETIC_P2_ENRICHMENT: speed-based metrics are methodological only. SEALED_REAL_C4 reserved for future unmodified shadow exports.',
   };
