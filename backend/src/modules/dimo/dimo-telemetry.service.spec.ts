@@ -7,6 +7,7 @@ import { DimoProviderLimiterService } from './provider/dimo-provider-limiter.ser
 import { DimoProviderRequestPriority } from './provider/dimo-provider-limiter.types';
 import type { DimoProviderLimiterConfigShape } from '@config/dimo-provider-limiter.config';
 import { DimoRequestExecutor } from './provider-budget/dimo-request-executor.service';
+import { computeFsdQueryFingerprintV1, normalizeFsdQueryTextForFingerprintV1 } from './fsd-query-fingerprint.v1';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -248,6 +249,101 @@ describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
     expect(vin).toBeNull();
     expect(gatewayExecuteSpy).toHaveBeenCalled();
     expect(executorExecuteSpy).toHaveBeenCalled();
+  });
+
+  describe('queryFsdGraphql (FSD — single attempt, classified envelope)', () => {
+    it('uses maxRetries 0 and ADMIN/BACKGROUND on executor', async () => {
+      postMock.mockResolvedValue({ status: 200, data: { data: { availableSignals: ['speed'] } } });
+      const q = 'query X { availableSignals(tokenId: 1) }';
+      const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
+
+      const result = await service.queryFsdGraphql({
+        vehicleJwt,
+        query: q,
+        expectedQueryFingerprint: fp,
+        requestContext: { tokenId: 1, organizationId: 'o1', vehicleId: 'v1' },
+      });
+
+      expect(result.kind).toBe('HTTP_200_OK');
+      expect(executorExecuteSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'ADMIN',
+          priority: 'BACKGROUND',
+          maxRetries: 0,
+        }),
+      );
+      expect(gatewayExecuteSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          priority: DimoProviderRequestPriority.P4_BACKGROUND,
+        }),
+      );
+    });
+
+    it('classifies partial GraphQL errors with data', async () => {
+      postMock.mockResolvedValue({
+        status: 200,
+        data: {
+          data: { signalsLatest: {} },
+          errors: [{ message: 'partial' }],
+        },
+      });
+      const q = 'query P { signalsLatest(tokenId: 1) { speed { value } } }';
+      const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
+
+      const result = await service.queryFsdGraphql({
+        vehicleJwt,
+        query: q,
+        expectedQueryFingerprint: fp,
+      });
+
+      expect(result.kind).toBe('HTTP_200_PARTIAL_GRAPHQL_ERRORS');
+      expect(result.errors[0]?.message).toBe('partial');
+    });
+
+    it('classifies GraphQL errors without data', async () => {
+      postMock.mockResolvedValue({
+        status: 200,
+        data: { errors: [{ message: 'no data' }] },
+      });
+      const q = 'query E { x }';
+      const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
+
+      const result = await service.queryFsdGraphql({
+        vehicleJwt,
+        query: q,
+        expectedQueryFingerprint: fp,
+      });
+
+      expect(result.kind).toBe('GRAPHQL_ERRORS_NO_DATA');
+    });
+
+    it('classifies HTTP 400/422 from axios response', async () => {
+      postMock.mockRejectedValue(
+        Object.assign(new Error('bad'), { response: { status: 422, data: {} } }),
+      );
+      const q = 'query H { x }';
+      const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
+
+      const result = await service.queryFsdGraphql({
+        vehicleJwt,
+        query: q,
+        expectedQueryFingerprint: fp,
+      });
+
+      expect(result.kind).toBe('HTTP_422');
+    });
+
+    it('returns fingerprint mismatch without calling HTTP', async () => {
+      const q = 'query M { x }';
+      const result = await service.queryFsdGraphql({
+        vehicleJwt,
+        query: q,
+        expectedQueryFingerprint: 'deadbeef',
+      });
+
+      expect(result.kind).toBe('QUERY_FINGERPRINT_MISMATCH');
+      expect(postMock).not.toHaveBeenCalled();
+    });
   });
 
   it('fetchLatestVehicleSnapshot forwards requestContext to queryGraphQL', async () => {
