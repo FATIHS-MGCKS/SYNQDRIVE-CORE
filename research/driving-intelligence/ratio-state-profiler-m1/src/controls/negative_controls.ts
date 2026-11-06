@@ -55,7 +55,11 @@ export function measureMajorModeOverlap(
   };
 }
 
-function majorModeJaccard(a: number[], b: number[], tol: number): number {
+function majorModeJaccard(
+  a: number[],
+  b: number[],
+  tol: number = M1_DEFAULTS.histogramBinWidthRpmPerKmh,
+): number {
   const match = (x: number, ys: number[]) => ys.some((y) => Math.abs(x - y) <= tol);
   const inter = a.filter((x) => match(x, b)).length;
   const union = new Set([...a, ...b]).size;
