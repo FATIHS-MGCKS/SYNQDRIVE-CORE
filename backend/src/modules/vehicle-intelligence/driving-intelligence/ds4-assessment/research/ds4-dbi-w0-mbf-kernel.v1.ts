@@ -6,6 +6,7 @@ import {
   DS4_DBI_W0_RELAXED_SPEED_QUALITIES,
   DS4_DBI_W0_RESEARCH_THRESHOLDS_V1,
   DS4_DBI_W0_STRICT_SPEED_QUALITIES,
+  type Ds4DbiW0EvidenceOriginV1,
   type Ds4DbiW0MbfReasonCodeV1,
   type Ds4DbiW0QualityTierV1,
   type Ds4DbiW0SingleMetricResultV1,
@@ -22,8 +23,31 @@ export type Ds4DbiW0TripMetaV1 = {
   distanceKm: number;
 };
 
+const FAIL_CLOSED_CODES = new Set<Ds4DbiW0MbfReasonCodeV1>([
+  'MBF_W0_FAIL_CLOSED_MIXED_SPEED_AUTHORITY',
+  'MBF_W0_FAIL_CLOSED_SOURCE_BUNDLE_MISMATCH',
+  'MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH',
+  'MBF_W0_FAIL_CLOSED_SEALED_FINGERPRINT_MISMATCH',
+  'MBF_W0_FAIL_CLOSED_CORRUPT_LABEL_TIME_ORDER',
+  'MBF_W0_FAIL_CLOSED_DUPLICATE_SPEED_LABEL',
+  'MBF_W0_FAIL_CLOSED_INVALID_SPEED_VALUE',
+  'MBF_W0_FAIL_CLOSED_FSM_DUPLICATE_LABEL',
+  'MBF_W0_FAIL_CLOSED_FSM_MISSING_FOR_SPEED_LABEL',
+  'MBF_W0_FAIL_CLOSED_DUPLICATE_EVENT_START_TIME',
+  'MBF_W0_FAIL_CLOSED_EVENT_VALIDATION',
+]);
+
 function fingerprintPayloadV1(payload: DiV0MotionCoreShadowPayloadV1): string {
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+function isFailClosed(reasons: ReadonlySet<Ds4DbiW0MbfReasonCodeV1>): boolean {
+  for (const c of reasons) {
+    if (FAIL_CLOSED_CODES.has(c)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function medianSorted(sorted: number[]): number {
@@ -47,30 +71,52 @@ function speedQualityAllowed(quality: string, tier: Ds4DbiW0QualityTierV1): bool
   return tier === 'STRICT' ? DS4_DBI_W0_STRICT_SPEED_QUALITIES.has(quality) : DS4_DBI_W0_RELAXED_SPEED_QUALITIES.has(quality);
 }
 
-function movingDirectLabelSetV1(
-  fsm: DiV0MotionCoreShadowPayloadV1['fsmLabels'],
-): ReadonlySet<string> {
-  const s = new Set<string>();
-  for (const row of fsm) {
-    if (row.state === 'MOVING' && row.evidenceQuality === 'DIRECT') {
-      s.add(row.bucketLabelUtc);
-    }
-  }
-  return s;
-}
-
 function isOneSecondStep(prevLabel: string, nextLabel: string): boolean {
   return parseBucketLabelMs(nextLabel) - parseBucketLabelMs(prevLabel) === 1000;
 }
 
-function collectSpeedSeriesForTier(
+function movingDirectAuthorityLabelV1(row: DiV0MotionCoreShadowPayloadV1['fsmLabels'][number]): boolean {
+  return row.state === 'MOVING' && row.evidenceQuality === 'DIRECT';
+}
+
+/** Speed + FSM alignment: one FSM row per speed label; validate before sort/dedup. */
+function validateSpeedFsmAndBuildSeriesV1(
   payload: DiV0MotionCoreShadowPayloadV1,
   tier: Ds4DbiW0QualityTierV1,
 ): {
   sortedLabels: string[];
   speedByLabel: ReadonlyMap<string, { speedKmh: number; quality: string }>;
   repairedCount: number;
+  movingDirect: ReadonlySet<string>;
+  reasons: Ds4DbiW0MbfReasonCodeV1[];
+  speedTimeSpanSeconds: number | null;
+  consecutiveOneSecondPairsInSeries: number;
+  d4EligibleMovingDirectLabels: number;
 } {
+  const reasons: Ds4DbiW0MbfReasonCodeV1[] = [];
+  const labelFirstSeen = new Set<string>();
+
+  for (const row of payload.speeds) {
+    if (row.speedKmh == null) {
+      continue;
+    }
+    if (!Number.isFinite(row.speedKmh) || row.speedKmh < 0) {
+      reasons.push('MBF_W0_FAIL_CLOSED_INVALID_SPEED_VALUE');
+    }
+    if (labelFirstSeen.has(row.bucketLabelUtc)) {
+      reasons.push('MBF_W0_FAIL_CLOSED_DUPLICATE_SPEED_LABEL');
+    }
+    labelFirstSeen.add(row.bucketLabelUtc);
+  }
+
+  const fsmByLabel = new Map<string, (typeof payload.fsmLabels)[number]>();
+  for (const row of payload.fsmLabels) {
+    if (fsmByLabel.has(row.bucketLabelUtc)) {
+      reasons.push('MBF_W0_FAIL_CLOSED_FSM_DUPLICATE_LABEL');
+    }
+    fsmByLabel.set(row.bucketLabelUtc, row);
+  }
+
   const speedByLabel = new Map<string, { speedKmh: number; quality: string }>();
   let repairedCount = 0;
   for (const row of payload.speeds) {
@@ -85,8 +131,75 @@ function collectSpeedSeriesForTier(
     }
     speedByLabel.set(row.bucketLabelUtc, { speedKmh: row.speedKmh, quality: row.quality });
   }
+
   const sortedLabels = [...speedByLabel.keys()].sort((a, b) => parseBucketLabelMs(a) - parseBucketLabelMs(b));
-  return { sortedLabels, speedByLabel, repairedCount };
+
+  for (let i = 1; i < sortedLabels.length; i += 1) {
+    const prev = parseBucketLabelMs(sortedLabels[i - 1]!);
+    const cur = parseBucketLabelMs(sortedLabels[i]!);
+    if (cur <= prev) {
+      reasons.push(cur === prev ? 'MBF_W0_FAIL_CLOSED_DUPLICATE_SPEED_LABEL' : 'MBF_W0_FAIL_CLOSED_CORRUPT_LABEL_TIME_ORDER');
+    }
+  }
+
+  const movingDirect = new Set<string>();
+  let d4EligibleMovingDirectLabels = 0;
+  for (const lab of sortedLabels) {
+    const fs = fsmByLabel.get(lab);
+    if (!fs) {
+      reasons.push('MBF_W0_FAIL_CLOSED_FSM_MISSING_FOR_SPEED_LABEL');
+      continue;
+    }
+    if (movingDirectAuthorityLabelV1(fs)) {
+      movingDirect.add(lab);
+      d4EligibleMovingDirectLabels += 1;
+    }
+  }
+
+  let consecutiveOneSecondPairsInSeries = 0;
+  for (let i = 1; i < sortedLabels.length; i += 1) {
+    const p = sortedLabels[i - 1]!;
+    const c = sortedLabels[i]!;
+    if (isOneSecondStep(p, c)) {
+      consecutiveOneSecondPairsInSeries += 1;
+    }
+  }
+
+  const speedTimeSpanSeconds =
+    sortedLabels.length >= 2
+      ? (parseBucketLabelMs(sortedLabels[sortedLabels.length - 1]!) - parseBucketLabelMs(sortedLabels[0]!)) / 1000
+      : sortedLabels.length === 1
+        ? 0
+        : null;
+
+  return {
+    sortedLabels,
+    speedByLabel,
+    repairedCount,
+    movingDirect,
+    reasons,
+    speedTimeSpanSeconds,
+    consecutiveOneSecondPairsInSeries,
+    d4EligibleMovingDirectLabels,
+  };
+}
+
+function validateEventsV1(events: DiV0MotionCoreShadowPayloadV1['events']): Ds4DbiW0MbfReasonCodeV1[] {
+  const reasons: Ds4DbiW0MbfReasonCodeV1[] = [];
+  const admitted = events.filter((e) => e.quality === 'OK');
+  const startsMs = admitted.map((e) => parseBucketLabelMs(e.startLabel));
+  for (const t of startsMs) {
+    if (!Number.isFinite(t)) {
+      reasons.push('MBF_W0_FAIL_CLOSED_EVENT_VALIDATION');
+    }
+  }
+  const sorted = [...startsMs].sort((a, b) => a - b);
+  for (let i = 1; i < sorted.length; i += 1) {
+    if (sorted[i]! === sorted[i - 1]!) {
+      reasons.push('MBF_W0_FAIL_CLOSED_DUPLICATE_EVENT_START_TIME');
+    }
+  }
+  return reasons;
 }
 
 function computeD4V1(input: {
@@ -132,7 +245,7 @@ function computeD4V1(input: {
     status: 'KNOWN',
     value: Number.isFinite(ratio) ? ratio : null,
     n,
-    coverage: null,
+    coverage: n / Math.max(input.sortedLabels.length, 1),
     reasonCodes: ['MBF_W0_OK'],
   };
 }
@@ -181,50 +294,77 @@ function computeD5V1(input: {
     status: 'KNOWN',
     value: meanAbs,
     n: pairCount,
-    coverage: null,
+    coverage: pairCount / Math.max(input.sortedLabels.length - 1, 1),
     reasonCodes: [...(gapBreaks ? (['MBF_W0_GAP_BREAKS_CONSECUTIVE_CHAIN'] as const) : []), 'MBF_W0_OK'],
     pairCount,
     gapBreaks,
   };
 }
 
+/**
+ * Moving runs: only MOVING+DIRECT with consecutive 1s steps; split on gaps or non-authority MOVING rows.
+ */
 function fsmMovingRunStatsV1(
   fsm: DiV0MotionCoreShadowPayloadV1['fsmLabels'],
-): { medianMovingRunS: number | null; sustainedShare: number | null; movingExposureLabelSeconds: number } {
+): {
+  medianMovingRunS: number | null;
+  sustainedShare: number | null;
+  movingExposureLabelSeconds: number;
+  splitReasonSample: Ds4DbiW0MbfReasonCodeV1[];
+} {
   const sorted = [...fsm].sort((a, b) => parseBucketLabelMs(a.bucketLabelUtc) - parseBucketLabelMs(b.bucketLabelUtc));
+  const splitReasonSample: Ds4DbiW0MbfReasonCodeV1[] = [];
   const runsSeconds: number[] = [];
   let sustainedMovingExposureS = 0;
   let movingExposureLabelSeconds = 0;
   let i = 0;
   while (i < sorted.length) {
-    if (sorted[i]!.state !== 'MOVING') {
+    if (!movingDirectAuthorityLabelV1(sorted[i]!)) {
+      if (sorted[i]!.state === 'MOVING' && sorted[i]!.evidenceQuality !== 'DIRECT') {
+        splitReasonSample.push('MBF_W0_NOT_EVALUABLE_STOP_AUTHORITY_NOT_DIRECT');
+      }
       i += 1;
       continue;
     }
     const startIdx = i;
-    const startLab = sorted[startIdx]!.bucketLabelUtc;
-    while (i < sorted.length && sorted[i]!.state === 'MOVING') {
+    const startMs = parseBucketLabelMs(sorted[startIdx]!.bucketLabelUtc);
+    let runLabels = 1;
+    i += 1;
+    while (i < sorted.length) {
+      const row = sorted[i]!;
+      const prev = sorted[i - 1]!;
+      if (!movingDirectAuthorityLabelV1(row)) {
+        if (row.state === 'MOVING' && row.evidenceQuality !== 'DIRECT') {
+          splitReasonSample.push('MBF_W0_NOT_EVALUABLE_STOP_AUTHORITY_NOT_DIRECT');
+        }
+        break;
+      }
+      const dt = parseBucketLabelMs(row.bucketLabelUtc) - parseBucketLabelMs(prev.bucketLabelUtc);
+      if (dt !== 1000) {
+        splitReasonSample.push('MBF_W0_GAP_BREAKS_CONSECUTIVE_CHAIN');
+        break;
+      }
+      runLabels += 1;
       i += 1;
     }
     const endIdx = i - 1;
-    const endLab = sorted[endIdx]!.bucketLabelUtc;
-    const spanLabels = endIdx - startIdx + 1;
-    movingExposureLabelSeconds += spanLabels;
-    const durS = (parseBucketLabelMs(endLab) - parseBucketLabelMs(startLab)) / 1000 + 1;
+    const endMs = parseBucketLabelMs(sorted[endIdx]!.bucketLabelUtc);
+    movingExposureLabelSeconds += runLabels;
+    const durS = (endMs - startMs) / 1000 + 1;
     runsSeconds.push(durS);
     if (durS >= DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.sustainedMovingRunMinSeconds) {
-      sustainedMovingExposureS += spanLabels;
+      sustainedMovingExposureS += runLabels;
     }
   }
   if (runsSeconds.length === 0) {
-    return { medianMovingRunS: null, sustainedShare: null, movingExposureLabelSeconds: 0 };
+    return { medianMovingRunS: null, sustainedShare: null, movingExposureLabelSeconds: 0, splitReasonSample };
   }
   const med = medianSorted([...runsSeconds].sort((a, b) => a - b));
   return {
     medianMovingRunS: Number.isFinite(med) ? med : null,
-    sustainedShare:
-      movingExposureLabelSeconds > 0 ? sustainedMovingExposureS / movingExposureLabelSeconds : null,
+    sustainedShare: movingExposureLabelSeconds > 0 ? sustainedMovingExposureS / movingExposureLabelSeconds : null,
     movingExposureLabelSeconds,
+    splitReasonSample: [...new Set(splitReasonSample)],
   };
 }
 
@@ -246,7 +386,20 @@ function computeD6V1(input: {
   tripMeta: Ds4DbiW0TripMetaV1;
   stopEpisodes: readonly MotionFsmStopEpisode[];
   fsm: DiV0MotionCoreShadowPayloadV1['fsmLabels'];
+  failClosed: boolean;
 }): Ds4DbiW0TripKernelResultV1['d6StopStructure'] {
+  const splitSample = fsmMovingRunStatsV1(input.fsm).splitReasonSample;
+  if (input.failClosed) {
+    return {
+      status: 'NOT_AVAILABLE',
+      directStopCount: null,
+      stopsPerKm: null,
+      medianMovingRunDurationSeconds: null,
+      sustainedMovementShare: null,
+      movingRunSplitReasonSample: splitSample,
+      reasonCodes: [],
+    };
+  }
   const hasDirectAuthority = input.stopEpisodes.some((e) => e.evidenceQuality === 'DIRECT');
   if (!hasDirectAuthority) {
     return {
@@ -255,12 +408,13 @@ function computeD6V1(input: {
       stopsPerKm: null,
       medianMovingRunDurationSeconds: null,
       sustainedMovementShare: null,
+      movingRunSplitReasonSample: splitSample,
       reasonCodes: ['MBF_W0_NOT_EVALUABLE_STOP_AUTHORITY_NOT_DIRECT'],
     };
   }
 
+  const runStats = fsmMovingRunStatsV1(input.fsm);
   const directStops = directStopCountV1(input.stopEpisodes);
-  const { medianMovingRunS, sustainedShare } = fsmMovingRunStatsV1(input.fsm);
   const es = input.tripMeta.exposureSecondsEs;
   const dKm = input.tripMeta.distanceKm;
 
@@ -273,21 +427,22 @@ function computeD6V1(input: {
       status: 'ABSTAIN',
       directStopCount: directStops,
       stopsPerKm: null,
-      medianMovingRunDurationSeconds: medianMovingRunS,
-      sustainedMovementShare: sustainedShare,
+      medianMovingRunDurationSeconds: runStats.medianMovingRunS,
+      sustainedMovementShare: runStats.sustainedShare,
+      movingRunSplitReasonSample: runStats.splitReasonSample,
       reasonCodes: ['MBF_W0_INSUFFICIENT_ES_OR_STOPS_FOR_STOP_STRUCTURE'],
     };
   }
 
-  const stopsPerKm =
-    dKm > 0 && Number.isFinite(dKm) ? directStops / dKm : null;
+  const stopsPerKm = dKm > 0 && Number.isFinite(dKm) ? directStops / dKm : null;
   if (stopsPerKm == null) {
     return {
       status: 'ABSTAIN',
       directStopCount: directStops,
       stopsPerKm: null,
-      medianMovingRunDurationSeconds: medianMovingRunS,
-      sustainedMovementShare: sustainedShare,
+      medianMovingRunDurationSeconds: runStats.medianMovingRunS,
+      sustainedMovementShare: runStats.sustainedShare,
+      movingRunSplitReasonSample: runStats.splitReasonSample,
       reasonCodes: ['MBF_W0_NO_DIRECT_STOP_EVIDENCE'],
     };
   }
@@ -296,17 +451,30 @@ function computeD6V1(input: {
     status: 'KNOWN',
     directStopCount: directStops,
     stopsPerKm,
-    medianMovingRunDurationSeconds: medianMovingRunS,
-    sustainedMovementShare: sustainedShare,
+    medianMovingRunDurationSeconds: runStats.medianMovingRunS,
+    sustainedMovementShare: runStats.sustainedShare,
+    movingRunSplitReasonSample: runStats.splitReasonSample,
     reasonCodes: ['MBF_W0_OK'],
   };
 }
 
-function eventStartMsV1(e: DiV0MotionCoreShadowPayloadV1['events'][number]): number {
-  return parseBucketLabelMs(e.startLabel);
-}
-
-function computeD8V1(events: DiV0MotionCoreShadowPayloadV1['events']): Ds4DbiW0TripKernelResultV1['d8Burstiness'] {
+function computeD8V1(
+  events: DiV0MotionCoreShadowPayloadV1['events'],
+  failClosed: boolean,
+): Ds4DbiW0TripKernelResultV1['d8Burstiness'] {
+  if (failClosed) {
+    return {
+      status: 'ABSTAIN',
+      indexOfDispersion: null,
+      shareNextEventWithin30s: null,
+      windowCount: null,
+      nonEmptyWindowCount: null,
+      emptyWindowCount: null,
+      totalWindowSlots: null,
+      eventCount: null,
+      reasonCodes: [],
+    };
+  }
   const admitted = events.filter((e) => e.quality === 'OK');
   const nEv = admitted.length;
   if (nEv < DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.minEventsD8) {
@@ -315,33 +483,46 @@ function computeD8V1(events: DiV0MotionCoreShadowPayloadV1['events']): Ds4DbiW0T
       indexOfDispersion: null,
       shareNextEventWithin30s: null,
       windowCount: null,
+      nonEmptyWindowCount: null,
+      emptyWindowCount: null,
+      totalWindowSlots: null,
       eventCount: nEv,
       reasonCodes: ['MBF_W0_INSUFFICIENT_EVENTS_FOR_BURSTINESS'],
     };
   }
-  const starts = admitted.map((e) => eventStartMsV1(e)).sort((a, b) => a - b);
+  const starts = admitted.map((e) => parseBucketLabelMs(e.startLabel)).sort((a, b) => a - b);
   const t0 = starts[0]!;
+  const t1 = starts[starts.length - 1]!;
   const windowMs = DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.burstWindowSeconds * 1000;
+  const totalWindowSlots = Math.max(1, Math.floor((t1 - t0) / windowMs) + 1);
   const countsByWindow = new Map<number, number>();
   for (const t of starts) {
     const w = Math.floor((t - t0) / windowMs);
-    countsByWindow.set(w, (countsByWindow.get(w) ?? 0) + 1);
+    const clamped = Math.min(Math.max(w, 0), totalWindowSlots - 1);
+    countsByWindow.set(clamped, (countsByWindow.get(clamped) ?? 0) + 1);
   }
-  const counts = [...countsByWindow.values()];
-  const nonEmpty = counts.filter((c) => c > 0).length;
+  const nonEmpty = countsByWindow.size;
+  const emptyWindowCount = totalWindowSlots - nonEmpty;
+  let sumSq = 0;
+  for (const c of countsByWindow.values()) {
+    sumSq += c * c;
+  }
   if (nonEmpty < DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.minNonEmptyWindowsD8) {
     return {
       status: 'ABSTAIN',
       indexOfDispersion: null,
       shareNextEventWithin30s: null,
       windowCount: nonEmpty,
+      nonEmptyWindowCount: nonEmpty,
+      emptyWindowCount,
+      totalWindowSlots,
       eventCount: nEv,
       reasonCodes: ['MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS'],
     };
   }
-  const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
+  const mean = nEv / totalWindowSlots;
   const variance =
-    counts.reduce((acc, c) => acc + (c - mean) * (c - mean), 0) / Math.max(counts.length - 1, 1);
+    totalWindowSlots > 1 ? (sumSq - (nEv * nEv) / totalWindowSlots) / (totalWindowSlots - 1) : 0;
   const iod = mean > 0 ? variance / mean : null;
 
   let within = 0;
@@ -356,9 +537,101 @@ function computeD8V1(events: DiV0MotionCoreShadowPayloadV1['events']): Ds4DbiW0T
     status: 'KNOWN',
     indexOfDispersion: iod,
     shareNextEventWithin30s: shareNext,
-    windowCount: counts.length,
+    windowCount: totalWindowSlots,
+    nonEmptyWindowCount: nonEmpty,
+    emptyWindowCount,
+    totalWindowSlots,
     eventCount: nEv,
     reasonCodes: ['MBF_W0_OK'],
+  };
+}
+
+function emptyTripResultV1(
+  input: {
+    tripMeta: Ds4DbiW0TripMetaV1 | null;
+    qualityTier: Ds4DbiW0QualityTierV1;
+    expectedContentFingerprint?: string;
+    evidenceOrigin: Ds4DbiW0EvidenceOriginV1;
+    sealedReferenceContentFingerprintSha256: string | null;
+    reasons: Ds4DbiW0MbfReasonCodeV1[];
+  },
+): Ds4DbiW0TripKernelResultV1 {
+  const merged = [...new Set(input.reasons)];
+  const fc = merged.filter((c) => FAIL_CLOSED_CODES.has(c));
+  const failClosed = fc.length > 0;
+  const realData =
+    input.evidenceOrigin === 'SEALED_REAL_C4' &&
+    !failClosed &&
+    !merged.some((c) => c === 'MBF_W0_NOT_EVALUABLE_NO_MOTION_PAYLOAD' || c.startsWith('MBF_W0_NOT_EVALUABLE'));
+
+  return {
+    contractVersion: 'ds4-dbi-w0-mbf-kernel-v1',
+    evidenceOrigin: input.evidenceOrigin,
+    implementationWorks: true,
+    realDataValidationPassed: Boolean(realData),
+    tripId: input.tripMeta?.tripId ?? 'UNKNOWN',
+    sourceMotionRunId: input.tripMeta?.sourceMotionRunId ?? 'UNKNOWN',
+    qualityTier: input.qualityTier,
+    speedAuthority: null,
+    shadowBundleVersion: null,
+    contentFingerprintExpected: input.expectedContentFingerprint ?? null,
+    contentFingerprintObserved: null,
+    sealedReferenceContentFingerprintSha256: input.sealedReferenceContentFingerprintSha256,
+    exposureSecondsEs: input.tripMeta?.exposureSecondsEs ?? null,
+    distanceKm: input.tripMeta?.distanceKm ?? null,
+    coverageDiagnostics: {
+      speedLabelsAdmissibleTier: 0,
+      speedTimeSpanSeconds: null,
+      consecutiveOneSecondPairsInSeries: 0,
+      movingDirectLabelSecondsEstimated: 0,
+      d4EligibleMovingDirectLabels: null,
+      d5EligibleConsecutiveMovingDirectPairs: null,
+    },
+    d4SpeedVariabilityRobustCv: {
+      status: 'ABSTAIN',
+      value: null,
+      n: null,
+      coverage: null,
+      reasonCodes: merged,
+    },
+    d5SpeedRoughnessMeanAbsDeltaKmhPerS: {
+      status: 'ABSTAIN',
+      value: null,
+      n: null,
+      coverage: null,
+      reasonCodes: merged,
+    },
+    d6StopStructure: {
+      status: 'NOT_AVAILABLE',
+      directStopCount: null,
+      stopsPerKm: null,
+      medianMovingRunDurationSeconds: null,
+      sustainedMovementShare: null,
+      movingRunSplitReasonSample: [],
+      reasonCodes: merged,
+    },
+    d8Burstiness: {
+      status: 'ABSTAIN',
+      indexOfDispersion: null,
+      shareNextEventWithin30s: null,
+      windowCount: null,
+      nonEmptyWindowCount: null,
+      emptyWindowCount: null,
+      totalWindowSlots: null,
+      eventCount: null,
+      reasonCodes: merged,
+    },
+    diagnostics: {
+      speedRowCount: 0,
+      fsmRowCount: 0,
+      movingDirectLabelCount: 0,
+      consecutiveOneSecondPairCount: 0,
+      directStopEpisodeCount: 0,
+      eventCount: 0,
+      repairedSpeedLabelCount: 0,
+      inputValidationReasons: merged,
+      failClosedReasons: fc,
+    },
   };
 }
 
@@ -369,9 +642,13 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
   payload: DiV0MotionCoreShadowPayloadV1 | null;
   tripMeta: Ds4DbiW0TripMetaV1 | null;
   qualityTier: Ds4DbiW0QualityTierV1;
+  /** Expected canonical JSON digest of payload (research harness); distinct from sealed CSV fingerprint. */
   expectedContentFingerprint?: string;
   expectedShadowBundleVersion?: string;
   syntheticScenarioTag?: string;
+  evidenceOrigin?: Ds4DbiW0EvidenceOriginV1;
+  /** Sealed file/content fingerprint from P2 CSV — compare only to JSON digest when using sealed-real semantics. */
+  sealedReferenceContentFingerprintSha256?: string | null;
 }): Ds4DbiW0TripKernelResultV1 {
   const reasonSet = new Set<Ds4DbiW0MbfReasonCodeV1>();
   const pushReason = (c: Ds4DbiW0MbfReasonCodeV1) => {
@@ -381,67 +658,38 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
     pushReason('MBF_W0_SYNTHETIC_CONTROL_SCENARIO');
   }
 
+  const evidenceOrigin: Ds4DbiW0EvidenceOriginV1 =
+    input.evidenceOrigin ?? (input.syntheticScenarioTag ? 'SYNTHETIC_CONTROL' : 'SEALED_REAL_C4');
+
+  const sealedRef = input.sealedReferenceContentFingerprintSha256 ?? null;
+
   if (!input.payload) {
     pushReason('MBF_W0_NOT_EVALUABLE_NO_MOTION_PAYLOAD');
-    const absent = [...reasonSet];
-    return {
-      contractVersion: 'ds4-dbi-w0-mbf-kernel-v1',
-      tripId: input.tripMeta?.tripId ?? 'UNKNOWN',
-      sourceMotionRunId: input.tripMeta?.sourceMotionRunId ?? 'UNKNOWN',
+    return emptyTripResultV1({
+      tripMeta: input.tripMeta,
       qualityTier: input.qualityTier,
-      speedAuthority: null,
-      shadowBundleVersion: null,
-      contentFingerprintExpected: input.expectedContentFingerprint ?? null,
-      contentFingerprintObserved: null,
-      exposureSecondsEs: input.tripMeta?.exposureSecondsEs ?? null,
-      distanceKm: input.tripMeta?.distanceKm ?? null,
-      d4SpeedVariabilityRobustCv: {
-        status: 'ABSTAIN',
-        value: null,
-        n: null,
-        coverage: null,
-        reasonCodes: absent,
-      },
-      d5SpeedRoughnessMeanAbsDeltaKmhPerS: {
-        status: 'ABSTAIN',
-        value: null,
-        n: null,
-        coverage: null,
-        reasonCodes: absent,
-      },
-      d6StopStructure: {
-        status: 'NOT_AVAILABLE',
-        directStopCount: null,
-        stopsPerKm: null,
-        medianMovingRunDurationSeconds: null,
-        sustainedMovementShare: null,
-        reasonCodes: absent,
-      },
-      d8Burstiness: {
-        status: 'ABSTAIN',
-        indexOfDispersion: null,
-        shareNextEventWithin30s: null,
-        windowCount: null,
-        eventCount: null,
-        reasonCodes: absent,
-      },
-      diagnostics: {
-        speedRowCount: 0,
-        fsmRowCount: 0,
-        movingDirectLabelCount: 0,
-        consecutiveOneSecondPairCount: 0,
-        directStopEpisodeCount: 0,
-        eventCount: 0,
-        repairedSpeedLabelCount: 0,
-      },
-    };
+      expectedContentFingerprint: input.expectedContentFingerprint,
+      evidenceOrigin,
+      sealedReferenceContentFingerprintSha256: sealedRef,
+      reasons: [...reasonSet],
+    });
   }
 
   const payload = input.payload;
   const observedFp = fingerprintPayloadV1(payload);
+
   if (input.expectedContentFingerprint && observedFp !== input.expectedContentFingerprint) {
     pushReason('MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH');
   }
+  if (
+    sealedRef &&
+    evidenceOrigin === 'SEALED_REAL_C4' &&
+    observedFp !== sealedRef.toLowerCase() &&
+    observedFp !== sealedRef
+  ) {
+    pushReason('MBF_W0_FAIL_CLOSED_SEALED_FINGERPRINT_MISMATCH');
+  }
+
   const bundleObs = payload.contract.algorithmVersions.bundle;
   if (input.expectedShadowBundleVersion && bundleObs !== input.expectedShadowBundleVersion) {
     pushReason('MBF_W0_FAIL_CLOSED_SOURCE_BUNDLE_MISMATCH');
@@ -468,31 +716,124 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
     pushReason('MBF_W0_NOT_EVALUABLE_MISSING_EVENTS');
   }
 
-  const movingDirect = movingDirectLabelSetV1(payload.fsmLabels);
-  const { sortedLabels, speedByLabel, repairedCount } = collectSpeedSeriesForTier(payload, input.qualityTier);
-
-  let corruptTimeOrder = false;
-  for (let i = 1; i < sortedLabels.length; i += 1) {
-    if (parseBucketLabelMs(sortedLabels[i]!) <= parseBucketLabelMs(sortedLabels[i - 1]!)) {
-      corruptTimeOrder = true;
-      break;
-    }
-  }
-  if (corruptTimeOrder) {
-    pushReason('MBF_W0_FAIL_CLOSED_CORRUPT_LABEL_TIME_ORDER');
+  if (!input.tripMeta) {
+    pushReason('MBF_W0_NOT_EVALUABLE_NO_TRIP_META');
   }
 
-  let consecutivePairs = 0;
-  for (let i = 1; i < sortedLabels.length; i += 1) {
-    const p = sortedLabels[i - 1]!;
-    const c = sortedLabels[i]!;
-    if (isOneSecondStep(p, c)) {
-      consecutivePairs += 1;
-    }
+  for (const r of validateEventsV1(payload.events)) {
+    pushReason(r);
   }
 
-  const d4 = computeD4V1({ movingDirect, sortedLabels, speedByLabel });
-  const d5 = computeD5V1({ movingDirect, sortedLabels, speedByLabel });
+  const series = validateSpeedFsmAndBuildSeriesV1(payload, input.qualityTier);
+  for (const r of series.reasons) {
+    pushReason(r);
+  }
+
+  const mergeReasons = (codes: readonly Ds4DbiW0MbfReasonCodeV1[]): Ds4DbiW0MbfReasonCodeV1[] => [
+    ...new Set([...codes, ...reasonSet]),
+  ];
+
+  const failClosed = isFailClosed(reasonSet);
+
+  const d5Full = computeD5V1({
+    movingDirect: series.movingDirect,
+    sortedLabels: series.sortedLabels,
+    speedByLabel: series.speedByLabel,
+  });
+
+  const d4Full = failClosed
+    ? ({
+        status: 'ABSTAIN' as const,
+        value: null,
+        n: null,
+        coverage: null,
+        reasonCodes: [] as Ds4DbiW0MbfReasonCodeV1[],
+      } satisfies Ds4DbiW0SingleMetricResultV1)
+    : computeD4V1({ movingDirect: series.movingDirect, sortedLabels: series.sortedLabels, speedByLabel: series.speedByLabel });
+
+  let d6Base: Ds4DbiW0TripKernelResultV1['d6StopStructure'];
+  if (failClosed) {
+    const split = fsmMovingRunStatsV1(payload.fsmLabels);
+    d6Base = {
+      status: 'NOT_AVAILABLE',
+      directStopCount: null,
+      stopsPerKm: null,
+      medianMovingRunDurationSeconds: null,
+      sustainedMovementShare: null,
+      movingRunSplitReasonSample: split.splitReasonSample,
+      reasonCodes: [],
+    };
+  } else if (!input.tripMeta) {
+    const split = fsmMovingRunStatsV1(payload.fsmLabels);
+    d6Base = {
+      status: 'NOT_AVAILABLE',
+      directStopCount: null,
+      stopsPerKm: null,
+      medianMovingRunDurationSeconds: null,
+      sustainedMovementShare: null,
+      movingRunSplitReasonSample: split.splitReasonSample,
+      reasonCodes: ['MBF_W0_NOT_EVALUABLE_NO_TRIP_META'],
+    };
+  } else if (reasonSet.has('MBF_W0_FAIL_CLOSED_MIXED_SPEED_AUTHORITY')) {
+    const split = fsmMovingRunStatsV1(payload.fsmLabels);
+    d6Base = {
+      status: 'NOT_AVAILABLE',
+      directStopCount: null,
+      stopsPerKm: null,
+      medianMovingRunDurationSeconds: null,
+      sustainedMovementShare: null,
+      movingRunSplitReasonSample: split.splitReasonSample,
+      reasonCodes: ['MBF_W0_FAIL_CLOSED_MIXED_SPEED_AUTHORITY'],
+    };
+  } else {
+    d6Base = computeD6V1({
+      tripMeta: input.tripMeta,
+      stopEpisodes: payload.stopEpisodes,
+      fsm: payload.fsmLabels,
+      failClosed: false,
+    });
+  }
+
+  const d8Full = computeD8V1(payload.events, failClosed);
+
+  const d4: Ds4DbiW0SingleMetricResultV1 = {
+    status: failClosed ? 'ABSTAIN' : d4Full.status,
+    value: failClosed ? null : d4Full.value,
+    n: failClosed ? null : d4Full.n,
+    coverage: failClosed ? null : d4Full.coverage,
+    reasonCodes: mergeReasons(d4Full.reasonCodes),
+  };
+
+  const d5: Ds4DbiW0SingleMetricResultV1 = {
+    status: failClosed ? 'ABSTAIN' : d5Full.status,
+    value: failClosed ? null : d5Full.value,
+    n: failClosed ? null : d5Full.n,
+    coverage: failClosed ? null : d5Full.coverage,
+    reasonCodes: mergeReasons(d5Full.reasonCodes),
+  };
+
+  const d6: Ds4DbiW0TripKernelResultV1['d6StopStructure'] = {
+    ...d6Base,
+    status: failClosed ? 'NOT_AVAILABLE' : d6Base.status,
+    directStopCount: failClosed ? null : d6Base.directStopCount,
+    stopsPerKm: failClosed ? null : d6Base.stopsPerKm,
+    medianMovingRunDurationSeconds: failClosed ? null : d6Base.medianMovingRunDurationSeconds,
+    sustainedMovementShare: failClosed ? null : d6Base.sustainedMovementShare,
+    reasonCodes: mergeReasons(d6Base.reasonCodes),
+  };
+
+  const d8: Ds4DbiW0TripKernelResultV1['d8Burstiness'] = {
+    ...d8Full,
+    indexOfDispersion: failClosed ? null : d8Full.indexOfDispersion,
+    shareNextEventWithin30s: failClosed ? null : d8Full.shareNextEventWithin30s,
+    windowCount: failClosed ? null : d8Full.windowCount,
+    nonEmptyWindowCount: failClosed ? null : d8Full.nonEmptyWindowCount,
+    emptyWindowCount: failClosed ? null : d8Full.emptyWindowCount,
+    totalWindowSlots: failClosed ? null : d8Full.totalWindowSlots,
+    eventCount: failClosed ? null : d8Full.eventCount,
+    status: failClosed ? 'ABSTAIN' : d8Full.status,
+    reasonCodes: mergeReasons(d8Full.reasonCodes),
+  };
 
   const directStopEpisodes = payload.stopEpisodes.filter(
     (e) =>
@@ -500,31 +841,21 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
       e.minDurationS >= DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.minDirectStopDurationSeconds,
   );
 
-  const d6 =
-    input.tripMeta && !reasonSet.has('MBF_W0_FAIL_CLOSED_MIXED_SPEED_AUTHORITY')
-      ? computeD6V1({ tripMeta: input.tripMeta, stopEpisodes: payload.stopEpisodes, fsm: payload.fsmLabels })
-      : ({
-          status: 'NOT_AVAILABLE' as const,
-          directStopCount: null,
-          stopsPerKm: null,
-          medianMovingRunDurationSeconds: null,
-          sustainedMovementShare: null,
-          reasonCodes: ['MBF_W0_NOT_EVALUABLE_NO_TRIP_META'] as const,
-        });
+  const implementationWorks = true;
 
-  const d8 = computeD8V1(payload.events);
-
-  const mergeReasons = (codes: readonly Ds4DbiW0MbfReasonCodeV1[]): Ds4DbiW0MbfReasonCodeV1[] => [
-    ...new Set([...codes, ...reasonSet]),
-  ];
-
-  const applyFail = (r: Ds4DbiW0SingleMetricResultV1): Ds4DbiW0SingleMetricResultV1 => ({
-    ...r,
-    reasonCodes: mergeReasons(r.reasonCodes),
-  });
+  const realDataValidationPassed =
+    evidenceOrigin === 'SEALED_REAL_C4' &&
+    !failClosed &&
+    d4.status === 'KNOWN' &&
+    d5.status === 'KNOWN' &&
+    d6.status === 'KNOWN' &&
+    d8.status === 'KNOWN';
 
   return {
     contractVersion: 'ds4-dbi-w0-mbf-kernel-v1',
+    evidenceOrigin,
+    implementationWorks,
+    realDataValidationPassed,
     tripId: input.tripMeta?.tripId ?? 'UNKNOWN',
     sourceMotionRunId: input.tripMeta?.sourceMotionRunId ?? 'UNKNOWN',
     qualityTier: input.qualityTier,
@@ -532,38 +863,31 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
     shadowBundleVersion: bundleObs,
     contentFingerprintExpected: input.expectedContentFingerprint ?? null,
     contentFingerprintObserved: observedFp,
+    sealedReferenceContentFingerprintSha256: sealedRef,
     exposureSecondsEs: input.tripMeta?.exposureSecondsEs ?? null,
     distanceKm: input.tripMeta?.distanceKm ?? null,
-    d4SpeedVariabilityRobustCv:
-      corruptTimeOrder || reasonSet.has('MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH')
-        ? { status: 'ABSTAIN', value: null, n: d4.n, coverage: null, reasonCodes: mergeReasons(d4.reasonCodes) }
-        : applyFail(d4),
-    d5SpeedRoughnessMeanAbsDeltaKmhPerS:
-      corruptTimeOrder || reasonSet.has('MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH')
-        ? {
-            status: 'ABSTAIN',
-            value: null,
-            n: d5.n,
-            coverage: null,
-            reasonCodes: mergeReasons(d5.reasonCodes),
-          }
-        : applyFail(d5),
-    d6StopStructure: {
-      ...d6,
-      reasonCodes: mergeReasons(d6.reasonCodes as Ds4DbiW0MbfReasonCodeV1[]),
+    coverageDiagnostics: {
+      speedLabelsAdmissibleTier: series.sortedLabels.length,
+      speedTimeSpanSeconds: series.speedTimeSpanSeconds,
+      consecutiveOneSecondPairsInSeries: series.consecutiveOneSecondPairsInSeries,
+      movingDirectLabelSecondsEstimated: series.movingDirect.size,
+      d4EligibleMovingDirectLabels: failClosed ? null : series.d4EligibleMovingDirectLabels,
+      d5EligibleConsecutiveMovingDirectPairs: failClosed ? null : d5Full.pairCount,
     },
-    d8Burstiness: {
-      ...d8,
-      reasonCodes: mergeReasons(d8.reasonCodes as Ds4DbiW0MbfReasonCodeV1[]),
-    },
+    d4SpeedVariabilityRobustCv: d4,
+    d5SpeedRoughnessMeanAbsDeltaKmhPerS: d5,
+    d6StopStructure: d6,
+    d8Burstiness: d8,
     diagnostics: {
       speedRowCount: payload.speeds.length,
       fsmRowCount: payload.fsmLabels.length,
-      movingDirectLabelCount: movingDirect.size,
-      consecutiveOneSecondPairCount: consecutivePairs,
+      movingDirectLabelCount: series.movingDirect.size,
+      consecutiveOneSecondPairCount: series.consecutiveOneSecondPairsInSeries,
       directStopEpisodeCount: directStopEpisodes.length,
       eventCount: payload.events.length,
-      repairedSpeedLabelCount: repairedCount,
+      repairedSpeedLabelCount: series.repairedCount,
+      inputValidationReasons: [...new Set(series.reasons)],
+      failClosedReasons: [...reasonSet].filter((c) => FAIL_CLOSED_CODES.has(c)),
     },
   };
 }

@@ -29,6 +29,32 @@ import type { DiV0MotionCoreShadowPayloadV1 } from '../../src/modules/vehicle-in
 import type { MotionFsmState, MotionFsmStopEpisode } from '../../src/modules/vehicle-intelligence/driving-intelligence/core/kinematics/motion-fsm';
 import { bucketLabelPlusSeconds, parseBucketLabelMs } from '../../src/modules/vehicle-intelligence/driving-intelligence/core/kinematics/motion-core-grid';
 
+/** Deterministic PRNG for E9 (LCG-style; research control only). */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a += 0x6d2b79f5;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function seededShuffleMsInPlace(startsMs: number[], seed: number): void {
+  const rand = mulberry32(seed);
+  for (let i = startsMs.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rand() * (i + 1));
+    const tmp = startsMs[i]!;
+    startsMs[i] = startsMs[j]!;
+    startsMs[j] = tmp;
+  }
+}
+
+function msToIsoLabelZ(ms: number): string {
+  return new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
 const fixtureDir = join(
   __dirname,
   '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/fixtures/ds4-layer2-p2-pinned-11',
@@ -206,7 +232,24 @@ function enrichSyntheticPayloadForW0V1(
 
 function runSyntheticControlsV1(): {
   e7: { scenario: string; d5Rough: number | null; reasonSample: string[] }[];
-  e9: { scenario: string; iodAfter: number | null }[];
+  e9: {
+    scenario: string;
+    seed: number;
+    d8Before: {
+      status: string;
+      indexOfDispersion: number | null;
+      nonEmptyWindowCount: number | null;
+      emptyWindowCount: number | null;
+      totalWindowSlots: number | null;
+    };
+    d8After: {
+      status: string;
+      indexOfDispersion: number | null;
+      nonEmptyWindowCount: number | null;
+      emptyWindowCount: number | null;
+      totalWindowSlots: number | null;
+    };
+  }[];
   e10: { scenario: string; d4Status: string; reasons: string[]; observedFingerprintPrefix: string }[];
 } {
   const baseTime = '2026-01-01T12:00:00Z';
@@ -341,6 +384,7 @@ function runSyntheticControlsV1(): {
     tripMeta: meta,
     qualityTier: 'STRICT',
     syntheticScenarioTag: 'E7_NOISE',
+    evidenceOrigin: 'SYNTHETIC_CONTROL',
   });
 
   // E7: stationary-only (no MOVING_DIRECT overlap)
@@ -354,6 +398,7 @@ function runSyntheticControlsV1(): {
     tripMeta: meta,
     qualityTier: 'STRICT',
     syntheticScenarioTag: 'E7_STATIONARY',
+    evidenceOrigin: 'SYNTHETIC_CONTROL',
   });
 
   // E7: short trip
@@ -367,22 +412,36 @@ function runSyntheticControlsV1(): {
     tripMeta: { ...meta, exposureSecondsEs: 30 },
     qualityTier: 'STRICT',
     syntheticScenarioTag: 'E7_SHORT',
+    evidenceOrigin: 'SYNTHETIC_CONTROL',
   });
 
-  // E9: shuffle event starts (permute)
+  // E9: seeded randomization of event start times (preserves duration; same multiset of timestamps → no duplicate-start fail)
+  const e9Seed = 0xe9c00142;
   const permuted = mkPayload({});
-  permuted.events = [...noisy.events].reverse();
+  permuted.events = noisy.events.map((e) => ({ ...e }));
+  const startsMs = permuted.events.map((e) => parseBucketLabelMs(e.startLabel));
+  seededShuffleMsInPlace(startsMs, e9Seed);
+  for (let i = 0; i < permuted.events.length; i += 1) {
+    const s = startsMs[i]!;
+    permuted.events[i] = {
+      ...permuted.events[i]!,
+      startLabel: msToIsoLabelZ(s),
+      endLabel: msToIsoLabelZ(s + 1000),
+    };
+  }
   const before = computeDs4DbiW0MbfFromPayloadV1({
     payload: noisy,
     tripMeta: meta,
     qualityTier: 'STRICT',
     syntheticScenarioTag: 'E9_BASE',
+    evidenceOrigin: 'SYNTHETIC_CONTROL',
   });
   const after = computeDs4DbiW0MbfFromPayloadV1({
     payload: permuted,
     tripMeta: meta,
     qualityTier: 'STRICT',
-    syntheticScenarioTag: 'E9_PERMUTED',
+    syntheticScenarioTag: 'E9_RANDOMIZED_TIMES',
+    evidenceOrigin: 'SYNTHETIC_CONTROL',
   });
 
   // E10: fingerprint mismatch
@@ -393,6 +452,7 @@ function runSyntheticControlsV1(): {
     qualityTier: 'STRICT',
     expectedContentFingerprint: 'b'.repeat(64),
     syntheticScenarioTag: 'E10_FP',
+    evidenceOrigin: 'SYNTHETIC_CONTROL',
   });
 
   return {
@@ -409,7 +469,26 @@ function runSyntheticControlsV1(): {
       },
       { scenario: 'short_sparse', d5Rough: rShort.d5SpeedRoughnessMeanAbsDeltaKmhPerS.value, reasonSample: rShort.d4SpeedVariabilityRobustCv.reasonCodes.slice(0, 4) },
     ],
-    e9: [{ scenario: 'event_time_permutation', iodAfter: after.d8Burstiness.indexOfDispersion }],
+    e9: [
+      {
+        scenario: 'event_start_time_seeded_shuffle',
+        seed: e9Seed,
+        d8Before: {
+          status: before.d8Burstiness.status,
+          indexOfDispersion: before.d8Burstiness.indexOfDispersion,
+          nonEmptyWindowCount: before.d8Burstiness.nonEmptyWindowCount,
+          emptyWindowCount: before.d8Burstiness.emptyWindowCount,
+          totalWindowSlots: before.d8Burstiness.totalWindowSlots,
+        },
+        d8After: {
+          status: after.d8Burstiness.status,
+          indexOfDispersion: after.d8Burstiness.indexOfDispersion,
+          nonEmptyWindowCount: after.d8Burstiness.nonEmptyWindowCount,
+          emptyWindowCount: after.d8Burstiness.emptyWindowCount,
+          totalWindowSlots: after.d8Burstiness.totalWindowSlots,
+        },
+      },
+    ],
     e10: [
       {
         scenario: 'fingerprint_mismatch',
@@ -502,6 +581,8 @@ async function main(): Promise<void> {
             distanceKm: Number(row.distance_km_D),
           },
           qualityTier: 'STRICT',
+          evidenceOrigin: 'SYNTHETIC_P2_ENRICHMENT',
+          sealedReferenceContentFingerprintSha256: row.content_fingerprint!,
         }),
       );
       continue;
@@ -522,6 +603,8 @@ async function main(): Promise<void> {
       payload: enriched,
       tripMeta,
       qualityTier: 'STRICT' as Ds4DbiW0QualityTierV1,
+      evidenceOrigin: 'SYNTHETIC_P2_ENRICHMENT',
+      sealedReferenceContentFingerprintSha256: row.content_fingerprint!,
     });
     results.push(strict);
   }
@@ -541,7 +624,9 @@ async function main(): Promise<void> {
     tripResultsStrict: results,
     syntheticControls: controls,
     scientificNote:
-      'Motion payload is W0-enriched synthetic built from sealed P2 event timing (not raw motion-core gzip export). D4–D8 are research-candidate metrics; thresholds are not calibrated physics.',
+      'evidenceOrigin=SYNTHETIC_P2_ENRICHMENT: 1Hz speeds/FSM/stops are research synthetic from sealed P2 timing, not raw sealed C4 gzip. sealedReferenceContentFingerprintSha256 is attested P2 metadata only; canonical JSON digest differs (MBF_W0_FAIL_CLOSED_SEALED_FINGERPRINT_MISMATCH expected unless using pure sealed payloads). implementationWorks !== realDataValidationPassed. D4–D8 thresholds are preregistered candidates.',
+    realVsSyntheticBoundary:
+      'SYNTHETIC_CONTROL / SYNTHETIC_P2_ENRICHMENT: speed-based metrics are methodological only. SEALED_REAL_C4 reserved for future unmodified shadow exports.',
   };
 
   if (json) {

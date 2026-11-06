@@ -5,6 +5,9 @@
 
 export type Ds4DbiW0QualityTierV1 = 'STRICT' | 'RELAXED';
 
+/** Provenance for scientific interpretation — never conflate synthetic with sealed real. */
+export type Ds4DbiW0EvidenceOriginV1 = 'SEALED_REAL_C4' | 'SYNTHETIC_P2_ENRICHMENT' | 'SYNTHETIC_CONTROL';
+
 export const DS4_DBI_W0_STRICT_SPEED_QUALITIES: ReadonlySet<string> = new Set(['OK']);
 
 export const DS4_DBI_W0_RELAXED_SPEED_QUALITIES: ReadonlySet<string> = new Set([
@@ -50,7 +53,14 @@ export type Ds4DbiW0MbfReasonCodeV1 =
   | 'MBF_W0_FAIL_CLOSED_MIXED_SPEED_AUTHORITY'
   | 'MBF_W0_FAIL_CLOSED_SOURCE_BUNDLE_MISMATCH'
   | 'MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH'
+  | 'MBF_W0_FAIL_CLOSED_SEALED_FINGERPRINT_MISMATCH'
   | 'MBF_W0_FAIL_CLOSED_CORRUPT_LABEL_TIME_ORDER'
+  | 'MBF_W0_FAIL_CLOSED_DUPLICATE_SPEED_LABEL'
+  | 'MBF_W0_FAIL_CLOSED_INVALID_SPEED_VALUE'
+  | 'MBF_W0_FAIL_CLOSED_FSM_DUPLICATE_LABEL'
+  | 'MBF_W0_FAIL_CLOSED_FSM_MISSING_FOR_SPEED_LABEL'
+  | 'MBF_W0_FAIL_CLOSED_DUPLICATE_EVENT_START_TIME'
+  | 'MBF_W0_FAIL_CLOSED_EVENT_VALIDATION'
   | 'MBF_W0_SYNTHETIC_CONTROL_SCENARIO';
 
 export type Ds4DbiW0SingleMetricResultV1 = {
@@ -63,6 +73,14 @@ export type Ds4DbiW0SingleMetricResultV1 = {
 
 export type Ds4DbiW0TripKernelResultV1 = {
   contractVersion: 'ds4-dbi-w0-mbf-kernel-v1';
+  evidenceOrigin: Ds4DbiW0EvidenceOriginV1;
+  /** Kernel code path exercised; does not imply sealed real-data validation. */
+  implementationWorks: boolean;
+  /**
+   * True only when evidenceOrigin is SEALED_REAL_C4 and no fail-closed / integrity input rejection fired.
+   * Synthetic runs may still compute metrics — this stays false.
+   */
+  realDataValidationPassed: boolean;
   tripId: string;
   sourceMotionRunId: string;
   qualityTier: Ds4DbiW0QualityTierV1;
@@ -70,8 +88,18 @@ export type Ds4DbiW0TripKernelResultV1 = {
   shadowBundleVersion: string | null;
   contentFingerprintExpected: string | null;
   contentFingerprintObserved: string | null;
+  /** P2 CSV sealed fingerprint (SHA-256) when provided — distinct from canonical JSON hash of payload. */
+  sealedReferenceContentFingerprintSha256: string | null;
   exposureSecondsEs: number | null;
   distanceKm: number | null;
+  coverageDiagnostics: {
+    speedLabelsAdmissibleTier: number;
+    speedTimeSpanSeconds: number | null;
+    consecutiveOneSecondPairsInSeries: number;
+    movingDirectLabelSecondsEstimated: number;
+    d4EligibleMovingDirectLabels: number | null;
+    d5EligibleConsecutiveMovingDirectPairs: number | null;
+  };
   d4SpeedVariabilityRobustCv: Ds4DbiW0SingleMetricResultV1;
   d5SpeedRoughnessMeanAbsDeltaKmhPerS: Ds4DbiW0SingleMetricResultV1;
   d6StopStructure: {
@@ -80,6 +108,7 @@ export type Ds4DbiW0TripKernelResultV1 = {
     stopsPerKm: number | null;
     medianMovingRunDurationSeconds: number | null;
     sustainedMovementShare: number | null;
+    movingRunSplitReasonSample: Ds4DbiW0MbfReasonCodeV1[];
     reasonCodes: Ds4DbiW0MbfReasonCodeV1[];
   };
   d8Burstiness: {
@@ -87,6 +116,9 @@ export type Ds4DbiW0TripKernelResultV1 = {
     indexOfDispersion: number | null;
     shareNextEventWithin30s: number | null;
     windowCount: number | null;
+    nonEmptyWindowCount: number | null;
+    emptyWindowCount: number | null;
+    totalWindowSlots: number | null;
     eventCount: number | null;
     reasonCodes: Ds4DbiW0MbfReasonCodeV1[];
   };
@@ -98,5 +130,7 @@ export type Ds4DbiW0TripKernelResultV1 = {
     directStopEpisodeCount: number;
     eventCount: number;
     repairedSpeedLabelCount: number;
+    inputValidationReasons: Ds4DbiW0MbfReasonCodeV1[];
+    failClosedReasons: Ds4DbiW0MbfReasonCodeV1[];
   };
 };
