@@ -3,6 +3,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { AppDialog } from '../../components/patterns/app-dialog';
 import { Button } from '../../components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../components/ui/collapsible';
 import { MfaStepUpDialog } from '../../components/mfa/MfaStepUpDialog';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { getErrorMessage } from '../../lib/api';
@@ -69,6 +70,11 @@ export function OneAutoServiceDialog({
   const [job, setJob] = useState<OneAutoJobDto | null>(null);
   const [result, setResult] = useState<OneAutoJobResultResponse | null>(null);
   const [mfaOpen, setMfaOpen] = useState(false);
+  const [scheduleTechnicalOpen, setScheduleTechnicalOpen] = useState(false);
+  const [storedScheduleJobId, setStoredScheduleJobId] = useState<string | null>(null);
+  const [storedScheduleLookupLoading, setStoredScheduleLookupLoading] = useState(false);
+  const [storedScheduleLoadError, setStoredScheduleLoadError] = useState<string | null>(null);
+  const [viewStoredScheduleLoading, setViewStoredScheduleLoading] = useState(false);
   const idempotencyKeyRef = useRef<string | null>(null);
   const pollAttemptRef = useRef(0);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,6 +89,11 @@ export function OneAutoServiceDialog({
     setExecuteError(null);
     setJob(null);
     setResult(null);
+    setScheduleTechnicalOpen(false);
+    setStoredScheduleJobId(null);
+    setStoredScheduleLookupLoading(false);
+    setStoredScheduleLoadError(null);
+    setViewStoredScheduleLoading(false);
     idempotencyKeyRef.current = null;
     pollAttemptRef.current = 0;
     if (pollTimerRef.current) {
@@ -121,17 +132,49 @@ export function OneAutoServiceDialog({
     }
   }, [organizationId, vehicleId, resetFlow]);
 
+  const lookupStoredScheduleJob = useCallback(async () => {
+    setStoredScheduleLookupLoading(true);
+    setStoredScheduleLoadError(null);
+    setStoredScheduleJobId(null);
+    try {
+      const res = await oneAutoMasterApi.getLatestSucceededJob(
+        organizationId,
+        vehicleId,
+        'OE_SERVICE_SCHEDULE',
+      );
+      setStoredScheduleJobId(res.jobId);
+    } catch (err) {
+      setStoredScheduleLoadError(getErrorMessage(err));
+    } finally {
+      setStoredScheduleLookupLoading(false);
+    }
+  }, [organizationId, vehicleId]);
+
   useEffect(() => {
     if (!open) {
       stopPolling();
       return;
     }
+    setPhase('catalog');
+    setSelectedSku(null);
+    setQuote(null);
+    setQuoteError(null);
+    setAckIndicative(false);
+    setExecuteError(null);
+    setJob(null);
+    setResult(null);
+    setScheduleTechnicalOpen(false);
+    idempotencyKeyRef.current = null;
+    pollAttemptRef.current = 0;
     void loadCatalog();
-  }, [open, loadCatalog, stopPolling]);
+    void lookupStoredScheduleJob();
+  }, [open, organizationId, vehicleId, loadCatalog, lookupStoredScheduleJob, stopPolling]);
 
   useEffect(() => {
-    if (!open) resetFlow();
-  }, [open, resetFlow]);
+    if (result?.job.serviceSku === 'OE_SERVICE_SCHEDULE' && result.job.status === 'SUCCEEDED') {
+      setScheduleTechnicalOpen(false);
+    }
+  }, [result?.job.id, result?.job.serviceSku, result?.job.status]);
 
   const translateSku = (sku: string, field: 'name' | 'description'): string => {
     const key = `${serviceSkuTranslationBase(sku)}.${field}` as never;
@@ -299,6 +342,25 @@ export function OneAutoServiceDialog({
     void runExecute();
   };
 
+  const handleViewStoredSchedule = async () => {
+    if (!storedScheduleJobId) return;
+    setViewStoredScheduleLoading(true);
+    setExecuteError(null);
+    try {
+      const res = await oneAutoMasterApi.getJobResult(organizationId, storedScheduleJobId);
+      if (res.job.organizationId !== organizationId || res.job.vehicleId !== vehicleId) {
+        setExecuteError(t('master.oneAuto.error.ONEAUTO_BINDING_MISMATCH' as never));
+        return;
+      }
+      setResult(res);
+      setPhase('result');
+    } catch (err) {
+      setExecuteError(getErrorMessage(err, t('master.oneAuto.executeFailed' as never)));
+    } finally {
+      setViewStoredScheduleLoading(false);
+    }
+  };
+
   const statusLabel = (status: OneAutoJobDto['status']) => {
     const key = `master.oneAuto.status.${status}` as never;
     const label = t(key);
@@ -340,6 +402,47 @@ export function OneAutoServiceDialog({
                   <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
                     <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
                     <span>{catalogError}</span>
+                  </div>
+                ) : null}
+                {!catalogLoading && !catalogError ? (
+                  <div
+                    className="rounded-xl border border-border p-3 space-y-2"
+                    data-testid="oneauto-stored-schedule-panel"
+                  >
+                    {storedScheduleLoadError ? (
+                      <div className="flex items-start gap-2 text-sm text-destructive">
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span>{storedScheduleLoadError}</span>
+                      </div>
+                    ) : storedScheduleLookupLoading ? (
+                      <p className="text-xs text-muted-foreground flex items-center gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                        {t('master.oneAuto.serviceSchedule.storedPlanLookupLoading' as never)}
+                      </p>
+                    ) : storedScheduleJobId ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="w-full sm:w-auto"
+                        disabled={viewStoredScheduleLoading}
+                        data-testid="oneauto-view-stored-schedule"
+                        onClick={() => void handleViewStoredSchedule()}
+                      >
+                        {viewStoredScheduleLoading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" aria-hidden />
+                            {t('master.oneAuto.serviceSchedule.loadingStoredPlan' as never)}
+                          </>
+                        ) : (
+                          t('master.oneAuto.serviceSchedule.viewStoredPlan' as never)
+                        )}
+                      </Button>
+                    ) : (
+                      <p className="text-xs text-muted-foreground" data-testid="oneauto-stored-schedule-empty">
+                        {t('master.oneAuto.serviceSchedule.storedPlanEmpty' as never)}
+                      </p>
+                    )}
                   </div>
                 ) : null}
                 {!catalogLoading && !catalogError ? (
@@ -585,22 +688,47 @@ export function OneAutoServiceDialog({
                     <dd className="inline">{maskVin(result.job.vinSnapshot)}</dd>
                   </div>
                 </dl>
-                <pre
-                  className="text-xs rounded-lg border border-border bg-muted/40 p-3 overflow-auto max-h-64 font-mono"
-                  data-testid="oneauto-result-body"
-                >
-                  {result.latestResponse?.responseBodyJson != null
-                    ? safeJsonPreview(result.latestResponse.responseBodyJson)
-                    : t('master.oneAuto.resultFallback' as never)}
-                </pre>
-                {result.job.serviceSku === 'OE_SERVICE_HISTORY_EU' &&
-                result.job.status === 'SUCCEEDED' ? (
-                  <OneAutoServiceHistoryResultPanel result={result} />
-                ) : null}
-                {result.job.serviceSku === 'OE_SERVICE_SCHEDULE' &&
-                result.job.status === 'SUCCEEDED' ? (
-                  <OneAutoServiceScheduleResultPanel result={result} />
-                ) : null}
+                {result.job.serviceSku === 'OE_SERVICE_SCHEDULE' && result.job.status === 'SUCCEEDED' ? (
+                  <>
+                    <OneAutoServiceScheduleResultPanel result={result} vehicleLabel={vehicleLabel} />
+                    <Collapsible
+                      open={scheduleTechnicalOpen}
+                      onOpenChange={setScheduleTechnicalOpen}
+                      data-testid="oneauto-schedule-technical-collapsible"
+                    >
+                      <CollapsibleTrigger asChild>
+                        <Button type="button" variant="ghost" size="sm" className="h-auto px-0 py-1 font-normal text-xs text-muted-foreground">
+                          {t('master.oneAuto.resultTechnicalDetails')}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <pre
+                          className="text-xs rounded-lg border border-border bg-muted/40 p-3 overflow-auto max-h-64 font-mono max-w-full break-words whitespace-pre-wrap"
+                          data-testid="oneauto-result-body"
+                        >
+                          {result.latestResponse?.responseBodyJson != null
+                            ? safeJsonPreview(result.latestResponse.responseBodyJson)
+                            : t('master.oneAuto.resultFallback' as never)}
+                        </pre>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </>
+                ) : (
+                  <>
+                    <pre
+                      className="text-xs rounded-lg border border-border bg-muted/40 p-3 overflow-auto max-h-64 font-mono max-w-full break-words whitespace-pre-wrap"
+                      data-testid="oneauto-result-body"
+                    >
+                      {result.latestResponse?.responseBodyJson != null
+                        ? safeJsonPreview(result.latestResponse.responseBodyJson)
+                        : t('master.oneAuto.resultFallback' as never)}
+                    </pre>
+                    {result.job.serviceSku === 'OE_SERVICE_HISTORY_EU' &&
+                    result.job.status === 'SUCCEEDED' ? (
+                      <OneAutoServiceHistoryResultPanel result={result} />
+                    ) : null}
+                  </>
+                )}
               </div>
             ) : null}
           </div>

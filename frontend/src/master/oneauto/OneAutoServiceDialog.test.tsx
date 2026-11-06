@@ -11,6 +11,7 @@ const mockQuote = vi.fn();
 const mockExecute = vi.fn();
 const mockGetJob = vi.fn();
 const mockGetJobResult = vi.fn();
+const mockGetLatestSucceededJob = vi.fn();
 
 vi.mock('./oneauto-api.client', () => ({
   oneAutoMasterApi: {
@@ -19,6 +20,7 @@ vi.mock('./oneauto-api.client', () => ({
     execute: (...args: unknown[]) => mockExecute(...args),
     getJob: (...args: unknown[]) => mockGetJob(...args),
     getJobResult: (...args: unknown[]) => mockGetJobResult(...args),
+    getLatestSucceededJob: (...args: unknown[]) => mockGetLatestSucceededJob(...args),
   },
 }));
 
@@ -97,6 +99,7 @@ describe('OneAutoServiceDialog', () => {
     mockExecute.mockReset();
     mockGetJob.mockReset();
     mockGetJobResult.mockReset();
+    mockGetLatestSucceededJob.mockResolvedValue({ jobId: null });
   });
 
   afterEach(() => {
@@ -592,6 +595,102 @@ describe('OneAutoServiceDialog', () => {
 
     expect(query('[data-testid="oneauto-result-viewer"]')).toBeTruthy();
     expect(query('[data-testid="oneauto-result-body"]')?.textContent).toContain('recalls');
+  });
+
+  it('opens stored OE_SERVICE_SCHEDULE from DB lookup without quote or execute', async () => {
+    const vin = 'WVWZZZ3CZWE123456';
+    mockGetLatestSucceededJob.mockResolvedValue({ jobId: 'job-sched-stored' });
+    const scheduleJobDto = {
+      id: 'job-sched-stored',
+      organizationId: 'org-a',
+      vehicleId: 'veh-1',
+      status: 'SUCCEEDED' as const,
+      serviceSku: 'OE_SERVICE_SCHEDULE',
+      vinSnapshot: vin,
+      idempotencyKey: 'idem-sch',
+      providerRequestId: null,
+      estimatedPriceMinor: 210,
+      confirmedPriceMinor: 210,
+      currency: 'EUR',
+      pricingSourceVersion: 'v1',
+      costConfirmedAt: new Date().toISOString(),
+      actualChargeMinor: null,
+      actualChargeKnown: false,
+      pollAttemptCount: 0,
+      lastErrorCode: null,
+      initialProviderDispatchAt: null,
+      expiresAt: null,
+      providerResultExpiresAt: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    mockGetJobResult.mockResolvedValue({
+      job: scheduleJobDto,
+      latestResponse: {
+        httpStatus: 200,
+        providerStatusHeader: null,
+        responseBodyJson: {
+          success: true,
+          result: {
+            vehicle_identification_number: vin,
+            normal_services: [],
+            extra_services: [],
+          },
+        },
+        fetchedAt: new Date().toISOString(),
+      },
+      actualChargeKnown: false,
+      actualChargeMinor: null,
+    });
+
+    const { root, props, query } = renderDialog({ vin });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockGetLatestSucceededJob).toHaveBeenCalledWith('org-a', 'veh-1', 'OE_SERVICE_SCHEDULE');
+    expect(mockQuote).not.toHaveBeenCalled();
+    expect(mockExecute).not.toHaveBeenCalled();
+
+    await act(async () => {
+      (query('[data-testid="oneauto-view-stored-schedule"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+    });
+
+    expect(mockGetJobResult).toHaveBeenCalledWith('org-a', 'job-sched-stored');
+    expect(query('[data-testid="oneauto-service-schedule-panel"]')).toBeTruthy();
+    expect(mockQuote).not.toHaveBeenCalled();
+    expect(mockExecute).not.toHaveBeenCalled();
+
+    await act(async () => {
+      root.render(
+        createElement(LanguageProvider, {
+          children: createElement(OneAutoServiceDialog, { ...props, open: false }),
+        }),
+      );
+      await Promise.resolve();
+    });
+    await act(async () => {
+      root.render(
+        createElement(LanguageProvider, {
+          children: createElement(OneAutoServiceDialog, { ...props, open: true }),
+        }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(mockGetLatestSucceededJob.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(mockQuote).not.toHaveBeenCalled();
+    expect(mockExecute).not.toHaveBeenCalled();
+
+    await act(async () => {
+      (query('[data-testid="oneauto-view-stored-schedule"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+    });
+
+    expect(mockGetJobResult.mock.calls.filter((c) => c[1] === 'job-sched-stored').length).toBeGreaterThanOrEqual(2);
+    expect(mockQuote).not.toHaveBeenCalled();
+    expect(mockExecute).not.toHaveBeenCalled();
   });
 
   it('does not leak vehicle context across org/vehicle changes', async () => {

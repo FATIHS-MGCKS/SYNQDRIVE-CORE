@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { OrgScopingGuard } from '@shared/auth/org-scoping.guard';
 import { RolesGuard } from '@shared/auth/roles.guard';
@@ -36,6 +47,19 @@ export class OneAutoProviderController {
     @Body() body: { serviceSku: string },
   ) {
     return this.oneAuto.quote(orgId, vehicleId, body.serviceSku);
+  }
+
+  /** Latest succeeded job id for a vehicle + SKU (read-only DB; no provider HTTP). */
+  @Get('vehicles/:vehicleId/jobs/latest-succeeded')
+  getLatestSucceededJob(
+    @Param('orgId') orgId: string,
+    @Param('vehicleId') vehicleId: string,
+    @Query('serviceSku') serviceSku: string | undefined,
+  ) {
+    if (!serviceSku?.trim()) {
+      throw new BadRequestException('serviceSku query parameter required');
+    }
+    return this.oneAuto.getLatestSucceededJobId(orgId, vehicleId, serviceSku.trim());
   }
 
   @Post('vehicles/:vehicleId/execute')

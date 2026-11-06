@@ -9,6 +9,8 @@ function hasOwn(obj: Record<string, unknown>, key: string): boolean {
 function validateOptionalString(obj: Record<string, unknown>, key: string): string | null {
   if (!hasOwn(obj, key)) return null;
   const value = obj[key];
+  /** JSON null is treated as an absent optional value (production One Auto payloads). */
+  if (value === null) return null;
   if (typeof value !== 'string') return `${key}_not_string`;
   return null;
 }
@@ -16,6 +18,7 @@ function validateOptionalString(obj: Record<string, unknown>, key: string): stri
 function validateOptionalNonNegativeInteger(obj: Record<string, unknown>, key: string): string | null {
   if (!hasOwn(obj, key)) return null;
   const value = obj[key];
+  if (value === null) return null;
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
     return `${key}_invalid`;
   }
@@ -25,6 +28,7 @@ function validateOptionalNonNegativeInteger(obj: Record<string, unknown>, key: s
 function validateOptionalNonNegativeNumber(obj: Record<string, unknown>, key: string): string | null {
   if (!hasOwn(obj, key)) return null;
   const value = obj[key];
+  if (value === null) return null;
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     return `${key}_invalid`;
   }
@@ -72,7 +76,14 @@ export function validateOeServiceSchedulePart(raw: unknown): string | null {
   }
   if (hasOwn(raw, 'supplier_id')) {
     const sid = raw.supplier_id;
-    if (typeof sid !== 'number' || !Number.isInteger(sid) || sid < 0) {
+    if (sid === null) {
+      /* optional numeric — null means unknown */
+    } else if (typeof sid === 'number') {
+      if (!Number.isInteger(sid) || sid < 0) return 'supplier_id_invalid';
+    } else if (typeof sid === 'string' && /^\d+$/.test(sid)) {
+      const n = Number.parseInt(sid, 10);
+      if (!Number.isFinite(n) || n < 0) return 'supplier_id_invalid';
+    } else {
       return 'supplier_id_invalid';
     }
   }
