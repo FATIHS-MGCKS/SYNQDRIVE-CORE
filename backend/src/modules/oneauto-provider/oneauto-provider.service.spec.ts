@@ -5,6 +5,7 @@ import { OneAutoProviderService } from './oneauto-provider.service';
 import { OneAutoProviderExecutionService } from './oneauto-provider-execution.service';
 import * as verifiedContracts from './catalog/oneauto-verified-contracts';
 import * as contractGate from './catalog/oneauto-contract-gate.util';
+import { ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU } from './service-schedule/oneauto-service-schedule-eu.types';
 
 describe('OneAutoProviderService cost and idempotency', () => {
   const prisma = {
@@ -15,6 +16,7 @@ describe('OneAutoProviderService cost and idempotency', () => {
       aggregate: jest.fn(),
       create: jest.fn(),
     },
+    oneAutoProviderResponse: { findFirst: jest.fn() },
     $transaction: jest.fn(),
   };
   const execution = { enqueueExecution: jest.fn(), expireProviderResultIfDue: jest.fn() };
@@ -273,6 +275,146 @@ describe('OneAutoProviderService cost and idempotency', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('getJobResult', () => {
+    const sameFetchedAt = new Date('2026-11-06T12:00:00.000Z');
+    const scheduleEnvelope = { status: 200, result: { success: true, result: { vehicle_identification_number: 'WBA12345678901234' } } };
+
+    it('OE_SERVICE_SCHEDULE: prefers responsePhase callback over recovery_audit when fetchedAt ties', async () => {
+      prisma.oneAutoProviderJob.findFirst.mockResolvedValue({
+        id: 'job-s1',
+        organizationId: 'org1',
+        vehicleId: 'v1',
+        vinSnapshot: 'WBA12345678901234',
+        serviceSku: ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU,
+        status: OneAutoProviderJobStatus.SUCCEEDED,
+        idempotencyKey: 'k',
+        providerRequestId: null,
+        estimatedPriceMinor: 150,
+        currency: 'EUR',
+        pricingSourceVersion: 'v1',
+        costConfirmedAt: new Date(),
+        confirmedPriceMinor: 150,
+        actualChargeMinor: null,
+        actualChargeKnown: false,
+        pollAttemptCount: 0,
+        lastErrorCode: null,
+        initialProviderDispatchAt: new Date(),
+        expiresAt: new Date(),
+        providerResultExpiresAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.oneAutoProviderResponse.findFirst.mockResolvedValueOnce({
+        id: 'resp-callback',
+        jobId: 'job-s1',
+        httpStatus: 200,
+        providerStatusHeader: null,
+        responseBodyJson: scheduleEnvelope,
+        responsePhase: 'callback',
+        fetchedAt: sameFetchedAt,
+      });
+
+      const out = await service.getJobResult('org1', 'job-s1');
+
+      expect(prisma.oneAutoProviderResponse.findFirst).toHaveBeenCalledTimes(1);
+      expect(prisma.oneAutoProviderResponse.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { jobId: 'job-s1', responsePhase: 'callback' },
+        }),
+      );
+      expect(out.latestResponse?.responseBodyJson).toEqual(scheduleEnvelope);
+    });
+
+    it('OE_SERVICE_SCHEDULE: falls back to latest by fetchedAt when no callback row', async () => {
+      prisma.oneAutoProviderJob.findFirst.mockResolvedValue({
+        id: 'job-s2',
+        organizationId: 'org1',
+        vehicleId: 'v1',
+        vinSnapshot: 'WBA12345678901234',
+        serviceSku: ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU,
+        status: OneAutoProviderJobStatus.SUCCEEDED,
+        idempotencyKey: 'k',
+        providerRequestId: null,
+        estimatedPriceMinor: 150,
+        currency: 'EUR',
+        pricingSourceVersion: 'v1',
+        costConfirmedAt: new Date(),
+        confirmedPriceMinor: 150,
+        actualChargeMinor: null,
+        actualChargeKnown: false,
+        pollAttemptCount: 0,
+        lastErrorCode: null,
+        initialProviderDispatchAt: new Date(),
+        expiresAt: new Date(),
+        providerResultExpiresAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.oneAutoProviderResponse.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'resp-fallback',
+          jobId: 'job-s2',
+          httpStatus: 200,
+          providerStatusHeader: null,
+          responseBodyJson: { legacy: true },
+          responsePhase: 'retrieval',
+          fetchedAt: sameFetchedAt,
+        });
+
+      const out = await service.getJobResult('org1', 'job-s2');
+
+      expect(prisma.oneAutoProviderResponse.findFirst).toHaveBeenCalledTimes(2);
+      expect(out.latestResponse?.responseBodyJson).toEqual({ legacy: true });
+    });
+
+    it('non-schedule SKU: uses global latest response order', async () => {
+      prisma.oneAutoProviderJob.findFirst.mockResolvedValue({
+        id: 'job-vin',
+        organizationId: 'org1',
+        vehicleId: 'v1',
+        vinSnapshot: 'WBA12345678901234',
+        serviceSku: 'OE_VIN_LOOKUP_EU',
+        status: OneAutoProviderJobStatus.SUCCEEDED,
+        idempotencyKey: 'k',
+        providerRequestId: null,
+        estimatedPriceMinor: 150,
+        currency: 'GBP',
+        pricingSourceVersion: 'v1',
+        costConfirmedAt: new Date(),
+        confirmedPriceMinor: 150,
+        actualChargeMinor: null,
+        actualChargeKnown: false,
+        pollAttemptCount: 0,
+        lastErrorCode: null,
+        initialProviderDispatchAt: new Date(),
+        expiresAt: new Date(),
+        providerResultExpiresAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.oneAutoProviderResponse.findFirst.mockResolvedValueOnce({
+        id: 'resp-vin',
+        jobId: 'job-vin',
+        httpStatus: 200,
+        providerStatusHeader: null,
+        responseBodyJson: { vin: 'ok' },
+        responsePhase: 'callback',
+        fetchedAt: sameFetchedAt,
+      });
+
+      const out = await service.getJobResult('org1', 'job-vin');
+
+      expect(prisma.oneAutoProviderResponse.findFirst).toHaveBeenCalledTimes(1);
+      expect(prisma.oneAutoProviderResponse.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { jobId: 'job-vin' },
+        }),
+      );
+      expect(out.latestResponse?.responseBodyJson).toEqual({ vin: 'ok' });
     });
   });
 });
