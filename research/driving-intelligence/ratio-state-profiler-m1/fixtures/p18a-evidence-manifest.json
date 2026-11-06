@@ -2,18 +2,38 @@
   "schema": "DS4_RPM_P18A_EVIDENCE_MANIFEST_V1",
   "operation": "DS4_RPM_P18A_FINAL_ARCHITECT_HARDENING",
   "p16_manifest_sha256_self_recomputed": "5774d38fa2bb96adc89fbe04ca4f37b6ca7b730e06d0febd31bb50b7d9f704e6",
-  "p18a_report_content_sha256_excluding_generated_at": "e6dd3b2a4aa0f27705cc17301a80f3d812d62d20eb34197b017aa5452298f5d9",
+  "p18a_report_content_sha256_excluding_generated_at": "09f803ed30d2201941bd9bfd39d91b6e7befeffa8ba9c1789470c368b6da4b51",
   "test_command": "cd research/driving-intelligence/ratio-state-profiler-m1 && npm ci && npm run typecheck && npm test",
   "verified_metrics": {
     "video_pair_count": 242,
     "block5_count": 49,
     "r1_same_row_vmin_20": 442,
     "eligible_clips": { "TC_00080.MOV": 142, "TC_00084.MOV": 100 },
-    "ratio_stable_runs_measured": 11,
+    "ratio_stable_runs_total": 20,
+    "ratio_stable_runs_ge_3s": 17,
     "window_unique_overlap": 50,
     "window_sum_per_window_p171": 51,
     "window_double_count_key": "TC_00084.MOV|138"
   },
+  "negative_control_verdicts": {
+    "NC-A_RPM_PERMUTATION_NULL": "SCIENTIFIC_NEGATIVE",
+    "NC-D_LEAVE_ONE_ELIGIBLE_CLIP_OUT": "PASS",
+    "NC-E_SPLIT_HALF_TEMPORAL_STABILITY": "SCIENTIFIC_NEGATIVE",
+    "NC-G_P16_REGRESSION": "PASS",
+    "NC-H_FORBIDDEN_CROSS_JOIN": "PASS"
+  },
+  "corrections": [
+    {
+      "superseded_report_sha256": "e6dd3b2a4aa0f27705cc17301a80f3d812d62d20eb34197b017aa5452298f5d9",
+      "issue": "NC-A Jaccard was computed with an undefined match tolerance, so every permutation Jaccard was 0 and NC-A passed vacuously; npm run typecheck also failed on that call.",
+      "fix": "Tolerance defaults to one histogram bin (2.5). Criterion unchanged (mean Jaccard < 0.5 AND >=3 seeds < 0.25); not met, so NC-A reports SCIENTIFIC_NEGATIVE for the B0 baseline.",
+      "gate_change": "NC-A removed from mandatory integrity gates (NC-G, NC-H remain); NC-A is a scientific property of B0, not harness integrity. Flagged for architect review."
+    },
+    {
+      "issue": "ratio_stable_runs_measured=11 was stale; segmentation yields 20 runs (17 with >=3 s).",
+      "fix": "Replaced with ratio_stable_runs_total / ratio_stable_runs_ge_3s."
+    }
+  ],
   "ray_run_classifier_validated": false,
   "pr_scope_files_vs_main": 25
 }

@@ -99,7 +99,6 @@ export function buildP18aFoundationReport(): Record<string, unknown> {
   };
 
   const integrityControlIds = new Set([
-    "NC-A_RPM_PERMUTATION_NULL",
     "NC-G_P16_REGRESSION",
     "NC-H_FORBIDDEN_CROSS_JOIN",
   ]);

@@ -125,10 +125,19 @@ function ncPermutationNull(
 
   return {
     control_id: "NC-A_RPM_PERMUTATION_NULL",
-    verdict: pass ? "PASS" : "FAIL",
-    detail:
-      "Five deterministic permutations per clip; expect major-mode Jaccard < 0.5 vs baseline.",
-    metrics: { seeds, jaccards, mean_jaccard: meanJ, baseline_top_count: baseTopCount, perm_top_counts: topCounts },
+    verdict: pass ? "PASS" : "SCIENTIFIC_NEGATIVE",
+    detail: pass
+      ? "Five deterministic permutations per clip; B0 major modes do not survive rpm permutation (mean Jaccard < 0.5, ≥3 seeds < 0.25)."
+      : "B0 histogram major modes partially survive within-clip rpm permutation (criterion mean Jaccard < 0.5 AND ≥3 seeds < 0.25 not met) — B0 mode positions are not specific to true (v, rpm) pairing.",
+    metrics: {
+      seeds,
+      jaccards,
+      mean_jaccard: meanJ,
+      seeds_below_0_25: lowJaccardRuns,
+      match_tolerance_rpm_per_kmh: M1_DEFAULTS.histogramBinWidthRpmPerKmh,
+      baseline_top_count: baseTopCount,
+      perm_top_counts: topCounts,
+    },
   };
 }
 

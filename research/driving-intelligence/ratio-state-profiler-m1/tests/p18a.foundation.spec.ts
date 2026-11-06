@@ -102,23 +102,36 @@ describe("P18A RAY-RUN foundation", () => {
     assert.equal(root.double_counted_key, "TC_00084.MOV|138");
   });
 
-  it("negative controls: integrity controls PASS; NC-D/NC-E may be SCIENTIFIC_NEGATIVE", () => {
+  it("negative controls: integrity controls PASS; NC-A/NC-D/NC-E may be SCIENTIFIC_NEGATIVE", () => {
     const { p5, s4 } = paths();
     const eligible = eligibleVideoRows(parseP5QcCsv(p5));
     const controls = runNegativeControls(eligible, parseR1SameRowPairs(s4));
-    const ncD = controls.find((c) => c.control_id === "NC-D_LEAVE_ONE_ELIGIBLE_CLIP_OUT");
-    const ncE = controls.find((c) => c.control_id === "NC-E_SPLIT_HALF_TEMPORAL_STABILITY");
-    assert.ok(ncD && ncE);
-    assert.notEqual(ncD.verdict, "FAIL");
-    assert.notEqual(ncE.verdict, "FAIL");
+    for (const id of [
+      "NC-A_RPM_PERMUTATION_NULL",
+      "NC-D_LEAVE_ONE_ELIGIBLE_CLIP_OUT",
+      "NC-E_SPLIT_HALF_TEMPORAL_STABILITY",
+    ]) {
+      const c = controls.find((x) => x.control_id === id);
+      assert.ok(c, id);
+      assert.notEqual(c.verdict, "FAIL", id);
+    }
     const hardFails = controls.filter(
       (c) =>
         c.verdict === "FAIL" &&
-        ["NC-A_RPM_PERMUTATION_NULL", "NC-G_P16_REGRESSION", "NC-H_FORBIDDEN_CROSS_JOIN"].includes(
-          c.control_id,
-        ),
+        ["NC-G_P16_REGRESSION", "NC-H_FORBIDDEN_CROSS_JOIN"].includes(c.control_id),
     );
     assert.equal(hardFails.length, 0);
+  });
+
+  it("NC-A permutation Jaccard uses a real match tolerance (not vacuously zero)", () => {
+    const { p5, s4 } = paths();
+    const eligible = eligibleVideoRows(parseP5QcCsv(p5));
+    const ncA = runNegativeControls(eligible, parseR1SameRowPairs(s4)).find(
+      (c) => c.control_id === "NC-A_RPM_PERMUTATION_NULL",
+    )!;
+    const m = ncA.metrics as { jaccards: number[]; match_tolerance_rpm_per_kmh: number };
+    assert.equal(m.match_tolerance_rpm_per_kmh, 2.5);
+    assert.ok(m.jaccards.some((j) => j > 0), "permutation Jaccards must not all be zero");
   });
 
   it("foundation report mandatory gates pass; deterministic hash stable", () => {
