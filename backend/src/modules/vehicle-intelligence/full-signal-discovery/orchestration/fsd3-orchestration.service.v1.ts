@@ -341,8 +341,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       planFingerprint: catalogPlanFingerprint,
     });
 
-    let catalogStageVersion = 1;
-    const catalogStageVersionRef = { value: catalogStageVersion };
+    const catalogStageVersionRef = { value: 1 };
     const catalogStart = await this.persistence.transitionStageStatus({
       auth: writeAuth(),
       stageType: 'CATALOG',
