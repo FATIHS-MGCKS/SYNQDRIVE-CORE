@@ -198,3 +198,11 @@
 - **Scope:** Master Admin GET `admin/organizations/:orgId/oneauto/vehicles/:vehicleId/jobs/latest-succeeded?serviceSku=` returns `{ jobId: string | null }` from Prisma (latest `SUCCEEDED` for org + vehicle + SKU **where `vinSnapshot` equals the current vehicle VIN after normalization**). Reuses `loadVehicleAndSku` + `assertVehicleBinding`. Dialog action loads the manual via existing `getJobResult(jobId)` only — **no** `quote`, **no** `execute`, **no** provider HTTP or queue enqueue.
 - **Tests:** `oneauto-provider.service.spec.ts` (`getLatestSucceededJobId`); `OneAutoServiceDialog.test.tsx` (stored plan: no quote/execute, reopen does not require repurchase path); `oneauto-service-schedule-result.util.test.ts` (nested task/part null shapes).
 - **Non-effects:** No migration; no Service History changes; no C63/Arteon job recovery; no callback pricing or execution path changes.
+
+## P1 — OE_SERVICE_SCHEDULE FAILED callback inbox recovery (owner CLI, 2026-11-06, draft PR)
+
+- **Scope:** Separate recovery path from E4 VIN-lookup recovery: `OneAutoOeServiceScheduleFailedCallbackRecoveryService` replays **one** persisted `one_auto_provider_callback_inbox` row for a **FAILED** `OE_SERVICE_SCHEDULE` job with expected `lastErrorCode`, validates via `evaluateOneAutoFullDataCallbackPayload` + `parseOeServiceScheduleEuProviderResult`, optional strict 9+21 service counts, retention not expired, no `retrievalProviderDispatchAt`; mutating path uses `persistFullDataCallbackSuccessInTransaction` (audit row then callback envelope; **no** second provider HTTP, **no** BullMQ, **no** Service History / OEM writes, **no** budget change).
+- **Auth:** `ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_PRODUCTION_AUTHORIZED=1` **and** `ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_OWNER_ACK=1`; CLI default dry-run (`--execute` to apply).
+- **Ops:** `backend/scripts/ops/oneauto-oe-service-schedule-recover-failed-callback-job.ts` + `oneauto-oe-service-schedule-failed-callback-recovery-cli.module.ts` (minimal Nest context).
+- **Tests:** `oneauto-oe-service-schedule-failed-callback-recovery.spec.ts` (offline mocks).
+- **Non-effects:** Does not relax provider result retention; production execution and DB mutation remain owner-only outside CI.

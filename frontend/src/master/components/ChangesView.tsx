@@ -36,6 +36,26 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'oneauto-oe-service-schedule-failed-callback-recovery-p1-2026-11-06',
+    version: '4.9.5027',
+    title:
+      'One Auto — OE_SERVICE_SCHEDULE FAILED callback inbox recovery CLI (owner-gated, dry-run default)',
+    summary: [
+      'Separate ops service from E4 VIN recovery: replays exactly one non-duplicate inbox payload for a FAILED schedule job; validates full-data envelope + schedule parser; optional 9+21 count checks; retention gate unchanged.',
+      'Mutate path: atomic FAILED→SUCCEEDED via persistFullDataCallbackSuccessInTransaction (recovery_audit then e4_recovery_callback); getJobResult stays schedule-shaped; zero provider HTTP and no BullMQ / service-history / OEM writes.',
+      'Dual env authorization (production + owner ack); CLI default dry-run; tests in oneauto-oe-service-schedule-failed-callback-recovery.spec.ts.',
+    ],
+    reason:
+      'Jobs that failed with ONEAUTO_CALLBACK_PAYLOAD_INCOMPLETE despite a stored full-data callback need a controlled replay without a second billable One Auto request.',
+    previousBehavior:
+      'Only E4 VIN-lookup had a dedicated failed-callback recovery; schedule failures had no parallel owner path.',
+    details:
+      'backend: oneauto-oe-service-schedule-failed-callback-recovery.service.ts, .constants.ts, oneauto-oe-service-schedule-failed-callback-recovery-cli.module.ts, scripts/ops/oneauto-oe-service-schedule-recover-failed-callback-job.ts; architecture oneauto-provider/P1_CHANGE_RECORD.md.',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-11-06T17:50:00.000Z',
+  },
+  {
     id: 'oneauto-oe-service-schedule-p1-2026-11-05',
     title: 'One Auto P1 — OE Service Schedule (draft integration, non-executable)',
     summary:

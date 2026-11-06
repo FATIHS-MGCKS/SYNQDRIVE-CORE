@@ -475,6 +475,13 @@ interface FrontendFlowEntry {
 }
 
 const FRONTEND_FLOWS: FrontendFlowEntry[] = [
+  { name: 'One Auto — OE_SERVICE_SCHEDULE FAILED callback recovery (P1 ops CLI, V4.9.5027)', icon: Wrench,
+    endpoint:
+      'Offline ops: `npx ts-node backend/scripts/ops/oneauto-oe-service-schedule-recover-failed-callback-job.ts` — flags `--job-id`, `--organization-id`, `--vehicle-id`, `--expected-vin`, optional SKU/error/counts; default **dry-run**; `--execute` + `ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_PRODUCTION_AUTHORIZED=1` + `ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_OWNER_ACK=1`. No HTTP route; not invoked from product UI.',
+    service:
+      '`OneAutoOeServiceScheduleFailedCallbackRecoveryService`: load job + single inbox row → `evaluateOneAutoFullDataCallbackPayload` + `parseOeServiceScheduleEuProviderResult` → optional expected counts → `persistFullDataCallbackSuccessInTransaction` (recovery_audit then `e4_recovery_callback`). Zero provider HTTP; no BullMQ; no service-history or OEM writes; retention/expiry enforced.',
+    dataSource:
+      '`backend/src/modules/oneauto-provider/oneauto-oe-service-schedule-failed-callback-recovery.service.ts`; tests `oneauto-oe-service-schedule-failed-callback-recovery.spec.ts`; change record `architecture/oneauto-provider/P1_CHANGE_RECORD.md`.' },
   { name: 'Master Vehicle Identity P2 — registration review (V4.9.4999)', icon: UserPlus,
     endpoint: 'POST `…/registration-identity-review/reconcile` · `…/validate-confirmations` · P3: `…/ai-v2-preview` · `…/save` · `…/provenance`. ZB-I upload: `POST /vehicles/:vehicleId/document-extractions/upload` via `api.vehicleIntelligence.uploadDocumentExtraction`.',
     service: 'P2: `ZB1_VEHICLE_IDENTITY_P2_ENABLED` + `VITE_ZB1_VEHICLE_IDENTITY_P2_ENABLED` (validate `persisted: false`). P3: `ZB1_VEHICLE_IDENTITY_P3_*` + `VITE_ZB1_VEHICLE_IDENTITY_P3_ENABLED` — canonical identity, AI V2 preview, explicit save + `registration_identity_provenance`. FIN gate; P.2 ≠ system power; conflict gates on save.',
@@ -1242,6 +1249,18 @@ const INTEGRATIONS: IntegrationEntry[] = [
       { label: 'Directions API', detail: 'Route reconstruction, road types' },
       { label: 'Geocoding API', detail: 'Address lookup / reverse geocode' },
       { label: 'Map GL', detail: 'Frontend map rendering' },
+    ],
+  },
+  {
+    name: 'One Auto (Master Admin provider)',
+    icon: Wrench,
+    color: 'text-[color:var(--status-ai)]',
+    apis: [
+      {
+        label: 'OE_SERVICE_SCHEDULE — FAILED callback inbox recovery (P1)',
+        detail:
+          'Owner-only ops CLI replays one persisted callback inbox JSON for a FAILED schedule job: validates wrapped envelope + schedule fields, optional 9+21 counts, retention; atomic FAILED→SUCCEEDED via shared E4 transaction helper; dual env `ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_*`; default dry-run; zero outbound provider HTTP. Code: oneauto-oe-service-schedule-failed-callback-recovery.service.ts, scripts/ops/oneauto-oe-service-schedule-recover-failed-callback-job.ts.',
+      },
     ],
   },
   {
