@@ -35,7 +35,11 @@ export interface RatioStableRun {
   end_second: number;
   n_seconds: number;
   k_hat: number;
-  k_sigma_approx: number;
+  /** Policy-derived exploratory bound only — not validated measurement uncertainty. */
+  k_sigma_policy_exploratory: number;
+  within_run_k_min?: number;
+  within_run_k_max?: number;
+  drift_within_run_descriptive?: boolean;
   break_reason_start?: RunBreakClass;
 }
 
@@ -43,7 +47,8 @@ export type RunBreakClass =
   | "UNCERTAINTY_GATE"
   | "CLIP_BOUNDARY"
   | "GAP"
-  | "TRANSITION_CONTEXT";
+  | "TRANSITION_CONTEXT"
+  | "DRIFT_WITHIN_RUN";
 
 export interface ModeCandidate {
   id: string;

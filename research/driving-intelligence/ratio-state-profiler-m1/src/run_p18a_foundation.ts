@@ -2,16 +2,26 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { P16_REGRESSION, P17_1_CONTEXT, RAY_RUN_P18A } from "./constants.js";
-import { stableReportHash } from "./hash.js";
-import { verifyP16Gate, resolveRepoRoot, resolvePackageRoot } from "./pin/p16_gate.js";
 import {
-  attemptForbiddenVideoR1UtcJoin,
+  P16_REGRESSION,
+  P16_SEALED_ARTIFACTS,
+  P17_1_CONTEXT,
+  RAY_RUN_P18A,
+} from "./constants.js";
+import { stableReportHash } from "./hash.js";
+import {
+  verifyP16Gate,
+  resolveRepoRoot,
+  resolvePackageRoot,
+  loadManifestFromPath,
+} from "./pin/p16_gate.js";
+import {
   block5Subsample,
   eligibleVideoRows,
   parseP5QcCsv,
   parseR1SameRowPairs,
 } from "./loaders/video_cohort.js";
+import { parseVideo1HzCsv } from "./loaders/video_1hz.js";
 import {
   assertP16BaselineRegression,
   computeBaselineB0B1,
@@ -22,9 +32,10 @@ import {
 import { independentRunDiagnostics, segmentRatioStableRuns } from "./compute/segment_runs.js";
 import {
   assertP171Parity,
-  labelDrivingContextV1,
+  attachContextToEligibleRows,
+  buildDrivingContextGridFrom1Hz,
   loadManoeuvreWindows,
-  countEligibleInsideWindows,
+  windowOverlapRootCauseReport,
 } from "./compute/driving_context.js";
 import { runNegativeControls } from "./controls/negative_controls.js";
 import { rayFitFromEligibleRows } from "./interfaces/ray_fit.js";
@@ -37,17 +48,25 @@ const here = fileURLToPath(new URL(".", import.meta.url));
 const repoRoot = resolveRepoRoot(here);
 const pkgRoot = resolvePackageRoot(repoRoot);
 
+function sealedPath(role: string): string {
+  const art = P16_SEALED_ARTIFACTS.find((a) => a.role === role);
+  if (!art) throw new Error(`missing pinned role ${role}`);
+  return join(repoRoot, art.repo_relative);
+}
+
 export function buildP18aFoundationReport(): Record<string, unknown> {
   const manifestPath = join(pkgRoot, "fixtures/p16-ratio-state-evidence-pin-manifest.json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
+  const manifest = loadManifestFromPath(manifestPath);
   const gate = verifyP16Gate(repoRoot, manifestPath, manifest);
 
-  const p5Path = gate.sealed_inputs.find((s) => s.role === "p5_optical_qc_overlay")!.resolved_path;
-  const s4Path = gate.sealed_inputs.find((s) => s.role === "sealed_s4_r1_obd")!.resolved_path;
-  const windowsPath = join(
-    repoRoot,
-    "research/driving-intelligence/evaluations/ds4-speed-video-reference-20261023/inputs/tiguan-20261022/reference/TIGUAN_2026-10-22_analysis_windows.csv",
-  );
+  if (gate.verdict !== "PASS") {
+    return failReportEarly(gate, "SOURCE_INTEGRITY_FAIL_CLOSED");
+  }
+
+  const p5Path = sealedPath("p5_optical_qc_overlay");
+  const s4Path = sealedPath("sealed_s4_r1_obd");
+  const hzPath = sealedPath("video_1hz_reference");
+  const windowsPath = sealedPath("analysis_windows_nine");
 
   const qc = parseP5QcCsv(p5Path);
   const eligible = eligibleVideoRows(qc);
@@ -55,17 +74,18 @@ export function buildP18aFoundationReport(): Record<string, unknown> {
   const baseline = computeBaselineB0B1(eligible, block5);
   const p16 = assertP16BaselineRegression(eligible, block5, baseline);
 
+  const rows1Hz = parseVideo1HzCsv(hzPath);
   const windows = loadManoeuvreWindows(windowsPath);
-  const contextLabels = labelDrivingContextV1(eligible, windows);
+  const contextGrid = buildDrivingContextGridFrom1Hz(rows1Hz, windows);
+  const contextLabels = attachContextToEligibleRows(eligible, contextGrid);
   const p171 = assertP171Parity(eligible, windows, contextLabels);
 
-  const { runs, break_class_counts } = segmentRatioStableRuns(eligible);
+  const { runs, break_class_counts, uncertainty_disclaimer } =
+    segmentRatioStableRuns(eligible);
   const runDiag = independentRunDiagnostics(runs);
 
   const r1 = parseR1SameRowPairs(s4Path);
-  const crossJoin = attemptForbiddenVideoR1UtcJoin(eligible, r1);
-
-  const controls = runNegativeControls(eligible);
+  const controls = runNegativeControls(eligible, r1);
 
   const clipCounts: Record<string, number> = {};
   for (const r of eligible) clipCounts[r.source_clip] = (clipCounts[r.source_clip] ?? 0) + 1;
@@ -78,15 +98,22 @@ export function buildP18aFoundationReport(): Record<string, unknown> {
     classifier_validated: false,
   };
 
+  const controlFailures = controls.filter((c) => c.verdict === "FAIL");
+  const mandatoryPass =
+    p16.pass && p171.pass && controlFailures.length === 0;
+
   const report: Record<string, unknown> = {
     schema: "DS4_RPM_P18A_RAY_RUN_FOUNDATION_V1",
     operation: "DS4_RPM_P18A_RAY_RUN_FOUNDATION_V1",
     mode: "IMPLEMENTATION_DRAFT_PR_ONLY",
     generated_at_utc: new Date().toISOString(),
+    mandatory_gates_pass: mandatoryPass,
     SOURCE_INTEGRITY: {
       verdict: gate.verdict,
-      p16_manifest_sha256_self: gate.manifest_sha256_self,
-      p16_manifest_sha256_self_expected: gate.manifest_sha256_self_expected,
+      manifest_sha256_self_declared: gate.manifest_sha256_self_declared,
+      manifest_sha256_self_recomputed: gate.manifest_sha256_self_recomputed,
+      manifest_sha256_self_expected: gate.manifest_sha256_self_expected,
+      manifest_content_integrity: gate.manifest_content_integrity,
       sealed_inputs: gate.sealed_inputs,
       errors: gate.errors,
     },
@@ -104,8 +131,13 @@ export function buildP18aFoundationReport(): Record<string, unknown> {
       pass: p171.pass,
       details: p171.details,
       contract_id: P17_1_CONTEXT.contractId,
-      eligible_inside_windows_measured: countEligibleInsideWindows(eligible, windows),
-      eligible_inside_windows_p171_design: P17_1_CONTEXT.windowEligibleOverlapCountP171Design,
+      context_source: "sealed_1Hz_display_speed_full_series_per_clip",
+      unique_window_overlap: p171.unique_window_overlap,
+      window_overlap_root_cause: windowOverlapRootCauseReport(),
+    },
+    VIDEO_CONTEXT_SOURCE_VERDICT: {
+      pass: p171.pass && eligible.length === P16_REGRESSION.videoPairCount,
+      note: "Context derived on full 1 Hz grid; labels attached to original 242 admissible rows only.",
     },
     ELIGIBLE_CLIP_COUNTS: {
       clips: clipCounts,
@@ -114,6 +146,14 @@ export function buildP18aFoundationReport(): Record<string, unknown> {
     INDEPENDENT_RUN_DIAGNOSTICS: {
       ...runDiag,
       break_class_counts,
+      uncertainty_disclaimer,
+    },
+    RUN_UNCERTAINTY_VERDICT: {
+      rpm_policy_rpm: 500,
+      not_calibrated_distribution: true,
+      k_sigma_policy_exploratory_only: true,
+      run_count_not_n_eff: true,
+      drift_within_run_flag_descriptive: true,
     },
     BASELINE_B0_B1_IMMUTABLE: baseline,
     NEGATIVE_CONTROL_RESULTS: controls,
@@ -125,6 +165,7 @@ export function buildP18aFoundationReport(): Record<string, unknown> {
     RAY_RUN_INTERFACE_READINESS: {
       ...readiness,
       classifier_enabled: RAY_RUN_P18A.classifierEnabled,
+      p18b_readiness: "NOT_READY_CLASSIFIER_DISABLED",
       sample_calls: {
         ray_fit: rayFitFromEligibleRows(eligible),
         separability: assessSeparability({ candidates: [], z_threshold: 2, require_both_clips: true }),
@@ -142,16 +183,20 @@ export function buildP18aFoundationReport(): Record<string, unknown> {
         }),
       },
     },
-    PAIRING_AUTHORITY: {
-      video: eligible[0]?.pairing_authority,
-      r1: r1[0]?.pairing_authority,
-      cross_join_guard: crossJoin,
-    },
     forbidden_field_scan: reportHasForbiddenGearFields({ report: "safe" }),
   };
 
   report.content_sha256_excluding_generated_at = stableReportHash(report);
   return report;
+}
+
+function failReportEarly(gate: ReturnType<typeof verifyP16Gate>, reason: string): Record<string, unknown> {
+  return {
+    schema: "DS4_RPM_P18A_RAY_RUN_FOUNDATION_V1",
+    mandatory_gates_pass: false,
+    fail_closed_reason: reason,
+    SOURCE_INTEGRITY: gate,
+  };
 }
 
 function median(vals: number[]): number {
@@ -160,15 +205,19 @@ function median(vals: number[]): number {
   return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
 }
 
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("run_p18a_foundation.ts")) {
+const isMain = process.argv[1]?.includes("run_p18a_foundation");
+if (isMain) {
   const report = buildP18aFoundationReport();
   const outPath =
     process.env.P18A_REPORT_PATH ??
     "/opt/cursor/artifacts/ds4-rpm-p18a-ray-run-foundation-report.json";
   writeFileSync(outPath, JSON.stringify(report, null, 2));
   console.log("wrote", outPath);
-  console.log("content_sha256", report.content_sha256_excluding_generated_at);
-  if ((report.SOURCE_INTEGRITY as { verdict: string }).verdict !== "PASS") {
+  console.log("mandatory_gates_pass", report.mandatory_gates_pass);
+  if (report.content_sha256_excluding_generated_at) {
+    console.log("content_sha256", report.content_sha256_excluding_generated_at);
+  }
+  if (!report.mandatory_gates_pass) {
     process.exitCode = 1;
   }
 }

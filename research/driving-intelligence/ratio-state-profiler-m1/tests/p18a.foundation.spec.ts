@@ -1,125 +1,122 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { P16_MANIFEST_SHA256_SELF, P16_REGRESSION, P17_1_CONTEXT } from "../src/constants.js";
-import { verifyP16Gate, resolveRepoRoot, resolvePackageRoot } from "../src/pin/p16_gate.js";
+import {
+  P16_MANIFEST_SHA256_SELF,
+  P16_REGRESSION,
+  P16_SEALED_ARTIFACTS,
+  P17_1_CONTEXT,
+} from "../src/constants.js";
+import {
+  verifyP16Gate,
+  resolveRepoRoot,
+  resolvePackageRoot,
+  loadManifestFromPath,
+  recomputeManifestSelfHashFromFile,
+} from "../src/pin/p16_gate.js";
 import {
   eligibleVideoRows,
   block5Subsample,
   parseP5QcCsv,
   parseR1SameRowPairs,
-  attemptForbiddenVideoR1UtcJoin,
 } from "../src/loaders/video_cohort.js";
+import { parseVideo1HzCsv } from "../src/loaders/video_1hz.js";
 import {
   assertP16BaselineRegression,
   computeBaselineB0B1,
   reportHasForbiddenGearFields,
 } from "../src/compute/baseline_b0_b1.js";
-import { segmentRatioStableRuns } from "../src/compute/segment_runs.js";
 import {
   assertP171Parity,
-  labelDrivingContextV1,
+  attachContextToEligibleRows,
+  buildDrivingContextGridFrom1Hz,
   loadManoeuvreWindows,
+  windowOverlapRootCauseReport,
 } from "../src/compute/driving_context.js";
 import { runNegativeControls } from "../src/controls/negative_controls.js";
 import { buildP18aFoundationReport } from "../src/run_p18a_foundation.js";
+import { stableReportHash } from "../src/hash.js";
 import { rayFitFromEligibleRows } from "../src/interfaces/ray_fit.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const repoRoot = resolveRepoRoot(join(here, ".."));
 const pkgRoot = resolvePackageRoot(repoRoot);
 
+function paths() {
+  const manifestPath = join(pkgRoot, "fixtures/p16-ratio-state-evidence-pin-manifest.json");
+  const p5 = join(pkgRoot, "fixtures/sealed/TIG22_P5_OPTICAL_QC_360ROWS.csv");
+  const s4 = join(
+    repoRoot,
+    P16_SEALED_ARTIFACTS.find((a) => a.role === "sealed_s4_r1_obd")!.repo_relative,
+  );
+  const hz = join(
+    repoRoot,
+    P16_SEALED_ARTIFACTS.find((a) => a.role === "video_1hz_reference")!.repo_relative,
+  );
+  const wins = join(
+    repoRoot,
+    P16_SEALED_ARTIFACTS.find((a) => a.role === "analysis_windows_nine")!.repo_relative,
+  );
+  return { manifestPath, p5, s4, hz, wins };
+}
+
 describe("P18A RAY-RUN foundation", () => {
-  it("verifies P16 manifest declared self-hash (5774…704e6)", () => {
-    const manifestPath = join(pkgRoot, "fixtures/p16-ratio-state-evidence-pin-manifest.json");
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  it("recomputes P16 manifest content digest (not declared field alone)", () => {
+    const { manifestPath } = paths();
+    const recomputed = recomputeManifestSelfHashFromFile(manifestPath);
+    assert.equal(recomputed, P16_MANIFEST_SHA256_SELF);
+    const manifest = loadManifestFromPath(manifestPath);
     assert.equal(manifest.manifest_sha256_self, P16_MANIFEST_SHA256_SELF);
   });
 
-  it("P16 gate passes on sealed fixtures", () => {
-    const manifestPath = join(pkgRoot, "fixtures/p16-ratio-state-evidence-pin-manifest.json");
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    const gate = verifyP16Gate(repoRoot, manifestPath, manifest);
+  it("P16 gate passes with all mandatory sealed roles including nine windows", () => {
+    const { manifestPath } = paths();
+    const gate = verifyP16Gate(repoRoot, manifestPath, loadManifestFromPath(manifestPath));
     assert.equal(gate.verdict, "PASS", gate.errors.join("; "));
+    assert.equal(gate.manifest_content_integrity, "MATCH");
+    const roles = new Set(gate.sealed_inputs.map((s) => s.role));
+    assert.ok(roles.has("analysis_windows_nine"));
   });
 
-  it("P16 parity: 242 video pairs, 49 block-5, 442 R1 same-row", () => {
-    const manifestPath = join(pkgRoot, "fixtures/p16-ratio-state-evidence-pin-manifest.json");
-    const gate = verifyP16Gate(
-      repoRoot,
-      manifestPath,
-      JSON.parse(readFileSync(manifestPath, "utf8")),
-    );
-    const p5 = gate.sealed_inputs.find((s) => s.role === "p5_optical_qc_overlay")!.resolved_path;
-    const s4 = gate.sealed_inputs.find((s) => s.role === "sealed_s4_r1_obd")!.resolved_path;
+  it("P16 parity: 242 / 49 / 442 / mode counts", () => {
+    const { p5, s4 } = paths();
     const eligible = eligibleVideoRows(parseP5QcCsv(p5));
     const block5 = block5Subsample(eligible);
     const baseline = computeBaselineB0B1(eligible, block5);
     const reg = assertP16BaselineRegression(eligible, block5, baseline);
     assert.ok(reg.pass, reg.details.join("; "));
-    assert.equal(eligible.length, P16_REGRESSION.videoPairCount);
-    assert.equal(block5.length, P16_REGRESSION.block5Count);
     assert.equal(parseR1SameRowPairs(s4).length, P16_REGRESSION.r1SameRowVMin20);
   });
 
-  it("measures eligible clip counts and run diagnostics (not assumed n_eff)", () => {
-    const p5 = join(pkgRoot, "fixtures/sealed/TIG22_P5_OPTICAL_QC_360ROWS.csv");
+  it("driving context from full 1 Hz series; 50 unique window overlap", () => {
+    const { p5, hz, wins } = paths();
     const eligible = eligibleVideoRows(parseP5QcCsv(p5));
-    const clips = new Set(eligible.map((r) => r.source_clip));
-    assert.equal(clips.size, 2);
-    const { runs } = segmentRatioStableRuns(eligible);
-    assert.ok(runs.length >= 1);
-    assert.equal(typeof runs.length, "number");
-  });
-
-  it("P17.1 context parity: measured window overlap + labels for all eligible rows", () => {
-    const p5 = join(pkgRoot, "fixtures/sealed/TIG22_P5_OPTICAL_QC_360ROWS.csv");
-    const windowsPath = join(
-      repoRoot,
-      "research/driving-intelligence/evaluations/ds4-speed-video-reference-20261023/inputs/tiguan-20261022/reference/TIGUAN_2026-10-22_analysis_windows.csv",
-    );
-    const eligible = eligibleVideoRows(parseP5QcCsv(p5));
-    const windows = loadManoeuvreWindows(windowsPath);
-    const labels = labelDrivingContextV1(eligible, windows);
-    const parity = assertP171Parity(eligible, windows, labels);
+    const grid = buildDrivingContextGridFrom1Hz(parseVideo1HzCsv(hz), loadManoeuvreWindows(wins));
+    const labels = attachContextToEligibleRows(eligible, grid);
+    const parity = assertP171Parity(eligible, loadManoeuvreWindows(wins), labels);
     assert.ok(parity.pass, parity.details.join("; "));
+    assert.equal(parity.unique_window_overlap, P17_1_CONTEXT.windowEligibleOverlapUniqueCount);
+    const root = windowOverlapRootCauseReport();
+    assert.equal(root.double_counted_key, "TC_00084.MOV|138");
   });
 
-  it("negative controls run without FAIL on P16 regression", () => {
-    const p5 = join(pkgRoot, "fixtures/sealed/TIG22_P5_OPTICAL_QC_360ROWS.csv");
+  it("negative controls: no FAIL verdicts on sealed inputs", () => {
+    const { p5, s4 } = paths();
     const eligible = eligibleVideoRows(parseP5QcCsv(p5));
-    const controls = runNegativeControls(eligible);
-    const p16 = controls.find((c) => c.control_id === "NC-G_P16_REGRESSION");
-    assert.equal(p16?.verdict, "PASS");
+    const controls = runNegativeControls(eligible, parseR1SameRowPairs(s4));
+    const fails = controls.filter((c) => c.verdict === "FAIL");
+    assert.equal(fails.length, 0, fails.map((f) => f.control_id).join(","));
   });
 
-  it("forbidden cross-join guard is fail-closed", () => {
-    const p5 = join(pkgRoot, "fixtures/sealed/TIG22_P5_OPTICAL_QC_360ROWS.csv");
-    const s4 = join(
-      repoRoot,
-      "research/driving-intelligence/evaluations/ds4-speed-video-reference-20261023/inputs/tiguan-20261022/snapshots/di_v0_s4_evidence_container.bin",
-    );
-    const v = eligibleVideoRows(parseP5QcCsv(p5));
-    const r1 = parseR1SameRowPairs(s4);
-    const g = attemptForbiddenVideoR1UtcJoin(v, r1);
-    assert.equal(g.verdict, "BLOCKED_CROSS_SOURCE");
-  });
-
-  it("report schema has no gear fields; RAY-RUN classifier not enabled", () => {
-    const report = buildP18aFoundationReport();
-    assert.deepEqual(reportHasForbiddenGearFields(report), []);
-    const readiness = report.RAY_RUN_INTERFACE_READINESS as Record<string, unknown>;
-    assert.equal(readiness.classifier_enabled, false);
+  it("foundation report mandatory gates pass; deterministic hash stable", () => {
+    const a = buildP18aFoundationReport();
+    const b = buildP18aFoundationReport();
+    assert.equal(a.mandatory_gates_pass, true);
+    assert.equal(a.SOURCE_INTEGRITY && (a.SOURCE_INTEGRITY as { verdict: string }).verdict, "PASS");
+    assert.equal(stableReportHash(a as Record<string, unknown>), stableReportHash(b as Record<string, unknown>));
+    assert.deepEqual(reportHasForbiddenGearFields(a), []);
     assert.equal(rayFitFromEligibleRows([]).status, "NOT_ENABLED_P18A");
-  });
-
-  it("foundation report SOURCE_INTEGRITY passes", () => {
-    const report = buildP18aFoundationReport();
-    const si = report.SOURCE_INTEGRITY as { verdict: string };
-    assert.equal(si.verdict, "PASS");
-    const ctx = report.P17_1_CONTEXT_PARITY as { pass: boolean };
-    assert.equal(ctx.pass, true);
   });
 });

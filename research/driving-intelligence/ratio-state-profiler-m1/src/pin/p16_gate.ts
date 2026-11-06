@@ -1,12 +1,15 @@
-import { existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { P16_MANIFEST_SHA256_SELF } from "../constants.js";
+import { P16_MANIFEST_SHA256_SELF, P16_SEALED_ARTIFACTS } from "../constants.js";
 import { sha256File } from "../hash.js";
 
 export interface P16GateResult {
   verdict: "PASS" | "FAIL_CLOSED";
-  manifest_sha256_self: string;
+  manifest_sha256_self_declared: string;
+  manifest_sha256_self_recomputed: string;
   manifest_sha256_self_expected: string;
+  manifest_content_integrity: "MATCH" | "MISMATCH" | "RECOMPUTE_FAILED";
   sealed_inputs: Array<{
     role: string;
     resolved_path: string;
@@ -25,6 +28,7 @@ export interface P16Manifest {
       repo_relative?: string;
       path?: string;
       sha256?: string;
+      present?: boolean;
     }>;
   };
 }
@@ -44,11 +48,14 @@ export function resolvePackageRoot(repoRoot: string): string {
   return join(repoRoot, "research/driving-intelligence/ratio-state-profiler-m1");
 }
 
-/** Resolve sealed artifact path; P5 QC uses repo fixture when artifact path is absent. */
 export function resolveSealedInputPath(
   repoRoot: string,
   entry: { role: string; repo_relative?: string; path?: string },
 ): string {
+  const pinned = P16_SEALED_ARTIFACTS.find((a) => a.role === entry.role);
+  if (pinned?.repo_relative) {
+    return join(repoRoot, pinned.repo_relative);
+  }
   if (entry.repo_relative) {
     return join(repoRoot, entry.repo_relative);
   }
@@ -64,51 +71,92 @@ export function resolveSealedInputPath(
   throw new Error(`Unresolvable sealed input role=${entry.role}`);
 }
 
-export function verifyP16Gate(
-  repoRoot: string,
-  manifestPath: string,
-  manifest: P16Manifest,
-): P16GateResult {
+/** Canonical P16 self-hash (Python json.dumps sort_keys, compact separators, ensure_ascii). */
+export function recomputeManifestSelfHashFromFile(manifestPath: string): string {
+  const script = `
+import json, hashlib, sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    obj = json.load(f)
+obj.pop("manifest_sha256_self", None)
+payload = json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+print(hashlib.sha256(payload).hexdigest())
+`;
+  return execFileSync("python3", ["-c", script, manifestPath], { encoding: "utf8" }).trim();
+}
+
+export function verifyP16Gate(repoRoot: string, manifestPath: string, manifest: P16Manifest): P16GateResult {
   const errors: string[] = [];
-  const declaredSelf = manifest.manifest_sha256_self;
-  if (declaredSelf !== P16_MANIFEST_SHA256_SELF) {
-    errors.push(
-      `manifest_sha256_self field mismatch: got ${declaredSelf}, expected ${P16_MANIFEST_SHA256_SELF}`,
-    );
+  const declaredSelf = manifest.manifest_sha256_self ?? "MISSING";
+
+  let recomputed = "RECOMPUTE_FAILED";
+  let contentIntegrity: P16GateResult["manifest_content_integrity"] = "RECOMPUTE_FAILED";
+  try {
+    recomputed = recomputeManifestSelfHashFromFile(manifestPath);
+    contentIntegrity = recomputed === P16_MANIFEST_SHA256_SELF ? "MATCH" : "MISMATCH";
+    if (recomputed !== P16_MANIFEST_SHA256_SELF) {
+      errors.push(
+        `manifest content digest mismatch: recomputed ${recomputed}, expected ${P16_MANIFEST_SHA256_SELF}`,
+      );
+    }
+    if (declaredSelf !== P16_MANIFEST_SHA256_SELF) {
+      errors.push(
+        `manifest_sha256_self declared field mismatch: got ${declaredSelf}, expected ${P16_MANIFEST_SHA256_SELF}`,
+      );
+    }
+    if (declaredSelf !== recomputed) {
+      errors.push(`declared self-hash does not match recomputed content digest`);
+    }
+  } catch (e) {
+    errors.push(`manifest recompute failed: ${String(e)}`);
   }
-  /** Recomputed from parsed JSON is intentionally not used (JS number canonicalization ≠ Python P16 pin). */
-  void manifestPath;
 
-  const sealed = manifest.SOURCE_INTEGRITY?.sealed_inputs ?? [];
+  for (const required of P16_SEALED_ARTIFACTS) {
+    const resolved = join(repoRoot, required.repo_relative);
+    if (!existsSync(resolved)) {
+      errors.push(`missing required artifact role=${required.role} path=${resolved}`);
+      continue;
+    }
+    const digest = sha256File(resolved);
+    if (digest !== required.sha256) {
+      errors.push(`sha256 mismatch role=${required.role} path=${resolved}`);
+    }
+  }
+
   const sealed_inputs: P16GateResult["sealed_inputs"] = [];
+  for (const required of P16_SEALED_ARTIFACTS) {
+    const resolved = join(repoRoot, required.repo_relative);
+    const digest = existsSync(resolved) ? sha256File(resolved) : "MISSING";
+    sealed_inputs.push({
+      role: required.role,
+      resolved_path: resolved,
+      sha256: digest,
+      sha256_expected: required.sha256,
+      match: digest === required.sha256,
+    });
+  }
 
-  for (const entry of sealed) {
-    if (!entry.sha256) continue;
-    if (entry.role === "analysis_windows_optional") continue;
-    try {
-      const resolved = resolveSealedInputPath(repoRoot, entry);
-      const digest = sha256File(resolved);
-      const match = digest === entry.sha256;
-      if (!match) {
-        errors.push(`sha256 mismatch role=${entry.role} path=${resolved}`);
+  const manifestRoles = new Set(
+    (manifest.SOURCE_INTEGRITY?.sealed_inputs ?? []).map((e) => e.role),
+  );
+  for (const required of P16_SEALED_ARTIFACTS) {
+    if (required.role === "analysis_windows_nine") {
+      if (!manifestRoles.has("analysis_windows_optional") && !manifestRoles.has("analysis_windows_nine")) {
+        errors.push("manifest missing analysis windows role entry (expected analysis_windows_optional)");
       }
-      sealed_inputs.push({
-        role: entry.role,
-        resolved_path: resolved,
-        sha256: digest,
-        sha256_expected: entry.sha256,
-        match,
-      });
-    } catch (e) {
-      errors.push(String(e));
     }
   }
 
   return {
     verdict: errors.length === 0 ? "PASS" : "FAIL_CLOSED",
-    manifest_sha256_self: declaredSelf ?? "MISSING",
+    manifest_sha256_self_declared: declaredSelf,
+    manifest_sha256_self_recomputed: recomputed,
     manifest_sha256_self_expected: P16_MANIFEST_SHA256_SELF,
+    manifest_content_integrity: contentIntegrity,
     sealed_inputs,
     errors,
   };
+}
+
+export function loadManifestFromPath(manifestPath: string): P16Manifest {
+  return JSON.parse(readFileSync(manifestPath, "utf8")) as P16Manifest;
 }

@@ -3,10 +3,16 @@ import { M1_DEFAULTS } from "../constants.js";
 
 const RPM_POLICY = M1_DEFAULTS.rpmVisualUncertaintyPolicyRpm;
 
-/** Uncertainty-gated ratio-stable run segmentation (I2 foundation — not a validated classifier). */
+/**
+ * Uncertainty-gated segmentation (research foundation only).
+ * ±500 rpm is a visual reading policy bound — not calibrated Gaussian/independent uniform noise.
+ * k_sigma_policy_exploratory uses uniform half-width/√3 over speed weights — not validated certainty.
+ * Run count is not n_eff; small per-step gates can chain across large k drift within one run.
+ */
 export function segmentRatioStableRuns(rows: VideoEligibleRow[]): {
   runs: RatioStableRun[];
   break_class_counts: Record<RunBreakClass, number>;
+  uncertainty_disclaimer: string;
 } {
   const sorted = [...rows].sort(
     (a, b) => a.source_clip.localeCompare(b.source_clip) || a.video_second - b.video_second,
@@ -16,6 +22,7 @@ export function segmentRatioStableRuns(rows: VideoEligibleRow[]): {
     CLIP_BOUNDARY: 0,
     GAP: 0,
     TRANSITION_CONTEXT: 0,
+    DRIFT_WITHIN_RUN: 0,
   };
 
   type RunAcc = {
@@ -46,7 +53,7 @@ export function segmentRatioStableRuns(rows: VideoEligibleRow[]): {
       };
       continue;
     }
-    const prev = cur.rows[cur.rows.length - 1]!;
+    const prev: VideoEligibleRow = cur.rows[cur.rows.length - 1]!;
     if (r.video_second !== prev.video_second + 1) {
       breakCounts.GAP++;
       acc.push(cur);
@@ -81,19 +88,31 @@ export function segmentRatioStableRuns(rows: VideoEligibleRow[]): {
 
   const runs: RatioStableRun[] = acc.map((run) => {
     const kHat = leastSquaresOriginSlope(run.rows);
-    const sigma = rpmPolicySigmaApprox(run.rows);
+    const kSpread = withinRunKSpread(run.rows);
+    const driftFlag = kSpread > RPM_POLICY / Math.min(...run.rows.map((x) => x.speed_kmh));
+    if (driftFlag && run.rows.length >= 3) {
+      breakCounts.DRIFT_WITHIN_RUN++;
+    }
     return {
       clip: run.clip,
       start_second: run.start,
       end_second: run.end,
       n_seconds: run.rows.length,
       k_hat: kHat,
-      k_sigma_approx: sigma,
+      k_sigma_policy_exploratory: policyExploratorySigma(run.rows),
+      within_run_k_min: kSpread === 0 ? kHat : Math.min(...run.rows.map((r) => r.rpm / r.speed_kmh)),
+      within_run_k_max: Math.max(...run.rows.map((r) => r.rpm / r.speed_kmh)),
+      drift_within_run_descriptive: driftFlag,
       break_reason_start: run.break_start,
     };
   });
 
-  return { runs, break_class_counts: breakCounts };
+  return {
+    runs,
+    break_class_counts: breakCounts,
+    uncertainty_disclaimer:
+      "Runs are uncertainty-gated descriptive segments only; not physical gear persistence. Do not interpret run count as n_eff.",
+  };
 }
 
 function leastSquaresOriginSlope(rows: VideoEligibleRow[]): number {
@@ -106,8 +125,12 @@ function leastSquaresOriginSlope(rows: VideoEligibleRow[]): number {
   return den > 0 ? num / den : 0;
 }
 
-/** ±500 rpm is a policy bound, not a calibrated σ; use uniform half-width / √3 as exploratory σ. */
-function rpmPolicySigmaApprox(rows: VideoEligibleRow[]): number {
+function withinRunKSpread(rows: VideoEligibleRow[]): number {
+  const ks = rows.map((r) => r.rpm / r.speed_kmh);
+  return Math.max(...ks) - Math.min(...ks);
+}
+
+function policyExploratorySigma(rows: VideoEligibleRow[]): number {
   const uniformHalfWidth = RPM_POLICY;
   const sigmaRpm = uniformHalfWidth / Math.sqrt(3);
   let den = 0;
@@ -127,13 +150,14 @@ export function independentRunDiagnostics(runs: RatioStableRun[]): Record<string
       median: lens.length ? median(lens) : 0,
       max: lens.length ? Math.max(...lens) : 0,
     },
-    note:
-      "Run count is measured under P18A segmentation; not a pre-assumed n_eff. Autocorrelation within runs remains.",
+    not_n_eff: true,
   };
 }
 
 function median(vals: number[]): number {
-  const s = [...vals].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
+  if (vals.length === 0) return 0;
+  const sorted = [...vals].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[mid]!;
+  return (sorted[mid - 1]! + sorted[mid]!) / 2;
 }

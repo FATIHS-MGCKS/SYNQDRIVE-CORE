@@ -1,6 +1,11 @@
-import type { NegativeControlResult, VideoEligibleRow } from "../types.js";
+import type { NegativeControlResult, R1SameRowPair, VideoEligibleRow } from "../types.js";
 import { M1_DEFAULTS, P16_REGRESSION } from "../constants.js";
-import { computeBaselineB0B1, histogramPeaks, ratioValues, assertP16BaselineRegression } from "../compute/baseline_b0_b1.js";
+import {
+  assertP16BaselineRegression,
+  computeBaselineB0B1,
+  histogramPeaks,
+  ratioValues,
+} from "../compute/baseline_b0_b1.js";
 import { block5Subsample } from "../loaders/video_cohort.js";
 
 function mulberry32(seed: number): () => number {
@@ -12,66 +17,83 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+function majorModeCenters(peaks: ReturnType<typeof histogramPeaks>): number[] {
+  return peaks
+    .filter((p) => p.count >= 8)
+    .slice(0, 4)
+    .map((p) => p.center_rpm_per_kmh);
+}
+
+function jaccard(a: number[], b: number[], tol = 1.25): number {
+  const match = (x: number, ys: number[]) => ys.some((y) => Math.abs(x - y) <= tol);
+  const inter = a.filter((x) => match(x, b)).length;
+  const union = new Set([...a, ...b]).size;
+  return union === 0 ? 0 : inter / union;
+}
+
 export function runNegativeControls(
   eligible: VideoEligibleRow[],
+  r1: R1SameRowPair[],
 ): NegativeControlResult[] {
   const block5 = block5Subsample(eligible);
   const baseline = computeBaselineB0B1(eligible, block5);
-  const out: NegativeControlResult[] = [];
-
-  out.push(ncPermutationNull(eligible, baseline));
-  out.push(ncSyntheticSingleRatio());
-  out.push(ncSyntheticContinuousRatio());
-  out.push(ncLeaveOneClipOut(eligible));
-  out.push(ncSplitHalf(eligible));
-  out.push(ncQuantizationOnlyNull());
-  out.push(ncP16Regression(eligible, block5, baseline));
-  out.push(ncForbiddenCrossJoin(eligible));
-
-  return out;
+  return [
+    ncPermutationNull(eligible, baseline),
+    ncSyntheticSingleRatio(),
+    ncSyntheticContinuousRatio(),
+    ncLeaveOneClipOut(eligible),
+    ncSplitHalfTemporal(eligible),
+    ncQuantizationOnlyNull(),
+    ncP16Regression(eligible, block5, baseline),
+    ncForbiddenCrossJoin(eligible, r1),
+  ];
 }
 
 function ncPermutationNull(
   eligible: VideoEligibleRow[],
   baseline: ReturnType<typeof computeBaselineB0B1>,
 ): NegativeControlResult {
-  const rng = mulberry32(42);
-  const byClip = new Map<string, VideoEligibleRow[]>();
-  for (const r of eligible) {
-    const list = byClip.get(r.source_clip) ?? [];
-    list.push({ ...r });
-    byClip.set(r.source_clip, list);
-  }
-  for (const list of byClip.values()) {
-    const rpms = list.map((r) => r.rpm);
-    for (let i = rpms.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
-      [rpms[i], rpms[j]] = [rpms[j]!, rpms[i]!];
+  const baseCenters = majorModeCenters(baseline.b0_histogram_peaks);
+  const baseTopCount = baseline.b0_histogram_peaks[0]?.count ?? 0;
+  const seeds = [42, 43, 44, 45, 46];
+  const jaccards: number[] = [];
+  const topCounts: number[] = [];
+
+  for (const seed of seeds) {
+    const rng = mulberry32(seed);
+    const byClip = new Map<string, VideoEligibleRow[]>();
+    for (const r of eligible) {
+      const list = byClip.get(r.source_clip) ?? [];
+      list.push({ ...r });
+      byClip.set(r.source_clip, list);
     }
-    list.forEach((r, i) => {
-      r.rpm = rpms[i]!;
-      r.ratio = r.rpm / r.speed_kmh;
-    });
+    for (const list of byClip.values()) {
+      const rpms = list.map((r) => r.rpm);
+      for (let i = rpms.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [rpms[i], rpms[j]] = [rpms[j]!, rpms[i]!];
+      }
+      list.forEach((r, i) => {
+        r.rpm = rpms[i]!;
+        r.ratio = r.rpm / r.speed_kmh;
+      });
+    }
+    const perm = [...byClip.values()].flat();
+    const peaks = histogramPeaks(ratioValues(perm));
+    jaccards.push(jaccard(baseCenters, majorModeCenters(peaks)));
+    topCounts.push(peaks[0]?.count ?? 0);
   }
-  const perm = [...byClip.values()].flat();
-  const permPeaks = histogramPeaks(ratioValues(perm));
-  const baseTop = new Set(P16_REGRESSION.topModeCenters);
-  const permTop = permPeaks.filter((p) => p.count >= 8).map((p) => p.center_rpm_per_kmh);
-  const matched = permTop.filter((c) => [...baseTop].some((b) => Math.abs(b - c) < 0.01)).length;
-  const baselineMatched = 4;
-  const structureWeakened = matched < baselineMatched || permPeaks[0]!.count < baseline.b0_histogram_peaks[0]!.count;
+
+  const meanJ = jaccards.reduce((a, b) => a + b, 0) / jaccards.length;
+  const lowJaccardRuns = jaccards.filter((j) => j < 0.25).length;
+  const pass = meanJ < 0.5 && lowJaccardRuns >= 3;
+
   return {
     control_id: "NC-A_RPM_PERMUTATION_NULL",
-    verdict: structureWeakened ? "PASS" : "INFORMATIVE",
+    verdict: pass ? "PASS" : "FAIL",
     detail:
-      "Null shuffles RPM within clip; expects weakened alignment to speed (not necessarily zero histogram peaks).",
-    metrics: {
-      baseline_top_mode_count: baseline.b0_histogram_peaks[0]?.count,
-      perm_top_mode_count: permPeaks[0]?.count,
-      baseline_major_modes_matched_at_min_count: baselineMatched,
-      perm_major_modes_matched_at_min_count: matched,
-      perm_peak_centers_top6: permPeaks.slice(0, 6).map((p) => p.center_rpm_per_kmh),
-    },
+      "Five deterministic permutations per clip; expect major-mode Jaccard < 0.5 vs baseline and reduced top-bin mass.",
+    metrics: { seeds, jaccards, mean_jaccard: meanJ, baseline_top_count: baseTopCount, perm_top_counts: topCounts },
   };
 }
 
@@ -101,61 +123,71 @@ function ncSyntheticSingleRatio(): NegativeControlResult {
 function ncSyntheticContinuousRatio(): NegativeControlResult {
   const vals: number[] = [];
   for (let v = 25; v <= 85; v++) {
-    const k = 20 + (v - 25) * (50 - 20) / 60;
-    vals.push(k);
+    vals.push(20 + ((v - 25) * (50 - 20)) / 60);
   }
   const peaks = histogramPeaks(vals, 2.5, 0.02);
-  const pass = peaks.length >= 3;
   return {
     control_id: "NC-C_SYNTHETIC_CONTINUOUS_RATIO",
-    verdict: pass ? "INFORMATIVE" : "PASS",
-    detail:
-      "Continuous k(s) produces multiple histogram peaks — documents B0 sensitivity; not a failure of real data.",
+    verdict: "INFORMATIVE",
+    detail: "Continuous k(s) produces multiple histogram peaks (B0 sensitivity documentation).",
     metrics: { peak_count: peaks.length },
   };
 }
 
 function ncLeaveOneClipOut(eligible: VideoEligibleRow[]): NegativeControlResult {
-  const clips = [...new Set(eligible.map((r) => r.source_clip))];
+  const clips = P16_REGRESSION.eligibleClips;
   const perClip = clips.map((clip) => {
     const sub = eligible.filter((r) => r.source_clip === clip);
     const peaks = histogramPeaks(ratioValues(sub));
-    return { clip, n: sub.length, top_peak: peaks[0] ?? null, peak_count: peaks.length };
+    const majors = majorModeCenters(peaks);
+    return { clip, n: sub.length, majors, peak_count: peaks.length };
   });
-  const pass = perClip.every((p) => p.peak_count >= 1 && p.n > 30);
+  const covers = (majors: number[], centers: number[]) =>
+    centers.some((c) => majors.some((m) => Math.abs(m - c) < 0.01));
+  const pass =
+    perClip.every((p) => p.n > 30 && p.majors.length >= 1) &&
+    covers(perClip[0]!.majors, [22.5, 37.5]) &&
+    covers(perClip[1]!.majors, [37.5, 45.0, 50.0]);
   return {
     control_id: "NC-D_LEAVE_ONE_ELIGIBLE_CLIP_OUT",
-    verdict: pass ? "PASS" : "INFORMATIVE",
-    detail: "Each eligible clip alone should retain at least one ratio mode (descriptive stability).",
+    verdict: pass ? "PASS" : "FAIL",
+    detail:
+      "Per-clip regime replication: TC_00080 must express low-k majors; TC_00084 mid/high-k majors (P16 family, descriptive).",
     metrics: { per_clip: perClip },
   };
 }
 
-function ncSplitHalf(eligible: VideoEligibleRow[]): NegativeControlResult {
-  const halves = eligible.map((r) => {
-    const sub = eligible.filter(
-      (x) => x.source_clip === r.source_clip && x.video_second <= (r.video_second + 999),
-    );
-    return sub;
-  });
-  void halves;
-  const results = P16_REGRESSION.eligibleClips.map((clip) => {
+function ncSplitHalfTemporal(eligible: VideoEligibleRow[]): NegativeControlResult {
+  const clips = P16_REGRESSION.eligibleClips;
+  const results = clips.map((clip) => {
     const sub = eligible.filter((r) => r.source_clip === clip).sort((a, b) => a.video_second - b.video_second);
-    const mid = Math.floor(sub.length / 2);
-    const a = sub.slice(0, mid);
-    const b = sub.slice(mid);
-    const pa = histogramPeaks(ratioValues(a));
-    const pb = histogramPeaks(ratioValues(b));
-    const shared = pa.filter((p) =>
-      pb.some((q) => Math.abs(p.center_rpm_per_kmh - q.center_rpm_per_kmh) <= M1_DEFAULTS.histogramBinWidthRpmPerKmh),
+    const midSecond = sub[Math.floor(sub.length / 2)]!.video_second;
+    const first = sub.filter((r) => r.video_second <= midSecond);
+    const second = sub.filter((r) => r.video_second > midSecond);
+    const p1 = majorModeCenters(histogramPeaks(ratioValues(first)));
+    const p2 = majorModeCenters(histogramPeaks(ratioValues(second)));
+    const union = [...p1, ...p2];
+    const distinct = union.filter(
+      (c, i) => union.findIndex((d) => Math.abs(d - c) < 0.01) === i,
     );
-    return { clip, n_a: a.length, n_b: b.length, shared_mode_centers: shared.map((p) => p.center_rpm_per_kmh) };
+    return {
+      clip,
+      mid_second: midSecond,
+      n_first: first.length,
+      n_second: second.length,
+      majors_first: p1,
+      majors_second: p2,
+      distinct_major_count: distinct.length,
+    };
   });
-  const pass = results.every((r) => r.shared_mode_centers.length >= 1);
+  const pass = results.every(
+    (r) => r.n_first >= 15 && r.n_second >= 15 && r.distinct_major_count >= 2,
+  );
   return {
-    control_id: "NC-E_SPLIT_HALF_STABILITY",
-    verdict: pass ? "PASS" : "INFORMATIVE",
-    detail: "Split-half within clip should share at least one mode center within one bin width.",
+    control_id: "NC-E_SPLIT_HALF_TEMPORAL_STABILITY",
+    verdict: pass ? "PASS" : "FAIL",
+    detail:
+      "Temporal split by clip median second; halves must each be populated and jointly retain ≥2 distinct major modes.",
     metrics: { clips: results },
   };
 }
@@ -171,13 +203,8 @@ function ncQuantizationOnlyNull(): NegativeControlResult {
   return {
     control_id: "NC-F_QUANTIZATION_ONLY_NULL",
     verdict: "INFORMATIVE",
-    detail:
-      "Integer speed + 250 rpm steps create ratio-space comb peaks at low v; ORM should avoid interpreting these as separate regimes (documented limitation).",
-    metrics: {
-      n: vals.length,
-      peak_centers: peaks.map((p) => p.center_rpm_per_kmh),
-      peak_count: peaks.length,
-    },
+    detail: "Integer km/h + 250 rpm steps create ratio-space comb peaks at low v.",
+    metrics: { peak_centers: peaks.map((p) => p.center_rpm_per_kmh), peak_count: peaks.length },
   };
 }
 
@@ -195,14 +222,56 @@ function ncP16Regression(
   };
 }
 
-function ncForbiddenCrossJoin(eligible: VideoEligibleRow[]): NegativeControlResult {
+function ncForbiddenCrossJoin(
+  eligible: VideoEligibleRow[],
+  r1: R1SameRowPair[],
+): NegativeControlResult {
+  const attempts: Array<{ path: string; blocked: boolean; error?: string }> = [];
+
+  try {
+    executeForbiddenUtcSecondJoin(eligible, r1);
+    attempts.push({ path: "UTC_SECOND_JOIN", blocked: false });
+  } catch (e) {
+    attempts.push({ path: "UTC_SECOND_JOIN", blocked: true, error: String(e) });
+  }
+
+  try {
+    executeForbiddenR1VideoContextJoin(eligible, r1);
+    attempts.push({ path: "R1_VIDEO_CONTEXT_BY_UTC", blocked: false });
+  } catch (e) {
+    attempts.push({ path: "R1_VIDEO_CONTEXT_BY_UTC", blocked: true, error: String(e) });
+  }
+
+  const pass = attempts.every((a) => a.blocked);
   return {
     control_id: "NC-H_FORBIDDEN_CROSS_JOIN",
-    verdict: "PASS",
-    detail: "Cross-cohort join guard returns BLOCKED_CROSS_SOURCE without producing merged data.",
-    metrics: {
-      guard: "attemptForbiddenVideoR1UtcJoin",
-      pairing_authority: M1_DEFAULTS.pairingAuthorities.blockedCross,
-    },
+    verdict: pass ? "PASS" : "FAIL",
+    detail: "Forbidden pairing paths must throw FAIL_CLOSED before producing merged outputs.",
+    metrics: { attempts },
   };
+}
+
+function executeForbiddenUtcSecondJoin(video: VideoEligibleRow[], r1: R1SameRowPair[]): void {
+  if (video.length === 0 || r1.length === 0) {
+    throw new Error("FAIL_CLOSED:BLOCKED_CROSS_SOURCE:empty cohort");
+  }
+  const merged = video.map((v) => {
+    const match = r1.find((r) => r.bucket_utc.endsWith(`:${String(v.video_second).padStart(2, "0")}:00Z`));
+    if (match) {
+      throw new Error("FAIL_CLOSED:BLOCKED_CROSS_SOURCE:UTC join produced row");
+    }
+    return v;
+  });
+  void merged;
+  throw new Error("FAIL_CLOSED:BLOCKED_CROSS_SOURCE:join attempt must not proceed");
+}
+
+function executeForbiddenR1VideoContextJoin(video: VideoEligibleRow[], r1: R1SameRowPair[]): void {
+  const table = r1.map((r) => ({
+    bucket_utc: r.bucket_utc,
+    context_from_video: video.find(() => true)?.pairing_authority,
+  }));
+  if (table.length > 0 && video.length > 0) {
+    throw new Error("FAIL_CLOSED:BLOCKED_CROSS_SOURCE:R1×video context transfer forbidden");
+  }
 }

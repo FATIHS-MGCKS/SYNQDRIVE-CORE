@@ -1,0 +1,31 @@
+name: DS4 RPM M1 P18A research harness
+
+on:
+  pull_request:
+    paths:
+      - "research/driving-intelligence/ratio-state-profiler-m1/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "research/driving-intelligence/ratio-state-profiler-m1/**"
+
+jobs:
+  p18a-research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: research/driving-intelligence/ratio-state-profiler-m1/package-lock.json
+      - name: Install
+        working-directory: research/driving-intelligence/ratio-state-profiler-m1
+        run: npm ci
+      - name: Typecheck
+        working-directory: research/driving-intelligence/ratio-state-profiler-m1
+        run: npm run typecheck
+      - name: Tests
+        working-directory: research/driving-intelligence/ratio-state-profiler-m1
+        run: npm test
