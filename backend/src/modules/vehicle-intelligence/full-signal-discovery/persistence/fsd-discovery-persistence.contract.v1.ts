@@ -8,12 +8,17 @@ export type FsdDiscoveryRunScopeV1 = {
   providerSourceLinkId: string;
 };
 
+/** Catalog/snapshot (FSD-3) vs historical (FSD-4) — mutual admission on the same source link. */
+export type FsdDiscoveryStreamV1 = 'FSD3_CATALOG_SNAPSHOT' | 'FSD4_HISTORICAL';
+
 export type FsdDiscoveryRunIdentityV1 = FsdDiscoveryRunScopeV1 & {
   runKey: string;
   /** Ignored for replay matching; server allocates on create. */
   runRevision?: number;
   dimoTokenId: number | null;
   connectionIdentityFingerprint: string | null;
+  /** Defaults to FSD-3 catalog/snapshot when omitted (callers should set explicitly for new code). */
+  discoveryStream?: FsdDiscoveryStreamV1;
 };
 
 export function buildFsdDiscoveryRunKey(input: {
@@ -117,7 +122,8 @@ export class FsdDiscoveryPersistenceError extends Error {
       | 'RUN_IDENTITY_CONFLICT'
       | 'BUDGET_EXHAUSTED'
       | 'PROVIDER_DISPATCH_BLOCKED'
-      | 'RESUME_NOT_SAFE',
+      | 'RESUME_NOT_SAFE'
+      | 'ACTIVE_RUN_CONFLICT',
     message: string,
   ) {
     super(message);

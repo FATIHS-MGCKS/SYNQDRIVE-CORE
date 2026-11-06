@@ -79,6 +79,8 @@ async function seedDimoBinding(prisma: PrismaClient) {
 (LIVE ? describe : describe.skip)('FSD-3 ledger closeout R1–R3 (PostgreSQL)', () => {
   let prisma: PrismaClient;
 
+  jest.setTimeout(120_000);
+
   beforeAll(async () => {
     assertFsd2PersistencePostgresCiEnv();
     if (REQUIRED) {

@@ -148,9 +148,18 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       runKey,
       dimoTokenId: input.dimoTokenId,
       connectionIdentityFingerprint,
+      discoveryStream: 'FSD3_CATALOG_SNAPSHOT',
     };
 
-    const acquired = await this.persistence.acquireRunWithIdempotency(identity);
+    let acquired: AcquireFsdDiscoveryRunResultV1;
+    try {
+      acquired = await this.persistence.acquireRunWithIdempotency(identity);
+    } catch (err) {
+      if (err instanceof FsdDiscoveryPersistenceError && err.code === 'ACTIVE_RUN_CONFLICT') {
+        return buildTerminalFailureResult({ runId: '', reason: 'ACTIVE_RUN_CONFLICT' });
+      }
+      throw err;
+    }
     try {
       if (acquired.kind === 'REPLAYED') {
         return await this.continueOrReportExistingRun(input, scope, acquired, budget);

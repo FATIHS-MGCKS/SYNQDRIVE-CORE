@@ -4922,6 +4922,12 @@ enum FsdDiscoverySignalEvidenceState {
   DEFERRED
 }
 
+/// Separates FSD-3 catalog/snapshot runs from FSD-4 historical runs for mutual admission (same source link).
+enum FsdDiscoveryStream {
+  FSD3_CATALOG_SNAPSHOT
+  FSD4_HISTORICAL
+}
+
 /// FSD-2 — durable discovery run owner context (no provider execution in this phase).
 model FsdDiscoveryRun {
   id                            String                  @id @default(cuid())
@@ -4931,6 +4937,7 @@ model FsdDiscoveryRun {
   runKey                        String                  @map("run_key")
   runRevision                   Int                     @default(1) @map("run_revision")
   contractVersion               String                  @default("fsd-discovery-run-v1") @map("contract_version")
+  discoveryStream               FsdDiscoveryStream      @default(FSD3_CATALOG_SNAPSHOT) @map("discovery_stream")
   dimoTokenId                   Int?                    @map("dimo_token_id")
   connectionIdentityFingerprint String?                 @map("connection_identity_fingerprint")
   status                        FsdDiscoveryRunStatus   @default(PENDING)
@@ -4956,6 +4963,7 @@ model FsdDiscoveryRun {
   @@unique([providerSourceLinkId, runRevision], map: "fsd_discovery_runs_source_link_revision_key")
   @@index([organizationId, vehicleId])
   @@index([providerSourceLinkId, status])
+  @@index([providerSourceLinkId, discoveryStream, status], map: "fsd_discovery_runs_source_link_stream_status_idx")
   @@index([invalidatedAt])
   @@map("fsd_discovery_runs")
 }
