@@ -1,11 +1,7 @@
 import type { FsdEvidenceDimensionsV1 } from './fsd-evidence.contract.v1';
+import type { FsdGraphqlErrorPathSegment, FsdGraphqlErrorV1 } from '@modules/dimo/fsd-graphql.types.v1';
 
-export type FsdGraphqlErrorPathSegment = string | number;
-
-export type FsdGraphqlErrorV1 = {
-  message?: string;
-  path?: readonly FsdGraphqlErrorPathSegment[];
-};
+export type { FsdGraphqlErrorPathSegment, FsdGraphqlErrorV1 } from '@modules/dimo/fsd-graphql.types.v1';
 
 export type FsdGraphqlResponseInterpretationInputV1 = {
   fieldNamesInDocument: readonly string[];

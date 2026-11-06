@@ -146,9 +146,8 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
         return await this.continueOrReportExistingRun(input, scope, acquired, budget);
       }
       return await this.executeFreshRun(input, scope, acquired, budget, {
-        connectionIdentityFingerprint,
         historicalWindowFingerprint,
-      });
+      }, identity);
     } catch (err) {
       if (err instanceof FsdDiscoveryPersistenceError && err.code === 'LEASE_LOST') {
         return buildTerminalFailureResult({
@@ -315,6 +314,18 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       });
     }
 
+    const resumeConnectionIdentityFingerprint = buildFsdDimoConnectionIdentityFingerprint({
+      dimoVehicleId: input.dimoVehicleId,
+      tokenId: input.dimoTokenId,
+    });
+    const dispatchContext: FsdDiscoveryRunIdentityV1 = {
+      ...scope,
+      runKey: bundle.run.runKey,
+      dimoTokenId: input.dimoTokenId,
+      connectionIdentityFingerprint: resumeConnectionIdentityFingerprint,
+      discoveryStream: 'FSD4_HISTORICAL',
+    };
+
     return this.executeHistoricalPhase({
       input,
       scope,
@@ -333,6 +344,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       historicalPlanFingerprint,
       resumeProgress,
       existingHistoricalStage: existingHistorical,
+      dispatchContext,
     });
   }
 
@@ -341,7 +353,8 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     scope: { organizationId: string; vehicleId: string; providerSourceLinkId: string },
     acquired: Extract<AcquireFsdDiscoveryRunResultV1, { kind: 'CREATED' }>,
     budget: FsdBudgetConfigV1,
-    ctx: { connectionIdentityFingerprint: string; historicalWindowFingerprint: string },
+    ctx: { historicalWindowFingerprint: string },
+    dispatchContext: FsdDiscoveryRunIdentityV1,
   ): Promise<Fsd4OrchestrationRunResultV1> {
     const claimed = await this.persistence.claimRunLease({
       scope,
@@ -549,6 +562,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
         try {
           const catalogResult = await this.provider.fetchAvailableSignals({
             tokenId: input.dimoTokenId,
+            dispatchContext,
           });
           if (catalogResult.httpStatus !== 200 || !Array.isArray(catalogResult.availableSignals)) {
             const fin = await this.finalizeCatalogAttempt(
@@ -764,6 +778,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       historicalPlanFingerprint,
       resumeProgress: emptyFsd4HistoricalProgressCheckpoint(),
       existingHistoricalStage: null,
+      dispatchContext,
     });
   }
 
@@ -836,6 +851,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       status: string;
       planFingerprint: string;
     } | null;
+    dispatchContext: FsdDiscoveryRunIdentityV1;
   }): Promise<Fsd4OrchestrationRunResultV1> {
     const plan = input.historicalPlan;
     const expectedBuckets = plan.expectedBucketPositions;
@@ -1021,6 +1037,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
           queryText: doc.queryText,
           documentFingerprint: doc.fingerprint,
           fieldNamesInDocument: doc.fieldNames,
+          dispatchContext: input.dispatchContext,
         });
         await this.testHooks?.afterHistoricalProviderResponse?.(index);
       } catch (err) {

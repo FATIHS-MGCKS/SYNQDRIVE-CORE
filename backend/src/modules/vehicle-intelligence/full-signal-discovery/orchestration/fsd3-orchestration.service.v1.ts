@@ -164,13 +164,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       if (acquired.kind === 'REPLAYED') {
         return await this.continueOrReportExistingRun(input, scope, acquired, budget);
       }
-      return await this.executeFreshDiscovery(
-        input,
-        scope,
-        acquired,
-        budget,
-        connectionIdentityFingerprint,
-      );
+      return await this.executeFreshDiscovery(input, scope, acquired, budget, identity);
     } catch (err) {
       if (err instanceof FsdDiscoveryPersistenceError && err.code === 'LEASE_LOST') {
         const runId = acquired.kind === 'REPLAYED' ? acquired.runId : acquired.runId;
@@ -284,6 +278,18 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       }
     }
 
+    const resumeConnectionIdentityFingerprint = buildFsdDimoConnectionIdentityFingerprint({
+      dimoVehicleId: input.dimoVehicleId,
+      tokenId: input.dimoTokenId,
+    });
+    const dispatchContext: FsdDiscoveryRunIdentityV1 = {
+      ...scope,
+      runKey: bundle.run.runKey,
+      dimoTokenId: input.dimoTokenId,
+      connectionIdentityFingerprint: resumeConnectionIdentityFingerprint,
+      discoveryStream: 'FSD3_CATALOG_SNAPSHOT',
+    };
+
     return this.executeSnapshotPhase({
       input,
       scope,
@@ -297,6 +303,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       catalogStageVersionRef,
       resumeSnapshotProgress: resumeProgress,
       existingSnapshotStage: findStageInBundle(bundle, 'SNAPSHOT'),
+      dispatchContext,
     });
   }
 
@@ -305,7 +312,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
     scope: { organizationId: string; vehicleId: string; providerSourceLinkId: string },
     acquired: Extract<AcquireFsdDiscoveryRunResultV1, { kind: 'CREATED' }>,
     budget: FsdBudgetConfigV1,
-    connectionIdentityFingerprint: string,
+    dispatchContext: FsdDiscoveryRunIdentityV1,
   ): Promise<Fsd3OrchestrationRunResultV1> {
     const claimed = await this.persistence.claimRunLease({
       scope,
@@ -426,6 +433,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       try {
         const catalogResult = await this.provider.fetchAvailableSignals({
           tokenId: input.dimoTokenId,
+          dispatchContext,
         });
         if (catalogResult.httpStatus !== 200 || !Array.isArray(catalogResult.availableSignals)) {
           const fin = await this.finalizeCatalogAttempt(
@@ -598,6 +606,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       catalogStageVersionRef,
       resumeSnapshotProgress: emptyFsd3SnapshotProgressCheckpoint(),
       existingSnapshotStage: null,
+      dispatchContext,
     });
   }
 
@@ -614,6 +623,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
     catalogStageVersionRef: { value: number };
     resumeSnapshotProgress: Fsd3SnapshotProgressCheckpointV1;
     existingSnapshotStage: ReturnType<typeof findStageInBundle>;
+    dispatchContext: FsdDiscoveryRunIdentityV1;
   }): Promise<Fsd3OrchestrationRunResultV1> {
     const remainingDocs = resolveMaxSnapshotDocumentsFromRemainingBudget(
       input.budget.maxRequestsPerRun - FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1,
@@ -809,6 +819,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
           queryText: document.queryText,
           documentFingerprint: document.fingerprint,
           fieldNamesInDocument: document.fieldNames,
+          dispatchContext: input.dispatchContext,
         });
         await this.testHooks?.afterSnapshotProviderResponse?.(index);
       } catch (err) {

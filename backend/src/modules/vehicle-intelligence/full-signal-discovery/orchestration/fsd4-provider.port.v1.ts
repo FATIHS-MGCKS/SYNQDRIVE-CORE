@@ -1,4 +1,5 @@
 import type { FsdGraphqlErrorV1 } from '../fsd-response.interpreter.v1';
+import type { FsdDiscoveryRunIdentityV1 } from '../persistence/fsd-discovery-persistence.contract.v1';
 
 export type Fsd4HistoricalObservationV1 = {
   timestampMs: number;
@@ -25,11 +26,15 @@ export type Fsd4ProviderKindV1 = 'mock' | 'live';
 
 export type Fsd4HistoricalDiscoveryProviderPortV1 = {
   providerKind: Fsd4ProviderKindV1;
-  fetchAvailableSignals(input: { tokenId: number }): Promise<Fsd4ProviderCatalogResultV1>;
+  fetchAvailableSignals(input: {
+    tokenId: number;
+    dispatchContext?: FsdDiscoveryRunIdentityV1;
+  }): Promise<Fsd4ProviderCatalogResultV1>;
   executeHistoricalDocument(input: {
     tokenId: number;
     queryText: string;
     documentFingerprint: string;
     fieldNamesInDocument: readonly string[];
+    dispatchContext?: FsdDiscoveryRunIdentityV1;
   }): Promise<Fsd4ProviderHistoricalResultV1>;
 };

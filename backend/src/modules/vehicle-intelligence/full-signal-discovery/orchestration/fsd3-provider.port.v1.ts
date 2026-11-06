@@ -1,5 +1,6 @@
 import type { FsdGraphqlErrorV1 } from '../fsd-response.interpreter.v1';
 import type { FsdValueObservationKindV1 } from '../fsd-evidence.contract.v1';
+import type { FsdDiscoveryRunIdentityV1 } from '../persistence/fsd-discovery-persistence.contract.v1';
 
 export type Fsd3ProviderCatalogResultV1 = {
   availableSignals: readonly string[];
@@ -24,11 +25,15 @@ export type Fsd3ProviderKindV1 = 'mock' | 'live';
 
 export type Fsd3DiscoveryProviderPortV1 = {
   providerKind: Fsd3ProviderKindV1;
-  fetchAvailableSignals(input: { tokenId: number }): Promise<Fsd3ProviderCatalogResultV1>;
+  fetchAvailableSignals(input: {
+    tokenId: number;
+    dispatchContext?: FsdDiscoveryRunIdentityV1;
+  }): Promise<Fsd3ProviderCatalogResultV1>;
   executeSnapshotDocument(input: {
     tokenId: number;
     queryText: string;
     documentFingerprint: string;
     fieldNamesInDocument: readonly string[];
+    dispatchContext?: FsdDiscoveryRunIdentityV1;
   }): Promise<Fsd3ProviderSnapshotResultV1>;
 };
