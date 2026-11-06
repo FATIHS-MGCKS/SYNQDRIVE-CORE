@@ -39,6 +39,8 @@ export function sha256P16ManifestSelf(manifest: Record<string, unknown>): string
 export function stableReportHash(report: Record<string, unknown>): string {
   const copy = structuredClone(report) as Record<string, unknown>;
   delete copy.generated_at_utc;
+  /** Human-readable artifact; deterministic hash must not depend on it. */
+  delete copy.german_markdown;
   const h = createHash("sha256");
   h.update(JSON.stringify(copy, sortKeysReplacer));
   return h.digest("hex");

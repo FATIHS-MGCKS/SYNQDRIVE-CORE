@@ -1,13 +1,14 @@
 {
   "name": "@synqdrive/research-ds4-rpm-ratio-state-profiler-m1",
   "private": true,
-  "version": "0.0.0-p18a-foundation",
+  "version": "0.0.0-p20-descriptive-report",
   "description": "Research-only M1 Ratio-State foundation (P18A) — not production",
   "type": "module",
   "scripts": {
     "test": "node --import tsx --test tests/**/*.spec.ts",
     "typecheck": "tsc --noEmit",
-    "run:p18a": "node --import tsx src/run_p18a_foundation.ts"
+    "run:p18a": "node --import tsx src/run_p18a_foundation.ts",
+    "run:p20": "node --import tsx src/run_p20_descriptive.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

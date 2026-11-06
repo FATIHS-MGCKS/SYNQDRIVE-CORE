@@ -14,9 +14,12 @@ export interface ManoeuvreWindow {
 
 const P16_ELIGIBLE_CLIPS = ["TC_00080.MOV", "TC_00084.MOV"] as const;
 
-const rowKey = (clip: string, second: number) => `${clip}|${second}`;
+export const rowKey = (clip: string, second: number) => `${clip}|${second}`;
 
-export function loadManoeuvreWindows(csvPath: string): ManoeuvreWindow[] {
+export function loadManoeuvreWindowsFromCsv(
+  csvPath: string,
+  opts?: { eligibleClipsOnly?: boolean },
+): ManoeuvreWindow[] {
   const text = readFileSync(csvPath, "utf8");
   const lines = text.trim().split("\n");
   const header = lines[0]!.split(",");
@@ -32,7 +35,18 @@ export function loadManoeuvreWindows(csvPath: string): ManoeuvreWindow[] {
       end_video_s: parseFloat(cols[idx("end_video_s")] ?? "0"),
     });
   }
+  if (opts?.eligibleClipsOnly === false) return out;
   return out.filter((w) => (P16_ELIGIBLE_CLIPS as readonly string[]).includes(w.source_clip));
+}
+
+/** P16/P17: TC_00080 + TC_00084 windows only (6 rows). */
+export function loadManoeuvreWindows(csvPath: string): ManoeuvreWindow[] {
+  return loadManoeuvreWindowsFromCsv(csvPath, { eligibleClipsOnly: true });
+}
+
+/** All nine sealed manoeuvre-window rows (77/78/80/84), ids W01–W09. */
+export function loadManoeuvreWindowsAllNine(csvPath: string): ManoeuvreWindow[] {
+  return loadManoeuvreWindowsFromCsv(csvPath, { eligibleClipsOnly: false });
 }
 
 /**
