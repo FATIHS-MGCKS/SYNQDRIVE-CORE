@@ -39,6 +39,11 @@ export type OneAutoCatalogResponse = {
   indicativePricingDisclaimer: string;
 };
 
+/** Latest SUCCEEDED job id from DB (read-only lookup). */
+export type OneAutoLatestSucceededJobResponse = {
+  jobId: string | null;
+};
+
 export type OneAutoQuoteResponse = {
   organizationId: string;
   vehicleId: string;

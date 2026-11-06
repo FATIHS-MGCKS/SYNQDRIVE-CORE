@@ -143,6 +143,11 @@ export const masterOneAutoCs = {
   'master.oneAuto.serviceSchedule.notCompletedHistory':
     'Jen referenční plán výrobce — není záznamem provedené práce, ověřenou historií ani termínem bez provozních dat.',
   'master.oneAuto.resultTechnicalDetails': 'Technické podrobnosti (surový JSON poskytovatele)',
+  'master.oneAuto.serviceSchedule.viewStoredPlan': 'Zobrazit uložený servisní plán',
+  'master.oneAuto.serviceSchedule.storedPlanEmpty':
+    'Pro toto vozidlo není uložený servisní plán. Jednou spusťte OE Service Schedule a uložte výsledek.',
+  'master.oneAuto.serviceSchedule.storedPlanLookupLoading': 'Kontrola uloženého servisního plánu…',
+  'master.oneAuto.serviceSchedule.loadingStoredPlan': 'Otevírám uložený plán…',
   'master.oneAuto.serviceSchedule.empty': 'Pro toto VIN nejsou žádné položky plánu.',
   'master.oneAuto.serviceSchedule.providerSource': 'Zdroj poskytovatele / HTTP stav',
   'master.oneAuto.serviceSchedule.section.normal': 'Pravidelná údržba',

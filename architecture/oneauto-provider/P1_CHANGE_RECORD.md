@@ -192,3 +192,9 @@
 - **Scope:** `OE_SERVICE_SCHEDULE` successful job result presents a read-only **digital maintenance manual** (searchable accordions, normal vs extra sections, summary counts, disclaimers). Raw provider JSON moves below into a **collapsed** technical-details block. Optional fields that arrive as JSON **null** (`service_kms`, `part_grade`, `oe_part_number`, etc.) validate as absent on backend and parse as absent on frontend (mirror).
 - **Tests:** `frontend/.../OneAutoServiceScheduleResultPanel.test.tsx` (sanitized 9+21 fixture, search + accordion expand/collapse), `oneauto-service-schedule-result.util.test.ts`, `oneauto-oe-service-schedule-field-validation.util.spec.ts`.
 - **Non-effects:** No paid provider calls; no callback execution changes; no job recovery; no vehicle or service-history writes; Mercedes/C63 and unrelated SKUs unchanged beyond schedule success layout.
+
+## OE_SERVICE_SCHEDULE_V1_REVIEW_CORRECTION — read-only stored result access (2026-11-06)
+
+- **Scope:** Master Admin GET `admin/organizations/:orgId/oneauto/vehicles/:vehicleId/jobs/latest-succeeded?serviceSku=` returns `{ jobId: string | null }` from Prisma (latest `SUCCEEDED` for org + vehicle + SKU). Reuses `loadVehicleAndSku` + `assertVehicleBinding`. Dialog action loads the manual via existing `getJobResult(jobId)` only — **no** `quote`, **no** `execute`, **no** provider HTTP or queue enqueue.
+- **Tests:** `oneauto-provider.service.spec.ts` (`getLatestSucceededJobId`); `OneAutoServiceDialog.test.tsx` (stored plan: no quote/execute, reopen does not require repurchase path); `oneauto-service-schedule-result.util.test.ts` (nested task/part null shapes).
+- **Non-effects:** No migration; no Service History changes; no C63/Arteon job recovery; no callback pricing or execution path changes.

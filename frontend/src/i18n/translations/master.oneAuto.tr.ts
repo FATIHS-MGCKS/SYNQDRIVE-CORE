@@ -143,6 +143,11 @@ export const masterOneAutoTr = {
   'master.oneAuto.serviceSchedule.notCompletedHistory':
     'Yalnızca üretici referans planı — tamamlanan iş kaydı, doğrulanmış geçmiş veya işletme verileriniz olmadan vade bilgisi değildir.',
   'master.oneAuto.resultTechnicalDetails': 'Teknik ayrıntılar (ham sağlayıcı JSON)',
+  'master.oneAuto.serviceSchedule.viewStoredPlan': 'Kayıtlı bakım planını göster',
+  'master.oneAuto.serviceSchedule.storedPlanEmpty':
+    'Bu araç için kayıtlı bakım planı yok. Sonuç kaydetmek için OE Service Schedule’ı bir kez çalıştırın.',
+  'master.oneAuto.serviceSchedule.storedPlanLookupLoading': 'Kayıtlı bakım planı aranıyor…',
+  'master.oneAuto.serviceSchedule.loadingStoredPlan': 'Kayıtlı plan açılıyor…',
   'master.oneAuto.serviceSchedule.empty': 'Bu VIN için plan kalemi yok.',
   'master.oneAuto.serviceSchedule.providerSource': 'Sağlayıcı kaynağı / HTTP durumu',
   'master.oneAuto.serviceSchedule.section.normal': 'Düzenli bakım',

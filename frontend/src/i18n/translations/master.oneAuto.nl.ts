@@ -143,6 +143,11 @@ export const masterOneAutoNl = {
   'master.oneAuto.serviceSchedule.notCompletedHistory':
     'Alleen fabrieksreferentie — geen registratie van uitgevoerd werk, geen geverifieerde historie en geen vervaldatum zonder uw bedrijfsgegevens.',
   'master.oneAuto.resultTechnicalDetails': 'Technische details (ruwe leveranciers-JSON)',
+  'master.oneAuto.serviceSchedule.viewStoredPlan': 'Opgeslagen onderhoudsplan tonen',
+  'master.oneAuto.serviceSchedule.storedPlanEmpty':
+    'Geen opgeslagen onderhoudsplan voor dit voertuig. Voer OE Service Schedule eenmaal uit om een resultaat op te slaan.',
+  'master.oneAuto.serviceSchedule.storedPlanLookupLoading': 'Controleren op opgeslagen onderhoudsplan…',
+  'master.oneAuto.serviceSchedule.loadingStoredPlan': 'Opgeslagen plan openen…',
   'master.oneAuto.serviceSchedule.empty': 'Geen schema-items voor dit VIN.',
   'master.oneAuto.serviceSchedule.providerSource': 'Bron provider / HTTP-status',
   'master.oneAuto.serviceSchedule.section.normal': 'Regulier onderhoud',

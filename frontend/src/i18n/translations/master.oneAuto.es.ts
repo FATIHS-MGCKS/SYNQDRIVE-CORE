@@ -143,6 +143,11 @@ export const masterOneAutoEs = {
   'master.oneAuto.serviceSchedule.notCompletedHistory':
     'Solo plan de referencia del fabricante; no es registro de trabajo realizado, historial verificado ni lo que vence sin sus datos operativos.',
   'master.oneAuto.resultTechnicalDetails': 'Detalles técnicos (JSON bruto del proveedor)',
+  'master.oneAuto.serviceSchedule.viewStoredPlan': 'Ver plan de mantenimiento guardado',
+  'master.oneAuto.serviceSchedule.storedPlanEmpty':
+    'No hay plan de mantenimiento guardado para este vehículo. Ejecute OE Service Schedule una vez para guardar un resultado.',
+  'master.oneAuto.serviceSchedule.storedPlanLookupLoading': 'Buscando plan de mantenimiento guardado…',
+  'master.oneAuto.serviceSchedule.loadingStoredPlan': 'Abriendo plan guardado…',
   'master.oneAuto.serviceSchedule.empty': 'No hay entradas de plan para este VIN.',
   'master.oneAuto.serviceSchedule.providerSource': 'Fuente del proveedor / estado HTTP',
   'master.oneAuto.serviceSchedule.section.normal': 'Mantenimiento regular',

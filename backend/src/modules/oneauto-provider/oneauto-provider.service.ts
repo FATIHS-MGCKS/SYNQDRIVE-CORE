@@ -279,6 +279,25 @@ export class OneAutoProviderService {
     };
   }
 
+  /**
+   * Read-only: latest SUCCEEDED job for org + vehicle + SKU (no provider HTTP, no queue).
+   */
+  async getLatestSucceededJobId(orgId: string, vehicleId: string, serviceSku: string) {
+    const { vehicle } = await this.loadVehicleAndSku(orgId, vehicleId, serviceSku);
+    this.assertVehicleBinding(orgId, vehicleId, vehicle.vin);
+    const job = await this.prisma.oneAutoProviderJob.findFirst({
+      where: {
+        organizationId: orgId,
+        vehicleId,
+        serviceSku,
+        status: OneAutoProviderJobStatus.SUCCEEDED,
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true },
+    });
+    return { jobId: job?.id ?? null };
+  }
+
   private assertFeatureEnabledForQuote() {
     const cfg = this.runtimeCfg();
     if (cfg.enabled !== true) throw oneAutoDisabledException();

@@ -143,6 +143,11 @@ export const masterOneAutoDe = {
   'master.oneAuto.serviceSchedule.notCompletedHistory':
     'Nur Hersteller-Referenzplan — kein Nachweis erledigter Arbeiten, keine verifizierte Historie und keine Fälligkeit ohne Ihre Betriebsdaten.',
   'master.oneAuto.resultTechnicalDetails': 'Technische Details (Roh-JSON des Anbieters)',
+  'master.oneAuto.serviceSchedule.viewStoredPlan': 'Gespeicherten Wartungsplan anzeigen',
+  'master.oneAuto.serviceSchedule.storedPlanEmpty':
+    'Kein gespeicherter Wartungsplan für dieses Fahrzeug. Führen Sie OE Service Schedule einmal aus, um ein Ergebnis zu speichern.',
+  'master.oneAuto.serviceSchedule.storedPlanLookupLoading': 'Suche nach gespeichertem Wartungsplan…',
+  'master.oneAuto.serviceSchedule.loadingStoredPlan': 'Gespeicherten Plan wird geöffnet…',
   'master.oneAuto.serviceSchedule.empty': 'Keine Wartungspositionen für diese FIN.',
   'master.oneAuto.serviceSchedule.providerSource': 'Anbieterquelle / HTTP-Status',
   'master.oneAuto.serviceSchedule.section.normal': 'Regelmäßige Wartung',

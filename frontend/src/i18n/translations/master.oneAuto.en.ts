@@ -143,6 +143,11 @@ export const masterOneAutoEn = {
   'master.oneAuto.serviceSchedule.notCompletedHistory':
     'Manufacturer reference plan only — not a record of completed work, not verified history, and not what is currently due without your operating data.',
   'master.oneAuto.resultTechnicalDetails': 'Technical details (raw provider JSON)',
+  'master.oneAuto.serviceSchedule.viewStoredPlan': 'View saved maintenance plan',
+  'master.oneAuto.serviceSchedule.storedPlanEmpty':
+    'No stored maintenance plan for this vehicle yet. Run OE Service Schedule once to save a result.',
+  'master.oneAuto.serviceSchedule.storedPlanLookupLoading': 'Checking for a saved maintenance plan…',
+  'master.oneAuto.serviceSchedule.loadingStoredPlan': 'Opening saved plan…',
   'master.oneAuto.serviceSchedule.empty': 'No maintenance schedule items returned for this VIN.',
   'master.oneAuto.serviceSchedule.providerSource': 'Provider source / HTTP status',
   'master.oneAuto.serviceSchedule.section.normal': 'Regular maintenance',

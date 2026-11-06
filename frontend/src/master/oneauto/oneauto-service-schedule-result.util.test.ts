@@ -135,6 +135,47 @@ describe('parseServiceScheduleFromJobResult', () => {
     expect(parsed.normalServices[0].serviceMonths).toBeNull();
   });
 
+  it('accepts JSON null on nested task and part fields in live-shaped payloads', () => {
+    const parsed = parseServiceScheduleFromJobResult(
+      resultWithBody({
+        success: true,
+        result: {
+          vehicle_identification_number: 'WBA12345678901234',
+          normal_services: [
+            {
+              service_id: 'svc-1',
+              service_description: 'Full service',
+              service_tasks: [
+                {
+                  task_id: null,
+                  task_action: 'Inspect',
+                  task_description: null,
+                  vehicle_position: null,
+                },
+              ],
+              service_parts: [
+                {
+                  part_desc: 'Oil',
+                  part_number: null,
+                  oe_part_number: null,
+                  supplier_desc: null,
+                  part_grade: null,
+                  supplier_id: null,
+                  part_attributes: [],
+                },
+              ],
+            },
+          ],
+          extra_services: [],
+        },
+      }),
+    );
+    expect(parsed.integrity).toBe('VALID_WITH_SERVICES');
+    expect(parsed.normalServices[0].tasks[0].taskId).toBeNull();
+    expect(parsed.normalServices[0].tasks[0].description).toBeNull();
+    expect(parsed.normalServices[0].parts[0].oePartNumber).toBeNull();
+  });
+
   it('accepts JSON null on optional numeric fields and maps parts with null oe_part_number', () => {
     const parsed = parseServiceScheduleFromJobResult(
       resultWithBody({

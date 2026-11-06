@@ -47,11 +47,12 @@ describe('OneAutoProviderService cost and idempotency', () => {
   });
 
   it('blocks execute when provider contract is unverified', async () => {
+    /** Documented-only SKU — verified execution SKUs (e.g. OE_SERVICE_HISTORY_EU) fail earlier with SKU_RUNTIME_DISABLED when unpriced. */
     try {
       await service.executeConfirmed({
         orgId: 'org1',
         vehicleId: 'v1',
-        serviceSku: 'OE_SERVICE_HISTORY_EU',
+        serviceSku: 'OE_BUILD_DECODE',
         idempotencyKey: 'key-1',
         confirmedPriceMinor: 150,
         pricingSourceVersion: 'synqdrive-catalog-v1',
@@ -191,5 +192,31 @@ describe('OneAutoProviderService cost and idempotency', () => {
         }),
       }),
     );
+  });
+
+  describe('getLatestSucceededJobId', () => {
+    it('returns null when no succeeded schedule job exists', async () => {
+      prisma.oneAutoProviderJob.findFirst.mockResolvedValue(null);
+      const out = await service.getLatestSucceededJobId('org1', 'v1', 'OE_SERVICE_SCHEDULE');
+      expect(out).toEqual({ jobId: null });
+      expect(prisma.oneAutoProviderJob.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            organizationId: 'org1',
+            vehicleId: 'v1',
+            serviceSku: 'OE_SERVICE_SCHEDULE',
+            status: OneAutoProviderJobStatus.SUCCEEDED,
+          }),
+          orderBy: { updatedAt: 'desc' },
+          select: { id: true },
+        }),
+      );
+    });
+
+    it('returns latest succeeded job id', async () => {
+      prisma.oneAutoProviderJob.findFirst.mockResolvedValue({ id: 'job-sched-1' });
+      const out = await service.getLatestSucceededJobId('org1', 'v1', 'OE_SERVICE_SCHEDULE');
+      expect(out).toEqual({ jobId: 'job-sched-1' });
+    });
   });
 });

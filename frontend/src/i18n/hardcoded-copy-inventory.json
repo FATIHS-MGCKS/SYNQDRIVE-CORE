@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "generatedAt": "2026-11-02",
+  "generatedAt": "2026-11-06",
   "phases": {
     "P21": {
       "enforceCleanExact": [
@@ -380,7 +380,7 @@
     },
     {
       "file": "components/patterns/app-dialog.tsx",
-      "line": 67,
+      "line": 82,
       "surface": "SHELL",
       "module": null,
       "category": "ARIA",
@@ -1663,7 +1663,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1061,
+      "line": 1062,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1678,7 +1678,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1078,
+      "line": 1079,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1693,7 +1693,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1110,
+      "line": 1111,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1708,7 +1708,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1684,
+      "line": 1685,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1723,7 +1723,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1831,
+      "line": 1832,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1738,7 +1738,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1855,
+      "line": 1856,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1753,7 +1753,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1884,
+      "line": 1885,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1768,7 +1768,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1888,
+      "line": 1889,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1783,7 +1783,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1888,
+      "line": 1889,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1798,7 +1798,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1889,
+      "line": 1890,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1813,7 +1813,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1910,
+      "line": 1911,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1828,7 +1828,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1925,
+      "line": 1926,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1843,7 +1843,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1930,
+      "line": 1931,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1858,7 +1858,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1932,
+      "line": 1933,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1873,7 +1873,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1954,
+      "line": 1955,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1888,7 +1888,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1966,
+      "line": 1967,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1903,7 +1903,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1973,
+      "line": 1974,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1919,7 +1919,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1979,
+      "line": 1980,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1934,7 +1934,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1987,
+      "line": 1988,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1949,7 +1949,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 1989,
+      "line": 1990,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1964,7 +1964,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2014,
+      "line": 2015,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1979,7 +1979,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2015,
+      "line": 2016,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -1994,7 +1994,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2017,
+      "line": 2018,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2009,7 +2009,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2026,
+      "line": 2027,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2024,7 +2024,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2027,
+      "line": 2028,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2039,7 +2039,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2054,
+      "line": 2055,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2054,7 +2054,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2083,
+      "line": 2084,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2070,7 +2070,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2084,
+      "line": 2085,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2085,7 +2085,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2086,
+      "line": 2087,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2101,7 +2101,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2087,
+      "line": 2088,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2116,7 +2116,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2090,
+      "line": 2091,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2131,7 +2131,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2134,
+      "line": 2135,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2146,7 +2146,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2136,
+      "line": 2137,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2161,7 +2161,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2137,
+      "line": 2138,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -2176,7 +2176,7 @@
     },
     {
       "file": "master/components/ArchitekturView.tsx",
-      "line": 2137,
+      "line": 2138,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3696,7 +3696,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 30988,
+      "line": 31282,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3711,7 +3711,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 32289,
+      "line": 32583,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3726,7 +3726,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 32355,
+      "line": 32649,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3741,7 +3741,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 32375,
+      "line": 32669,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3756,7 +3756,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 32375,
+      "line": 32669,
       "surface": "MASTER",
       "module": null,
       "category": "TITLE",
@@ -3771,7 +3771,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 32415,
+      "line": 32709,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3786,7 +3786,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 32679,
+      "line": 32973,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3801,7 +3801,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 33647,
+      "line": 33941,
       "surface": "MASTER",
       "module": null,
       "category": "FORMAT_LOCALE",
@@ -3817,7 +3817,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 33649,
+      "line": 33943,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3832,7 +3832,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 35911,
+      "line": 36205,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3847,7 +3847,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 36184,
+      "line": 36478,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3862,7 +3862,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 36195,
+      "line": 36489,
       "surface": "MASTER",
       "module": null,
       "category": "ARIA",
@@ -3877,7 +3877,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 36205,
+      "line": 36499,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3892,7 +3892,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 36217,
+      "line": 36511,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3907,7 +3907,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 36230,
+      "line": 36524,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3922,7 +3922,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 36234,
+      "line": 36528,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -3937,7 +3937,7 @@
     },
     {
       "file": "master/components/ChangesView.tsx",
-      "line": 36260,
+      "line": 36554,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14768,7 +14768,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 177,
+      "line": 184,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14783,7 +14783,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 183,
+      "line": 190,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14798,7 +14798,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 187,
+      "line": 194,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14814,7 +14814,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 208,
+      "line": 215,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14830,7 +14830,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 212,
+      "line": 219,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14845,7 +14845,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 267,
+      "line": 281,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14860,7 +14860,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 297,
+      "line": 311,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14875,7 +14875,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 302,
+      "line": 316,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14890,7 +14890,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 306,
+      "line": 320,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14905,7 +14905,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 334,
+      "line": 348,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14920,7 +14920,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 383,
+      "line": 397,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14935,7 +14935,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 403,
+      "line": 417,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14950,7 +14950,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 418,
+      "line": 432,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14965,7 +14965,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 427,
+      "line": 441,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -14980,7 +14980,7 @@
     },
     {
       "file": "master/connected-vehicles/ConnectedVehicleDetailDrawer.tsx",
-      "line": 430,
+      "line": 444,
       "surface": "MASTER",
       "module": null,
       "category": "TEXT",
@@ -29236,7 +29236,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 598,
+      "line": 631,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29251,7 +29251,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 610,
+      "line": 643,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29266,7 +29266,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 611,
+      "line": 644,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29281,7 +29281,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 622,
+      "line": 655,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29296,7 +29296,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 639,
+      "line": 672,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29311,7 +29311,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 651,
+      "line": 684,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29326,7 +29326,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 656,
+      "line": 689,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29341,7 +29341,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1459,
+      "line": 1492,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29356,7 +29356,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1467,
+      "line": 1500,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29371,7 +29371,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1475,
+      "line": 1508,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29386,7 +29386,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1483,
+      "line": 1516,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29401,7 +29401,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1521,
+      "line": 1554,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TITLE",
@@ -29416,7 +29416,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1594,
+      "line": 1627,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29431,7 +29431,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1607,
+      "line": 1640,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29446,7 +29446,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1621,
+      "line": 1654,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29461,7 +29461,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1628,
+      "line": 1661,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29477,7 +29477,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1636,
+      "line": 1669,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29492,7 +29492,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1690,
+      "line": 1723,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29507,7 +29507,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1714,
+      "line": 1747,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29522,7 +29522,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1720,
+      "line": 1753,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29537,7 +29537,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1794,
+      "line": 1827,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29552,7 +29552,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1801,
+      "line": 1834,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29567,7 +29567,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1828,
+      "line": 1861,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29582,7 +29582,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1829,
+      "line": 1862,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29597,7 +29597,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1924,
+      "line": 1957,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29612,7 +29612,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1932,
+      "line": 1965,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TITLE",
@@ -29627,7 +29627,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1942,
+      "line": 1975,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29642,7 +29642,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1945,
+      "line": 1978,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29657,7 +29657,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1956,
+      "line": 1989,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29672,7 +29672,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1959,
+      "line": 1992,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29687,7 +29687,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1982,
+      "line": 2015,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TITLE",
@@ -29702,7 +29702,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1985,
+      "line": 2018,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TITLE",
@@ -29717,7 +29717,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1995,
+      "line": 2028,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29732,7 +29732,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 1999,
+      "line": 2032,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29747,7 +29747,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2014,
+      "line": 2047,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29762,7 +29762,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2019,
+      "line": 2052,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29777,7 +29777,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2057,
+      "line": 2090,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29792,7 +29792,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2092,
+      "line": 2125,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29807,7 +29807,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2101,
+      "line": 2134,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29822,7 +29822,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2105,
+      "line": 2138,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29837,7 +29837,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2176,
+      "line": 2209,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29852,7 +29852,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2181,
+      "line": 2214,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29867,7 +29867,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2239,
+      "line": 2272,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29882,7 +29882,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2307,
+      "line": 2340,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29897,7 +29897,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2333,
+      "line": 2366,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29912,7 +29912,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2359,
+      "line": 2392,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29927,7 +29927,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2385,
+      "line": 2418,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29942,7 +29942,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2442,
+      "line": 2518,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29957,7 +29957,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2526,
+      "line": 2602,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29972,7 +29972,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2527,
+      "line": 2603,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -29987,7 +29987,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2538,
+      "line": 2614,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30002,7 +30002,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2539,
+      "line": 2615,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30017,7 +30017,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2542,
+      "line": 2618,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30032,7 +30032,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2569,
+      "line": 2645,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30047,7 +30047,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2572,
+      "line": 2648,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30062,7 +30062,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2587,
+      "line": 2663,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30077,7 +30077,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2605,
+      "line": 2681,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30092,7 +30092,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2616,
+      "line": 2692,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30107,7 +30107,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2636,
+      "line": 2712,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30122,7 +30122,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2654,
+      "line": 2730,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30137,7 +30137,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2654,
+      "line": 2730,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30152,7 +30152,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2694,
+      "line": 2770,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30167,7 +30167,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2694,
+      "line": 2770,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30182,7 +30182,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2695,
+      "line": 2771,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30197,7 +30197,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2695,
+      "line": 2771,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -30212,7 +30212,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2695,
+      "line": 2771,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30227,7 +30227,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2697,
+      "line": 2773,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -30242,191 +30242,11 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2706,
+      "line": 2782,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
       "sample": "Front Pad mm",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2706,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Front Pad mm",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2707,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "LABEL",
-      "sample": "Rear Pad mm",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2707,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Rear Pad mm",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2708,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "LABEL",
-      "sample": "Front Rotor W mm",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2708,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Front Rotor W mm",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2709,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "LABEL",
-      "sample": "Rear Rotor W mm",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2709,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Rear Rotor W mm",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2721,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Upload Brake Service Document",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2722,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Go to the AI Upload page to upload a brake service invoice or workshop report. Extracted data will be reviewed and confi",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2731,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Estimate Quality",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2739,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "DI Engine",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2744,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Anchor-based V2",
       "severity": "enforce-clean",
       "migrationPhase": "P2.2.2",
       "structuralContext": "pollStatusLabel",
@@ -30441,6 +30261,186 @@
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
+      "sample": "Front Pad mm",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 2783,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "LABEL",
+      "sample": "Rear Pad mm",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 2783,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Rear Pad mm",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 2784,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "LABEL",
+      "sample": "Front Rotor W mm",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 2784,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Front Rotor W mm",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 2785,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "LABEL",
+      "sample": "Rear Rotor W mm",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 2785,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Rear Rotor W mm",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 2797,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Upload Brake Service Document",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 2798,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Go to the AI Upload page to upload a brake service invoice or workshop report. Extracted data will be reviewed and confi",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 2807,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Estimate Quality",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 2815,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "DI Engine",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 2820,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Anchor-based V2",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 2858,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
       "sample": "Tire Health",
       "severity": "enforce-clean",
       "migrationPhase": "P2.2.2",
@@ -30452,7 +30452,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2868,
+      "line": 2944,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30467,7 +30467,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2965,
+      "line": 3041,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30482,7 +30482,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2967,
+      "line": 3043,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30497,7 +30497,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2978,
+      "line": 3054,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30512,7 +30512,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2999,
+      "line": 3075,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
@@ -30527,7 +30527,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 2999,
+      "line": 3075,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30542,7 +30542,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3000,
+      "line": 3076,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -30557,221 +30557,11 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3003,
+      "line": 3079,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "LABEL",
       "sample": "Rear Brand / Model",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3003,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Rear Brand / Model",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3004,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "PLACEHOLDER",
-      "sample": "Same as front if identical",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 2,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3009,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "LABEL",
-      "sample": "Front Dimension",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3009,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Front Dimension",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3013,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "LABEL",
-      "sample": "Rear Dimension",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3013,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Rear Dimension",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3019,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "LABEL",
-      "sample": "Load Index",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3019,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Load Index",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3023,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "LABEL",
-      "sample": "Speed Index",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3023,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Speed Index",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3038,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "LABEL",
-      "sample": "Tire Condition",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3038,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Tire Condition",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3047,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "Used tires: please enter current per-wheel tread depths below for accurate estimates.",
-      "severity": "enforce-clean",
-      "migrationPhase": "P2.2.2",
-      "structuralContext": "pollStatusLabel",
-      "occurrences": 1,
-      "files": [
-        "rental/components/HealthErrorsView.tsx"
-      ]
-    },
-    {
-      "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3066,
-      "surface": "RENTAL",
-      "module": "Vehicle Health",
-      "category": "TEXT",
-      "sample": "AI Tire Intelligence",
       "severity": "enforce-clean",
       "migrationPhase": "P2.2.2",
       "structuralContext": "pollStatusLabel",
@@ -30786,6 +30576,216 @@
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
+      "sample": "Rear Brand / Model",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3080,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "PLACEHOLDER",
+      "sample": "Same as front if identical",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 2,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3085,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "LABEL",
+      "sample": "Front Dimension",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3085,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Front Dimension",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3089,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "LABEL",
+      "sample": "Rear Dimension",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3089,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Rear Dimension",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3095,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "LABEL",
+      "sample": "Load Index",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3095,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Load Index",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3099,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "LABEL",
+      "sample": "Speed Index",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3099,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Speed Index",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3114,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "LABEL",
+      "sample": "Tire Condition",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3114,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Tire Condition",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3123,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "Used tires: please enter current per-wheel tread depths below for accurate estimates.",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3142,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
+      "sample": "AI Tire Intelligence",
+      "severity": "enforce-clean",
+      "migrationPhase": "P2.2.2",
+      "structuralContext": "pollStatusLabel",
+      "occurrences": 1,
+      "files": [
+        "rental/components/HealthErrorsView.tsx"
+      ]
+    },
+    {
+      "file": "rental/components/HealthErrorsView.tsx",
+      "line": 3155,
+      "surface": "RENTAL",
+      "module": "Vehicle Health",
+      "category": "TEXT",
       "sample": "Fetch AI Tire Spec",
       "severity": "enforce-clean",
       "migrationPhase": "P2.2.2",
@@ -30797,7 +30797,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3082,
+      "line": 3158,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30812,7 +30812,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3103,
+      "line": 3179,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30827,7 +30827,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3127,
+      "line": 3203,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30842,7 +30842,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3143,
+      "line": 3219,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30857,7 +30857,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3157,
+      "line": 3233,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30872,7 +30872,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3160,
+      "line": 3236,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30887,7 +30887,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3188,
+      "line": 3264,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30902,7 +30902,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3189,
+      "line": 3265,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30917,7 +30917,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3206,
+      "line": 3282,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30932,7 +30932,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3262,
+      "line": 3338,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30947,7 +30947,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3277,
+      "line": 3353,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30962,7 +30962,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3311,
+      "line": 3387,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30977,7 +30977,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3339,
+      "line": 3415,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -30992,7 +30992,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3341,
+      "line": 3417,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31007,7 +31007,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3377,
+      "line": 3453,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31022,7 +31022,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3383,
+      "line": 3459,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31037,7 +31037,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3383,
+      "line": 3459,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31052,7 +31052,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3386,
+      "line": 3462,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31067,7 +31067,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3386,
+      "line": 3462,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31082,7 +31082,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3398,
+      "line": 3474,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -31097,7 +31097,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3399,
+      "line": 3475,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -31112,7 +31112,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3410,
+      "line": 3486,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31127,7 +31127,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3411,
+      "line": 3487,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31142,7 +31142,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3414,
+      "line": 3490,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31157,7 +31157,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3424,
+      "line": 3500,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31172,7 +31172,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3440,
+      "line": 3516,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -31187,7 +31187,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3452,
+      "line": 3528,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31202,7 +31202,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3507,
+      "line": 3583,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31217,7 +31217,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3517,
+      "line": 3593,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31232,7 +31232,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3530,
+      "line": 3606,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -31247,7 +31247,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3556,
+      "line": 3632,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31262,7 +31262,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3579,
+      "line": 3655,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "PLACEHOLDER",
@@ -31277,7 +31277,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3600,
+      "line": 3676,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31292,7 +31292,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3625,
+      "line": 3701,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31307,7 +31307,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3626,
+      "line": 3702,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31322,7 +31322,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3633,
+      "line": 3709,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31337,7 +31337,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3660,
+      "line": 3736,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31352,7 +31352,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3692,
+      "line": 3768,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31367,7 +31367,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3694,
+      "line": 3770,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31382,7 +31382,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3695,
+      "line": 3771,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31397,7 +31397,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3701,
+      "line": 3777,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31412,7 +31412,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3702,
+      "line": 3778,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31427,7 +31427,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3703,
+      "line": 3779,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31442,7 +31442,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3726,
+      "line": 3802,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31457,7 +31457,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3735,
+      "line": 3811,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31472,7 +31472,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3737,
+      "line": 3813,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31487,7 +31487,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3738,
+      "line": 3814,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31502,7 +31502,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3739,
+      "line": 3815,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31517,7 +31517,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3742,
+      "line": 3818,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31532,7 +31532,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3760,
+      "line": 3836,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31547,7 +31547,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3764,
+      "line": 3840,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31562,7 +31562,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3773,
+      "line": 3849,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31577,7 +31577,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3826,
+      "line": 3902,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31592,7 +31592,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3827,
+      "line": 3903,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",
@@ -31607,7 +31607,7 @@
     },
     {
       "file": "rental/components/HealthErrorsView.tsx",
-      "line": 3840,
+      "line": 3916,
       "surface": "RENTAL",
       "module": "Vehicle Health",
       "category": "TEXT",

@@ -4,6 +4,7 @@ import type {
   OneAutoExecuteBody,
   OneAutoJobDto,
   OneAutoJobResultResponse,
+  OneAutoLatestSucceededJobResponse,
   OneAutoQuoteResponse,
 } from './oneauto-api.types';
 
@@ -49,6 +50,17 @@ export const oneAutoMasterApi = {
   getJobResult(orgId: string, jobId: string): Promise<OneAutoJobResultResponse> {
     return request<OneAutoJobResultResponse>(
       `${base(orgId)}/jobs/${encodeURIComponent(jobId)}/result`,
+    );
+  },
+
+  getLatestSucceededJob(
+    orgId: string,
+    vehicleId: string,
+    serviceSku: string,
+  ): Promise<OneAutoLatestSucceededJobResponse> {
+    const q = new URLSearchParams({ serviceSku });
+    return request<OneAutoLatestSucceededJobResponse>(
+      `${base(orgId)}/vehicles/${encodeURIComponent(vehicleId)}/jobs/latest-succeeded?${q.toString()}`,
     );
   },
 };

@@ -63,6 +63,26 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     tags: ['oneauto', 'master', 'e1'],
   },
   {
+    id: 'oneauto-oe-service-schedule-stored-result-v1-2026-11-06',
+    version: '4.9.5026',
+    title:
+      'One Auto — OE_SERVICE_SCHEDULE: reopen succeeded job (latest) + digital manual without re-quote (Master Admin)',
+    summary: [
+      'Read-only GET latest SUCCEEDED job id per org + vehicle + SKU; display uses existing getJobResult only — no quote, execute, queue, or provider HTTP.',
+      'Master `OneAutoServiceDialog`: "Gespeicherten Wartungsplan anzeigen" loads stored envelope and opens digital maintenance manual; empty state when none.',
+      'Regression tests: dialog close/reopen still uses getLatestSucceededJob + getJobResult only; util test for nested null tasks/parts.',
+    ],
+    reason:
+      'Closing the dialog cleared in-memory job state; users had no vehicle-scoped path to reopen a paid successful schedule without another purchase.',
+    previousBehavior:
+      'Success path required a fresh job id in UI memory; getJobResult(jobId) only — no API to resolve the latest succeeded OE_SERVICE_SCHEDULE for the vehicle.',
+    details:
+      'backend: oneauto-provider.controller GET .../vehicles/:vehicleId/jobs/latest-succeeded, oneauto-provider.service getLatestSucceededJobId; frontend: oneauto-api.client getLatestSucceededJob, OneAutoServiceDialog; tests: oneauto-provider.service.spec.ts, OneAutoServiceDialog.test.tsx, oneauto-service-schedule-result.util.test.ts; architecture oneauto-provider/P1_CHANGE_RECORD.md (review correction).',
+    affectsArchitecture: true,
+    module: 'Master Admin',
+    createdAt: '2026-11-06T13:45:00.000Z',
+  },
+  {
     version: '4.9.5025',
     title: 'One Auto P4 E4-L1 — live callback wrapper envelope + provider-failure classification (draft)',
     summary: [
