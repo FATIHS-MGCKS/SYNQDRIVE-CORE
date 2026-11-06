@@ -1,4 +1,5 @@
 import type { AxiosError } from 'axios';
+import { DimoRateLimitedError } from '../provider-budget/dimo-http-error.util';
 import {
   DimoProviderHttpStatusClass,
   type DimoProviderHttpObservation,
@@ -13,6 +14,14 @@ function readRetryAfterSeconds(headers: Record<string, unknown> | undefined): nu
 }
 
 export function classifyDimoProviderHttpError(error: unknown): DimoProviderHttpObservation {
+  if (error instanceof DimoRateLimitedError) {
+    const retryAfterSeconds = Math.max(1, Math.ceil(error.retryAfterMs / 1000));
+    return {
+      statusClass: 'rate_limited',
+      httpStatus: error.httpStatus ?? 429,
+      retryAfterSeconds,
+    };
+  }
   const axiosError = error as AxiosError | undefined;
   const status = axiosError?.response?.status;
   const code = axiosError?.code;

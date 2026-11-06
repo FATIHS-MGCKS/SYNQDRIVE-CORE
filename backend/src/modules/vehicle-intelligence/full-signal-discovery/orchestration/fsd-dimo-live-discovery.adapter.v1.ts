@@ -52,6 +52,10 @@ export function fsdDimoClassifiedOutcomeToHttpV1(outcome: FsdDimoGraphqlExecutio
   };
 }
 
+function isFsdCatalogFetchSucceededV1(outcome: FsdDimoGraphqlExecutionResultV1): boolean {
+  return outcome.kind === 'HTTP_200_OK';
+}
+
 function mapSignalsLatestFieldToSnapshotValue(
   fieldName: string,
   raw: unknown,
@@ -228,13 +232,28 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
         });
         const http = fsdDimoClassifiedOutcomeToHttpV1(classified);
         if (http.httpStatus !== 200) {
-          return { availableSignals: [], httpStatus: http.httpStatus };
+          return {
+            availableSignals: [],
+            httpStatus: http.httpStatus,
+            catalogFetchSucceeded: false,
+          };
+        }
+        if (!isFsdCatalogFetchSucceededV1(classified)) {
+          return {
+            availableSignals: [],
+            httpStatus: http.httpStatus,
+            catalogFetchSucceeded: false,
+          };
         }
         const list = classified.data?.availableSignals;
         const availableSignals = Array.isArray(list)
           ? list.filter((e): e is string => typeof e === 'string')
           : [];
-        return { availableSignals, httpStatus: 200 };
+        return {
+          availableSignals,
+          httpStatus: 200,
+          catalogFetchSucceeded: true,
+        };
       },
 
       executeSnapshotDocument: async (request): Promise<Fsd3ProviderSnapshotResultV1> => {
@@ -312,7 +331,11 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
       providerKind: 'live',
       fetchAvailableSignals: async (input): Promise<Fsd4ProviderCatalogResultV1> => {
         const r = await fsd3Catalog.fetchAvailableSignals(input);
-        return { availableSignals: r.availableSignals, httpStatus: r.httpStatus };
+        return {
+          availableSignals: r.availableSignals,
+          httpStatus: r.httpStatus,
+          catalogFetchSucceeded: r.catalogFetchSucceeded,
+        };
       },
       executeHistoricalDocument: async (request): Promise<Fsd4ProviderHistoricalResultV1> => {
         const dispatch = requireDispatchContext(request.dispatchContext);

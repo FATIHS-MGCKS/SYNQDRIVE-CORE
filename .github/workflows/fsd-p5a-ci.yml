@@ -11,6 +11,8 @@ on:
       - 'backend/src/modules/dimo/fsd-dimo-graphql-result.ts'
       - 'backend/src/modules/dimo/fsd-graphql.types.v1.ts'
       - 'backend/src/modules/dimo/fsd-query-fingerprint.v1.ts'
+      - 'backend/src/modules/dimo/provider/dimo-provider-http-classifier.ts'
+      - 'backend/src/modules/dimo/provider/dimo-provider-http-classifier.spec.ts'
       - 'backend/scripts/test/fsd2-persistence-postgres-ci.sh'
       - 'backend/scripts/test/lib/fsd2-persistence-postgres-guard.sh'
       - 'backend/prisma/schema.prisma'
@@ -60,6 +62,8 @@ jobs:
 
       - name: Install and Prisma (validate / generate)
         working-directory: backend
+        env:
+          DATABASE_URL: postgresql://synqdrive:synqdrive@127.0.0.1:5432/fsd2_test_ci?schema=public
         run: |
           npm ci
           npx prisma validate
@@ -74,6 +78,8 @@ jobs:
           "src/modules/dimo/fsd-dimo-graphql-result.ts" \
           "src/modules/dimo/fsd-graphql.types.v1.ts" \
           "src/modules/dimo/fsd-query-fingerprint.v1.ts" \
+          "src/modules/dimo/provider/dimo-provider-http-classifier.ts" \
+          "src/modules/dimo/provider/dimo-provider-http-classifier.spec.ts" \
           --max-warnings 0
 
       - name: TypeScript (noEmit)

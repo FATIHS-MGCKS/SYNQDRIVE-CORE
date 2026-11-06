@@ -141,5 +141,6 @@ describe('FsdDimoLiveDiscoveryAdapterV1', () => {
     });
     expect(res.httpStatus).toBe(200);
     expect(res.availableSignals).toEqual([]);
+    expect(res.catalogFetchSucceeded).toBe(false);
   });
 });

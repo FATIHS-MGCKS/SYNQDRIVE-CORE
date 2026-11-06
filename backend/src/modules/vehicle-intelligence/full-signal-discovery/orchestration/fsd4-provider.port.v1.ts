@@ -11,6 +11,8 @@ export type Fsd4HistoricalObservationV1 = {
 export type Fsd4ProviderCatalogResultV1 = {
   availableSignals: readonly string[];
   httpStatus: number;
+  /** See Fsd3ProviderCatalogResultV1.catalogFetchSucceeded */
+  catalogFetchSucceeded?: boolean;
 };
 
 export type Fsd4ProviderHistoricalResultV1 = {

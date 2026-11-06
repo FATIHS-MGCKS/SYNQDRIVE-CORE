@@ -435,7 +435,11 @@ export class Fsd3CatalogSnapshotOrchestratorService {
           tokenId: input.dimoTokenId,
           dispatchContext,
         });
-        if (catalogResult.httpStatus !== 200 || !Array.isArray(catalogResult.availableSignals)) {
+        if (
+          catalogResult.httpStatus !== 200 ||
+          !Array.isArray(catalogResult.availableSignals) ||
+          catalogResult.catalogFetchSucceeded === false
+        ) {
           const fin = await this.finalizeCatalogAttempt(
             writeAuth,
             catalogPlanFingerprint,

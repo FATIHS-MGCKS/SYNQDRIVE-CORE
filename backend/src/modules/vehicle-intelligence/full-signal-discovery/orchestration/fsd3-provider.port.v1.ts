@@ -5,6 +5,11 @@ import type { FsdDiscoveryRunIdentityV1 } from '../persistence/fsd-discovery-per
 export type Fsd3ProviderCatalogResultV1 = {
   availableSignals: readonly string[];
   httpStatus: number;
+  /**
+   * Live DIMO: false when HTTP/GraphQL did not yield a valid catalog (e.g. GRAPHQL_ERRORS_NO_DATA).
+   * Undefined means success if httpStatus is 200 and availableSignals is an array (mock compatibility).
+   */
+  catalogFetchSucceeded?: boolean;
 };
 
 export type Fsd3ProviderSnapshotFieldValueV1 = {

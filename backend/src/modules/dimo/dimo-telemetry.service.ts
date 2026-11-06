@@ -253,32 +253,34 @@ export class DimoTelemetryService {
       };
     }
 
-    return this.providerGateway.execute({
-      operation: DimoProviderOperation.TELEMETRY_GRAPHQL,
-      priority: DimoProviderRequestPriority.P4_BACKGROUND,
-      requestContext: buildDimoProviderRequestContext(tokenId, input.requestContext),
-      invoke: () =>
-        this.dimoRequestExecutor.execute({
-          category: 'ADMIN',
-          priority: 'BACKGROUND',
-          maxRetries: 0,
-          execute: async () => {
-            try {
+    try {
+      return await this.providerGateway.execute({
+        operation: DimoProviderOperation.TELEMETRY_GRAPHQL,
+        priority: DimoProviderRequestPriority.P4_BACKGROUND,
+        requestContext: buildDimoProviderRequestContext(tokenId, input.requestContext),
+        invoke: () =>
+          this.dimoRequestExecutor.execute({
+            category: 'ADMIN',
+            priority: 'BACKGROUND',
+            maxRetries: 0,
+            bypassBudget: false,
+            execute: async () => {
               const raw = await this.postGraphQLRaw(
                 input.vehicleJwt,
                 input.query,
                 {
                   throwOnGraphqlErrorsWithoutData: false,
+                  fsdTelemetryPath: true,
                 },
                 input.variables,
               );
               return this.classifyFsdGraphqlPayload(raw.httpStatus, raw.payload);
-            } catch (err) {
-              return this.classifyFsdGraphqlTransportError(err);
-            }
-          },
-        }),
-    });
+            },
+          }),
+      });
+    } catch (err) {
+      return this.classifyFsdGraphqlTransportError(err);
+    }
   }
 
   async queryGraphQL(
@@ -368,6 +370,8 @@ export class DimoTelemetryService {
     options: {
       acquisitionRequestedAt?: Date;
       throwOnGraphqlErrorsWithoutData: boolean;
+      /** FSD: do not log GraphQL error message bodies (low-cardinality only). */
+      fsdTelemetryPath?: boolean;
     },
     variables?: Record<string, any>,
   ): Promise<{
@@ -388,12 +392,24 @@ export class DimoTelemetryService {
 
     const gqlErrors = (response.data as { errors?: unknown })?.errors;
     if (Array.isArray(gqlErrors) && gqlErrors.length > 0) {
-      const messages = gqlErrors
-        .map((e: { message?: string }) => e?.message ?? 'GraphQL error')
-        .join('; ');
-      this.logger.warn(`GraphQL response contains errors: ${messages}`);
+      if (options.fsdTelemetryPath) {
+        this.logger.warn(
+          `GraphQL response contains errors (FSD path: messages redacted; count=${gqlErrors.length})`,
+        );
+      } else {
+        const messages = gqlErrors
+          .map((e: { message?: string }) => e?.message ?? 'GraphQL error')
+          .join('; ');
+        this.logger.warn(`GraphQL response contains errors: ${messages}`);
+      }
 
       if (options.throwOnGraphqlErrorsWithoutData && !(response.data as { data?: unknown })?.data) {
+        if (options.fsdTelemetryPath) {
+          throw new Error('DIMO GraphQL error (details redacted)');
+        }
+        const messages = gqlErrors
+          .map((e: { message?: string }) => e?.message ?? 'GraphQL error')
+          .join('; ');
         throw new Error(`DIMO GraphQL error: ${messages}`);
       }
     }

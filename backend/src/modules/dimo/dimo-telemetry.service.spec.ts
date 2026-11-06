@@ -7,12 +7,15 @@ import { DimoProviderLimiterService } from './provider/dimo-provider-limiter.ser
 import { DimoProviderRequestPriority } from './provider/dimo-provider-limiter.types';
 import type { DimoProviderLimiterConfigShape } from '@config/dimo-provider-limiter.config';
 import { DimoRequestExecutor } from './provider-budget/dimo-request-executor.service';
+import { DimoProviderBudgetService } from './provider-budget/dimo-provider-budget.service';
+import { runWithDimoRequestContext } from './provider-budget/dimo-request-context';
 import { computeFsdQueryFingerprintV1, normalizeFsdQueryTextForFingerprintV1 } from './fsd-query-fingerprint.v1';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-function createOffGateway(): DimoProviderGateway {
+function createOffGateway(): { gateway: DimoProviderGateway; limiterSetCooldown: jest.Mock } {
+  const limiterSetCooldown = jest.fn();
   const config: DimoProviderLimiterConfigShape = {
     enabled: false,
     mode: 'off',
@@ -42,20 +45,52 @@ function createOffGateway(): DimoProviderGateway {
   const limiter = {
     begin: jest.fn(),
     end: jest.fn(),
-    setProviderCooldown: jest.fn(),
+    setProviderCooldown: limiterSetCooldown,
   } as unknown as DimoProviderLimiterService;
   const admission = {
     acquire: jest.fn().mockImplementation((input) => limiter.begin(input)),
   } as unknown as DimoProviderAdmissionService;
-  return new DimoProviderGateway(config, admission, limiter);
+  return {
+    gateway: new DimoProviderGateway(config, admission, limiter),
+    limiterSetCooldown,
+  };
 }
 
 function createBypassExecutor(): DimoRequestExecutor {
   return {
-    execute: jest.fn(async (params: { execute: () => Promise<unknown> }) =>
-      params.execute(),
-    ),
+    execute: jest.fn(async (params: { execute: () => Promise<unknown> }) => params.execute()),
   } as unknown as DimoRequestExecutor;
+}
+
+function createTestExecutorWithBudgetMocks(): {
+  executor: DimoRequestExecutor;
+  acquirePermit: jest.Mock;
+  releasePermit: jest.Mock;
+} {
+  const acquire = jest.fn(async () => ({
+    token: 'test-permit',
+    category: 'ADMIN' as const,
+    acquiredAt: Date.now(),
+  }));
+  const release = jest.fn(async () => undefined);
+  const budget = {
+    isEnabled: () => true,
+    getConfig: () => ({
+      globalMaxRetries: 0,
+      globalRetryAfterMaxMs: 60_000,
+    }),
+    getMetrics: () => ({
+      requestsTotal: { inc: jest.fn() },
+      requestDurationSeconds: { observe: jest.fn() },
+      rateLimitedTotal: { inc: jest.fn() },
+      retryAfterSeconds: { observe: jest.fn() },
+    }),
+    acquirePermit: acquire,
+    releasePermit: release,
+    record429: jest.fn(),
+  } as unknown as DimoProviderBudgetService;
+  const executor = new DimoRequestExecutor(budget);
+  return { executor, acquirePermit: acquire, releasePermit: release };
 }
 
 describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
@@ -69,7 +104,7 @@ describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
     postMock.mockReset();
     mockedAxios.create.mockReturnValue({ post: postMock } as any);
 
-    const gateway = createOffGateway();
+    const { gateway } = createOffGateway();
     gatewayExecuteSpy = jest.spyOn(gateway, 'execute');
 
     const executor = createBypassExecutor();
@@ -251,13 +286,68 @@ describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
     expect(executorExecuteSpy).toHaveBeenCalled();
   });
 
+  it('fetchLatestVehicleSnapshot forwards requestContext to queryGraphQL', async () => {
+    postMock.mockResolvedValue({
+      data: { data: { signalsLatest: { speed: { value: 1 } } } },
+    });
+
+    await service.fetchLatestVehicleSnapshot(vehicleJwt, 99, {
+      organizationId: 'org-1',
+      vehicleId: 'veh-1',
+      tokenId: 99,
+    });
+
+    expect(gatewayExecuteSpy).toHaveBeenCalled();
+    expect(executorExecuteSpy).toHaveBeenCalled();
+    expect(postMock).toHaveBeenCalled();
+  });
+
   describe('queryFsdGraphql (FSD — single attempt, classified envelope)', () => {
+    let fsdService: DimoTelemetryService;
+    let fsdGatewaySpy: jest.SpyInstance;
+    let fsdExecutorSpy: jest.SpyInstance;
+    let fsdLimiterCooldown: jest.Mock;
+    let fsdAcquirePermit: jest.Mock;
+    let fsdReleasePermit: jest.Mock;
+
+    beforeEach(() => {
+      const { gateway, limiterSetCooldown: gwCooldown } = createOffGateway();
+      fsdLimiterCooldown = gwCooldown;
+      fsdGatewaySpy = jest.spyOn(gateway, 'execute');
+
+      const { executor, acquirePermit, releasePermit } = createTestExecutorWithBudgetMocks();
+      fsdAcquirePermit = acquirePermit;
+      fsdReleasePermit = releasePermit;
+      fsdExecutorSpy = jest.spyOn(executor, 'execute');
+
+      fsdService = new DimoTelemetryService(
+        {
+          get: jest.fn((key: string) => {
+            if (key === 'dimo.telemetryApiUrl') {
+              return 'https://telemetry-api.dimo.zone/query';
+            }
+            if (key === 'dimo.requestTimeoutMs') {
+              return 10000;
+            }
+            return undefined;
+          }),
+        } as unknown as ConfigService,
+        executor,
+        gateway,
+      );
+    });
+
+    afterEach(() => {
+      fsdGatewaySpy.mockRestore();
+      fsdExecutorSpy.mockRestore();
+    });
+
     it('uses maxRetries 0 and ADMIN/BACKGROUND on executor', async () => {
       postMock.mockResolvedValue({ status: 200, data: { data: { availableSignals: ['speed'] } } });
       const q = 'query X { availableSignals(tokenId: 1) }';
       const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
 
-      const result = await service.queryFsdGraphql({
+      const result = await fsdService.queryFsdGraphql({
         vehicleJwt,
         query: q,
         expectedQueryFingerprint: fp,
@@ -265,18 +355,60 @@ describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
       });
 
       expect(result.kind).toBe('HTTP_200_OK');
-      expect(executorExecuteSpy).toHaveBeenCalledWith(
+      expect(fsdExecutorSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           category: 'ADMIN',
           priority: 'BACKGROUND',
           maxRetries: 0,
+          bypassBudget: false,
         }),
       );
-      expect(gatewayExecuteSpy).toHaveBeenCalledWith(
+      expect(fsdGatewaySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           priority: DimoProviderRequestPriority.P4_BACKGROUND,
         }),
       );
+    });
+
+    it('sets bypassBudget false so inherited bypassBudget=true still acquires a global permit', async () => {
+      postMock.mockResolvedValue({ status: 200, data: { data: { availableSignals: ['x'] } } });
+      const q = 'query X { availableSignals(tokenId: 1) }';
+      const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
+      fsdAcquirePermit.mockClear();
+      fsdReleasePermit.mockClear();
+
+      await runWithDimoRequestContext({ category: 'LIVE_SNAPSHOT', priority: 'NORMAL', bypassBudget: true }, () =>
+        fsdService.queryFsdGraphql({
+          vehicleJwt,
+          query: q,
+          expectedQueryFingerprint: fp,
+          requestContext: { tokenId: 1 },
+        }),
+      );
+
+      expect(fsdAcquirePermit).toHaveBeenCalled();
+      expect(fsdReleasePermit).toHaveBeenCalled();
+      expect(postMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('429 transport error: gateway cooldown, single HTTP attempt, classified failure', async () => {
+      postMock.mockRejectedValue(
+        Object.assign(new Error('too many'), {
+          response: { status: 429, headers: { 'retry-after': '2' }, data: {} },
+        }),
+      );
+      const q = 'query R { x }';
+      const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
+
+      const result = await fsdService.queryFsdGraphql({
+        vehicleJwt,
+        query: q,
+        expectedQueryFingerprint: fp,
+      });
+
+      expect(result.kind).toBe('HTTP_429');
+      expect(postMock).toHaveBeenCalledTimes(1);
+      expect(fsdLimiterCooldown).toHaveBeenCalledWith(2, expect.any(Number));
     });
 
     it('classifies partial GraphQL errors with data', async () => {
@@ -290,7 +422,7 @@ describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
       const q = 'query P { signalsLatest(tokenId: 1) { speed { value } } }';
       const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
 
-      const result = await service.queryFsdGraphql({
+      const result = await fsdService.queryFsdGraphql({
         vehicleJwt,
         query: q,
         expectedQueryFingerprint: fp,
@@ -308,7 +440,7 @@ describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
       const q = 'query E { x }';
       const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
 
-      const result = await service.queryFsdGraphql({
+      const result = await fsdService.queryFsdGraphql({
         vehicleJwt,
         query: q,
         expectedQueryFingerprint: fp,
@@ -324,7 +456,7 @@ describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
       const q = 'query H { x }';
       const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
 
-      const result = await service.queryFsdGraphql({
+      const result = await fsdService.queryFsdGraphql({
         vehicleJwt,
         query: q,
         expectedQueryFingerprint: fp,
@@ -335,7 +467,7 @@ describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
 
     it('returns fingerprint mismatch without calling HTTP', async () => {
       const q = 'query M { x }';
-      const result = await service.queryFsdGraphql({
+      const result = await fsdService.queryFsdGraphql({
         vehicleJwt,
         query: q,
         expectedQueryFingerprint: 'deadbeef',
@@ -344,21 +476,5 @@ describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
       expect(result.kind).toBe('QUERY_FINGERPRINT_MISMATCH');
       expect(postMock).not.toHaveBeenCalled();
     });
-  });
-
-  it('fetchLatestVehicleSnapshot forwards requestContext to queryGraphQL', async () => {
-    postMock.mockResolvedValue({
-      data: { data: { signalsLatest: { speed: { value: 1 } } } },
-    });
-
-    await service.fetchLatestVehicleSnapshot(vehicleJwt, 99, {
-      organizationId: 'org-1',
-      vehicleId: 'veh-1',
-      tokenId: 99,
-    });
-
-    expect(gatewayExecuteSpy).toHaveBeenCalled();
-    expect(executorExecuteSpy).toHaveBeenCalled();
-    expect(postMock).toHaveBeenCalled();
   });
 });
