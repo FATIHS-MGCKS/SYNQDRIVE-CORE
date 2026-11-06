@@ -382,7 +382,8 @@
       "^@synq/evaluations-periods/(.*)$": "<rootDir>/synq/evaluations-periods/$1",
       "^@synq/evaluations-analytics/(.*)$": "<rootDir>/synq/evaluations-analytics/$1",
       "^@synq/evaluations-finance/(.*)$": "<rootDir>/synq/evaluations-finance/$1",
-      "^@synq/evaluations-recommendations/(.*)$": "<rootDir>/synq/evaluations-recommendations/$1"
+      "^@synq/evaluations-recommendations/(.*)$": "<rootDir>/synq/evaluations-recommendations/$1",
+      "^@fsd/(.*)$": "<rootDir>/modules/vehicle-intelligence/full-signal-discovery/$1"
     }
   }
 }

@@ -324,10 +324,12 @@ import { TireWearV3PriorModule } from './tires/wear-v3-prior/tire-wear-v3-prior.
 import { TireWearV3CalibrationShadowModule } from './tires/wear-v3-calibration-shadow/tire-wear-v3-calibration-shadow.module';
 import { TireHealthV3ReadModule } from './tires/tire-health-v3-read.module';
 import { DiV0M7aRoadAssignmentShadowModule } from './driving-intelligence/m7a-road-assignment-shadow-worker/di-v0-m7a-road-assignment-shadow.module';
+import { FsdDiscoveryIntegrationModule } from './fsd-integration/fsd-integration.module';
 
 @Module({
   imports: [
     forwardRef(() => DimoModule),
+    forwardRef(() => FsdDiscoveryIntegrationModule),
     VsiReadonlySignalComposerModule,
     DiV0S4RuntimeModule,
     DiV0TripSpeedQualityModule,
