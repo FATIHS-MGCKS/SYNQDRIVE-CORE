@@ -26,8 +26,7 @@
       "@synq/evaluations-periods/*": ["src/synq/evaluations-periods/*"],
       "@synq/evaluations-analytics/*": ["src/synq/evaluations-analytics/*"],
       "@synq/evaluations-finance/*": ["src/synq/evaluations-finance/*"],
-      "@synq/evaluations-recommendations/*": ["src/synq/evaluations-recommendations/*"],
-      "@fsd/*": ["src/modules/vehicle-intelligence/full-signal-discovery/*"]
+      "@synq/evaluations-recommendations/*": ["src/synq/evaluations-recommendations/*"]
     }
   }
 }

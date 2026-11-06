@@ -71,16 +71,18 @@ jobs:
 
       - name: ESLint (full-signal-discovery + dimo telemetry touchpoints)
         working-directory: backend
-        run: npx eslint \
-          "src/modules/vehicle-intelligence/full-signal-discovery/**/*.ts" \
-          "src/modules/vehicle-intelligence/fsd-integration/**/*.ts" \
-          "src/modules/dimo/dimo-telemetry.service.ts" \
-          "src/modules/dimo/fsd-dimo-graphql-result.ts" \
-          "src/modules/dimo/fsd-graphql.types.v1.ts" \
-          "src/modules/dimo/fsd-query-fingerprint.v1.ts" \
-          "src/modules/dimo/provider/dimo-provider-http-classifier.ts" \
-          "src/modules/dimo/provider/dimo-provider-http-classifier.spec.ts" \
-          --max-warnings 0
+        run: |
+          set -euo pipefail
+          npx eslint \
+            "src/modules/vehicle-intelligence/full-signal-discovery/**/*.ts" \
+            "src/modules/vehicle-intelligence/fsd-integration/**/*.ts" \
+            "src/modules/dimo/dimo-telemetry.service.ts" \
+            "src/modules/dimo/fsd-dimo-graphql-result.ts" \
+            "src/modules/dimo/fsd-graphql.types.v1.ts" \
+            "src/modules/dimo/fsd-query-fingerprint.v1.ts" \
+            "src/modules/dimo/provider/dimo-provider-http-classifier.ts" \
+            "src/modules/dimo/provider/dimo-provider-http-classifier.spec.ts" \
+            --max-warnings 0
 
       - name: TypeScript (noEmit)
         working-directory: backend

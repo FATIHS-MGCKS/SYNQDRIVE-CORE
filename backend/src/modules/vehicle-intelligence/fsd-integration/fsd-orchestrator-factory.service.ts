@@ -1,11 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { FsdDiscoveryPersistenceRepository } from '@fsd/persistence/fsd-discovery-persistence.repository';
-import { Fsd3CatalogSnapshotOrchestratorService } from '@fsd/orchestration/fsd3-orchestration.service.v1';
-import { Fsd4HistoricalDiscoveryOrchestratorService } from '@fsd/orchestration/fsd4-orchestration.service.v1';
-import type { Fsd3OrchestrationConfigV1 } from '@fsd/orchestration/fsd3-orchestration.config.v1';
-import type { Fsd4OrchestrationConfigV1 } from '@fsd/orchestration/fsd4-orchestration.config.v1';
-import type { Fsd3DiscoveryProviderPortV1 } from '@fsd/orchestration/fsd3-provider.port.v1';
-import type { Fsd4HistoricalDiscoveryProviderPortV1 } from '@fsd/orchestration/fsd4-provider.port.v1';
+import { FsdDiscoveryPersistenceRepository } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.repository';
+import { Fsd3CatalogSnapshotOrchestratorService } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-orchestration.service.v1';
+import { Fsd4HistoricalDiscoveryOrchestratorService } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd4-orchestration.service.v1';
+import type { Fsd3OrchestrationConfigV1 } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-orchestration.config.v1';
+import type { Fsd4OrchestrationConfigV1 } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd4-orchestration.config.v1';
+import type { Fsd3DiscoveryProviderPortV1 } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-provider.port.v1';
+import type { Fsd4HistoricalDiscoveryProviderPortV1 } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd4-provider.port.v1';
 import { FSD3_ORCHESTRATION_CONFIG, FSD4_ORCHESTRATION_CONFIG } from './fsd-integration.tokens';
 
 /**

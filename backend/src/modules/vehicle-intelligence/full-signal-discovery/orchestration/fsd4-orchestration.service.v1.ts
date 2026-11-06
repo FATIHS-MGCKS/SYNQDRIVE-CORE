@@ -44,6 +44,7 @@ import type { Fsd4OrchestrationInputV1, Fsd4OrchestrationRunResultV1 } from './f
 import { assertFsd4VehicleAllowed, type Fsd4OrchestrationConfigV1 } from './fsd4-orchestration.config.v1';
 import { mapHistoricalFieldEvidence } from './fsd4-historical-evidence.v1';
 import type { Fsd4HistoricalDiscoveryProviderPortV1 } from './fsd4-provider.port.v1';
+import { classifyFsd4HistoricalDocumentLedgerOutcomeV1 } from './fsd-provider-outcome.util.v1';
 import {
   classifyFsd4CatalogReserveForProviderDispatch,
   classifyFsd4HistoricalReserveForProviderDispatch,
@@ -869,6 +870,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     let signalsWithCoverage = 0;
     let unknownOutcome = false;
     let chunksExecuted = 0;
+    const scope = input.scope;
 
     if (input.existingHistoricalStage) {
       historicalStageId = input.existingHistoricalStage.id;
@@ -1085,6 +1087,33 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
         errors: providerResponse.errors,
       });
 
+      if (interpreted.fields.some((f) => f.attribution === 'AMBIGUOUS')) {
+        unknownOutcome = true;
+        const ambFin = await this.finalizeHistoricalLedgerAttempt(
+          input.writeAuth,
+          input.catalogPlanFingerprint,
+          input.catalogStageVersionRef,
+          input.budget.maxRequestsPerRun,
+          doc.fingerprint,
+          'UNKNOWN',
+        );
+        if (!ambFin) {
+          return buildTerminalFailureResult({
+            runId: input.runId,
+            reason: 'HISTORICAL_LEDGER_FINALIZE_CAS_FAILED',
+          });
+        }
+        await this.persistence.transitionStageStatus({
+          auth: input.writeAuth(),
+          stageType: 'HISTORICAL',
+          expectedStageVersion: historicalStageVersion,
+          fromStatus: 'IN_PROGRESS',
+          toStatus: 'UNKNOWN_OUTCOME',
+          lastOutcome: 'UNKNOWN_OUTCOME',
+        });
+        break;
+      }
+
       if (providerResponse.httpStatus === 422 || providerResponse.httpStatus === 400) {
         if (!checkpoint.rejectedQueryFingerprints.includes(doc.fingerprint)) {
           checkpoint.rejectedQueryFingerprints.push(doc.fingerprint);
@@ -1135,17 +1164,49 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
         continue;
       }
 
-      if (interpreted.fields.some((f) => f.attribution === 'AMBIGUOUS')) {
+      const histDispatch = classifyFsd4HistoricalDocumentLedgerOutcomeV1(providerResponse, interpreted);
+      if (histDispatch.ledgerOutcome === 'FAILED') {
+        const fFin = await this.finalizeHistoricalLedgerAttempt(
+          input.writeAuth,
+          input.catalogPlanFingerprint,
+          input.catalogStageVersionRef,
+          input.budget.maxRequestsPerRun,
+          doc.fingerprint,
+          'FAILED',
+          providerResponse.httpStatus,
+        );
+        if (!fFin) {
+          return buildTerminalFailureResult({
+            runId: input.runId,
+            reason: 'HISTORICAL_LEDGER_FINALIZE_CAS_FAILED',
+          });
+        }
+        await this.persistence.transitionStageStatus({
+          auth: input.writeAuth(),
+          stageType: 'HISTORICAL',
+          expectedStageVersion: historicalStageVersion,
+          fromStatus: 'IN_PROGRESS',
+          toStatus: 'FAILED',
+          lastOutcome: 'FAILED',
+        });
+        await this.failRun(scope, input.runId, input.runVersionRef, input.writeAuth);
+        return buildTerminalFailureResult({
+          runId: input.runId,
+          reason: 'HISTORICAL_PROVIDER_NON_SUCCESS',
+        });
+      }
+      if (histDispatch.ledgerOutcome === 'UNKNOWN') {
         unknownOutcome = true;
-        const ambFin = await this.finalizeHistoricalLedgerAttempt(
+        const uFin = await this.finalizeHistoricalLedgerAttempt(
           input.writeAuth,
           input.catalogPlanFingerprint,
           input.catalogStageVersionRef,
           input.budget.maxRequestsPerRun,
           doc.fingerprint,
           'UNKNOWN',
+          providerResponse.httpStatus,
         );
-        if (!ambFin) {
+        if (!uFin) {
           return buildTerminalFailureResult({
             runId: input.runId,
             reason: 'HISTORICAL_LEDGER_FINALIZE_CAS_FAILED',

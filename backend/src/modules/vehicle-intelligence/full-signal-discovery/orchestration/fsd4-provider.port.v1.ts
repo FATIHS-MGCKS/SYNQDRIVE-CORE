@@ -1,3 +1,4 @@
+import type { FsdDimoGraphqlOutcomeKindV1 } from '@modules/dimo/fsd-dimo-graphql-result';
 import type { FsdGraphqlErrorV1 } from '../fsd-response.interpreter.v1';
 import type { FsdDiscoveryRunIdentityV1 } from '../persistence/fsd-discovery-persistence.contract.v1';
 
@@ -20,6 +21,8 @@ export type Fsd4ProviderHistoricalResultV1 = {
   fieldNamesInDocument: readonly string[];
   dataPresent: boolean;
   httpStatus: number;
+  providerOutcomeKind?: FsdDimoGraphqlOutcomeKindV1;
+  providerDiagnostic?: string;
   errors?: readonly FsdGraphqlErrorV1[];
   observationsByField?: Readonly<Record<string, readonly Fsd4HistoricalObservationV1[]>>;
 };

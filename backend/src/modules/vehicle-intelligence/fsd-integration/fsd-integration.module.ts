@@ -1,9 +1,9 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { PrismaModule } from '@shared/database/prisma.module';
 import { DimoModule } from '@modules/dimo/dimo.module';
-import { FsdDiscoveryPersistenceRepository } from '@fsd/persistence/fsd-discovery-persistence.repository';
-import { resolveFsd3OrchestrationConfigFromEnv } from '@fsd/orchestration/fsd3-orchestration.config.v1';
-import { resolveFsd4OrchestrationConfigFromEnv } from '@fsd/orchestration/fsd4-orchestration.config.v1';
+import { FsdDiscoveryPersistenceRepository } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.repository';
+import { resolveFsd3OrchestrationConfigFromEnv } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-orchestration.config.v1';
+import { resolveFsd4OrchestrationConfigFromEnv } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd4-orchestration.config.v1';
 import { FsdDiscoveryOrchestratorFactoryService } from './fsd-orchestrator-factory.service';
 import { FsdDimoAdapterFactoryService } from './fsd-dimo-adapter-factory.service';
 import { FSD3_ORCHESTRATION_CONFIG, FSD4_ORCHESTRATION_CONFIG } from './fsd-integration.tokens';

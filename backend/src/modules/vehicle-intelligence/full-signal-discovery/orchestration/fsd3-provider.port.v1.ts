@@ -1,3 +1,4 @@
+import type { FsdDimoGraphqlOutcomeKindV1 } from '@modules/dimo/fsd-dimo-graphql-result';
 import type { FsdGraphqlErrorV1 } from '../fsd-response.interpreter.v1';
 import type { FsdValueObservationKindV1 } from '../fsd-evidence.contract.v1';
 import type { FsdDiscoveryRunIdentityV1 } from '../persistence/fsd-discovery-persistence.contract.v1';
@@ -22,6 +23,9 @@ export type Fsd3ProviderSnapshotResultV1 = {
   fieldNamesInDocument: readonly string[];
   dataPresent: boolean;
   httpStatus?: number;
+  /** When set (live DIMO path), orchestrators use classified outcome instead of inferring from httpStatus only. */
+  providerOutcomeKind?: FsdDimoGraphqlOutcomeKindV1;
+  providerDiagnostic?: string;
   errors?: readonly FsdGraphqlErrorV1[];
   valuesByField?: Readonly<Record<string, Fsd3ProviderSnapshotFieldValueV1>>;
 };

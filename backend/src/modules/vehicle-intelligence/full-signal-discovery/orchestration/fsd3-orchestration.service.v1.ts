@@ -47,6 +47,9 @@ import {
 } from './fsd3-orchestration.config.v1';
 import type { Fsd3DiscoveryProviderPortV1 } from './fsd3-provider.port.v1';
 import {
+  classifyFsd3SnapshotDocumentLedgerOutcomeV1,
+} from './fsd-provider-outcome.util.v1';
+import {
   createEmptyFsd3RequestLedger,
   emptyFsd3SnapshotProgressCheckpoint,
   finalizeFsd3ProviderRequestAttempt,
@@ -867,6 +870,33 @@ export class Fsd3CatalogSnapshotOrchestratorService {
         errors: providerResponse.errors,
       });
 
+      if (interpreted.fields.some((f) => f.attribution === 'AMBIGUOUS')) {
+        unknownOutcome = true;
+        const ambFin = await this.finalizeSnapshotLedgerAttempt(
+          input.writeAuth,
+          catalogPlanFingerprint,
+          input.catalogStageVersionRef,
+          input.budget.maxRequestsPerRun,
+          document.fingerprint,
+          'UNKNOWN',
+        );
+        if (!ambFin) {
+          return buildTerminalFailureResult({
+            runId: input.runId,
+            reason: 'SNAPSHOT_LEDGER_FINALIZE_CAS_FAILED',
+          });
+        }
+        await this.persistence.transitionStageStatus({
+          auth: input.writeAuth(),
+          stageType: 'SNAPSHOT',
+          expectedStageVersion: snapshotStageVersion,
+          fromStatus: 'IN_PROGRESS',
+          toStatus: 'UNKNOWN_OUTCOME',
+          lastOutcome: 'UNKNOWN_OUTCOME',
+        });
+        break;
+      }
+
       if (providerResponse.httpStatus === 422 || providerResponse.httpStatus === 400) {
         if (!checkpoint.rejectedQueryFingerprints.includes(document.fingerprint)) {
           checkpoint.rejectedQueryFingerprints.push(document.fingerprint);
@@ -920,17 +950,49 @@ export class Fsd3CatalogSnapshotOrchestratorService {
         continue;
       }
 
-      if (interpreted.fields.some((f) => f.attribution === 'AMBIGUOUS')) {
+      const dispatchOutcome = classifyFsd3SnapshotDocumentLedgerOutcomeV1(providerResponse, interpreted);
+      if (dispatchOutcome.ledgerOutcome === 'FAILED') {
+        const fin = await this.finalizeSnapshotLedgerAttempt(
+          input.writeAuth,
+          catalogPlanFingerprint,
+          input.catalogStageVersionRef,
+          input.budget.maxRequestsPerRun,
+          document.fingerprint,
+          'FAILED',
+          providerResponse.httpStatus,
+        );
+        if (!fin) {
+          return buildTerminalFailureResult({
+            runId: input.runId,
+            reason: 'SNAPSHOT_LEDGER_FINALIZE_CAS_FAILED',
+          });
+        }
+        await this.persistence.transitionStageStatus({
+          auth: input.writeAuth(),
+          stageType: 'SNAPSHOT',
+          expectedStageVersion: snapshotStageVersion,
+          fromStatus: 'IN_PROGRESS',
+          toStatus: 'FAILED',
+          lastOutcome: 'FAILED',
+        });
+        await this.failRun(input.scope, input.runId, input.runVersionRef, input.writeAuth, 'SNAPSHOT_PROVIDER_FAILED');
+        return buildTerminalFailureResult({
+          runId: input.runId,
+          reason: 'SNAPSHOT_PROVIDER_NON_SUCCESS',
+        });
+      }
+      if (dispatchOutcome.ledgerOutcome === 'UNKNOWN') {
         unknownOutcome = true;
-        const ambFin = await this.finalizeSnapshotLedgerAttempt(
+        const uFin = await this.finalizeSnapshotLedgerAttempt(
           input.writeAuth,
           catalogPlanFingerprint,
           input.catalogStageVersionRef,
           input.budget.maxRequestsPerRun,
           document.fingerprint,
           'UNKNOWN',
+          providerResponse.httpStatus,
         );
-        if (!ambFin) {
+        if (!uFin) {
           return buildTerminalFailureResult({
             runId: input.runId,
             reason: 'SNAPSHOT_LEDGER_FINALIZE_CAS_FAILED',

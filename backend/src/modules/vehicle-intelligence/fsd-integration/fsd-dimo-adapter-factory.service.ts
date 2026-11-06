@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { DimoAuthService } from '@modules/dimo/dimo-auth.service';
 import { DimoTelemetryService } from '@modules/dimo/dimo-telemetry.service';
-import { FsdDiscoveryPersistenceRepository } from '@fsd/persistence/fsd-discovery-persistence.repository';
+import { FsdDiscoveryPersistenceRepository } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.repository';
 import {
   createFsdDimoLiveDiscoveryAdapterV1,
   FsdDimoLiveDiscoveryAdapterV1,
-} from '@fsd/orchestration/fsd-dimo-live-discovery.adapter.v1';
+} from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd-dimo-live-discovery.adapter.v1';
 
 @Injectable()
 export class FsdDimoAdapterFactoryService {

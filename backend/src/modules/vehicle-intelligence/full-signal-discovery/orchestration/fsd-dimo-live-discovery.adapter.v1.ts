@@ -56,18 +56,23 @@ function isFsdCatalogFetchSucceededV1(outcome: FsdDimoGraphqlExecutionResultV1):
   return outcome.kind === 'HTTP_200_OK';
 }
 
-function mapSignalsLatestFieldToSnapshotValue(
+/** Exported for unit tests (presence vs null snapshot semantics). */
+export function mapSignalsLatestFieldToSnapshotValue(
   fieldName: string,
   raw: unknown,
+  fieldPresent: boolean,
 ): Fsd3ProviderSnapshotFieldValueV1 {
   const shapeMeta = classifyFsdSignalShape(fieldName);
   const shape = shapeMeta?.shape ?? 'UNKNOWN';
 
-  if (raw == null) {
+  if (!fieldPresent) {
     return { kind: 'MISSING' };
   }
 
   if (shape === 'FLOAT') {
+    if (raw == null) {
+      return fieldPresent ? { kind: 'NULL', numericValue: null } : { kind: 'MISSING' };
+    }
     if (typeof raw === 'object' && raw !== null && 'value' in (raw as object)) {
       const v = (raw as { value?: unknown }).value;
       if (v === null) return { kind: 'NULL', numericValue: null };
@@ -80,6 +85,9 @@ function mapSignalsLatestFieldToSnapshotValue(
   }
 
   if (shape === 'STRING') {
+    if (raw == null) {
+      return fieldPresent ? { kind: 'NULL', numericValue: null } : { kind: 'MISSING' };
+    }
     if (typeof raw === 'object' && raw !== null && 'value' in (raw as object)) {
       const v = (raw as { value?: unknown }).value;
       if (v === null) return { kind: 'NULL', numericValue: null };
@@ -93,6 +101,9 @@ function mapSignalsLatestFieldToSnapshotValue(
   }
 
   if (shape === 'LOCATION') {
+    if (raw == null) {
+      return fieldPresent ? { kind: 'NULL', numericValue: null } : { kind: 'MISSING' };
+    }
     if (typeof raw === 'object' && raw !== null) {
       const o = raw as { value?: { latitude?: unknown; longitude?: unknown } };
       const lat = o.value?.latitude;
@@ -119,7 +130,8 @@ function parseIsoToMs(raw: unknown): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
-function mapHistoricalRowToObservations(
+/** Exported for unit tests (MISSING vs OBSERVED_NULL on historical rows). */
+export function mapHistoricalRowToObservations(
   fieldName: string,
   row: Record<string, unknown>,
   bucketLabelField: string,
@@ -140,8 +152,13 @@ function mapHistoricalRowToObservations(
   const shape = shapeMeta.shape;
 
   if (shape === 'FLOAT') {
+    if (!Object.prototype.hasOwnProperty.call(row, fieldName)) {
+      return [{ timestampMs }];
+    }
     const cell = row[fieldName];
-    if (cell == null) return [{ timestampMs, numericValue: null }];
+    if (cell == null) {
+      return [{ timestampMs, numericValue: null }];
+    }
     if (typeof cell === 'number' && Number.isFinite(cell)) {
       return [{ timestampMs, numericValue: cell }];
     }
@@ -156,8 +173,13 @@ function mapHistoricalRowToObservations(
   }
 
   if (shape === 'LOCATION') {
+    if (!Object.prototype.hasOwnProperty.call(row, fieldName)) {
+      return [{ timestampMs }];
+    }
     const cell = row[fieldName];
-    if (cell == null) return [];
+    if (cell == null) {
+      return [{ timestampMs, numericValue: null }];
+    }
     if (typeof cell === 'object' && cell !== null) {
       const o = cell as { latitude?: unknown; longitude?: unknown };
       const lat = typeof o.latitude === 'number' ? o.latitude : null;
@@ -283,6 +305,8 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
             fieldNamesInDocument: request.fieldNamesInDocument,
             dataPresent: false,
             httpStatus: http.httpStatus,
+            providerOutcomeKind: classified.kind,
+            providerDiagnostic: classified.diagnostic,
             errors,
           };
         }
@@ -293,6 +317,8 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
             fieldNamesInDocument: request.fieldNamesInDocument,
             dataPresent: false,
             httpStatus: http.httpStatus,
+            providerOutcomeKind: classified.kind,
+            providerDiagnostic: classified.diagnostic,
             errors,
           };
         }
@@ -304,13 +330,23 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
             fieldNamesInDocument: request.fieldNamesInDocument,
             dataPresent: false,
             httpStatus: http.httpStatus,
+            providerOutcomeKind:
+              classified.kind === 'HTTP_200_OK' || classified.kind === 'HTTP_200_PARTIAL_GRAPHQL_ERRORS'
+                ? 'MALFORMED_RESPONSE'
+                : classified.kind,
+            providerDiagnostic: 'signals_latest_not_object',
             errors,
           };
         }
 
         const valuesByField: Record<string, Fsd3ProviderSnapshotFieldValueV1> = {};
         for (const fieldName of request.fieldNamesInDocument) {
-          valuesByField[fieldName] = mapSignalsLatestFieldToSnapshotValue(fieldName, signalsLatest[fieldName]);
+          const present = Object.prototype.hasOwnProperty.call(signalsLatest, fieldName);
+          valuesByField[fieldName] = mapSignalsLatestFieldToSnapshotValue(
+            fieldName,
+            signalsLatest[fieldName],
+            present,
+          );
         }
 
         return {
@@ -318,6 +354,8 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
           fieldNamesInDocument: request.fieldNamesInDocument,
           dataPresent: true,
           httpStatus: http.httpStatus,
+          providerOutcomeKind: classified.kind,
+          providerDiagnostic: classified.diagnostic,
           errors,
           valuesByField,
         };
@@ -364,6 +402,8 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
             fieldNamesInDocument: request.fieldNamesInDocument,
             dataPresent: false,
             httpStatus: http.httpStatus,
+            providerOutcomeKind: classified.kind,
+            providerDiagnostic: classified.diagnostic,
             errors,
           };
         }
@@ -374,6 +414,8 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
             fieldNamesInDocument: request.fieldNamesInDocument,
             dataPresent: false,
             httpStatus: http.httpStatus,
+            providerOutcomeKind: classified.kind,
+            providerDiagnostic: classified.diagnostic,
             errors,
           };
         }
@@ -385,6 +427,11 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
             fieldNamesInDocument: request.fieldNamesInDocument,
             dataPresent: false,
             httpStatus: http.httpStatus,
+            providerOutcomeKind:
+              classified.kind === 'HTTP_200_OK' || classified.kind === 'HTTP_200_PARTIAL_GRAPHQL_ERRORS'
+                ? 'MALFORMED_RESPONSE'
+                : classified.kind,
+            providerDiagnostic: 'signals_not_array',
             errors,
           };
         }
@@ -411,6 +458,8 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
           fieldNamesInDocument: request.fieldNamesInDocument,
           dataPresent: true,
           httpStatus: http.httpStatus,
+          providerOutcomeKind: classified.kind,
+          providerDiagnostic: classified.diagnostic,
           errors,
           observationsByField,
         };
