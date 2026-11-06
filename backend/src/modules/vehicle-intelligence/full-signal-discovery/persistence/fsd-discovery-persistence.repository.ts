@@ -734,6 +734,8 @@ export class FsdDiscoveryPersistenceRepository {
   async summarizeRunEvidenceForOrchestration(runId: string): Promise<{
     catalogSignalCount: number;
     observedSignalCount: number;
+    deferredSignalCount: number;
+    rejectedDocumentEvidenceCount: number;
   }> {
     const catalogSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
       where: {
@@ -745,7 +747,22 @@ export class FsdDiscoveryPersistenceRepository {
     const observedSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
       where: { runId, stageType: 'SNAPSHOT', observedValue: true },
     });
-    return { catalogSignalCount, observedSignalCount };
+    const deferredSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
+      where: { runId, stageType: 'SNAPSHOT', evidenceState: 'DEFERRED' },
+    });
+    const rejectedDocumentEvidenceCount = await this.prisma.fsdDiscoverySignalEvidence.count({
+      where: {
+        runId,
+        stageType: 'SNAPSHOT',
+        signalName: { startsWith: '__fsd3_rejected_document__:' },
+      },
+    });
+    return {
+      catalogSignalCount,
+      observedSignalCount,
+      deferredSignalCount,
+      rejectedDocumentEvidenceCount,
+    };
   }
 
   async mutateCatalogStageCheckpoint(input: {

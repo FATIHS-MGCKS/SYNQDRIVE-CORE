@@ -278,7 +278,7 @@ async function seedDimoBinding(prisma: PrismaClient) {
         maxResponseBytes: 524_288,
       },
     });
-    expect(result.status).toBe('COMPLETED');
+    expect(result.status).toBe('PARTIAL');
     if (result.status !== 'SKIPPED') {
       const stage = await prisma.fsdDiscoveryStage.findFirst({
         where: { runId: result.runId, stageType: 'SNAPSHOT' },

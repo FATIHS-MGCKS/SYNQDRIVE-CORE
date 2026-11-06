@@ -190,3 +190,80 @@ export function hasBlockingCatalogReservation(checkpoint: Fsd3CatalogStageCheckp
   }
   return attempt.outcome === 'RESERVED' || attempt.outcome === 'DISPATCHED' || attempt.outcome === 'UNKNOWN';
 }
+
+export type Fsd3DispatchGateDecisionV1 =
+  | { action: 'DISPATCH_NEW' }
+  | { action: 'SKIP_SETTLED'; reason: string }
+  | { action: 'FAIL_CLOSED'; reason: string };
+
+/** R1: only RESERVED may hit the provider; IDEMPOTENT attempts follow persisted outcomes. */
+export function classifyFsd3ReserveForProviderDispatch(input: {
+  reserve: Fsd3ReserveAttemptResultV1;
+  checkpoint: Fsd3SnapshotProgressCheckpointV1;
+  queryFingerprint: string;
+}): Fsd3DispatchGateDecisionV1 {
+  if (input.reserve.kind === 'RESERVED') {
+    return { action: 'DISPATCH_NEW' };
+  }
+  if (input.reserve.kind === 'BUDGET_EXHAUSTED') {
+    return { action: 'FAIL_CLOSED', reason: 'FSD3_REQUEST_BUDGET_EXHAUSTED' };
+  }
+  const attempt = input.reserve.attempt;
+  if (attempt.outcome === 'SUCCEEDED') {
+    if (input.checkpoint.completedDocumentFingerprints.includes(input.queryFingerprint)) {
+      return { action: 'SKIP_SETTLED', reason: 'ALREADY_COMPLETED' };
+    }
+    return { action: 'FAIL_CLOSED', reason: 'FSD3_LEDGER_SUCCEEDED_WITHOUT_CHECKPOINT' };
+  }
+  if (attempt.outcome === 'FAILED') {
+    if (input.checkpoint.rejectedQueryFingerprints.includes(input.queryFingerprint)) {
+      return { action: 'SKIP_SETTLED', reason: 'ALREADY_REJECTED' };
+    }
+    return { action: 'FAIL_CLOSED', reason: 'FSD3_LEDGER_FAILED_WITHOUT_CHECKPOINT' };
+  }
+  return {
+    action: 'FAIL_CLOSED',
+    reason: `FSD3_UNSETTLED_ATTEMPT_${attempt.outcome}`,
+  };
+}
+
+export function classifyFsd3CatalogReserveForProviderDispatch(input: {
+  reserve: Fsd3ReserveAttemptResultV1;
+  checkpoint: Fsd3CatalogStageCheckpointV1;
+}): Fsd3DispatchGateDecisionV1 {
+  if (input.reserve.kind === 'RESERVED') {
+    return { action: 'DISPATCH_NEW' };
+  }
+  if (input.reserve.kind === 'BUDGET_EXHAUSTED') {
+    return { action: 'FAIL_CLOSED', reason: 'FSD3_REQUEST_BUDGET_EXHAUSTED' };
+  }
+  const attempt = input.reserve.attempt;
+  if (attempt.outcome === 'SUCCEEDED' && input.checkpoint.catalogFetch?.succeeded === true) {
+    return { action: 'SKIP_SETTLED', reason: 'CATALOG_ALREADY_SUCCEEDED' };
+  }
+  if (attempt.outcome === 'FAILED') {
+    return { action: 'SKIP_SETTLED', reason: 'CATALOG_ALREADY_FAILED' };
+  }
+  return {
+    action: 'FAIL_CLOSED',
+    reason: `FSD3_CATALOG_UNSETTLED_ATTEMPT_${attempt.outcome}`,
+  };
+}
+
+export function findUnsettledSnapshotAttempts(
+  ledger: Fsd3RequestLedgerV1,
+  checkpoint: Fsd3SnapshotProgressCheckpointV1,
+): Fsd3ProviderRequestAttemptV1[] {
+  return ledger.attempts.filter((a) => {
+    if (!a.attemptKey.startsWith('snapshot:')) {
+      return false;
+    }
+    if (a.outcome === 'SUCCEEDED' && checkpoint.completedDocumentFingerprints.includes(a.queryFingerprint)) {
+      return false;
+    }
+    if (a.outcome === 'FAILED' && checkpoint.rejectedQueryFingerprints.includes(a.queryFingerprint)) {
+      return false;
+    }
+    return a.outcome === 'RESERVED' || a.outcome === 'DISPATCHED' || a.outcome === 'UNKNOWN';
+  });
+}

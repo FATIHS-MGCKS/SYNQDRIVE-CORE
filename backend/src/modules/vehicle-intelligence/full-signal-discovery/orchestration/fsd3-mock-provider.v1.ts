@@ -15,6 +15,7 @@ export type Fsd3MockProviderModeV1 =
   | 'PARTIAL_GRAPHQL_ERRORS'
   | 'AMBIGUOUS_GRAPHQL_ERRORS'
   | 'HTTP_422_DOCUMENT'
+  | 'HTTP_422_FIRST_DOCUMENT_ONLY'
   | 'CATALOG_HTTP_500';
 
 export function buildFsd3TeslaMockCatalogResultV1(): Fsd3ProviderCatalogResultV1 {
@@ -85,6 +86,14 @@ export function createFsd3MockDiscoveryProvider(input: {
       }
       if (input.mode === 'HTTP_422_DOCUMENT') {
         rejectedFingerprints.add(request.documentFingerprint);
+        return {
+          documentFingerprint: request.documentFingerprint,
+          fieldNamesInDocument: request.fieldNamesInDocument,
+          dataPresent: false,
+          httpStatus: 422,
+        };
+      }
+      if (input.mode === 'HTTP_422_FIRST_DOCUMENT_ONLY' && snapshotCallCount === 1) {
         return {
           documentFingerprint: request.documentFingerprint,
           fieldNamesInDocument: request.fieldNamesInDocument,
