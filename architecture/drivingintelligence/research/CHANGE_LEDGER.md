@@ -2737,6 +2737,6 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 |-------|--------|
 | CHANGE | `ds4-dbi-w0-e9-null-selection-report.v1.ts` + offline CLI: each null arm exposes `totalDraws`, `empiricalEligibilityRate`, `abstentionReasonCounts`, `selectionHazard`, `interpretationLimitation`, `constructionSemantics`; unrestricted arm adds `externalEligibilityScaleEvidence` (~200k audited rate **not** conflated with 50-draw empirical); occupancy scenario description states **occupancy-enforcing**, not exact conditional IID-uniform |
 | WHY | Architect audit (W0 **CONDITIONAL**): unrestricted reference for D8 IOD is **censored** by preregistered support gate — must not read 0/50 as P=0 |
-| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (kernel + E9 selection spec); offline `--json`; `validate-module-registry.sh` |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (kernel + E9 selection spec); offline `--json`; `validate-module-registry.sh`; regenerated `production-database-guard-bundle.manifest.sha256` (`package.json` script list pin drift) |
 | NON_EFFECTS | **No** D8 threshold / counting / window / IOD formula changes; **no** production integration |
 
