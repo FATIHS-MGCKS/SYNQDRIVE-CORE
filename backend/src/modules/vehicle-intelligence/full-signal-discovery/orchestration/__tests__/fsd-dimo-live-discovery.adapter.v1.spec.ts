@@ -119,6 +119,99 @@ describe('FsdDimoLiveDiscoveryAdapterV1', () => {
     expect(res.observationsByField?.speed?.[0]?.numericValue).toBe(5);
   });
 
+  it('HTTP_200_OK with data {} yields catalogFetchSucceeded false (availableSignals missing)', async () => {
+    const q = buildAvailableSignalsQuery(99);
+    const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
+    const { dimoTelemetry } = makeDeps({
+      queryFsdGraphql: jest.fn().mockResolvedValue({
+        kind: 'HTTP_200_OK',
+        httpStatus: 200,
+        data: {},
+        errors: [],
+      }),
+    });
+    const adapter = createFsdDimoLiveDiscoveryAdapterV1({
+      dimoAuth: { getVehicleJwt: jest.fn().mockResolvedValue('j') } as never,
+      dimoTelemetry,
+      persistence: { assertDimoDispatchBinding: jest.fn() } as never,
+    });
+    const res = await adapter.createFsd3Port().fetchAvailableSignals({
+      tokenId: 99,
+      dispatchContext,
+    });
+    expect(res.httpStatus).toBe(200);
+    expect(res.availableSignals).toEqual([]);
+    expect(res.catalogFetchSucceeded).toBe(false);
+    expect(dimoTelemetry.queryFsdGraphql).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedQueryFingerprint: fp }),
+    );
+  });
+
+  it('HTTP_200_OK with availableSignals: [] yields catalogFetchSucceeded true', async () => {
+    const { dimoTelemetry } = makeDeps({
+      queryFsdGraphql: jest.fn().mockResolvedValue({
+        kind: 'HTTP_200_OK',
+        httpStatus: 200,
+        data: { availableSignals: [] },
+        errors: [],
+      }),
+    });
+    const adapter = createFsdDimoLiveDiscoveryAdapterV1({
+      dimoAuth: { getVehicleJwt: jest.fn().mockResolvedValue('j') } as never,
+      dimoTelemetry,
+      persistence: { assertDimoDispatchBinding: jest.fn() } as never,
+    });
+    const res = await adapter.createFsd3Port().fetchAvailableSignals({
+      tokenId: 99,
+      dispatchContext,
+    });
+    expect(res.catalogFetchSucceeded).toBe(true);
+    expect(res.availableSignals).toEqual([]);
+  });
+
+  it('HTTP_200_OK with availableSignals null is malformed catalog', async () => {
+    const { dimoTelemetry } = makeDeps({
+      queryFsdGraphql: jest.fn().mockResolvedValue({
+        kind: 'HTTP_200_OK',
+        httpStatus: 200,
+        data: { availableSignals: null },
+        errors: [],
+      }),
+    });
+    const adapter = createFsdDimoLiveDiscoveryAdapterV1({
+      dimoAuth: { getVehicleJwt: jest.fn().mockResolvedValue('j') } as never,
+      dimoTelemetry,
+      persistence: { assertDimoDispatchBinding: jest.fn() } as never,
+    });
+    const res = await adapter.createFsd3Port().fetchAvailableSignals({
+      tokenId: 99,
+      dispatchContext,
+    });
+    expect(res.catalogFetchSucceeded).toBe(false);
+  });
+
+  it('HTTP_200_OK with non-string catalog elements fails closed', async () => {
+    const { dimoTelemetry } = makeDeps({
+      queryFsdGraphql: jest.fn().mockResolvedValue({
+        kind: 'HTTP_200_OK',
+        httpStatus: 200,
+        data: { availableSignals: ['speed', 3] },
+        errors: [],
+      }),
+    });
+    const adapter = createFsdDimoLiveDiscoveryAdapterV1({
+      dimoAuth: { getVehicleJwt: jest.fn().mockResolvedValue('j') } as never,
+      dimoTelemetry,
+      persistence: { assertDimoDispatchBinding: jest.fn() } as never,
+    });
+    const res = await adapter.createFsd3Port().fetchAvailableSignals({
+      tokenId: 99,
+      dispatchContext,
+    });
+    expect(res.catalogFetchSucceeded).toBe(false);
+    expect(res.availableSignals).toEqual([]);
+  });
+
   it('propagates classified GraphQL catalog outcome without throwing', async () => {
     const q = buildAvailableSignalsQuery(99);
     const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));

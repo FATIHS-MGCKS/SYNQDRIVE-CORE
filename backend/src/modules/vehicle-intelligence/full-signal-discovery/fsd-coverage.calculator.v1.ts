@@ -94,9 +94,12 @@ export function isValidValueBucket(kind: FsdValueObservationKindV1): boolean {
 
 function observationKindPriority(kind: FsdValueObservationKindV1): number {
   if (kind === 'VALID_NONZERO' || kind === 'VALID_ZERO') {
-    return 3;
+    return 4;
   }
   if (kind === 'NULL') {
+    return 3;
+  }
+  if (kind === 'INVALID') {
     return 2;
   }
   if (kind === 'MISSING') {
@@ -166,6 +169,8 @@ export type FsdCoverageSummaryV1 = {
   validValueBucketCount: number;
   nullBucketCount: number;
   missingBucketCount: number;
+  /** Dominant observation classified INVALID (e.g. malformed location coords). */
+  invalidBucketCount: number;
   zeroValueBucketCount: number;
   validValueCoverageRatio: number;
   firstValidTimestampMs: number | null;
@@ -230,6 +235,7 @@ export function summarizeSignalBucketObservations(input: {
   let validValueBucketCount = 0;
   let nullBucketCount = 0;
   let missingBucketCount = 0;
+  let invalidBucketCount = 0;
   let zeroValueBucketCount = 0;
   let firstValidTimestampMs: number | null = null;
   let lastValidTimestampMs: number | null = null;
@@ -257,6 +263,8 @@ export function summarizeSignalBucketObservations(input: {
       nullBucketCount += 1;
     } else if (kind === 'MISSING') {
       missingBucketCount += 1;
+    } else if (kind === 'INVALID') {
+      invalidBucketCount += 1;
     }
   }
 
@@ -270,6 +278,7 @@ export function summarizeSignalBucketObservations(input: {
     validValueBucketCount,
     nullBucketCount,
     missingBucketCount,
+    invalidBucketCount,
     zeroValueBucketCount,
     validValueCoverageRatio,
     firstValidTimestampMs,

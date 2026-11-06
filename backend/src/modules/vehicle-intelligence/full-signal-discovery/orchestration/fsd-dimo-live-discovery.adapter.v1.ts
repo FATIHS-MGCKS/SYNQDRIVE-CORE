@@ -56,6 +56,41 @@ function isFsdCatalogFetchSucceededV1(outcome: FsdDimoGraphqlExecutionResultV1):
   return outcome.kind === 'HTTP_200_OK';
 }
 
+export type FsdCatalogSignalsParseResultV1 =
+  | { ok: true; availableSignals: string[] }
+  | { ok: false; reason: string };
+
+/**
+ * Strict availableSignals shape: missing key → malformed; null/non-array → malformed;
+ * empty array is valid; any non-string element → malformed (no silent filtering).
+ */
+export function parseFsdCatalogAvailableSignalsFromDataV1(
+  data: Record<string, unknown> | null | undefined,
+): FsdCatalogSignalsParseResultV1 {
+  if (data == null || typeof data !== 'object') {
+    return { ok: false, reason: 'catalog_data_not_object' };
+  }
+  if (!Object.prototype.hasOwnProperty.call(data, 'availableSignals')) {
+    return { ok: false, reason: 'available_signals_key_missing' };
+  }
+  const raw = (data as { availableSignals?: unknown }).availableSignals;
+  if (raw === null) {
+    return { ok: false, reason: 'available_signals_null' };
+  }
+  if (!Array.isArray(raw)) {
+    return { ok: false, reason: 'available_signals_not_array' };
+  }
+  const out: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const el = raw[i];
+    if (typeof el !== 'string') {
+      return { ok: false, reason: `available_signals_element_not_string:${i}` };
+    }
+    out.push(el);
+  }
+  return { ok: true, availableSignals: out };
+}
+
 /** Exported for unit tests (presence vs null snapshot semantics). */
 export function mapSignalsLatestFieldToSnapshotValue(
   fieldName: string,
@@ -187,8 +222,10 @@ export function mapHistoricalRowToObservations(
       if (lat != null && lon != null && Number.isFinite(lat) && Number.isFinite(lon)) {
         return [{ timestampMs, latitude: lat, longitude: lon }];
       }
+      // Present but not two finite numbers → INVALID bucket (not silent empty).
+      return [{ timestampMs, numericValue: Number.POSITIVE_INFINITY }];
     }
-    return [];
+    return [{ timestampMs, numericValue: Number.POSITIVE_INFINITY }];
   }
 
   return [];
@@ -267,12 +304,16 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
             catalogFetchSucceeded: false,
           };
         }
-        const list = classified.data?.availableSignals;
-        const availableSignals = Array.isArray(list)
-          ? list.filter((e): e is string => typeof e === 'string')
-          : [];
+        const parsed = parseFsdCatalogAvailableSignalsFromDataV1(classified.data);
+        if (!parsed.ok) {
+          return {
+            availableSignals: [],
+            httpStatus: 200,
+            catalogFetchSucceeded: false,
+          };
+        }
         return {
-          availableSignals,
+          availableSignals: parsed.availableSignals,
           httpStatus: 200,
           catalogFetchSucceeded: true,
         };

@@ -12,18 +12,30 @@ import type { FsdGraphqlResponseInterpretationV1 } from '../fsd-response.interpr
 import { mapFsd3PlannerEvidenceToPersistenceState } from './fsd3-evidence.mapper.v1';
 import type { Fsd4HistoricalObservationV1 } from './fsd4-provider.port.v1';
 
+const LOCATION_FIELDS_FOR_HISTORICAL_BUCKETS = new Set([
+  'currentLocationCoordinates',
+  'currentLocationApproximateCoordinates',
+]);
+
 export function observationsToBucketSeries(
   fieldName: string,
   observations: readonly Fsd4HistoricalObservationV1[],
 ): FsdBucketObservationV1[] {
-  if (fieldName === 'currentLocationCoordinates') {
-    return observations
-      .filter((o) => o.latitude != null && o.longitude != null)
-      .map((o) => ({
+  if (LOCATION_FIELDS_FOR_HISTORICAL_BUCKETS.has(fieldName)) {
+    return observations.map((o) => {
+      if (o.latitude != null && o.longitude != null) {
+        const lat = o.latitude;
+        const lon = o.longitude;
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          return { timestampMs: o.timestampMs, numericValue: 1 };
+        }
+        return { timestampMs: o.timestampMs, numericValue: Number.POSITIVE_INFINITY };
+      }
+      return {
         timestampMs: o.timestampMs,
-        numericValue:
-          Number.isFinite(o.latitude) && Number.isFinite(o.longitude) ? 1 : null,
-      }));
+        numericValue: o.numericValue,
+      };
+    });
   }
   return observations.map((o) => ({
     timestampMs: o.timestampMs,
@@ -45,6 +57,7 @@ export function buildHistoricalCoverageQualityJson(input: {
     validValueCoverageRatio: input.coverage.validValueCoverageRatio,
     nullBucketCount: input.coverage.nullBucketCount,
     missingBucketCount: input.coverage.missingBucketCount,
+    invalidBucketCount: input.coverage.invalidBucketCount,
     zeroValueBucketCount: input.coverage.zeroValueBucketCount,
     duplicateTimestampsIgnored: input.coverage.duplicateTimestampsIgnored,
     collidingBucketObservationsIgnored: input.coverage.collidingBucketObservationsIgnored,
@@ -87,7 +100,10 @@ export function mapHistoricalFieldEvidence(input: {
     const hasOwnValid = bucketSeries.some((o) =>
       isValidValueBucket(classifyNumericObservation(o.numericValue)),
     );
-    queryAccepted = hasOwnValid;
+    const hasOwnInvalidLocation =
+      LOCATION_FIELDS_FOR_HISTORICAL_BUCKETS.has(input.fieldName) &&
+      bucketSeries.some((o) => classifyNumericObservation(o.numericValue) === 'INVALID');
+    queryAccepted = hasOwnValid || hasOwnInvalidLocation;
   }
 
   if (queryAccepted) {
@@ -97,11 +113,21 @@ export function mapHistoricalFieldEvidence(input: {
     }
   }
 
+  const invalidObserved =
+    queryAccepted &&
+    LOCATION_FIELDS_FOR_HISTORICAL_BUCKETS.has(input.fieldName) &&
+    coverage.invalidBucketCount > 0 &&
+    coverage.validValueBucketCount === 0;
+
   const dimensions = {
     ...baseEvidence,
     queryAccepted,
     observedValue: observedValue === true,
-    observedNull: coverage.nullBucketCount > 0 && coverage.validValueBucketCount === 0,
+    observedNull:
+      coverage.nullBucketCount > 0 &&
+      coverage.validValueBucketCount === 0 &&
+      !invalidObserved,
+    queryFailed: baseEvidence.queryFailed === true || invalidObserved,
     notObserved: !queryAccepted,
   };
 
