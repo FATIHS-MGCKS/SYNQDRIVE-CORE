@@ -2740,3 +2740,12 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (kernel + E9 selection spec); offline `--json`; `validate-module-registry.sh`; regenerated `production-database-guard-bundle.manifest.sha256` (`package.json` script list pin drift) |
 | NON_EFFECTS | **No** D8 threshold / counting / window / IOD formula changes; **no** production integration |
 
+### 2026-11-06 — DS4 DBI W0 independent scientific architecture audit (read-only artifact)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Durable markdown: **DS4_DBI_W0_INDEPENDENT_SCIENTIFIC_ARCHITECTURE_AUDIT_2026-11-06.md** in `architecture/drivingintelligence/research/evidence/` (sections A–J + machine-readable verdict; cites reviewed HEAD) |
+| WHY | Architect handoff / external agent consumption (e.g. ChatGPT); transcript-only answers are not durable repo evidence |
+| VALIDATION | N/A (documentation-only); module registry unchanged |
+| NON_EFFECTS | **No** kernel/CLI/threshold changes; **no** production/DB/VPS; **no** merge claim |
+
