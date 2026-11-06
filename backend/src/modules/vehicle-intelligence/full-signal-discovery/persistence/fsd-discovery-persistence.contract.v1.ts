@@ -8,12 +8,17 @@ export type FsdDiscoveryRunScopeV1 = {
   providerSourceLinkId: string;
 };
 
+/** Catalog/snapshot (FSD-3) vs historical (FSD-4) — mutual admission on the same source link. */
+export type FsdDiscoveryStreamV1 = 'FSD3_CATALOG_SNAPSHOT' | 'FSD4_HISTORICAL';
+
 export type FsdDiscoveryRunIdentityV1 = FsdDiscoveryRunScopeV1 & {
   runKey: string;
   /** Ignored for replay matching; server allocates on create. */
   runRevision?: number;
   dimoTokenId: number | null;
   connectionIdentityFingerprint: string | null;
+  /** Defaults to FSD-3 catalog/snapshot when omitted (callers should set explicitly for new code). */
+  discoveryStream?: FsdDiscoveryStreamV1;
 };
 
 export function buildFsdDiscoveryRunKey(input: {

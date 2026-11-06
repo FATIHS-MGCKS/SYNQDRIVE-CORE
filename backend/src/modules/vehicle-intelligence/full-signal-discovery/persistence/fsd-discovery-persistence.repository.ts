@@ -4,6 +4,7 @@ import type {
   FsdDiscoverySignalEvidenceState,
   FsdDiscoveryStageStatus,
   FsdDiscoveryStageType,
+  FsdDiscoveryStream,
   Prisma,
 } from '@prisma/client';
 import type { PrismaService } from '@shared/database/prisma.service';
@@ -13,6 +14,8 @@ import {
   isEvidenceStateUnchangedV1,
   type FsdDiscoveryEvidenceWritePayloadV1,
 } from './fsd-discovery-evidence-idempotency.v1';
+import { FSD3_CATALOG_FINGERPRINT_EVIDENCE_SIGNAL_V1 } from '../orchestration/fsd3-discovery-request.v1';
+import { FSD4_CATALOG_FINGERPRINT_EVIDENCE_SIGNAL_V1 } from '../orchestration/fsd4-discovery-request.v1';
 import {
   assertFsdDiscoveryRunTransition,
   assertFsdDiscoveryStageTransition,
@@ -48,6 +51,9 @@ export type FsdDiscoveryRunOrchestrationBundleV1 = {
     version: number;
     leaseOwner: string | null;
     leaseExpiresAt: Date | null;
+    discoveryStream: FsdDiscoveryStream;
+    dimoTokenId: number | null;
+    connectionIdentityFingerprint: string | null;
   };
   stages: Array<{
     stageType: FsdDiscoveryStageType;
@@ -61,6 +67,9 @@ export type FsdDiscoveryRunOrchestrationBundleV1 = {
 
 export class FsdDiscoveryPersistenceRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly streamFsd3: FsdDiscoveryStream = 'FSD3_CATALOG_SNAPSHOT';
+  private readonly streamFsd4: FsdDiscoveryStream = 'FSD4_HISTORICAL';
 
   private lockKey(scope: FsdDiscoveryRunScopeV1): string {
     return `fsd-discovery:${scope.organizationId}:${scope.vehicleId}:${scope.providerSourceLinkId}`;
@@ -187,12 +196,15 @@ export class FsdDiscoveryPersistenceRepository {
     return this.withSourceLinkLock(identity, async (tx) => {
       await this.validateDimoSourceLink(tx, identity);
 
+      const stream = identity.discoveryStream ?? this.streamFsd3;
+
       const active = await tx.fsdDiscoveryRun.findFirst({
         where: {
           organizationId: identity.organizationId,
           vehicleId: identity.vehicleId,
           providerSourceLinkId: identity.providerSourceLinkId,
           runKey: identity.runKey,
+          discoveryStream: stream,
           invalidatedAt: null,
         },
       });
@@ -212,11 +224,30 @@ export class FsdDiscoveryPersistenceRepository {
         );
       }
 
+      const peerStream: FsdDiscoveryStream = stream === this.streamFsd3 ? this.streamFsd4 : this.streamFsd3;
+      const peerExecutable = await tx.fsdDiscoveryRun.findFirst({
+        where: {
+          organizationId: identity.organizationId,
+          vehicleId: identity.vehicleId,
+          providerSourceLinkId: identity.providerSourceLinkId,
+          discoveryStream: peerStream,
+          invalidatedAt: null,
+          status: { in: [...FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES] },
+        },
+      });
+      if (peerExecutable) {
+        throw new FsdDiscoveryPersistenceError(
+          'ACTIVE_RUN_CONFLICT',
+          'Another executable discovery run is active on this source link (peer stream)',
+        );
+      }
+
       await tx.fsdDiscoveryRun.updateMany({
         where: {
           organizationId: identity.organizationId,
           vehicleId: identity.vehicleId,
           providerSourceLinkId: identity.providerSourceLinkId,
+          discoveryStream: stream,
           invalidatedAt: null,
           status: { in: [...FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES] },
         },
@@ -236,6 +267,7 @@ export class FsdDiscoveryPersistenceRepository {
           providerSourceLinkId: identity.providerSourceLinkId,
           runKey: identity.runKey,
           runRevision,
+          discoveryStream: stream,
           dimoTokenId: identity.dimoTokenId,
           connectionIdentityFingerprint: identity.connectionIdentityFingerprint,
           status: 'PENDING',
@@ -266,6 +298,7 @@ export class FsdDiscoveryPersistenceRepository {
           vehicleId: identity.vehicleId,
           providerSourceLinkId: identity.providerSourceLinkId,
           runKey: identity.runKey,
+          discoveryStream: this.streamFsd4,
           invalidatedAt: null,
         },
       });
@@ -285,11 +318,29 @@ export class FsdDiscoveryPersistenceRepository {
         );
       }
 
+      const peerExecutable = await tx.fsdDiscoveryRun.findFirst({
+        where: {
+          organizationId: identity.organizationId,
+          vehicleId: identity.vehicleId,
+          providerSourceLinkId: identity.providerSourceLinkId,
+          discoveryStream: this.streamFsd3,
+          invalidatedAt: null,
+          status: { in: [...FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES] },
+        },
+      });
+      if (peerExecutable) {
+        throw new FsdDiscoveryPersistenceError(
+          'ACTIVE_RUN_CONFLICT',
+          'Another executable discovery run is active on this source link (FSD-3 stream)',
+        );
+      }
+
       const conflicting = await tx.fsdDiscoveryRun.findFirst({
         where: {
           organizationId: identity.organizationId,
           vehicleId: identity.vehicleId,
           providerSourceLinkId: identity.providerSourceLinkId,
+          discoveryStream: this.streamFsd4,
           invalidatedAt: null,
           status: { in: [...FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES] },
           runKey: { not: identity.runKey },
@@ -310,6 +361,7 @@ export class FsdDiscoveryPersistenceRepository {
           providerSourceLinkId: identity.providerSourceLinkId,
           runKey: identity.runKey,
           runRevision,
+          discoveryStream: this.streamFsd4,
           dimoTokenId: identity.dimoTokenId,
           connectionIdentityFingerprint: identity.connectionIdentityFingerprint,
           status: 'PENDING',
@@ -701,6 +753,7 @@ export class FsdDiscoveryPersistenceRepository {
           organizationId: input.scope.organizationId,
           vehicleId: input.scope.vehicleId,
           providerSourceLinkId: input.scope.providerSourceLinkId,
+          discoveryStream: successor.discoveryStream,
           invalidatedAt: null,
           status: { in: [...FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES] },
           id: { not: input.supersededByRunId },
@@ -793,6 +846,9 @@ export class FsdDiscoveryPersistenceRepository {
         version: run.version,
         leaseOwner: run.leaseOwner,
         leaseExpiresAt: run.leaseExpiresAt,
+        discoveryStream: run.discoveryStream,
+        dimoTokenId: run.dimoTokenId,
+        connectionIdentityFingerprint: run.connectionIdentityFingerprint,
       },
       stages: run.stages.map((s) => ({
         stageType: s.stageType,
@@ -803,6 +859,22 @@ export class FsdDiscoveryPersistenceRepository {
         checkpointJson: s.checkpointJson,
       })),
     };
+  }
+
+  /** Catalog-stage signal names from persisted evidence (excludes synthetic fingerprint rows). */
+  async listCatalogSignalNamesForRun(runId: string, catalogStageId: string): Promise<string[]> {
+    const rows = await this.prisma.fsdDiscoverySignalEvidence.findMany({
+      where: {
+        runId,
+        stageId: catalogStageId,
+        stageType: 'CATALOG',
+        signalName: { notIn: [FSD3_CATALOG_FINGERPRINT_EVIDENCE_SIGNAL_V1, FSD4_CATALOG_FINGERPRINT_EVIDENCE_SIGNAL_V1] },
+      },
+      select: { signalName: true },
+    });
+    const names = rows.map((r) => r.signalName);
+    names.sort((a, b) => a.localeCompare(b));
+    return names;
   }
 
   async summarizeRunEvidenceForOrchestration(runId: string): Promise<{

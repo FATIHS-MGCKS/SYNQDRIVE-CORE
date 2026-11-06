@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import {
   createDefaultFsdBudgetConfigV1,
   normalizeFsdBudgetConfigV1,
+  validateHistoricalWindowForPlanning,
   type FsdBudgetConfigV1,
 } from '../fsd-budget.contract.v1';
 import { computeExpectedBucketPositions } from '../fsd-coverage.calculator.v1';
@@ -110,6 +111,11 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       dimoVehicleId: input.dimoVehicleId,
       tokenId: input.dimoTokenId,
     });
+    const windowAdmission = validateHistoricalWindowForPlanning(input.historicalWindow, budget);
+    if (!windowAdmission.ok) {
+      return buildSkippedResult(windowAdmission.reason ?? 'HISTORICAL_WINDOW_INVALID');
+    }
+
     const historicalWindowFingerprint = buildFsd4HistoricalWindowFingerprintV1(input.historicalWindow);
     const runKey = buildFsd4HistoricalRequestRunKeyV1({
       historicalRequestKey: input.historicalRequestKey,
@@ -122,6 +128,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       runKey,
       dimoTokenId: input.dimoTokenId,
       connectionIdentityFingerprint,
+      discoveryStream: 'FSD4_HISTORICAL',
     };
 
     let acquired: AcquireFsdDiscoveryRunResultV1;
@@ -268,17 +275,25 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       }
     }
     const historicalWindowFingerprint = buildFsd4HistoricalWindowFingerprintV1(input.historicalWindow);
+    const consumedCatalog = catalogCheckpoint?.requestLedger
+      ? countConsumedFsd3RequestSlots(catalogCheckpoint.requestLedger)
+      : FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1;
     const historicalPlan = planFsdHistoricalQueries({
       tokenId: input.dimoTokenId,
       declaredFieldNames: catalogSignals,
       window: input.historicalWindow,
       budget,
-      maxPlannedHistoricalRequests: Math.max(
-        0,
-        budget.maxRequestsPerRun - FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1,
-      ),
+      maxPlannedHistoricalRequests: Math.max(0, budget.maxRequestsPerRun - consumedCatalog),
       isolateSpeedSignal: true,
     });
+
+    if (!historicalPlan.budgetValidation.ok) {
+      return buildTerminalFailureResult({
+        runId: acquired.runId,
+        reason: historicalPlan.budgetValidation.reason ?? 'HISTORICAL_PLAN_BUDGET_INVALID',
+      });
+    }
+
     const historicalPlanFingerprint = buildFsd4HistoricalStagePlanFingerprintV1({
       historicalWindowFingerprint,
       declaredCatalogFingerprint: catalogFingerprint,
@@ -290,6 +305,13 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       return buildTerminalFailureResult({
         runId: acquired.runId,
         reason: 'RESUME_HISTORICAL_PLAN_MISMATCH',
+      });
+    }
+
+    if (historicalPlanViolatesLocationIsolation(historicalPlan)) {
+      return buildTerminalFailureResult({
+        runId: acquired.runId,
+        reason: 'HISTORICAL_PLAN_LOCATION_ISOLATION_VIOLATION',
       });
     }
 
@@ -403,7 +425,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
         catalogStageVersionRef.value += 1;
       }
       const reuseReserveSlot: { value: Fsd3ReserveAttemptResultV1 | null } = { value: null };
-      const reserved = await this.mutateCatalogLedgerCas({
+      const reservedReuse = await this.mutateCatalogLedgerCas({
         writeAuth,
         catalogStageVersionRef,
         planFingerprint: catalogPlanFingerprint,
@@ -426,7 +448,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       });
       const reuseReserve = reuseReserveSlot.value;
       if (
-        !reserved.applied ||
+        !reservedReuse.applied ||
         !reuseReserve ||
         (reuseReserve.kind !== 'RESERVED' && reuseReserve.kind !== 'IDEMPOTENT')
       ) {
@@ -436,7 +458,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
           reason: 'CATALOG_REUSE_LEDGER_RESERVE_FAILED',
         });
       }
-      const finReuse = await this.finalizeCatalogAttempt(
+      const finReuseLedger = await this.finalizeCatalogAttempt(
         writeAuth,
         catalogPlanFingerprint,
         catalogStageVersionRef,
@@ -444,7 +466,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
         'SUCCEEDED',
         200,
       );
-      if (!finReuse) {
+      if (!finReuseLedger) {
         return buildTerminalFailureResult({
           runId: acquired.runId,
           reason: 'CATALOG_REUSE_LEDGER_FINALIZE_FAILED',
@@ -691,7 +713,9 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     const ledgerAfterCatalog = parseFsd4CatalogStageCheckpoint(
       findFsd4StageInBundle(bundleMid!, 'CATALOG')?.checkpointJson,
     )?.requestLedger;
-    const consumed = ledgerAfterCatalog ? countConsumedFsd3RequestSlots(ledgerAfterCatalog) : FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1;
+    const consumed = ledgerAfterCatalog
+      ? countConsumedFsd3RequestSlots(ledgerAfterCatalog)
+      : FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1;
     const maxHistoricalChunks = Math.max(0, budget.maxRequestsPerRun - consumed);
 
     const historicalPlan = planFsdHistoricalQueries({
@@ -703,7 +727,16 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       isolateSpeedSignal: true,
     });
 
+    if (!historicalPlan.budgetValidation.ok) {
+      await this.failRun(scope, acquired.runId, runVersionRef, writeAuth);
+      return buildTerminalFailureResult({
+        runId: acquired.runId,
+        reason: historicalPlan.budgetValidation.reason ?? 'HISTORICAL_PLAN_BUDGET_INVALID',
+      });
+    }
+
     if (historicalPlanViolatesLocationIsolation(historicalPlan)) {
+      await this.failRun(scope, acquired.runId, runVersionRef, writeAuth);
       return buildTerminalFailureResult({
         runId: acquired.runId,
         reason: 'HISTORICAL_PLAN_LOCATION_ISOLATION_VIOLATION',
@@ -746,6 +779,19 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     if (!bundle || bundle.run.status !== 'COMPLETED') {
       return null;
     }
+    if (bundle.run.discoveryStream !== 'FSD3_CATALOG_SNAPSHOT') {
+      return null;
+    }
+    const expectedFp = buildFsdDimoConnectionIdentityFingerprint({
+      dimoVehicleId: input.dimoVehicleId,
+      tokenId: input.dimoTokenId,
+    });
+    if (
+      bundle.run.dimoTokenId !== input.dimoTokenId ||
+      bundle.run.connectionIdentityFingerprint !== expectedFp
+    ) {
+      return null;
+    }
     const cat = bundle.stages.find((s) => s.stageType === 'CATALOG');
     if (!cat || cat.status !== 'SUCCEEDED') {
       return null;
@@ -754,11 +800,20 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     if (!cp?.catalogFetch?.succeeded || !cp.catalogFetch.availableSignalNames?.length) {
       return null;
     }
-    const fp = cp.catalogFetch.declaredCatalogFingerprint ?? '';
-    if (input.expectedDeclaredCatalogFingerprint && input.expectedDeclaredCatalogFingerprint !== fp) {
+    const persistedNames = await this.persistence.listCatalogSignalNamesForRun(fsd3RunId, cat.id);
+    const recomputed = buildFsd3DeclaredCatalogFingerprintV1(persistedNames);
+    const storedFingerprint = cp.catalogFetch.declaredCatalogFingerprint ?? '';
+    if (recomputed !== storedFingerprint) {
       return null;
     }
-    return { signals: [...cp.catalogFetch.availableSignalNames], fingerprint: fp };
+    const listFp = buildFsd3DeclaredCatalogFingerprintV1(cp.catalogFetch.availableSignalNames);
+    if (listFp !== storedFingerprint) {
+      return null;
+    }
+    if (input.expectedDeclaredCatalogFingerprint && input.expectedDeclaredCatalogFingerprint !== storedFingerprint) {
+      return null;
+    }
+    return { signals: [...cp.catalogFetch.availableSignalNames], fingerprint: storedFingerprint };
   }
 
   private async executeHistoricalPhase(input: {

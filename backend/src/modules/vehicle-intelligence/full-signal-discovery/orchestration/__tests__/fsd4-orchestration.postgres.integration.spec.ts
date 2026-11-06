@@ -314,6 +314,7 @@ const fullBudget = (): Fsd4OrchestrationInputV1['budget'] =>
         providerSourceLinkId: seed.linkId,
         runKey: randomUUID(),
         runRevision,
+        discoveryStream: 'FSD4_HISTORICAL',
         dimoTokenId: seed.tokenId,
         connectionIdentityFingerprint: buildFsdDimoConnectionIdentityFingerprint({
           dimoVehicleId: seed.dimoVehicleId,
@@ -432,6 +433,248 @@ const fullBudget = (): Fsd4OrchestrationInputV1['budget'] =>
     expect(after?.version).toBe(before?.version);
     expect(after?.invalidatedAt).toBeNull();
     expect(after?.supersededByRunId).toBeNull();
+  });
+
+  it('H1 invalid historical window skips before run acquisition (no rows, no provider calls)', async () => {
+    const seed = await seedDimoBinding(prisma);
+    const provider = createFsd4MockHistoricalProvider({ mode: 'TESLA_P2E_HISTORICAL' });
+    const repo = new FsdDiscoveryPersistenceRepository(prisma as never);
+    const svc = new Fsd4HistoricalDiscoveryOrchestratorService(
+      repo,
+      provider,
+      { enabled: true, allowedVehicleIds: new Set([seed.vehicleId]), providerExecutionEnabled: false },
+    );
+    const result = await svc.runHistoricalDiscovery(
+      baseFsd4Input(seed, {
+        historicalWindow: { fromUtc: '2026-11-04T05:00:00.000Z', toUtc: '2026-11-04T04:00:00.000Z' },
+      }),
+    );
+    expect(result).toEqual({ status: 'SKIPPED', reason: 'HISTORICAL_WINDOW_INVALID' });
+    expect(provider.getCatalogCallCount()).toBe(0);
+    expect(provider.getHistoricalCallCount()).toBe(0);
+    const runs = await prisma.fsdDiscoveryRun.count({
+      where: { vehicleId: seed.vehicleId, providerSourceLinkId: seed.linkId },
+    });
+    expect(runs).toBe(0);
+  });
+
+  it('H1 excessive historical window skips before run acquisition (no provider calls)', async () => {
+    const seed = await seedDimoBinding(prisma);
+    const provider = createFsd4MockHistoricalProvider({ mode: 'TESLA_P2E_HISTORICAL' });
+    const repo = new FsdDiscoveryPersistenceRepository(prisma as never);
+    const svc = new Fsd4HistoricalDiscoveryOrchestratorService(
+      repo,
+      provider,
+      { enabled: true, allowedVehicleIds: new Set([seed.vehicleId]), providerExecutionEnabled: false },
+    );
+    const budget = createDefaultFsdBudgetConfigV1({
+      maxRequestsPerRun: 64,
+      maxHistoricalWindowSeconds: 60,
+    });
+    const result = await svc.runHistoricalDiscovery(
+      baseFsd4Input(seed, {
+        budget,
+        historicalWindow: {
+          fromUtc: '2026-11-04T04:00:00.000Z',
+          toUtc: '2026-11-04T06:00:00.000Z',
+        },
+      }),
+    );
+    expect(result).toEqual({ status: 'SKIPPED', reason: 'HISTORICAL_WINDOW_TOO_LONG' });
+    expect(provider.getCatalogCallCount()).toBe(0);
+    expect(provider.getHistoricalCallCount()).toBe(0);
+  });
+
+  it('H2 active FSD-3 blocks FSD-4 with ACTIVE_RUN_CONFLICT and leaves FSD-3 executable', async () => {
+    const seed = await seedDimoBinding(prisma);
+    const agg = await prisma.fsdDiscoveryRun.aggregate({
+      where: { providerSourceLinkId: seed.linkId },
+      _max: { runRevision: true },
+    });
+    const runRevision = (agg._max.runRevision ?? 0) + 1;
+    const blockingFsd3 = await prisma.fsdDiscoveryRun.create({
+      data: {
+        organizationId: seed.organizationId,
+        vehicleId: seed.vehicleId,
+        providerSourceLinkId: seed.linkId,
+        runKey: randomUUID(),
+        runRevision,
+        discoveryStream: 'FSD3_CATALOG_SNAPSHOT',
+        dimoTokenId: seed.tokenId,
+        connectionIdentityFingerprint: buildFsdDimoConnectionIdentityFingerprint({
+          dimoVehicleId: seed.dimoVehicleId,
+          tokenId: seed.tokenId,
+        }),
+        status: 'IN_PROGRESS',
+        leaseOwner: 'synthetic-fsd3',
+        leaseExpiresAt: new Date(Date.now() + 120_000),
+      },
+    });
+
+    const fsd4 = fsd4Service(seed.vehicleId, 'TESLA_P2E_HISTORICAL');
+    const fsd4Res = await fsd4.runHistoricalDiscovery(baseFsd4Input(seed));
+    expect(fsd4Res.status).toBe('FAILED');
+    if (fsd4Res.status === 'FAILED') {
+      expect(fsd4Res.failureReason).toBe('ACTIVE_RUN_CONFLICT');
+    }
+
+    const fsd3After = await prisma.fsdDiscoveryRun.findUnique({ where: { id: blockingFsd3.id } });
+    expect(fsd3After?.invalidatedAt).toBeNull();
+    expect(fsd3After?.status).toBe('IN_PROGRESS');
+  });
+
+  it('H2 active FSD-4 blocks FSD-3 with ACTIVE_RUN_CONFLICT', async () => {
+    const seed = await seedDimoBinding(prisma);
+    const agg = await prisma.fsdDiscoveryRun.aggregate({
+      where: { providerSourceLinkId: seed.linkId },
+      _max: { runRevision: true },
+    });
+    const runRevision = (agg._max.runRevision ?? 0) + 1;
+    await prisma.fsdDiscoveryRun.create({
+      data: {
+        organizationId: seed.organizationId,
+        vehicleId: seed.vehicleId,
+        providerSourceLinkId: seed.linkId,
+        runKey: randomUUID(),
+        runRevision,
+        discoveryStream: 'FSD4_HISTORICAL',
+        dimoTokenId: seed.tokenId,
+        connectionIdentityFingerprint: buildFsdDimoConnectionIdentityFingerprint({
+          dimoVehicleId: seed.dimoVehicleId,
+          tokenId: seed.tokenId,
+        }),
+        status: 'IN_PROGRESS',
+        leaseOwner: 'synthetic-fsd4',
+        leaseExpiresAt: new Date(Date.now() + 120_000),
+      },
+    });
+
+    const repo = new FsdDiscoveryPersistenceRepository(prisma as never);
+    const fsd3 = new Fsd3CatalogSnapshotOrchestratorService(
+      repo,
+      createFsd3MockDiscoveryProvider({ mode: 'TESLA_REFERENCE_26' }),
+      {
+        enabled: true,
+        allowedVehicleIds: new Set([seed.vehicleId]),
+        providerExecutionEnabled: false,
+      },
+    );
+    const fsd3Res = await fsd3.runCatalogSnapshotDiscovery({
+      organizationId: seed.organizationId,
+      vehicleId: seed.vehicleId,
+      providerSourceLinkId: seed.linkId,
+      dimoVehicleId: seed.dimoVehicleId,
+      dimoTokenId: seed.tokenId,
+      discoveryRequestKey: randomUUID(),
+      leaseOwner: 'blocked-by-fsd4',
+      leaseExpiresAt: new Date(Date.now() + 120_000),
+      budget: fullBudget(),
+    });
+    expect(fsd3Res.status).toBe('FAILED');
+    if (fsd3Res.status === 'FAILED') {
+      expect(fsd3Res.failureReason).toBe('ACTIVE_RUN_CONFLICT');
+    }
+  });
+
+  it('H3 verified reuse rejects altered declared catalog fingerprint', async () => {
+    const seed = await seedDimoBinding(prisma);
+    const fsd3 = fsd3Service(seed.vehicleId);
+    const fsd3Res = await fsd3.runCatalogSnapshotDiscovery({
+      organizationId: seed.organizationId,
+      vehicleId: seed.vehicleId,
+      providerSourceLinkId: seed.linkId,
+      dimoVehicleId: seed.dimoVehicleId,
+      dimoTokenId: seed.tokenId,
+      discoveryRequestKey: randomUUID(),
+      leaseOwner: 'cat3-h3',
+      leaseExpiresAt: new Date(Date.now() + 120_000),
+      budget: fullBudget(),
+    });
+    expect(fsd3Res.status).toBe('COMPLETED');
+    assertFsd3RunResultWithId(fsd3Res);
+    const catStage = await prisma.fsdDiscoveryStage.findFirst({
+      where: { runId: fsd3Res.runId, stageType: 'CATALOG' },
+    });
+    expect(catStage).toBeTruthy();
+    await prisma.fsdDiscoverySignalEvidence.deleteMany({
+      where: {
+        runId: fsd3Res.runId,
+        stageType: 'CATALOG',
+        signalName: 'speed',
+      },
+    });
+
+    const fsd4 = fsd4Service(seed.vehicleId, 'TESLA_P2E_HISTORICAL');
+    const res = await fsd4.runHistoricalDiscovery(
+      baseFsd4Input(seed, { verifiedFsd3CatalogRunId: fsd3Res.runId }),
+    );
+    expect(res.status).toBe('FAILED');
+    if (res.status === 'FAILED') {
+      expect(res.failureReason).toBe('FSD4_VERIFIED_CATALOG_UNAVAILABLE');
+    }
+  });
+
+  it('H3 verified reuse rejects stale connection identity', async () => {
+    const seed = await seedDimoBinding(prisma);
+    const fsd3 = fsd3Service(seed.vehicleId);
+    const fsd3Res = await fsd3.runCatalogSnapshotDiscovery({
+      organizationId: seed.organizationId,
+      vehicleId: seed.vehicleId,
+      providerSourceLinkId: seed.linkId,
+      dimoVehicleId: seed.dimoVehicleId,
+      dimoTokenId: seed.tokenId,
+      discoveryRequestKey: randomUUID(),
+      leaseOwner: 'cat3-h3b',
+      leaseExpiresAt: new Date(Date.now() + 120_000),
+      budget: fullBudget(),
+    });
+    assertFsd3RunResultWithId(fsd3Res);
+    expect(fsd3Res.status).toBe('COMPLETED');
+
+    const rotatedTokenId = seed.tokenId + 9999;
+    await prisma.dimoVehicle.update({
+      where: { id: seed.dimoVehicleId },
+      data: { tokenId: rotatedTokenId },
+    });
+
+    const fsd4 = fsd4Service(seed.vehicleId, 'TESLA_P2E_HISTORICAL');
+    const res = await fsd4.runHistoricalDiscovery(
+      baseFsd4Input(seed, {
+        verifiedFsd3CatalogRunId: fsd3Res.runId,
+        dimoTokenId: rotatedTokenId,
+      }),
+    );
+    expect(res.status).toBe('FAILED');
+    if (res.status === 'FAILED') {
+      expect(res.failureReason).toBe('FSD4_VERIFIED_CATALOG_UNAVAILABLE');
+    }
+  });
+
+  it('H3 verified reuse rejects cross-organization run id', async () => {
+    const seedA = await seedDimoBinding(prisma);
+    const seedB = await seedDimoBinding(prisma);
+    const fsd3 = fsd3Service(seedA.vehicleId);
+    const fsd3Res = await fsd3.runCatalogSnapshotDiscovery({
+      organizationId: seedA.organizationId,
+      vehicleId: seedA.vehicleId,
+      providerSourceLinkId: seedA.linkId,
+      dimoVehicleId: seedA.dimoVehicleId,
+      dimoTokenId: seedA.tokenId,
+      discoveryRequestKey: randomUUID(),
+      leaseOwner: 'cat-cross',
+      leaseExpiresAt: new Date(Date.now() + 120_000),
+      budget: fullBudget(),
+    });
+    assertFsd3RunResultWithId(fsd3Res);
+
+    const fsd4 = fsd4Service(seedB.vehicleId, 'TESLA_P2E_HISTORICAL');
+    const res = await fsd4.runHistoricalDiscovery(
+      baseFsd4Input(seedB, { verifiedFsd3CatalogRunId: fsd3Res.runId }),
+    );
+    expect(res.status).toBe('FAILED');
+    if (res.status === 'FAILED') {
+      expect(res.failureReason).toBe('FSD4_VERIFIED_CATALOG_UNAVAILABLE');
+    }
   });
 
   it('does not write VSI / DS4 shadow / RPM webhook tables', async () => {
