@@ -12,6 +12,10 @@ export interface ManoeuvreWindow {
   end_video_s: number;
 }
 
+const P16_ELIGIBLE_CLIPS = ["TC_00080.MOV", "TC_00084.MOV"] as const;
+
+const rowKey = (clip: string, second: number) => `${clip}|${second}`;
+
 export function loadManoeuvreWindows(csvPath: string): ManoeuvreWindow[] {
   const text = readFileSync(csvPath, "utf8");
   const lines = text.trim().split("\n");
@@ -28,18 +32,12 @@ export function loadManoeuvreWindows(csvPath: string): ManoeuvreWindow[] {
       end_video_s: parseFloat(cols[idx("end_video_s")] ?? "0"),
     });
   }
-  return out.filter((w) =>
-    (P16_ELIGIBLE_CLIPS as readonly string[]).includes(w.source_clip),
-  );
+  return out.filter((w) => (P16_ELIGIBLE_CLIPS as readonly string[]).includes(w.source_clip));
 }
-
-const P16_ELIGIBLE_CLIPS = ["TC_00080.MOV", "TC_00084.MOV"] as const;
-
-const rowKey = (clip: string, second: number) => `${clip}|${second}`;
 
 /**
  * Derive VIDEO_DRIVING_CONTEXT_V1 on the complete sealed 1 Hz display-speed series per clip.
- * Does not expand P16 eligibility — labels are attached only to admissible rows afterward.
+ * Integer km/h quantization: |Δv|==1 may be ambiguous before manoeuvre-window tie-break.
  */
 export function buildDrivingContextGridFrom1Hz(
   rows1Hz: Video1HzRow[],
@@ -86,7 +84,7 @@ export function buildDrivingContextGridFrom1Hz(
       }
 
       const deltaV = row.speed_kmh - prevRow.speed_kmh;
-      let label = layer1FromDelta(deltaV, series, row.video_second);
+      let label = layer1FromDisplayDelta(deltaV);
 
       if (
         prevDelta != null &&
@@ -95,7 +93,7 @@ export function buildDrivingContextGridFrom1Hz(
         Math.sign(prevDelta) !== Math.sign(deltaV)
       ) {
         label = "TRANSITION";
-      } else if (Math.abs(deltaV) <= 1) {
+      } else if (isAmbiguousDisplayDelta(deltaV)) {
         label = applyWindowTieBreak(windows, clip, row.video_second, label);
       }
 
@@ -108,6 +106,17 @@ export function buildDrivingContextGridFrom1Hz(
   return grid;
 }
 
+function layer1FromDisplayDelta(deltaV: number): DrivingContextLabel {
+  if (deltaV >= 1) return "ACCELERATING";
+  if (deltaV <= -1) return "DECELERATING";
+  return "STEADY";
+}
+
+/** Integer display step of 1 km/h — not provably accel/decel without window context. */
+function isAmbiguousDisplayDelta(deltaV: number): boolean {
+  return Math.abs(deltaV) === 1;
+}
+
 export function attachContextToEligibleRows(
   eligible: VideoEligibleRow[],
   contextGrid: Map<string, DrivingContextLabel>,
@@ -118,27 +127,6 @@ export function attachContextToEligibleRows(
     labels.set(k, contextGrid.get(k) ?? "UNKNOWN");
   }
   return labels;
-}
-
-function layer1FromDelta(deltaV: number, series: Video1HzRow[], second: number): DrivingContextLabel {
-  if (deltaV >= 1) return "ACCELERATING";
-  if (deltaV <= -1) return "DECELERATING";
-  if (Math.abs(deltaV) <= 0) {
-    return rollingDisplaySteady(series, second) ? "STEADY" : "STEADY";
-  }
-  return "STEADY";
-}
-
-function rollingDisplaySteady(series: Video1HzRow[], second: number): boolean {
-  const idx = series.findIndex((r) => r.video_second === second);
-  if (idx < 0) return false;
-  const start = Math.max(0, idx - 2);
-  const slice = series.slice(start, idx + 1).filter((r) => r.speed_kmh != null);
-  if (slice.length < 2) return true;
-  const speeds = slice.map((r) => r.speed_kmh!);
-  const mean = speeds.reduce((a, b) => a + b, 0) / speeds.length;
-  const variance = speeds.reduce((a, b) => a + (b - mean) ** 2, 0) / speeds.length;
-  return Math.sqrt(variance) <= 1.0;
 }
 
 function applyWindowTieBreak(

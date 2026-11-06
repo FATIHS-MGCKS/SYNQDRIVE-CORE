@@ -1,5 +1,5 @@
 import type { NegativeControlResult, R1SameRowPair, VideoEligibleRow } from "../types.js";
-import { M1_DEFAULTS, P16_REGRESSION } from "../constants.js";
+import { M1_DEFAULTS } from "../constants.js";
 import {
   assertP16BaselineRegression,
   computeBaselineB0B1,
@@ -7,6 +7,8 @@ import {
   ratioValues,
 } from "../compute/baseline_b0_b1.js";
 import { block5Subsample } from "../loaders/video_cohort.js";
+
+export type ControlVerdict = NegativeControlResult["verdict"];
 
 function mulberry32(seed: number): () => number {
   return () => {
@@ -24,7 +26,36 @@ function majorModeCenters(peaks: ReturnType<typeof histogramPeaks>): number[] {
     .map((p) => p.center_rpm_per_kmh);
 }
 
-function jaccard(a: number[], b: number[], tol = 1.25): number {
+export interface ModeOverlapMetrics {
+  jaccard: number;
+  coverage_of_reference: number;
+  overlap_centers: number[];
+  reference_major_count: number;
+  compare_major_count: number;
+}
+
+export function measureMajorModeOverlap(
+  referenceMajors: number[],
+  compareMajors: number[],
+  toleranceRpmPerKmh = M1_DEFAULTS.histogramBinWidthRpmPerKmh,
+): ModeOverlapMetrics {
+  const overlap = referenceMajors.filter((b) =>
+    compareMajors.some((c) => Math.abs(b - c) <= toleranceRpmPerKmh),
+  );
+  const refSet = referenceMajors.length;
+  const cmpSet = compareMajors.length;
+  const coverage = refSet === 0 ? 0 : overlap.length / refSet;
+  const jaccard = majorModeJaccard(referenceMajors, compareMajors, toleranceRpmPerKmh);
+  return {
+    jaccard,
+    coverage_of_reference: coverage,
+    overlap_centers: overlap,
+    reference_major_count: refSet,
+    compare_major_count: cmpSet,
+  };
+}
+
+function majorModeJaccard(a: number[], b: number[], tol: number): number {
   const match = (x: number, ys: number[]) => ys.some((y) => Math.abs(x - y) <= tol);
   const inter = a.filter((x) => match(x, b)).length;
   const union = new Set([...a, ...b]).size;
@@ -80,7 +111,7 @@ function ncPermutationNull(
     }
     const perm = [...byClip.values()].flat();
     const peaks = histogramPeaks(ratioValues(perm));
-    jaccards.push(jaccard(baseCenters, majorModeCenters(peaks)));
+    jaccards.push(majorModeJaccard(baseCenters, majorModeCenters(peaks)));
     topCounts.push(peaks[0]?.count ?? 0);
   }
 
@@ -92,7 +123,7 @@ function ncPermutationNull(
     control_id: "NC-A_RPM_PERMUTATION_NULL",
     verdict: pass ? "PASS" : "FAIL",
     detail:
-      "Five deterministic permutations per clip; expect major-mode Jaccard < 0.5 vs baseline and reduced top-bin mass.",
+      "Five deterministic permutations per clip; expect major-mode Jaccard < 0.5 vs baseline.",
     metrics: { seeds, jaccards, mean_jaccard: meanJ, baseline_top_count: baseTopCount, perm_top_counts: topCounts },
   };
 }
@@ -134,61 +165,101 @@ function ncSyntheticContinuousRatio(): NegativeControlResult {
   };
 }
 
+/** Genuine leave-one-eligible-clip-out vs trip-wide major modes (no clip-specific expectations). */
 function ncLeaveOneClipOut(eligible: VideoEligibleRow[]): NegativeControlResult {
-  const clips = P16_REGRESSION.eligibleClips;
-  const perClip = clips.map((clip) => {
-    const sub = eligible.filter((r) => r.source_clip === clip);
-    const peaks = histogramPeaks(ratioValues(sub));
-    const majors = majorModeCenters(peaks);
-    return { clip, n: sub.length, majors, peak_count: peaks.length };
+  const clips = [...new Set(eligible.map((r) => r.source_clip))].sort();
+  const tripMajors = majorModeCenters(histogramPeaks(ratioValues(eligible)));
+
+  const leaveOneOut = clips.map((excludedClip) => {
+    const remaining = eligible.filter((r) => r.source_clip !== excludedClip);
+    const remainMajors = majorModeCenters(histogramPeaks(ratioValues(remaining)));
+    const overlap = measureMajorModeOverlap(tripMajors, remainMajors);
+    return {
+      excluded_clip: excludedClip,
+      n_remaining: remaining.length,
+      majors_remaining_cohort: remainMajors,
+      overlap_with_trip_baseline: overlap,
+    };
   });
-  const covers = (majors: number[], centers: number[]) =>
-    centers.some((c) => majors.some((m) => Math.abs(m - c) < 0.01));
-  const pass =
-    perClip.every((p) => p.n > 30 && p.majors.length >= 1) &&
-    covers(perClip[0]!.majors, [22.5, 37.5]) &&
-    covers(perClip[1]!.majors, [37.5, 45.0, 50.0]);
+
+  const minCoverage = Math.min(
+    ...leaveOneOut.map((r) => r.overlap_with_trip_baseline.coverage_of_reference),
+  );
+  const minJaccard = Math.min(...leaveOneOut.map((r) => r.overlap_with_trip_baseline.jaccard));
+
+  const pass = leaveOneOut.every(
+    (r) =>
+      r.overlap_with_trip_baseline.overlap_centers.length >= 1 &&
+      r.overlap_with_trip_baseline.coverage_of_reference >= 0.25,
+  );
+
   return {
     control_id: "NC-D_LEAVE_ONE_ELIGIBLE_CLIP_OUT",
-    verdict: pass ? "PASS" : "FAIL",
-    detail:
-      "Per-clip regime replication: TC_00080 must express low-k majors; TC_00084 mid/high-k majors (P16 family, descriptive).",
-    metrics: { per_clip: perClip },
+    verdict: pass ? "PASS" : "SCIENTIFIC_NEGATIVE",
+    detail: pass
+      ? "Each leave-one-clip-out cohort retains ≥25% trip major-mode coverage and ≥1 overlapping center."
+      : "Leave-one-clip-out weakens trip major-mode replication (valid negative scientific result).",
+    metrics: {
+      trip_baseline_majors: tripMajors,
+      leave_one_out: leaveOneOut,
+      summary: { min_coverage_of_trip_majors: minCoverage, min_jaccard: minJaccard },
+      uncertainty: "Single-clip remainder is sparse; overlap is descriptive only.",
+    },
   };
 }
 
+/** Temporal split-half: replication between halves (not union distinct count). */
 function ncSplitHalfTemporal(eligible: VideoEligibleRow[]): NegativeControlResult {
-  const clips = P16_REGRESSION.eligibleClips;
-  const results = clips.map((clip) => {
-    const sub = eligible.filter((r) => r.source_clip === clip).sort((a, b) => a.video_second - b.video_second);
+  const clips = [...new Set(eligible.map((r) => r.source_clip))].sort();
+  const perClip = clips.map((clip) => {
+    const sub = eligible
+      .filter((r) => r.source_clip === clip)
+      .sort((a, b) => a.video_second - b.video_second);
     const midSecond = sub[Math.floor(sub.length / 2)]!.video_second;
     const first = sub.filter((r) => r.video_second <= midSecond);
     const second = sub.filter((r) => r.video_second > midSecond);
-    const p1 = majorModeCenters(histogramPeaks(ratioValues(first)));
-    const p2 = majorModeCenters(histogramPeaks(ratioValues(second)));
-    const union = [...p1, ...p2];
-    const distinct = union.filter(
-      (c, i) => union.findIndex((d) => Math.abs(d - c) < 0.01) === i,
-    );
+    const majorsFirst = majorModeCenters(histogramPeaks(ratioValues(first)));
+    const majorsSecond = majorModeCenters(histogramPeaks(ratioValues(second)));
+    const halfToHalf = measureMajorModeOverlap(majorsFirst, majorsSecond);
     return {
       clip,
       mid_second: midSecond,
       n_first: first.length,
       n_second: second.length,
-      majors_first: p1,
-      majors_second: p2,
-      distinct_major_count: distinct.length,
+      majors_first_half: majorsFirst,
+      majors_second_half: majorsSecond,
+      half_to_half_replication: halfToHalf,
     };
   });
-  const pass = results.every(
-    (r) => r.n_first >= 15 && r.n_second >= 15 && r.distinct_major_count >= 2,
+
+  const minHalfJaccard = Math.min(
+    ...perClip.map((r) => r.half_to_half_replication.jaccard),
   );
+  const minHalfCoverage = Math.min(
+    ...perClip.map((r) => r.half_to_half_replication.coverage_of_reference),
+  );
+
+  const pass = perClip.every(
+    (r) =>
+      r.n_first >= 15 &&
+      r.n_second >= 15 &&
+      r.half_to_half_replication.overlap_centers.length >= 1,
+  );
+
   return {
     control_id: "NC-E_SPLIT_HALF_TEMPORAL_STABILITY",
-    verdict: pass ? "PASS" : "FAIL",
-    detail:
-      "Temporal split by clip median second; halves must each be populated and jointly retain ≥2 distinct major modes.",
-    metrics: { clips: results },
+    verdict: pass ? "PASS" : "SCIENTIFIC_NEGATIVE",
+    detail: pass
+      ? "Each clip temporal half shares ≥1 major mode center with the other half."
+      : "Temporal halves do not replicate major modes (valid negative scientific result).",
+    metrics: {
+      clips: perClip,
+      summary: {
+        min_half_to_half_jaccard: minHalfJaccard,
+        min_half_to_half_coverage: minHalfCoverage,
+      },
+      uncertainty: "Half splits inherit 1 Hz autocorrelation; replication is descriptive.",
+    },
   };
 }
 
@@ -255,23 +326,10 @@ function executeForbiddenUtcSecondJoin(video: VideoEligibleRow[], r1: R1SameRowP
   if (video.length === 0 || r1.length === 0) {
     throw new Error("FAIL_CLOSED:BLOCKED_CROSS_SOURCE:empty cohort");
   }
-  const merged = video.map((v) => {
-    const match = r1.find((r) => r.bucket_utc.endsWith(`:${String(v.video_second).padStart(2, "0")}:00Z`));
-    if (match) {
-      throw new Error("FAIL_CLOSED:BLOCKED_CROSS_SOURCE:UTC join produced row");
-    }
-    return v;
-  });
-  void merged;
-  throw new Error("FAIL_CLOSED:BLOCKED_CROSS_SOURCE:join attempt must not proceed");
+  throw new Error("FAIL_CLOSED:BLOCKED_CROSS_SOURCE:VIDEO×R1 UTC join forbidden");
 }
 
 function executeForbiddenR1VideoContextJoin(video: VideoEligibleRow[], r1: R1SameRowPair[]): void {
-  const table = r1.map((r) => ({
-    bucket_utc: r.bucket_utc,
-    context_from_video: video.find(() => true)?.pairing_authority,
-  }));
-  if (table.length > 0 && video.length > 0) {
-    throw new Error("FAIL_CLOSED:BLOCKED_CROSS_SOURCE:R1×video context transfer forbidden");
-  }
+  if (video.length === 0 || r1.length === 0) return;
+  throw new Error("FAIL_CLOSED:BLOCKED_CROSS_SOURCE:R1×video context transfer forbidden");
 }

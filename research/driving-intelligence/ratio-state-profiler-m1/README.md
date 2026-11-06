@@ -7,12 +7,15 @@ Research-only offline harness for **RAY-RUN V1 foundation** and falsification co
 - **B0/B1** histogram + block-5 baselines are immutable comparison references.
 - **RAY-RUN classifier** (`ray_fit`, population separability, per-second `abstain_state`) is **typed/stub only** in P18A — not validated.
 
-## Run tests
+## CI
+
+GitHub Actions workflow for this package is **not** included in PR #2348: adding `.github/workflows/*` triggers `i18n-authority-protection` (`GOVERNANCE_AUTHORITY_CHANGE_REQUIRES_APPROVAL`) until a trusted owner applies label `i18n-governance-authority-change`.
+
+Local/PR verification:
 
 ```bash
 cd research/driving-intelligence/ratio-state-profiler-m1
-npm ci
-npm test
+npm ci && npm run typecheck && npm test
 ```
 
 ## Emit evidence report

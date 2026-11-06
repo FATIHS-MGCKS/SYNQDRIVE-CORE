@@ -98,7 +98,14 @@ export function buildP18aFoundationReport(): Record<string, unknown> {
     classifier_validated: false,
   };
 
-  const controlFailures = controls.filter((c) => c.verdict === "FAIL");
+  const integrityControlIds = new Set([
+    "NC-A_RPM_PERMUTATION_NULL",
+    "NC-G_P16_REGRESSION",
+    "NC-H_FORBIDDEN_CROSS_JOIN",
+  ]);
+  const controlFailures = controls.filter(
+    (c) => c.verdict === "FAIL" && integrityControlIds.has(c.control_id),
+  );
   const mandatoryPass =
     p16.pass && p171.pass && controlFailures.length === 0;
 

@@ -84,7 +84,17 @@ print(hashlib.sha256(payload).hexdigest())
   return execFileSync("python3", ["-c", script, manifestPath], { encoding: "utf8" }).trim();
 }
 
-export function verifyP16Gate(repoRoot: string, manifestPath: string, manifest: P16Manifest): P16GateResult {
+export interface P16GateOptions {
+  /** Test-only: override resolved paths for sealed artifact hash checks. */
+  sealedPathOverrides?: Partial<Record<(typeof P16_SEALED_ARTIFACTS)[number]["role"], string>>;
+}
+
+export function verifyP16Gate(
+  repoRoot: string,
+  manifestPath: string,
+  manifest: P16Manifest,
+  options?: P16GateOptions,
+): P16GateResult {
   const errors: string[] = [];
   const declaredSelf = manifest.manifest_sha256_self ?? "MISSING";
 
@@ -111,7 +121,8 @@ export function verifyP16Gate(repoRoot: string, manifestPath: string, manifest: 
   }
 
   for (const required of P16_SEALED_ARTIFACTS) {
-    const resolved = join(repoRoot, required.repo_relative);
+    const resolved =
+      options?.sealedPathOverrides?.[required.role] ?? join(repoRoot, required.repo_relative);
     if (!existsSync(resolved)) {
       errors.push(`missing required artifact role=${required.role} path=${resolved}`);
       continue;
@@ -124,7 +135,8 @@ export function verifyP16Gate(repoRoot: string, manifestPath: string, manifest: 
 
   const sealed_inputs: P16GateResult["sealed_inputs"] = [];
   for (const required of P16_SEALED_ARTIFACTS) {
-    const resolved = join(repoRoot, required.repo_relative);
+    const resolved =
+      options?.sealedPathOverrides?.[required.role] ?? join(repoRoot, required.repo_relative);
     const digest = existsSync(resolved) ? sha256File(resolved) : "MISSING";
     sealed_inputs.push({
       role: required.role,

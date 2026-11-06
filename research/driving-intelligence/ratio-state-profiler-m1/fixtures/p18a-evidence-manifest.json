@@ -1,8 +1,8 @@
 {
   "schema": "DS4_RPM_P18A_EVIDENCE_MANIFEST_V1",
-  "operation": "DS4_RPM_P18A_ARCHITECT_REVIEW_CORRECTIONS",
+  "operation": "DS4_RPM_P18A_FINAL_ARCHITECT_HARDENING",
   "p16_manifest_sha256_self_recomputed": "5774d38fa2bb96adc89fbe04ca4f37b6ca7b730e06d0febd31bb50b7d9f704e6",
-  "p18a_report_content_sha256_excluding_generated_at": "4caed98d715e4f7e02aa181dd35c2bad8876ad315849bbc0b5a572d014ec7832",
+  "p18a_report_content_sha256_excluding_generated_at": "e6dd3b2a4aa0f27705cc17301a80f3d812d62d20eb34197b017aa5452298f5d9",
   "test_command": "cd research/driving-intelligence/ratio-state-profiler-m1 && npm ci && npm run typecheck && npm test",
   "verified_metrics": {
     "video_pair_count": 242,
@@ -15,5 +15,5 @@
     "window_double_count_key": "TC_00084.MOV|138"
   },
   "ray_run_classifier_validated": false,
-  "pr_scope_files_vs_main": 24
+  "pr_scope_files_vs_main": 25
 }

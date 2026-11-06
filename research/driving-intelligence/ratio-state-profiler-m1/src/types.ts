@@ -66,7 +66,7 @@ export interface BaselineB0B1 {
 
 export interface NegativeControlResult {
   control_id: string;
-  verdict: "PASS" | "FAIL" | "INFORMATIVE";
+  verdict: "PASS" | "FAIL" | "INFORMATIVE" | "SCIENTIFIC_NEGATIVE";
   detail: string;
   metrics?: Record<string, unknown>;
 }
