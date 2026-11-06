@@ -24,6 +24,12 @@ import {
   type FsdDiscoveryRunScopeV1,
   type FsdDiscoveryWriteAuthorizationV1,
 } from './fsd-discovery-persistence.contract.v1';
+import {
+  catalogCheckpointToJson,
+  createEmptyFsd3RequestLedger,
+  parseFsd3CatalogStageCheckpoint,
+  type Fsd3CatalogStageCheckpointV1,
+} from '../orchestration/fsd3-request-ledger.v1';
 
 type Tx = Prisma.TransactionClient;
 
@@ -34,6 +40,24 @@ export type AcquireFsdDiscoveryRunResultV1 =
 export type TransitionFsdDiscoveryRunResultV1 =
   | { applied: true; version: number }
   | { applied: false; reason: 'STALE_RUN_VERSION' | 'INVALID_STATE_TRANSITION' };
+
+export type FsdDiscoveryRunOrchestrationBundleV1 = {
+  run: {
+    id: string;
+    status: FsdDiscoveryRunStatus;
+    version: number;
+    leaseOwner: string | null;
+    leaseExpiresAt: Date | null;
+  };
+  stages: Array<{
+    stageType: FsdDiscoveryStageType;
+    id: string;
+    status: FsdDiscoveryStageStatus;
+    version: number;
+    planFingerprint: string;
+    checkpointJson: Prisma.JsonValue | null;
+  }>;
+};
 
 export class FsdDiscoveryPersistenceRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -642,7 +666,11 @@ export class FsdDiscoveryPersistenceRepository {
           version: input.expectedVersion,
           invalidatedAt: null,
           status: { in: [...FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES] },
-          OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lt: now } }],
+          OR: [
+            { leaseExpiresAt: null },
+            { leaseExpiresAt: { lt: now } },
+            { leaseOwner: input.leaseOwner, leaseExpiresAt: { gt: now } },
+          ],
         },
         data: {
           leaseOwner: input.leaseOwner,
@@ -651,6 +679,139 @@ export class FsdDiscoveryPersistenceRepository {
         },
       });
       return result.count === 1;
+    });
+  }
+
+  async assertActiveSourceLinkForDispatch(scope: FsdDiscoveryRunScopeV1): Promise<void> {
+    await this.withSourceLinkLock(scope, async (tx) => {
+      const link = await tx.vehicleDataSourceLink.findFirst({
+        where: {
+          id: scope.providerSourceLinkId,
+          vehicle: { organizationId: scope.organizationId, id: scope.vehicleId },
+        },
+      });
+      if (!link?.isActive) {
+        throw new FsdDiscoveryPersistenceError('SOURCE_LINK_INVALID', 'Source link inactive or missing');
+      }
+    });
+  }
+
+  async loadRunOrchestrationBundle(input: {
+    scope: FsdDiscoveryRunScopeV1;
+    runId: string;
+  }): Promise<FsdDiscoveryRunOrchestrationBundleV1 | null> {
+    const run = await this.prisma.fsdDiscoveryRun.findFirst({
+      where: {
+        id: input.runId,
+        organizationId: input.scope.organizationId,
+        vehicleId: input.scope.vehicleId,
+        providerSourceLinkId: input.scope.providerSourceLinkId,
+      },
+      include: { stages: true },
+    });
+    if (!run) {
+      return null;
+    }
+    return {
+      run: {
+        id: run.id,
+        status: run.status,
+        version: run.version,
+        leaseOwner: run.leaseOwner,
+        leaseExpiresAt: run.leaseExpiresAt,
+      },
+      stages: run.stages.map((s) => ({
+        stageType: s.stageType,
+        id: s.id,
+        status: s.status,
+        version: s.version,
+        planFingerprint: s.planFingerprint ?? '',
+        checkpointJson: s.checkpointJson,
+      })),
+    };
+  }
+
+  async summarizeRunEvidenceForOrchestration(runId: string): Promise<{
+    catalogSignalCount: number;
+    observedSignalCount: number;
+    deferredSignalCount: number;
+    rejectedDocumentEvidenceCount: number;
+  }> {
+    const catalogSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
+      where: {
+        runId,
+        stageType: 'CATALOG',
+        signalName: { not: { startsWith: '__fsd3_' } },
+      },
+    });
+    const observedSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
+      where: { runId, stageType: 'SNAPSHOT', observedValue: true },
+    });
+    const deferredSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
+      where: { runId, stageType: 'SNAPSHOT', evidenceState: 'DEFERRED' },
+    });
+    const rejectedDocumentEvidenceCount = await this.prisma.fsdDiscoverySignalEvidence.count({
+      where: {
+        runId,
+        stageType: 'SNAPSHOT',
+        signalName: { startsWith: '__fsd3_rejected_document__:' },
+      },
+    });
+    return {
+      catalogSignalCount,
+      observedSignalCount,
+      deferredSignalCount,
+      rejectedDocumentEvidenceCount,
+    };
+  }
+
+  async mutateCatalogStageCheckpoint(input: {
+    auth: FsdDiscoveryWriteAuthorizationV1;
+    expectedStageVersion: number;
+    planFingerprint: string;
+    budgetTotal: number;
+    mutate: (checkpoint: Fsd3CatalogStageCheckpointV1) => Fsd3CatalogStageCheckpointV1;
+  }): Promise<{ applied: boolean; stageVersion: number; checkpoint: Fsd3CatalogStageCheckpointV1 | null }> {
+    return this.withSourceLinkLock(input.auth, async (tx) => {
+      await this.fenceRunnableRun(tx, input.auth);
+      const stage = await tx.fsdDiscoveryStage.findUnique({
+        where: {
+          runId_stageType: { runId: input.auth.runId, stageType: 'CATALOG' },
+        },
+      });
+      if (!stage || stage.planFingerprint !== input.planFingerprint) {
+        throw new FsdDiscoveryPersistenceError('STAGE_NOT_FOUND', 'Catalog stage missing or plan mismatch');
+      }
+      if (isFsdDiscoveryStageTerminal(stage.status) && stage.status !== 'SUCCEEDED') {
+        throw new FsdDiscoveryPersistenceError('STAGE_IMMUTABLE', 'Catalog stage terminal');
+      }
+      const parsed =
+        parseFsd3CatalogStageCheckpoint(stage.checkpointJson) ??
+        ({
+          requestLedger: createEmptyFsd3RequestLedger(input.budgetTotal),
+        } satisfies Fsd3CatalogStageCheckpointV1);
+      const nextCheckpoint = input.mutate(parsed);
+      const result = await tx.fsdDiscoveryStage.updateMany({
+        where: {
+          runId: input.auth.runId,
+          stageType: 'CATALOG',
+          version: input.expectedStageVersion,
+          planFingerprint: input.planFingerprint,
+          status: stage.status === 'SUCCEEDED' ? 'SUCCEEDED' : { in: ['PLANNED', 'IN_PROGRESS'] },
+        },
+        data: {
+          checkpointJson: catalogCheckpointToJson(nextCheckpoint),
+          version: { increment: 1 },
+        },
+      });
+      if (result.count !== 1) {
+        return { applied: false, stageVersion: stage.version, checkpoint: parsed };
+      }
+      return {
+        applied: true,
+        stageVersion: input.expectedStageVersion + 1,
+        checkpoint: nextCheckpoint,
+      };
     });
   }
 }

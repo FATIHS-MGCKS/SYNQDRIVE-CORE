@@ -22,6 +22,9 @@ fsd2_persistence_assert_disposable_target "${PG_HOST}" "${FSD2_DB}" "${DATABASE_
 
 npx jest \
   src/modules/vehicle-intelligence/full-signal-discovery/persistence \
+  src/modules/vehicle-intelligence/full-signal-discovery/orchestration/__tests__/fsd3-orchestration.postgres.integration.spec.ts \
+  src/modules/vehicle-intelligence/full-signal-discovery/orchestration/__tests__/fsd3-orchestration.safety.postgres.integration.spec.ts \
+  src/modules/vehicle-intelligence/full-signal-discovery/orchestration/__tests__/fsd3-orchestration.ledger-closeout.postgres.integration.spec.ts \
   --runInBand \
   --forceExit \
   --verbose
