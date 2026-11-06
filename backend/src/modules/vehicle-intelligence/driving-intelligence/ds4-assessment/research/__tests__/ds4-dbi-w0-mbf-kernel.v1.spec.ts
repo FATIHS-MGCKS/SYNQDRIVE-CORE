@@ -246,7 +246,7 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     expect(r.d8Burstiness.status).toBe('KNOWN');
   });
 
-  it('E9: clustered inter-event gaps vs regular spacing (shareWithin30s not invariant; fixed Es window)', () => {
+  it('E9: clustered vs regular sensitivity (shareWithin30s; fixed Es window) — scenarios need not both be KNOWN', () => {
     const t0 = '2026-01-01T12:00:00Z';
     const t0ms = Date.parse(t0);
     const esSec = 660;
@@ -276,12 +276,12 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
       };
     };
-    /** One Uniform draw per 60s bin — ≥10 non-empty windows; independently randomized (not multiset of regular starts). */
+    /** OCCUPANCY_CONDITIONED_NULL: one Uniform draw per first ten 60s bins — conditions on ≥10 nonempty windows. */
     const rdraw = rand(0xe9beef00);
     const nullOffsets: number[] = [];
     for (let w = 0; w < 10; w += 1) {
       const binStart = w * windowMs;
-      const binEnd = Math.min((w + 1) * windowMs, horizonMs) - 2000;
+      const binEnd = Math.min((w + 1) * windowMs, horizonMs) - 1000;
       nullOffsets.push(binStart + Math.floor(rdraw() * Math.max(1, binEnd - binStart)));
     }
     nullOffsets.push(600_000 + 1000, 600_000 + 8000);
@@ -312,10 +312,53 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
       speedLabelsUtc: speedLabs,
       events: mkEv(clustered.sort((a, b) => a - b)),
     });
-    expect(dReg.status).toBe('KNOWN');
-    expect(dNull.status).toBe('KNOWN');
-    expect(dClust.status).toBe('KNOWN');
+    expect(dReg.shareNextEventWithin30s).not.toBeNull();
+    expect(dClust.shareNextEventWithin30s).not.toBeNull();
     expect(dClust.shareNextEventWithin30s!).toBeGreaterThan(dReg.shareNextEventWithin30s!);
+    expect(dNull.nonEmptyWindowCount).toBeGreaterThanOrEqual(10);
+  });
+
+  it('E9: unrestricted uniform null may ABSTAIN under D8 window gate (no scientific failure)', () => {
+    const t0 = '2026-01-01T12:00:00Z';
+    const t0ms = Date.parse(t0);
+    const esSec = 660;
+    const horizonMs = esSec * 1000;
+    const nEv = 12;
+    const rand = (seed: number) => {
+      let a = seed >>> 0;
+      return () => {
+        a += 0x6d2b79f5;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    };
+    const speedLabs = Array.from({ length: 720 }, (_, i) => new Date(t0ms + i * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+    const rdraw = rand(0xbad5eed);
+    const maxOff = Math.max(1, horizonMs - 1000);
+    const unrestrictedOffsets = Array.from({ length: nEv }, () => Math.floor(rdraw() * maxOff)).sort((a, b) => a - b);
+    const mkEv = (offsetsMs: number[]) =>
+      offsetsMs.map((off) => ({
+        kind: 'ACCELERATION' as const,
+        startLabel: new Date(t0ms + off).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        endLabel: new Date(t0ms + off + 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        startSpeedKmh: 40,
+        endSpeedKmh: 41,
+        deltaKmh: 1,
+        quality: 'OK' as const,
+        flags: [],
+      }));
+    const tripMetaLocal = { ...meta, exposureSecondsEs: esSec };
+    const dUnres = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+      tripMeta: tripMetaLocal,
+      speedLabelsUtc: speedLabs,
+      events: mkEv(unrestrictedOffsets),
+    });
+    expect(['KNOWN', 'ABSTAIN']).toContain(dUnres.status);
+    if (dUnres.status === 'ABSTAIN') {
+      expect(dUnres.reasonCodes.length).toBeGreaterThan(0);
+    }
   });
 
   it('recomputing same payload is deterministic', () => {

@@ -49,25 +49,106 @@ function msToIsoLabelZ(ms: number): string {
 }
 
 /**
- * E9 null-process: one independent Uniform draw in each of the first 10 six-minute bins (guarantees ≥10 non‑empty windows),
- * then additional independent draws until n unique event times (same count n, not multiset-preserving vs regular).
+ * E9 — OCCUPANCY_CONDITIONED_NULL: one independent Uniform draw in each of the first 10 × 60s bins (conditions on ≥10 occupied bins),
+ * then additional independent Uniform draws on [0, maxOff) until n unique start offsets. Not an unrestricted homogeneous Poisson/uniform null.
  */
-function sampleE9UniformNullOffsetsV1(n: number, horizonMs: number, seed: number): number[] {
+function sampleE9OccupancyConditionedNullOffsetsV1(n: number, horizonMs: number, seed: number): number[] {
   const windowMs = 60_000;
   const rand = mulberry32(seed);
+  const maxOff = Math.max(1, horizonMs - 1000);
   const uniq = new Set<number>();
   const numBins = Math.floor(horizonMs / windowMs);
   for (let w = 0; w < Math.min(10, numBins); w += 1) {
     const binStart = w * windowMs;
-    const binEnd = Math.min((w + 1) * windowMs, horizonMs) - 2000;
+    const binEnd = Math.min((w + 1) * windowMs, horizonMs) - 1000;
     uniq.add(binStart + Math.floor(rand() * Math.max(1, binEnd - binStart)));
   }
   let guard = 0;
   while (uniq.size < n && guard < n * 100_000) {
     guard += 1;
-    uniq.add(Math.floor(rand() * Math.max(1, horizonMs - 2000)));
+    uniq.add(Math.floor(rand() * maxOff));
   }
   return [...uniq].sort((a, b) => a - b).slice(0, n);
+}
+
+/** E9 — unrestricted independent Uniform(start offsets) on [0, maxOff); allows empty 60s bins; may produce duplicate offsets (same-window stacking). */
+function sampleE9UnrestrictedUniformOffsetsV1(n: number, horizonMs: number, seed: number): number[] {
+  const rand = mulberry32(seed);
+  const maxOff = Math.max(1, horizonMs - 1000);
+  const out: number[] = [];
+  for (let i = 0; i < n; i += 1) {
+    out.push(Math.floor(rand() * maxOff));
+  }
+  return out.sort((a, b) => a - b);
+}
+
+type E9NullMonteCarloDrawRecordV1 = {
+  seed: number;
+  d8Status: 'KNOWN' | 'ABSTAIN';
+  d8ReasonCodes: string[];
+  indexOfDispersion: number | null;
+};
+
+function runE9NullMonteCarloV1(input: {
+  draws: number;
+  seedStrideStart: number;
+  nEv: number;
+  horizonMs: number;
+  t0ms: number;
+  sampleOffsets: (n: number, horizonMs: number, seed: number) => number[];
+  speedLabelsUtc: readonly string[];
+  tripMeta: {
+    tripId: string;
+    sourceMotionRunId: string;
+    speedAuthority: string;
+    shadowBundleVersion: string;
+    contentFingerprint: string;
+    exposureSecondsEs: number;
+    distanceKm: number;
+  };
+}): {
+  acceptedIOD: number[];
+  acceptedCount: number;
+  abstainedCount: number;
+  drawRecords: E9NullMonteCarloDrawRecordV1[];
+  meanIod: number | null;
+} {
+  const records: E9NullMonteCarloDrawRecordV1[] = [];
+  const acceptedIOD: number[] = [];
+  let acceptedCount = 0;
+  let abstainedCount = 0;
+  for (let k = 0; k < input.draws; k += 1) {
+    const seed = input.seedStrideStart + k;
+    const offs = input.sampleOffsets(input.nEv, input.horizonMs, seed);
+    const rr = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+      tripMeta: input.tripMeta,
+      speedLabelsUtc: input.speedLabelsUtc,
+      events: offs.map((off) => ({
+        kind: 'ACCELERATION' as const,
+        startLabel: msToIsoLabelZ(input.t0ms + off),
+        endLabel: msToIsoLabelZ(input.t0ms + off + 1000),
+        startSpeedKmh: 40,
+        endSpeedKmh: 41,
+        deltaKmh: 1,
+        quality: 'OK' as const,
+        flags: [],
+      })),
+    });
+    records.push({
+      seed,
+      d8Status: rr.status,
+      d8ReasonCodes: [...rr.reasonCodes],
+      indexOfDispersion: rr.indexOfDispersion,
+    });
+    if (rr.status === 'KNOWN' && rr.indexOfDispersion != null && Number.isFinite(rr.indexOfDispersion)) {
+      acceptedIOD.push(rr.indexOfDispersion);
+      acceptedCount += 1;
+    } else {
+      abstainedCount += 1;
+    }
+  }
+  const meanIod = acceptedIOD.length > 0 ? acceptedIOD.reduce((a, b) => a + b, 0) / acceptedIOD.length : null;
+  return { acceptedIOD, acceptedCount, abstainedCount, drawRecords: records, meanIod };
 }
 
 const fixtureDir = join(
@@ -256,15 +337,40 @@ function runSyntheticControlsV1(): {
     eventCount: number;
     baseSeed: number;
     scenarios: {
-      name: 'regular_spacing' | 'clustered' | 'uniform_random_null';
+      name: 'regular_spacing' | 'clustered' | 'occupancy_conditioned_null' | 'unrestricted_uniform_null_primary';
+      nullModel: 'STRUCTURED' | 'OCCUPANCY_CONDITIONED_NULL' | 'UNRESTRICTED_UNIFORM_ON_EXPOSURE';
+      description: string;
       seed: number;
       d8: ReturnType<typeof computeDs4DbiW0D8BurstinessFromObservationWindowV1>;
     }[];
-    nullDistribution: {
-      draws: number;
-      seedStrideStart: number;
-      iodValues: number[];
-      meanIod: number | null;
+    scientificInterpretation: {
+      summary: string;
+      monteCarloDoesNotImplyValidation: string;
+      d8SupportGate: string;
+    };
+    nullDistributions: {
+      occupancyConditionedNull: {
+        model: 'OCCUPANCY_CONDITIONED_NULL';
+        selectionLimitation: string;
+        draws: number;
+        seedStrideStart: number;
+        acceptedCount: number;
+        abstainedCount: number;
+        iodValuesAcceptedOnly: number[];
+        meanIodAcceptedOnly: number | null;
+        drawRecords: E9NullMonteCarloDrawRecordV1[];
+      };
+      unrestrictedUniformNull: {
+        model: 'UNRESTRICTED_UNIFORM_ON_EXPOSURE';
+        selectionLimitation: string;
+        draws: number;
+        seedStrideStart: number;
+        acceptedCount: number;
+        abstainedCount: number;
+        iodValuesAcceptedOnly: number[];
+        meanIodAcceptedOnly: number | null;
+        drawRecords: E9NullMonteCarloDrawRecordV1[];
+      };
     };
   };
   e10: { scenario: string; d4Status: string; reasons: string[]; observedFingerprintPrefix: string }[];
@@ -444,10 +550,11 @@ function runSyntheticControlsV1(): {
     evidenceOrigin: 'SYNTHETIC_CONTROL',
   });
 
-  // E9: point-process null — same n, fixed exposure window, independent Uniform draws; compare to regular/clustered
+  // E9: structured baselines + two null models (occupancy-conditioned vs unrestricted uniform on exposure); Monte Carlo records all D8 outcomes.
   const e9BaseSeed = 0xe9d00142;
   const speedLabsE9 = noisy.speeds.map((s) => s.bucketLabelUtc);
-  const eventOffsetsRandom = sampleE9UniformNullOffsetsV1(nEv, horizonMs, e9BaseSeed);
+  const eventOffsetsOccupancyNull = sampleE9OccupancyConditionedNullOffsetsV1(nEv, horizonMs, e9BaseSeed);
+  const eventOffsetsUnrestrictedPrimary = sampleE9UnrestrictedUniformOffsetsV1(nEv, horizonMs, e9BaseSeed);
   const d8Regular = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
     tripMeta: meta,
     speedLabelsUtc: speedLabsE9,
@@ -458,25 +565,37 @@ function runSyntheticControlsV1(): {
     speedLabelsUtc: speedLabsE9,
     events: eventsFromOffsets(eventOffsetsClustered),
   });
-  const d8RandomPrimary = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+  const d8OccupancyNullPrimary = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
     tripMeta: meta,
     speedLabelsUtc: speedLabsE9,
-    events: eventsFromOffsets(eventOffsetsRandom),
+    events: eventsFromOffsets(eventOffsetsOccupancyNull),
   });
-  const nullIods: number[] = [];
+  const d8UnrestrictedPrimary = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+    tripMeta: meta,
+    speedLabelsUtc: speedLabsE9,
+    events: eventsFromOffsets(eventOffsetsUnrestrictedPrimary),
+  });
   const nullDraws = 50;
-  for (let k = 1; k <= nullDraws; k += 1) {
-    const offs = sampleE9UniformNullOffsetsV1(nEv, horizonMs, e9BaseSeed + k);
-    const rr = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
-      tripMeta: meta,
-      speedLabelsUtc: speedLabsE9,
-      events: eventsFromOffsets(offs),
-    });
-    if (rr.indexOfDispersion != null && Number.isFinite(rr.indexOfDispersion)) {
-      nullIods.push(rr.indexOfDispersion);
-    }
-  }
-  const meanNullIod = nullIods.length > 0 ? nullIods.reduce((a, b) => a + b, 0) / nullIods.length : null;
+  const conditionedMc = runE9NullMonteCarloV1({
+    draws: nullDraws,
+    seedStrideStart: e9BaseSeed + 1,
+    nEv,
+    horizonMs,
+    t0ms,
+    sampleOffsets: sampleE9OccupancyConditionedNullOffsetsV1,
+    speedLabelsUtc: speedLabsE9,
+    tripMeta: meta,
+  });
+  const unrestrictedMc = runE9NullMonteCarloV1({
+    draws: nullDraws,
+    seedStrideStart: e9BaseSeed + 1 + nullDraws,
+    nEv,
+    horizonMs,
+    t0ms,
+    sampleOffsets: sampleE9UnrestrictedUniformOffsetsV1,
+    speedLabelsUtc: speedLabsE9,
+    tripMeta: meta,
+  });
 
   // E10: fingerprint mismatch
   const observedFp = createHash('sha256').update(JSON.stringify(noisy)).digest('hex');
@@ -512,15 +631,70 @@ function runSyntheticControlsV1(): {
       eventCount: nEv,
       baseSeed: e9BaseSeed,
       scenarios: [
-        { name: 'regular_spacing', seed: e9BaseSeed, d8: d8Regular },
-        { name: 'clustered', seed: e9BaseSeed, d8: d8Clustered },
-        { name: 'uniform_random_null', seed: e9BaseSeed, d8: d8RandomPrimary },
+        {
+          name: 'regular_spacing',
+          nullModel: 'STRUCTURED',
+          description: 'Deterministic wide spacing (methodological structured baseline; not a probabilistic null).',
+          seed: e9BaseSeed,
+          d8: d8Regular,
+        },
+        {
+          name: 'clustered',
+          nullModel: 'STRUCTURED',
+          description: 'Deterministic clustering in early windows (sensitivity to burst timing; not a null).',
+          seed: e9BaseSeed,
+          d8: d8Clustered,
+        },
+        {
+          name: 'occupancy_conditioned_null',
+          nullModel: 'OCCUPANCY_CONDITIONED_NULL',
+          description:
+            'Conditions on at least one event in each of the first ten 60s windows, then fills remaining slots — not an unrestricted uniform-time null.',
+          seed: e9BaseSeed,
+          d8: d8OccupancyNullPrimary,
+        },
+        {
+          name: 'unrestricted_uniform_null_primary',
+          nullModel: 'UNRESTRICTED_UNIFORM_ON_EXPOSURE',
+          description:
+            'Twelve independent Uniform draws of event start offset on [0, Es−1s); empty 60s bins allowed; duplicates allowed (D8 bins stack).',
+          seed: e9BaseSeed,
+          d8: d8UnrestrictedPrimary,
+        },
       ],
-      nullDistribution: {
-        draws: nullDraws,
-        seedStrideStart: e9BaseSeed + 1,
-        iodValues: nullIods,
-        meanIod: meanNullIod,
+      scientificInterpretation: {
+        summary:
+          'Compare structured layouts to two distinct null constructions: OCCUPANCY_CONDITIONED_NULL (forces occupancy in early bins) vs UNRESTRICTED_UNIFORM_ON_EXPOSURE (no empty-window forcing). Monte Carlo lists every draw; IOD summaries use D8-accepted draws only.',
+        monteCarloDoesNotImplyValidation:
+          'Finite synthetic IOD values from this harness do not constitute scientific validation of E9 or W0; research-only reporting.',
+        d8SupportGate:
+          'D8 may ABSTAIN per preregistered gates (e.g. MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS); abstentions are reported per draw, not silently dropped without record.',
+      },
+      nullDistributions: {
+        occupancyConditionedNull: {
+          model: 'OCCUPANCY_CONDITIONED_NULL',
+          selectionLimitation:
+            'Conditions on nonempty first ten 60s bins; biases toward spread occupancy vs unrestricted uniform.',
+          draws: nullDraws,
+          seedStrideStart: e9BaseSeed + 1,
+          acceptedCount: conditionedMc.acceptedCount,
+          abstainedCount: conditionedMc.abstainedCount,
+          iodValuesAcceptedOnly: conditionedMc.acceptedIOD,
+          meanIodAcceptedOnly: conditionedMc.meanIod,
+          drawRecords: conditionedMc.drawRecords,
+        },
+        unrestrictedUniformNull: {
+          model: 'UNRESTRICTED_UNIFORM_ON_EXPOSURE',
+          selectionLimitation:
+            'Independent uniform start times only; duplicate offsets collapse to same 60s bin in D8 (not deduped). Abstention when D8 support gate fails.',
+          draws: nullDraws,
+          seedStrideStart: e9BaseSeed + 1 + nullDraws,
+          acceptedCount: unrestrictedMc.acceptedCount,
+          abstainedCount: unrestrictedMc.abstainedCount,
+          iodValuesAcceptedOnly: unrestrictedMc.acceptedIOD,
+          meanIodAcceptedOnly: unrestrictedMc.meanIod,
+          drawRecords: unrestrictedMc.drawRecords,
+        },
       },
     },
     e10: [
@@ -658,7 +832,7 @@ async function main(): Promise<void> {
     tripResultsStrict: results,
     syntheticControls: controls,
     scientificNote:
-      'evidenceOrigin=SYNTHETIC_P2_ENRICHMENT: 1Hz speeds/FSM/stops are synthetic from sealed P2 timing (not raw sealed C4 gzip). sealedReferenceContentFingerprintSha256 is CSV attestation metadata only — never compared to JSON.stringify(payload) digest unless explicit SEALED_REAL_C4 contract exists. independentScientificValidationStatus is always NOT_EVALUATED until a verified sealed-real loader exists. sealedRealC4StatisticalEligibility is false for synthetic paths. D8 uses fixed trip exposureSecondsEs as observation horizon from min(first speed, first event start). D4–D8 thresholds are preregistered candidates.',
+      'evidenceOrigin=SYNTHETIC_P2_ENRICHMENT: 1Hz speeds/FSM/stops are synthetic from sealed P2 timing (not raw sealed C4 gzip). sealedReferenceContentFingerprintSha256 is CSV attestation metadata only — never compared to JSON.stringify(payload) digest unless explicit SEALED_REAL_C4 contract exists. independentScientificValidationStatus is always NOT_EVALUATED until a verified sealed-real loader exists. sealedRealC4StatisticalEligibility is false for synthetic paths. D8 uses fixed trip exposureSecondsEs as observation horizon from min(first speed, first event start). E9 syntheticControls distinguishes OCCUPANCY_CONDITIONED_NULL from UNRESTRICTED_UNIFORM_ON_EXPOSURE; Monte Carlo records every draw including D8 ABSTAIN — finite accepted IOD summaries are not validation. D4–D8 thresholds are preregistered candidates.',
     realVsSyntheticBoundary:
       'SYNTHETIC_CONTROL / SYNTHETIC_P2_ENRICHMENT: speed-based metrics are methodological only. SEALED_REAL_C4 reserved for future unmodified shadow exports.',
   };

@@ -2722,3 +2722,12 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (12 tests); offline CLI `--json` E9 scenarios KNOWN; `bash architecture/scripts/validate-module-registry.sh` (Driving Intelligence registry row unchanged) |
 | NON_EFFECTS | **No** C4/L3/FSM; **no** DS4×RPM joins; **no** product integration; **no** production/VPS/DB access |
 
+### 2026-11-06 — DS4 DBI W0 E9 null model labels (occupancy-conditioned vs unrestricted uniform)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Offline CLI (`ds4-dbi-w0-mbf-offline.cli.ts`): **OCCUPANCY_CONDITIONED_NULL** explicitly labeled; **UNRESTRICTED_UNIFORM_ON_EXPOSURE** (no forced nonempty bins); dual Monte Carlo with per-draw `drawRecords` (KNOWN vs ABSTAIN + reasonCodes); `iodValuesAcceptedOnly` naming; `scientificInterpretation` states MC does not validate; Jest: regular/clustered sensitivity without requiring both KNOWN; unrestricted-null may ABSTAIN |
+| WHY | Uniform random label previously mixed a **conditioned occupancy** construction with interpretation as unrestricted uniform |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf`; offline `--json`; `validate-module-registry.sh` |
+| NON_EFFECTS | **No** kernel D8 gate changes; **no** product paths |
+
