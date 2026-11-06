@@ -81,7 +81,6 @@ const baseInput = {
   expectedLastErrorCode: 'ONEAUTO_CALLBACK_PAYLOAD_INCOMPLETE',
   expectedNormalServicesCount: 9,
   expectedExtraServicesCount: 21,
-  requireProductionAuthorization: false,
 };
 
 describe('OneAutoOeServiceScheduleFailedCallbackRecoveryService (offline)', () => {
@@ -122,6 +121,8 @@ describe('OneAutoOeServiceScheduleFailedCallbackRecoveryService (offline)', () =
   });
 
   it('RECOVERED: persists audit then callback; zero provider HTTP', async () => {
+    process.env[ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_PRODUCTION_AUTHORIZED_ENV] = '1';
+    process.env[ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_OWNER_ACK_ENV] = '1';
     const tx = {
       oneAutoProviderResponse: {
         create: jest.fn(),
@@ -338,6 +339,8 @@ describe('OneAutoOeServiceScheduleFailedCallbackRecoveryService (offline)', () =
   });
 
   it('concurrent recovery: one RECOVERED one PRECONDITION_FAILED (lost transition)', async () => {
+    process.env[ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_PRODUCTION_AUTHORIZED_ENV] = '1';
+    process.env[ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_OWNER_ACK_ENV] = '1';
     let transitionCalls = 0;
     const tx = {
       oneAutoProviderResponse: {
@@ -380,6 +383,8 @@ describe('OneAutoOeServiceScheduleFailedCallbackRecoveryService (offline)', () =
   });
 
   it('rollback: transaction rejects on second create', async () => {
+    process.env[ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_PRODUCTION_AUTHORIZED_ENV] = '1';
+    process.env[ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_OWNER_ACK_ENV] = '1';
     const tx = {
       oneAutoProviderResponse: {
         create: jest
@@ -410,14 +415,73 @@ describe('OneAutoOeServiceScheduleFailedCallbackRecoveryService (offline)', () =
     );
   });
 
-  it('requires production authorization when enabled', async () => {
-    const svc = new OneAutoOeServiceScheduleFailedCallbackRecoveryService({
-      oneAutoProviderJob: { findFirst: jest.fn() },
-    } as never);
+  it('dry-run succeeds without production authorization env vars', async () => {
+    const prisma = {
+      oneAutoProviderJob: { findFirst: jest.fn().mockResolvedValue(failedScheduleJob()) },
+      oneAutoProviderCallbackInbox: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'inbox-1', payloadJson: wrappedScheduleInboxPayload(VIN, 9, 21), receivedAt: new Date() },
+        ]),
+      },
+      vehicle: { findFirst: jest.fn().mockResolvedValue({ vin: VIN }) },
+      oneAutoProviderResponse: { count: jest.fn().mockResolvedValue(0) },
+    };
+    const svc = new OneAutoOeServiceScheduleFailedCallbackRecoveryService(prisma as never);
+    const result = await svc.recoverFailedScheduleCallbackJob({ ...baseInput, dryRun: true });
+    expect(result.outcome).toBe('DRY_RUN_OK');
+  });
+
+  it('execute without production authorization returns AUTHORIZATION_DENIED', async () => {
+    const prisma = {
+      oneAutoProviderJob: { findFirst: jest.fn().mockResolvedValue(failedScheduleJob()) },
+      oneAutoProviderCallbackInbox: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'inbox-1', payloadJson: wrappedScheduleInboxPayload(VIN, 9, 21), receivedAt: new Date() },
+        ]),
+      },
+      vehicle: { findFirst: jest.fn().mockResolvedValue({ vin: VIN }) },
+      oneAutoProviderResponse: { count: jest.fn().mockResolvedValue(0) },
+    };
+    const svc = new OneAutoOeServiceScheduleFailedCallbackRecoveryService(prisma as never);
+    const result = await svc.recoverFailedScheduleCallbackJob({ ...baseInput, dryRun: false });
+    expect(result.outcome).toBe('AUTHORIZATION_DENIED');
+  });
+
+  it('RETENTION_EXPIRED when expiry passes before transaction retention check', async () => {
+    const freeze = new Date('2026-11-06T12:00:00.000Z');
+    const jobRow = failedScheduleJob({
+      providerResultExpiresAt: new Date('2026-11-06T13:00:00.000Z'),
+      expiresAt: new Date('2026-11-06T13:00:00.000Z'),
+    });
+    const tx = {
+      oneAutoProviderResponse: { create: jest.fn(), count: jest.fn().mockResolvedValue(0) },
+      oneAutoProviderJob: {
+        findFirst: jest.fn().mockResolvedValue(jobRow),
+        updateMany: jest.fn(),
+      },
+    };
+    const prisma = {
+      oneAutoProviderJob: { findFirst: jest.fn().mockResolvedValue(jobRow) },
+      oneAutoProviderCallbackInbox: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'inbox-1', payloadJson: wrappedScheduleInboxPayload(VIN, 9, 21), receivedAt: new Date() },
+        ]),
+      },
+      vehicle: { findFirst: jest.fn().mockResolvedValue({ vin: VIN }) },
+      oneAutoProviderResponse: { count: jest.fn().mockResolvedValue(0) },
+      $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<string>) => fn(tx)),
+    };
+    process.env[ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_PRODUCTION_AUTHORIZED_ENV] = '1';
+    process.env[ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_OWNER_ACK_ENV] = '1';
+    const svc = new OneAutoOeServiceScheduleFailedCallbackRecoveryService(prisma as never);
     const result = await svc.recoverFailedScheduleCallbackJob({
       ...baseInput,
-      requireProductionAuthorization: true,
+      dryRun: false,
+      now: freeze,
+      recoveryTransactionNow: new Date('2026-11-06T14:00:00.000Z'),
     });
-    expect(result.outcome).toBe('AUTHORIZATION_DENIED');
+    expect(result.outcome).toBe('RETENTION_EXPIRED');
+    expect(tx.oneAutoProviderJob.updateMany).not.toHaveBeenCalled();
+    expect(tx.oneAutoProviderResponse.create).not.toHaveBeenCalled();
   });
 });

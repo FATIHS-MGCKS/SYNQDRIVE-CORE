@@ -28,6 +28,7 @@ import {
   oneAutoUnavailableException,
 } from './oneauto-provider.errors';
 import { OneAutoProviderExecutionService } from './oneauto-provider-execution.service';
+import { ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU } from './service-schedule/oneauto-service-schedule-eu.types';
 
 type RuntimeCfg = {
   enabled?: boolean;
@@ -258,20 +259,36 @@ export class OneAutoProviderService {
     await this.execution.expireProviderResultIfDue(jobId);
     const job = await this.prisma.oneAutoProviderJob.findFirst({
       where: { id: jobId, organizationId: orgId },
-      include: {
-        responses: { orderBy: { fetchedAt: 'desc' }, take: 1 },
-      },
     });
     if (!job) throw oneAutoJobNotFoundException();
-    const latest = job.responses[0];
+
+    const latestResponseOrderBy = [{ fetchedAt: 'desc' as const }, { id: 'desc' as const }];
+    let latest =
+      job.serviceSku === ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU
+        ? await this.prisma.oneAutoProviderResponse.findFirst({
+            where: { jobId, responsePhase: 'callback' },
+            orderBy: latestResponseOrderBy,
+          })
+        : await this.prisma.oneAutoProviderResponse.findFirst({
+            where: { jobId },
+            orderBy: latestResponseOrderBy,
+          });
+    if (!latest && job.serviceSku === ONEAUTO_OE_SERVICE_SCHEDULE_EU_SERVICE_SKU) {
+      latest = await this.prisma.oneAutoProviderResponse.findFirst({
+        where: { jobId },
+        orderBy: latestResponseOrderBy,
+      });
+    }
+
+    const latestRow = latest;
     return {
       job: this.toJobDto(job),
-      latestResponse: latest
+      latestResponse: latestRow
         ? {
-            httpStatus: latest.httpStatus,
-            providerStatusHeader: latest.providerStatusHeader,
-            responseBodyJson: latest.responseBodyJson,
-            fetchedAt: latest.fetchedAt,
+            httpStatus: latestRow.httpStatus,
+            providerStatusHeader: latestRow.providerStatusHeader,
+            responseBodyJson: latestRow.responseBodyJson,
+            fetchedAt: latestRow.fetchedAt,
           }
         : null,
       actualChargeKnown: job.actualChargeKnown,

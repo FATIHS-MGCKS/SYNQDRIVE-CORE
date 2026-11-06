@@ -42,7 +42,7 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
       'One Auto — OE_SERVICE_SCHEDULE FAILED callback inbox recovery CLI (owner-gated, dry-run default)',
     summary: [
       'Separate ops service from E4 VIN recovery: replays exactly one non-duplicate inbox payload for a FAILED schedule job; validates full-data envelope + schedule parser; optional 9+21 count checks; retention gate unchanged.',
-      'Mutate path: atomic FAILED→SUCCEEDED via persistFullDataCallbackSuccessInTransaction (recovery_audit then e4_recovery_callback); getJobResult stays schedule-shaped; zero provider HTTP and no BullMQ / service-history / OEM writes.',
+      'Mutate path: atomic FAILED→SUCCEEDED via persistFullDataCallbackSuccessInTransaction (recovery_audit then callback phase); getJobResult for OE_SERVICE_SCHEDULE prefers responsePhase=callback; dry-run needs no prod env; zero provider HTTP and no BullMQ / service-history / OEM writes.',
       'Dual env authorization (production + owner ack); CLI default dry-run; tests in oneauto-oe-service-schedule-failed-callback-recovery.spec.ts.',
     ],
     reason:

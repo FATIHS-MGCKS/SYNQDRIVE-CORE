@@ -206,3 +206,9 @@
 - **Ops:** `backend/scripts/ops/oneauto-oe-service-schedule-recover-failed-callback-job.ts` + `oneauto-oe-service-schedule-failed-callback-recovery-cli.module.ts` (minimal Nest context).
 - **Tests:** `oneauto-oe-service-schedule-failed-callback-recovery.spec.ts` (offline mocks).
 - **Non-effects:** Does not relax provider result retention; production execution and DB mutation remain owner-only outside CI.
+
+## P1 — review corrections (2026-11-06)
+
+- **Dry-run:** Read-only recovery no longer requires production authorization env vars; execute (`dryRun: false`) still requires both `ONEAUTO_OE_SERVICE_SCHEDULE_CALLBACK_RECOVERY_*` flags.
+- **Retention:** Mutating transaction re-evaluates expiry using a **fresh** timestamp at transaction entry (not the operation start `now` from outside the tx).
+- **getJobResult:** For `OE_SERVICE_SCHEDULE` succeeded jobs, latest response prefers `responsePhase='callback'` (schedule envelope), then legacy `fetchedAt`/`id` ordering — avoids returning `recovery_audit` JSON when timestamps tie.

@@ -48,6 +48,8 @@ export type OneAutoOeServiceScheduleFailedCallbackRecoveryInput = {
   dryRun?: boolean;
   requireProductionAuthorization?: boolean;
   now?: Date;
+  /** Fixed clock inside the mutating transaction (tests only; defaults to `new Date()`). */
+  recoveryTransactionNow?: Date;
 };
 
 /**
@@ -67,13 +69,6 @@ export class OneAutoOeServiceScheduleFailedCallbackRecoveryService {
     const dryRun = input.dryRun !== false;
     const now = input.now ?? new Date();
     const base = { jobId: input.jobId.trim(), providerHttpRequestCount: 0 as const, dryRun };
-
-    if (input.requireProductionAuthorization !== false) {
-      const auth = resolveOneAutoOeServiceScheduleCallbackRecoveryAuthorization();
-      if (!auth.authorized) {
-        return { ...base, outcome: 'AUTHORIZATION_DENIED', detail: { reasons: auth.reasons } };
-      }
-    }
 
     const job = await this.prisma.oneAutoProviderJob.findFirst({
       where: { id: input.jobId.trim() },
@@ -289,6 +284,13 @@ export class OneAutoOeServiceScheduleFailedCallbackRecoveryService {
       return { ...base, outcome: 'ALREADY_RECOVERED' };
     }
 
+    if (!dryRun && input.requireProductionAuthorization !== false) {
+      const auth = resolveOneAutoOeServiceScheduleCallbackRecoveryAuthorization();
+      if (!auth.authorized) {
+        return { ...base, outcome: 'AUTHORIZATION_DENIED', detail: { reasons: auth.reasons } };
+      }
+    }
+
     if (dryRun) {
       return {
         ...base,
@@ -308,6 +310,7 @@ export class OneAutoOeServiceScheduleFailedCallbackRecoveryService {
     const expectedError = input.expectedLastErrorCode.trim();
 
     const transitioned = await this.prisma.$transaction(async (tx) => {
+      const txNow = input.recoveryTransactionNow ?? new Date();
       const dupCallback = await tx.oneAutoProviderResponse.count({
         where: { jobId: job.id, responsePhase: ONEAUTO_E4_CALLBACK_RECOVERY_CALLBACK_RESPONSE_PHASE },
       });
@@ -339,8 +342,8 @@ export class OneAutoOeServiceScheduleFailedCallbackRecoveryService {
       }
 
       const expiredInTx =
-        (jobInTx.providerResultExpiresAt && jobInTx.providerResultExpiresAt <= now) ||
-        (jobInTx.expiresAt && jobInTx.expiresAt <= now);
+        (jobInTx.providerResultExpiresAt && jobInTx.providerResultExpiresAt <= txNow) ||
+        (jobInTx.expiresAt && jobInTx.expiresAt <= txNow);
       if (expiredInTx) {
         return 'retention_expired' as const;
       }
