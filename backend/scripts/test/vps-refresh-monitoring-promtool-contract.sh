@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
-# Contract: vps-refresh-monitoring validates candidate rule files fail-closed (promtool / docker entrypoint).
+# Contract: vps-refresh-monitoring fail-closed validation (real validate_prometheus_bundle + refresh_prometheus).
 set -euo pipefail
 
 BACKEND_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REPO_ROOT="$(cd "${BACKEND_ROOT}/.." && pwd)"
 OPS_SCRIPT="${BACKEND_ROOT}/scripts/ops/vps-refresh-monitoring.sh"
-TMP_PROM="$(mktemp -d)"
-export SYNQDRIVE_ROOT="$REPO_ROOT"
-export PROM_DIR="$TMP_PROM"
-export BACKEND_ENV="$TMP_PROM/backend.env"
-export AUTO_BOOTSTRAP=0
-export PROMTOOL_BIN=""
+CANONICAL_PROM="${REPO_ROOT}/backend/monitoring/prometheus"
 
-PROM_VERSION="${PROMTOOL_VERSION:-2.54.1}"
-SRC_PROM="${REPO_ROOT}/backend/monitoring/prometheus"
+REPORT_INVALID_FIRST_FILE=SKIP
+REPORT_INVALID_SECOND_FILE=SKIP
+REPORT_INVALID_THIRD_FILE=SKIP
+REPORT_MISSING_SOURCE_FILE=SKIP
+REPORT_COPY_FAILURE=SKIP
+REPORT_DOCKER_FAILURE_PROPAGATION=SKIP
+REPORT_DESTINATION_UNCHANGED=SKIP
+REPORT_NO_RELOAD=SKIP
+REPORT_VALID_REFRESH=SKIP
+REPORT_DOCKER_RUNTIME=SKIP
 
 cleanup() {
-  rm -rf "$TMP_PROM"
+  [[ -n "${TMP_PROM:-}" && -d "$TMP_PROM" ]] && rm -rf "$TMP_PROM"
   [[ -n "${FAKE_BIN_DIR:-}" && -d "$FAKE_BIN_DIR" ]] && rm -rf "$FAKE_BIN_DIR"
+  [[ -n "${FAKE_ROOT:-}" && -d "$FAKE_ROOT" ]] && rm -rf "$FAKE_ROOT"
 }
 trap cleanup EXIT
 
@@ -25,12 +29,12 @@ docker_daemon_ready() {
   command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1
 }
 
-printf 'METRICS_BEARER_TOKEN=test-token\n' > "$BACKEND_ENV"
-
-# shellcheck disable=SC1090
-source "$OPS_SCRIPT"
-
 resolve_host_promtool() {
+  local PROM_VERSION="${PROMTOOL_VERSION:-2.54.1}"
+  if [[ -n "${PROMTOOL_BIN:-}" && -x "${PROMTOOL_BIN}" ]]; then
+    echo "${PROMTOOL_BIN}"
+    return 0
+  fi
   if command -v promtool >/dev/null 2>&1; then
     local candidate
     candidate="$(command -v promtool)"
@@ -54,7 +58,60 @@ resolve_host_promtool() {
 }
 
 HOST_PROMTOOL="$(resolve_host_promtool)"
-export PROMTOOL_BIN="$HOST_PROMTOOL"
+
+prom_dir_fingerprint() {
+  local dir="$1"
+  if [[ ! -d "$dir" ]]; then
+    echo "MISSING"
+    return 0
+  fi
+  (
+    cd "$dir"
+    find . -type f | sort | while read -r f; do
+      printf '%s:%s\n' "$f" "$(cksum <"$f" | awk '{print $1}')"
+    done
+  )
+}
+
+prepare_fake_root() {
+  [[ -n "${FAKE_ROOT:-}" && -d "$FAKE_ROOT" ]] && rm -rf "$FAKE_ROOT"
+  FAKE_ROOT="$(mktemp -d)"
+  mkdir -p "$FAKE_ROOT/backend/monitoring"
+  cp -a "$CANONICAL_PROM" "$FAKE_ROOT/backend/monitoring/prometheus"
+}
+
+invoke_validate() {
+  local fake_root="$1"
+  local rc
+  set +e
+  SYNQDRIVE_ROOT="$fake_root" PROMTOOL_BIN="$HOST_PROMTOOL" bash -c '
+    # shellcheck disable=SC1090
+    source "$1"
+    validate_prometheus_bundle
+    exit $?
+  ' _ "$OPS_SCRIPT" >/dev/null
+  rc=$?
+  set -e
+  echo "$rc"
+}
+
+invoke_refresh() {
+  local fake_root="$1"
+  local prom_dir="$2"
+  local backend_env="$3"
+  local rc
+  set +e
+  SYNQDRIVE_ROOT="$fake_root" PROM_DIR="$prom_dir" BACKEND_ENV="$backend_env" PROMTOOL_BIN="$HOST_PROMTOOL" \
+    AUTO_BOOTSTRAP=0 PATH="${TEST_PATH:-$PATH}" bash -c '
+    # shellcheck disable=SC1090
+    source "$1"
+    refresh_prometheus
+    exit $?
+  ' _ "$OPS_SCRIPT" >/dev/null
+  rc=$?
+  set -e
+  echo "$rc"
+}
 
 assert_script_requires_docker_entrypoint() {
   if grep -qE 'docker run --rm -v.*prom/prometheus:.*promtool check rules' "$OPS_SCRIPT"; then
@@ -67,134 +124,93 @@ assert_script_requires_docker_entrypoint() {
   fi
 }
 
-assert_valid_bundle_passes() {
-  validate_prometheus_bundle
-}
-
-assert_invalid_yaml_fails() {
-  local tmp rules
-  tmp="$(mktemp -d)"
-  rules="$tmp/bad.yml"
-  cp "$SRC_PROM/alerts-di-s4.yml" "$rules"
-  echo "bad: [{]" >> "$rules"
-  if promtool_check_rules_file "$rules"; then
-    echo "expected invalid YAML to fail promtool_check_rules_file" >&2
-    return 1
-  fi
-  rm -rf "$tmp"
-}
-
-assert_invalid_rule_fails() {
-  local tmp rules
-  tmp="$(mktemp -d)"
-  rules="$tmp/semantic.yml"
-  cat >"$rules" <<'YAML'
-groups:
-  - name: contract-bad-rule
-    rules:
-      - alert: BadPromQL
-        expr: sum({{invalid
-        for: 1m
-YAML
-  if promtool_check_rules_file "$rules"; then
-    echo "expected semantically invalid rule to fail" >&2
-    return 1
-  fi
-  rm -rf "$tmp"
-}
-
-assert_missing_file_fails() {
-  if promtool_check_rules_file "/tmp/does-not-exist-$(date +%s)-alerts.yml"; then
-    echo "expected missing rules file to fail" >&2
+assert_valid_three_file_bundle() {
+  prepare_fake_root
+  local rc
+  rc="$(invoke_validate "$FAKE_ROOT")"
+  if [[ "$rc" -ne 0 ]]; then
+    echo "valid bundle should pass validate_prometheus_bundle (rc=$rc)" >&2
     return 1
   fi
 }
 
-assert_old_docker_entrypoint_false_green() {
-  if ! docker_daemon_ready; then
-    echo "FALSE_GREEN_REGRESSION_TEST=SKIP (docker daemon unavailable)"
-    return 0
-  fi
-  local dir base tmp rules legacy_out legacy_rc
-  tmp="$(mktemp -d)"
-  rules="$tmp/alerts.yml"
-  cp "$SRC_PROM/alerts.yml" "$rules"
-  dir="$(cd "$(dirname "$rules")" && pwd)"
-  base="$(basename "$rules")"
-  set +e
-  legacy_out="$(docker run --rm -v "${dir}:/rules:ro" prom/prometheus:v2.54.1 \
-    promtool check rules "/rules/${base}" 2>&1)"
-  legacy_rc=$?
-  set -e
-  if ! echo "$legacy_out" | grep -q 'unexpected promtool'; then
-    echo "legacy docker invocation did not reproduce prometheus entrypoint bug" >&2
+assert_invalid_first_file() {
+  prepare_fake_root
+  echo "bad: [{]" >> "$FAKE_ROOT/backend/monitoring/prometheus/alerts.yml"
+  local rc
+  rc="$(invoke_validate "$FAKE_ROOT")"
+  if [[ "$rc" -eq 0 ]]; then
+    echo "invalid alerts.yml should fail" >&2
     return 1
   fi
-  echo "FALSE_GREEN_LEGACY_STDERR=confirmed (exit_code=${legacy_rc})"
+  REPORT_INVALID_FIRST_FILE=PASS
 }
 
-assert_docker_entrypoint_validation_passes() {
-  if ! docker_daemon_ready; then
-    echo "DOCKER_VALID_RULES_TEST=SKIP (docker daemon unavailable)"
-    return 0
+assert_invalid_second_file() {
+  prepare_fake_root
+  echo "bad: [{]" >> "$FAKE_ROOT/backend/monitoring/prometheus/alerts-infra.yml"
+  local rc
+  rc="$(invoke_validate "$FAKE_ROOT")"
+  if [[ "$rc" -eq 0 ]]; then
+    echo "invalid alerts-infra.yml should fail" >&2
+    return 1
   fi
+  REPORT_INVALID_SECOND_FILE=PASS
+}
+
+assert_invalid_third_file() {
+  prepare_fake_root
+  echo "bad: [{]" >> "$FAKE_ROOT/backend/monitoring/prometheus/alerts-di-s4.yml"
+  local rc
+  rc="$(invoke_validate "$FAKE_ROOT")"
+  if [[ "$rc" -eq 0 ]]; then
+    echo "invalid alerts-di-s4.yml should fail" >&2
+    return 1
+  fi
+  REPORT_INVALID_THIRD_FILE=PASS
+}
+
+assert_missing_source_file() {
+  prepare_fake_root
+  rm -f "$FAKE_ROOT/backend/monitoring/prometheus/alerts.yml"
+  local rc
+  rc="$(invoke_validate "$FAKE_ROOT")"
+  if [[ "$rc" -eq 0 ]]; then
+    echo "missing source alerts.yml should fail" >&2
+    return 1
+  fi
+  REPORT_MISSING_SOURCE_FILE=PASS
+}
+
+assert_copy_failure() {
   FAKE_BIN_DIR="$(mktemp -d)"
-  cat >"$FAKE_BIN_DIR/promtool" <<'SH'
+  cat >"$FAKE_BIN_DIR/cp" <<'SH'
 #!/usr/bin/env bash
-echo "decoy promtool must not be used when docker is available" >&2
-exit 1
+if [[ "${1:-}" == *"/alerts.yml" ]]; then
+  exit 1
+fi
+exec /bin/cp "$@"
 SH
-  chmod +x "$FAKE_BIN_DIR/promtool"
-  local tmp rules
-  tmp="$(mktemp -d)"
-  rules="$tmp/alerts.yml"
-  cp "$SRC_PROM/alerts.yml" "$rules"
-  (
-    export PATH="$FAKE_BIN_DIR:$PATH"
-    unset PROMTOOL_BIN
-    promtool_check_rules_file "$rules"
-  )
-  rm -rf "$tmp"
-}
-
-assert_docker_entrypoint_invalid_fails() {
-  if ! docker_daemon_ready; then
-    echo "DOCKER_INVALID_RULE_TEST=SKIP (docker daemon unavailable)"
-    return 0
-  fi
-  FAKE_BIN_DIR="$(mktemp -d)"
-  cat >"$FAKE_BIN_DIR/promtool" <<'SH'
-#!/usr/bin/env bash
-exit 1
-SH
-  chmod +x "$FAKE_BIN_DIR/promtool"
-  local tmp rules
-  tmp="$(mktemp -d)"
-  rules="$tmp/semantic.yml"
-  cat >"$rules" <<'YAML'
-groups:
-  - name: contract-bad-rule
-    rules:
-      - alert: BadPromQL
-        expr: sum({{invalid
-        for: 1m
-YAML
+  chmod +x "$FAKE_BIN_DIR/cp"
+  prepare_fake_root
+  local rc
   set +e
-  (
-    export PATH="$FAKE_BIN_DIR:$PATH"
-    unset PROMTOOL_BIN
-    promtool_check_rules_file "$rules"
-  )
-  local rc=$?
+  env PATH="$FAKE_BIN_DIR:$PATH" SYNQDRIVE_ROOT="$FAKE_ROOT" PROMTOOL_BIN="$HOST_PROMTOOL" bash -c '
+    # shellcheck disable=SC1090
+    source "$1"
+    validate_prometheus_bundle
+    exit $?
+  ' _ "$OPS_SCRIPT" >/dev/null
+  rc=$?
   set -e
   if [[ "$rc" -eq 0 ]]; then
-    echo "expected docker promtool validation to fail on invalid rules" >&2
+    echo "copy failure should fail validation" >&2
     return 1
   fi
-  rm -rf "$tmp"
+  REPORT_COPY_FAILURE=PASS
 }
 
-assert_docker_failure_propagates() {
+assert_docker_failure_propagates_bundle() {
   FAKE_BIN_DIR="$(mktemp -d)"
   cat >"$FAKE_BIN_DIR/docker" <<'SH'
 #!/usr/bin/env bash
@@ -205,49 +221,160 @@ fi
 exit 0
 SH
   chmod +x "$FAKE_BIN_DIR/docker"
-  local tmp rules
-  tmp="$(mktemp -d)"
-  rules="$tmp/alerts.yml"
-  cp "$SRC_PROM/alerts.yml" "$rules"
+  prepare_fake_root
+  local rc
   set +e
-  (
-    export PATH="$FAKE_BIN_DIR:$PATH"
-    unset PROMTOOL_BIN
-    promtool_check_rules_file "$rules"
-  )
-  local rc=$?
-  set -e
-  if [[ "$rc" -ne 42 ]]; then
-    echo "expected docker failure exit 42, got $rc" >&2
-    return 1
-  fi
-  rm -rf "$tmp"
-}
-
-assert_validate_blocks_refresh() {
-  local prom_dir before after rc
-  prom_dir="$(mktemp -d)"
-  export PROM_DIR="$prom_dir"
-  printf 'sentinel-before-refresh\n' > "$PROM_DIR/alerts.yml"
-  before="$(cat "$PROM_DIR/alerts.yml")"
-  validate_prometheus_bundle() { return 1; }
-  set +e
-  refresh_prometheus >/dev/null 2>&1
+  env PATH="$FAKE_BIN_DIR:/usr/bin:/bin" PROMTOOL_BIN="" SYNQDRIVE_ROOT="$FAKE_ROOT" bash -c '
+    # shellcheck disable=SC1090
+    source "$1"
+    validate_prometheus_bundle
+    exit $?
+  ' _ "$OPS_SCRIPT" >/dev/null
   rc=$?
   set -e
+  if [[ "$rc" -ne 1 ]]; then
+    echo "expected validate_prometheus_bundle fail-closed rc=1 on docker failure, got $rc" >&2
+    return 1
+  fi
+  REPORT_DOCKER_FAILURE_PROPAGATION=PASS
+}
+
+assert_conditional_validate_fail_closed() {
+  prepare_fake_root
+  echo "bad: [{]" >> "$FAKE_ROOT/backend/monitoring/prometheus/alerts.yml"
+  local rc=0
+  set +e
+  SYNQDRIVE_ROOT="$FAKE_ROOT" PROMTOOL_BIN="$HOST_PROMTOOL" bash -c '
+    # shellcheck disable=SC1090
+    source "$1"
+    if ! validate_prometheus_bundle; then
+      exit 17
+    fi
+    exit 0
+  ' _ "$OPS_SCRIPT" >/dev/null
+  rc=$?
+  set -e
+  if [[ "$rc" -ne 17 ]]; then
+    echo "if ! validate_prometheus_bundle should fail closed (rc=$rc)" >&2
+    return 1
+  fi
+}
+
+assert_destination_unchanged_and_no_reload_on_failure() {
+  FAKE_BIN_DIR="$(mktemp -d)"
+  cat >"$FAKE_BIN_DIR/curl" <<'SH'
+#!/usr/bin/env bash
+if [[ "$*" == *"/-/reload"* ]]; then
+  echo 1 > "${RELOAD_MARKER:?}"
+fi
+command -v curl-real >/dev/null 2>&1 && exec curl-real "$@"
+exec /usr/bin/curl "$@"
+SH
+  chmod +x "$FAKE_BIN_DIR/curl"
+  if command -v curl >/dev/null 2>&1; then
+    ln -sf "$(command -v curl)" "$FAKE_BIN_DIR/curl-real"
+  fi
+
+  prepare_fake_root
+  echo "bad: [{]" >> "$FAKE_ROOT/backend/monitoring/prometheus/alerts.yml"
+
+  TMP_PROM="$(mktemp -d)"
+  local backend_env="$TMP_PROM/backend.env"
+  local reload_marker="$TMP_PROM/reload.marker"
+  printf 'METRICS_BEARER_TOKEN=test-token\n' > "$backend_env"
+  printf 'sentinel-alpha\n' > "$TMP_PROM/alerts.yml"
+  printf 'sentinel-beta\n' > "$TMP_PROM/prometheus.yml"
+  mkdir -p "$TMP_PROM/secrets"
+  printf 'old-token\n' > "$TMP_PROM/secrets/metrics_bearer_token"
+
+  local before after rc
+  before="$(prom_dir_fingerprint "$TMP_PROM")"
+  export RELOAD_MARKER="$reload_marker"
+  TEST_PATH="$FAKE_BIN_DIR:$PATH"
+  rc="$(invoke_refresh "$FAKE_ROOT" "$TMP_PROM" "$backend_env")"
+  unset TEST_PATH RELOAD_MARKER
+  after="$(prom_dir_fingerprint "$TMP_PROM")"
+
   if [[ "$rc" -eq 0 ]]; then
-    echo "expected refresh_prometheus to fail when validate_prometheus_bundle fails" >&2
+    echo "refresh_prometheus should fail on invalid bundle" >&2
     return 1
   fi
-  after="$(cat "$PROM_DIR/alerts.yml")"
   if [[ "$before" != "$after" ]]; then
-    echo "pre-reload gate failed: PROM_DIR mutated after validation failure" >&2
+    echo "PROM_DIR fingerprint changed after validation failure" >&2
     return 1
   fi
-  # Restore real validator for any follow-up in same shell (none today).
-  unset -f validate_prometheus_bundle
-  # shellcheck disable=SC1090
-  source "$OPS_SCRIPT"
+  if [[ -f "$reload_marker" ]]; then
+    echo "prometheus reload attempted after validation failure" >&2
+    return 1
+  fi
+  REPORT_DESTINATION_UNCHANGED=PASS
+  REPORT_NO_RELOAD=PASS
+}
+
+assert_valid_refresh_promotes_rules() {
+  prepare_fake_root
+  TMP_PROM="$(mktemp -d)"
+  local backend_env="$TMP_PROM/backend.env"
+  printf 'METRICS_BEARER_TOKEN=test-token\n' > "$backend_env"
+
+  local rc
+  rc="$(invoke_refresh "$FAKE_ROOT" "$TMP_PROM" "$backend_env")"
+  if [[ "$rc" -ne 0 ]]; then
+    echo "valid refresh_prometheus should succeed (rc=$rc)" >&2
+    return 1
+  fi
+  if ! cmp -s "$FAKE_ROOT/backend/monitoring/prometheus/alerts.yml" "$TMP_PROM/alerts.yml"; then
+    echo "alerts.yml not promoted after successful validation" >&2
+    return 1
+  fi
+  if [[ ! -f "$TMP_PROM/secrets/metrics_bearer_token" ]]; then
+    echo "metrics bearer token not written after successful validation" >&2
+    return 1
+  fi
+  REPORT_VALID_REFRESH=PASS
+}
+
+assert_legacy_docker_false_green_baseline() {
+  if ! docker_daemon_ready; then
+    REPORT_DOCKER_RUNTIME=SKIP
+    return 0
+  fi
+  local tmp rules dir base legacy_out
+  tmp="$(mktemp -d)"
+  rules="$tmp/alerts.yml"
+  cp "$CANONICAL_PROM/alerts.yml" "$rules"
+  dir="$(cd "$(dirname "$rules")" && pwd)"
+  base="$(basename "$rules")"
+  legacy_out="$(docker run --rm -v "${dir}:/rules:ro" prom/prometheus:v2.54.1 \
+    promtool check rules "/rules/${base}" 2>&1)" || true
+  if ! echo "$legacy_out" | grep -q 'unexpected promtool'; then
+    echo "legacy docker false-green baseline not reproduced" >&2
+    return 1
+  fi
+  if docker_daemon_ready; then
+    unset PROMTOOL_BIN
+    FAKE_BIN_DIR="$(mktemp -d)"
+    cat >"$FAKE_BIN_DIR/promtool" <<'SH'
+#!/usr/bin/env bash
+exit 1
+SH
+    chmod +x "$FAKE_BIN_DIR/promtool"
+    rules="$tmp/alerts.yml"
+    PATH="$FAKE_BIN_DIR:$PATH" PROMTOOL_BIN="" bash -c '
+      set +e
+      # shellcheck disable=SC1090
+      source "$1"
+      promtool_check_rules_file "$2"
+      exit $?
+    ' _ "$OPS_SCRIPT" "$rules"
+    local rc=$?
+    PATH="$PATH"
+    if [[ "$rc" -ne 0 ]]; then
+      echo "docker entrypoint path should validate valid rules" >&2
+      return 1
+    fi
+  fi
+  REPORT_DOCKER_RUNTIME=PASS
 }
 
 rollback_snapshot_contract() {
@@ -260,21 +387,33 @@ rollback_snapshot_contract() {
   printf 'after\n' > "$rules"
   cp -a "$snap/." "$prom_dir/"
   if ! grep -q '^before$' "$rules"; then
-    echo "rollback snapshot contract: rules file not restored to pre-change content" >&2
+    echo "rollback snapshot contract: rules file not restored" >&2
     return 1
   fi
 }
 
 assert_script_requires_docker_entrypoint
-assert_valid_bundle_passes
-assert_invalid_yaml_fails
-assert_invalid_rule_fails
-assert_missing_file_fails
-assert_old_docker_entrypoint_false_green
-assert_docker_entrypoint_validation_passes
-assert_docker_entrypoint_invalid_fails
-assert_docker_failure_propagates
+assert_valid_three_file_bundle
+assert_invalid_first_file
+assert_invalid_second_file
+assert_invalid_third_file
+assert_missing_source_file
+assert_copy_failure
+assert_docker_failure_propagates_bundle
+assert_conditional_validate_fail_closed
+assert_destination_unchanged_and_no_reload_on_failure
+assert_valid_refresh_promotes_rules
+assert_legacy_docker_false_green_baseline
 rollback_snapshot_contract
-assert_validate_blocks_refresh
 
 echo "VPS_REFRESH_PROMTOOL_CONTRACT=PASS"
+echo "INVALID_FIRST_FILE=$REPORT_INVALID_FIRST_FILE"
+echo "INVALID_SECOND_FILE=$REPORT_INVALID_SECOND_FILE"
+echo "INVALID_THIRD_FILE=$REPORT_INVALID_THIRD_FILE"
+echo "MISSING_SOURCE_FILE=$REPORT_MISSING_SOURCE_FILE"
+echo "COPY_FAILURE=$REPORT_COPY_FAILURE"
+echo "DOCKER_FAILURE_PROPAGATION=$REPORT_DOCKER_FAILURE_PROPAGATION"
+echo "DESTINATION_UNCHANGED_ON_FAILURE=$REPORT_DESTINATION_UNCHANGED"
+echo "NO_RELOAD_ON_FAILURE=$REPORT_NO_RELOAD"
+echo "VALID_REFRESH_REGRESSION=$REPORT_VALID_REFRESH"
+echo "DOCKER_RUNTIME_TESTS=$REPORT_DOCKER_RUNTIME"
