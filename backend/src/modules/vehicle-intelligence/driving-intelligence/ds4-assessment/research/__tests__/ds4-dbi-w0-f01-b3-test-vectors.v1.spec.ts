@@ -183,6 +183,86 @@ describe('ds4-dbi-w0 F01 B3 test vectors (TV-F01..TV-F11)', () => {
     expect(d4.d5SpeedRoughnessMeanAbsDeltaKmhPerS.status).toBe('KNOWN');
   });
 
+  function mkGapSeries(t0ms: number): Pick<DiV0MotionCoreShadowPayloadV1, 'speeds' | 'fsmLabels'> {
+    const first = mkMovingBlock(t0ms, 60);
+    const second = mkMovingBlock(t0ms + 61_000, 60);
+    return concatSeries(first, second);
+  }
+
+  it('TV-F03: missing label gap — E*=118, excludedGapCount>=1, tau jump', () => {
+    const t0ms = Date.parse('2026-01-01T10:00:00Z');
+    const series = mkGapSeries(t0ms);
+    const payload = mkPayload(series.speeds, series.fsmLabels);
+    const clock = buildDs4DbiW0MovingExposureClockEvidenceV1({ payload, suppliedExposureSecondsEs: 118 });
+    expect(clock.movingExposureSeconds).toBe(118);
+    expect(clock.dualTime.excludedGapCount).toBeGreaterThanOrEqual(1);
+    const tauBeforeGap = mapUtcMsToMovingExposureTauSecondsV1(t0ms + 58_000, clock.intervals);
+    const tauAfterGap = mapUtcMsToMovingExposureTauSecondsV1(t0ms + 61_000, clock.intervals);
+    expect(tauBeforeGap).toBe(58);
+    expect(tauAfterGap).toBe(59);
+    expect(mapUtcMsToMovingExposureTauSecondsV1(t0ms + 59_000, clock.intervals)).toBeNull();
+    expect(tauAfterGap! - tauBeforeGap!).toBe(1);
+  });
+
+  it('TV-F04: nonmoving onset excluded with reason code', () => {
+    const t0ms = Date.parse('2026-01-01T10:00:00Z');
+    const moving = mkMovingBlock(t0ms, 120);
+    for (let i = 50; i <= 55; i += 1) {
+      moving.fsmLabels[i] = { ...moving.fsmLabels[i]!, state: 'STATIONARY' };
+    }
+    const evLab = new Date(t0ms + 52_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const payload = mkPayload(moving.speeds, moving.fsmLabels, [mkOkEvent(evLab)]);
+    const clock = buildDs4DbiW0MovingExposureClockEvidenceV1({ payload, suppliedExposureSecondsEs: 119 });
+    expect(clock.dualTime.admittedEventCount).toBe(0);
+    expect(clock.dualTime.excludedEventCount).toBe(1);
+    expect(clock.dualTime.eventMappingReasonCodes).toContain('MBF_W0_EVENT_START_OUTSIDE_MOVING_DIRECT_SUPPORT');
+  });
+
+  it('TV-F06: duplicate OK starts fail-closed and mask numerics', () => {
+    const t0ms = Date.parse('2026-01-01T10:00:00Z');
+    const block = mkMovingBlock(t0ms, 200);
+    const dup = block.speeds[10]!.bucketLabelUtc;
+    const payload = mkPayload(block.speeds, block.fsmLabels, [mkOkEvent(dup), mkOkEvent(dup)]);
+    const r = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta: { ...tripMetaBase, exposureSecondsEs: 199 },
+      qualityTier: 'STRICT',
+      evidenceOrigin: 'SYNTHETIC_CONTROL',
+    });
+    expect(r.diagnostics.failClosedReasons).toContain('MBF_W0_FAIL_CLOSED_DUPLICATE_EVENT_START_TIME');
+    expect(r.d8Burstiness.indexOfDispersion).toBeNull();
+    expect(r.d4SpeedVariabilityRobustCv.value).toBeNull();
+  });
+
+  it('TV-F08: E*=44 ABSTAIN observation window', () => {
+    const t0ms = Date.parse('2026-01-01T10:00:00Z');
+    const block = mkMovingBlock(t0ms, 45);
+    const events = Array.from({ length: 12 }, (_, j) =>
+      mkOkEvent(new Date(t0ms + j * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z')),
+    );
+    const payload = mkPayload(block.speeds, block.fsmLabels, events);
+    const d8 = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+      tripMeta: { ...tripMetaBase, exposureSecondsEs: 44 },
+      payload,
+    });
+    expect(d8.status).toBe('ABSTAIN');
+    expect(d8.reasonCodes).toContain('MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW');
+    expect(d8.observationWindowDurationSeconds).toBe(44);
+  });
+
+  it('TV-F10: onset in moving admitted despite end in stationary', () => {
+    const t0ms = Date.parse('2026-01-01T10:00:00Z');
+    const block = mkMovingBlock(t0ms, 120);
+    const startLab = block.speeds[10]!.bucketLabelUtc;
+    const endLab = new Date(t0ms + 20_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const payload = mkPayload(block.speeds, block.fsmLabels, [
+      { ...mkOkEvent(startLab), endLabel: endLab, endSpeedKmh: 0 },
+    ]);
+    const clock = buildDs4DbiW0MovingExposureClockEvidenceV1({ payload, suppliedExposureSecondsEs: 119 });
+    expect(clock.admitted.length).toBe(1);
+    expect(clock.admitted[0]!.tauSeconds).toBe(10);
+  });
+
   it('TV-F02: stop-separated E*=118, event in stop excluded', () => {
     const t0ms = Date.parse('2026-01-01T10:00:00Z');
     const series = concatSeries(
@@ -240,15 +320,17 @@ describe('ds4-dbi-w0 F01 B3 test vectors (TV-F01..TV-F11)', () => {
     expect(d8.totalWindowSlots).toBe(2);
   });
 
-  it('TV-F11: partial final bin width 5s at E*=665', () => {
+  it('TV-F11: partial final bin width 5s at E*=665 with partial-bin onset + IOD oracle', () => {
     const t0ms = Date.parse('2026-01-01T10:00:00Z');
     const block = mkMovingBlock(t0ms, 666);
-    const tauList = [0, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600, 640];
+    const tauList = [0, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600, 640, 662];
     const events = tauList.map((s) =>
       mkOkEvent(new Date(t0ms + s * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z')),
     );
     const payload = mkPayload(block.speeds, block.fsmLabels, events);
     const clock = buildDs4DbiW0MovingExposureClockEvidenceV1({ payload, suppliedExposureSecondsEs: 665 });
+    const partialTau = mapUtcMsToMovingExposureTauSecondsV1(t0ms + 662_000, clock.intervals);
+    expect(partialTau).toBe(662);
     const d8 = computeDs4DbiW0D8BurstinessTauNativeV1({
       clock,
       tripMetaSuppliedEs: 665,
@@ -257,6 +339,14 @@ describe('ds4-dbi-w0 F01 B3 test vectors (TV-F01..TV-F11)', () => {
     expect(d8.status).toBe('KNOWN');
     expect(d8.totalWindowSlots).toBe(12);
     expect(d8.finalBinWidthExposureSeconds).toBeCloseTo(5, 5);
+    expect(d8.eventCount).toBe(13);
+    const n = 13;
+    const k = 12;
+    const counts = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2];
+    const mean = n / k;
+    const sumSq = counts.reduce((a, x) => a + x * x, 0);
+    const variance = (sumSq - (n * n) / k) / (k - 1);
+    expect(d8.indexOfDispersion).toBeCloseTo(variance / mean, 5);
   });
 
   it('exposure parity: E* matches deriveDs4DrivingExposureV1', () => {

@@ -41,6 +41,10 @@ import {
   exposureBinWidthsSecondsV1,
   mapMovingExposureTauSecondsToUtcMsV1,
 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-moving-exposure-clock.v1';
+import {
+  buildE9B3ReferenceSnapshotV1,
+  runE9TauNativeMonteCarloV1,
+} from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-e9-tau-native-null.v1';
 
 /** Deterministic PRNG for E9 (LCG-style; research control only). */
 function mulberry32(seed: number): () => number {
@@ -103,71 +107,36 @@ function runE9NullMonteCarloV1(input: {
   nEv: number;
   eStar: number;
   sampleTauSeconds: (n: number, eStar: number, seed: number) => number[];
-  basePayload: DiV0MotionCoreShadowPayloadV1;
-  tripMeta: {
-    tripId: string;
-    sourceMotionRunId: string;
-    speedAuthority: string;
-    shadowBundleVersion: string;
-    contentFingerprint: string;
-    exposureSecondsEs: number;
-    distanceKm: number;
-  };
 }): {
   acceptedIOD: number[];
   acceptedCount: number;
   abstainedCount: number;
   drawRecords: E9NullMonteCarloDrawRecordV1[];
   meanIod: number | null;
+  exposureBinWidthsSeconds: number[];
+  movingExposureSeconds: number;
 } {
-  const clock0 = buildDs4DbiW0MovingExposureClockEvidenceV1({
-    payload: input.basePayload,
-    suppliedExposureSecondsEs: input.eStar,
+  const mc = runE9TauNativeMonteCarloV1({
+    movingExposureSeconds: input.eStar,
+    draws: input.draws,
+    seedStrideStart: input.seedStrideStart,
+    nEv: input.nEv,
+    sampleTauSeconds: input.sampleTauSeconds,
   });
-  const records: E9NullMonteCarloDrawRecordV1[] = [];
-  const acceptedIOD: number[] = [];
-  let acceptedCount = 0;
-  let abstainedCount = 0;
-  for (let k = 0; k < input.draws; k += 1) {
-    const seed = input.seedStrideStart + k;
-    const tauStarts = input.sampleTauSeconds(input.nEv, input.eStar, seed);
-    const events: DiV0MotionCoreShadowPayloadV1['events'] = [];
-    for (const tau of tauStarts) {
-      const ms = mapMovingExposureTauSecondsToUtcMsV1(tau, clock0.intervals, input.eStar);
-      if (ms == null) {
-        continue;
-      }
-      events.push({
-        kind: 'ACCELERATION' as const,
-        startLabel: msToIsoLabelZ(ms),
-        endLabel: msToIsoLabelZ(ms + 1000),
-        startSpeedKmh: 40,
-        endSpeedKmh: 41,
-        deltaKmh: 1,
-        quality: 'OK' as const,
-        flags: [],
-      });
-    }
-    const rr = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
-      tripMeta: { ...input.tripMeta, exposureSecondsEs: input.eStar },
-      payload: input.basePayload,
-      events,
-    });
-    records.push({
-      seed,
-      d8Status: rr.status,
-      d8ReasonCodes: [...rr.reasonCodes],
-      indexOfDispersion: rr.indexOfDispersion,
-    });
-    if (rr.status === 'KNOWN' && rr.indexOfDispersion != null && Number.isFinite(rr.indexOfDispersion)) {
-      acceptedIOD.push(rr.indexOfDispersion);
-      acceptedCount += 1;
-    } else {
-      abstainedCount += 1;
-    }
-  }
-  const meanIod = acceptedIOD.length > 0 ? acceptedIOD.reduce((a, b) => a + b, 0) / acceptedIOD.length : null;
-  return { acceptedIOD, acceptedCount, abstainedCount, drawRecords: records, meanIod };
+  return {
+    movingExposureSeconds: mc.movingExposureSeconds,
+    exposureBinWidthsSeconds: mc.exposureBinWidthsSeconds,
+    acceptedIOD: mc.acceptedIOD,
+    acceptedCount: mc.acceptedCount,
+    abstainedCount: mc.abstainedCount,
+    drawRecords: mc.drawRecords.map((r) => ({
+      seed: r.seed,
+      d8Status: r.d8Status,
+      d8ReasonCodes: [...r.d8ReasonCodes],
+      indexOfDispersion: r.indexOfDispersion,
+    })),
+    meanIod: mc.meanIodAcceptedOnly,
+  };
 }
 
 const fixtureDir = join(
@@ -501,8 +470,6 @@ function runSyntheticControlsV1(): {
     nEv,
     eStar: eStarCtrl,
     sampleTauSeconds: sampleE9OccupancyConditionedNullTauSecondsV1,
-    basePayload: noisy,
-    tripMeta: meta,
   });
   const unrestrictedMc = runE9NullMonteCarloV1({
     draws: nullDraws,
@@ -510,9 +477,14 @@ function runSyntheticControlsV1(): {
     nEv,
     eStar: eStarCtrl,
     sampleTauSeconds: sampleE9UnrestrictedUniformTauSecondsV1,
-    basePayload: noisy,
-    tripMeta: meta,
   });
+  const b3UnrestrictedReference = buildE9B3ReferenceSnapshotV1({
+    eStar: eStarCtrl,
+    seed: 0xe9b3_0ef01,
+    nEv,
+    sampleTauSeconds: sampleE9UnrestrictedUniformTauSecondsV1,
+  });
+  const exposureBinWidths = exposureBinWidthsSecondsV1(eStarCtrl, 60);
 
   // E10: fingerprint mismatch
   const observedFp = createHash('sha256').update(JSON.stringify(noisy)).digest('hex');
@@ -540,6 +512,13 @@ function runSyntheticControlsV1(): {
       { scenario: 'short_sparse', d5Rough: rShort.d5SpeedRoughnessMeanAbsDeltaKmhPerS.value, reasonSample: rShort.d4SpeedVariabilityRobustCv.reasonCodes.slice(0, 4) },
     ],
     e9: {
+      b3TauNativeReporting: {
+        movingExposureSeconds: eStarCtrl,
+        exposureBinWidthsSeconds: exposureBinWidths,
+        evaluationPath: 'TAU_NATIVE_D8_FROM_SAMPLED_ONSETS',
+        fixedSeedReference: b3UnrestrictedReference,
+        acceptedOnlyIodLabel: 'meanIodAcceptedOnly — D8-KNOWN draws only; not full unrestricted marginal law',
+      },
       observationWindow: {
         movingExposureSeconds: eStarCtrl,
         clockDomain: 'MOVING_EXPOSURE_PRIMARY' as const,
@@ -591,6 +570,8 @@ function runSyntheticControlsV1(): {
       },
       nullDistributions: {
         occupancyConditionedNull: {
+          movingExposureSeconds: conditionedMc.movingExposureSeconds,
+          exposureBinWidthsSeconds: conditionedMc.exposureBinWidthsSeconds,
           model: 'OCCUPANCY_CONDITIONED_NULL',
           selectionLimitation:
             'Occupancy-enforcing (nonempty first ten 60s bins by construction); biases toward spread occupancy vs unrestricted uniform — not identical to a formal conditional IID-uniform distribution on the full support.',
@@ -611,6 +592,10 @@ function runSyntheticControlsV1(): {
           drawRecords: conditionedMc.drawRecords,
         },
         unrestrictedUniformNull: {
+          movingExposureSeconds: unrestrictedMc.movingExposureSeconds,
+          exposureBinWidthsSeconds: unrestrictedMc.exposureBinWidthsSeconds,
+          empiricalEligibilityRateThisBatch:
+            unrestrictedMc.acceptedCount / Math.max(1, nullDraws),
           model: 'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE',
           selectionLimitation:
             'Independent uniform τ onsets on [0, E*) with replacement; duplicate τ values stack in D8 τ bins. D8 support-gate censoring applies to this B3 batch — accepted-only IOD is not the full marginal unrestricted law.',

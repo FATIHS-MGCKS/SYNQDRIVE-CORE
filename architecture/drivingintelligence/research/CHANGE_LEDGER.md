@@ -2799,3 +2799,13 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** production motion/FSM/deploy; **F03/F04 frozen**; `sealedRealC4StatisticalEligibility` remains false |
 | REMAINING | Expand TV coverage F03/F04/F06/F08/F10; analytic E9 references under unequal τ bins |
 
+### 2026-11-07 — DS4 DBI W0 F01 B3 verification closeout P2 (research hardening)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | **Verification closeout:** executable TV-F01..F11 Jest coverage (gap/stationary/duplicate/E*&lt;60/partial-bin); τ-native E9 Monte Carlo (`ds4-dbi-w0-e9-tau-native-null.v1.ts`) bypassing UTC ms quantization for null D8; legacy UTC roundtrip contrast tests; offline CLI `b3TauNativeReporting` + fixed-seed reference; clock syntax/refactor fix (`computeDs4DbiW0D8FromTauOnsetsV1`) |
+| WHY | Architect F01 conditional sign-off requires executable contract vectors and U5 τ-native E9 null integrity without reopening frozen B3/B2/F03/F04 |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (45 tests); offline CLI `--json`; `validate-module-registry.sh`; CI prod DB guard run **42347963564** diagnosed as Postgres readiness race (no guard script changes) |
+| NON_EFFECTS | **No** D8 threshold edits; **no** production motion/FSM/trip/RPM; **no** F04 reopening; **no** W1 loader/deploy/merge; 200k wall-clock audit remains `b3Comparable: false` |
+| REMAINING | Full F03 calibration workstream; W1 blocked; CI prod DB guard flake may need workflow retry only |
+

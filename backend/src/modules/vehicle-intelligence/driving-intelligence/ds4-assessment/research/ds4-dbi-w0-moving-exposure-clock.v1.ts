@@ -189,11 +189,7 @@ export function buildDs4DbiW0MovingExposureClockEvidenceV1(input: {
   };
 }
 
-export function computeDs4DbiW0D8BurstinessTauNativeV1(input: {
-  clock: ReturnType<typeof buildDs4DbiW0MovingExposureClockEvidenceV1>;
-  tripMetaSuppliedEs: number | null;
-  failClosedTrip: boolean;
-}): {
+export type Ds4DbiW0D8TauNativeStatisticalResultV1 = {
   status: 'KNOWN' | 'ABSTAIN';
   indexOfDispersion: number | null;
   shareNextEventWithin30s: number | null;
@@ -207,7 +203,19 @@ export function computeDs4DbiW0D8BurstinessTauNativeV1(input: {
   observationWindowDurationSeconds: number | null;
   finalBinWidthExposureSeconds: number | null;
   reasonCodes: Ds4DbiW0MbfReasonCodeV1[];
-} {
+  admittedTauOnsetCount: number;
+};
+
+/**
+ * Pure τ-native D8 statistical core (E9 / contract U5). No UTC labels required.
+ */
+export function computeDs4DbiW0D8FromTauOnsetsV1(input: {
+  movingExposureSeconds: number;
+  tauOnsetsSeconds: readonly number[];
+  derivable?: boolean;
+  metadataMismatch?: boolean;
+  failClosedTrip?: boolean;
+}): Ds4DbiW0D8TauNativeStatisticalResultV1 {
   if (input.failClosedTrip) {
     return {
       status: 'ABSTAIN',
@@ -223,38 +231,45 @@ export function computeDs4DbiW0D8BurstinessTauNativeV1(input: {
       observationWindowDurationSeconds: null,
       finalBinWidthExposureSeconds: null,
       reasonCodes: [],
+      admittedTauOnsetCount: 0,
     };
   }
 
-  const eStar = input.clock.movingExposureSeconds;
-  const admitted = input.clock.admitted;
-  const nAdm = admitted.length;
+  const eStar = input.movingExposureSeconds;
+  const admittedTau = input.tauOnsetsSeconds.filter(
+    (tau) => Number.isFinite(tau) && tau >= 0 && tau < eStar,
+  );
+  const nAdm = admittedTau.length;
   const windowS = DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.burstWindowSeconds;
-
   const reasonCodes: Ds4DbiW0MbfReasonCodeV1[] = [];
+  const derivable = input.derivable !== false;
 
-  if (!input.clock.derivable || eStar <= 0) {
-    return abstainD8(reasonCodes, ['MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW'], nAdm, null, null, null);
+  if (!derivable || eStar <= 0) {
+    const r = abstainD8(reasonCodes, ['MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW'], nAdm, null, null, null);
+    return { ...r, admittedTauOnsetCount: nAdm };
   }
 
-  if (input.clock.metadataMismatch) {
-    return abstainD8(reasonCodes, ['MBF_W0_MOVING_EXPOSURE_METADATA_MISMATCH'], nAdm, null, eStar, null);
+  if (input.metadataMismatch) {
+    const r = abstainD8(reasonCodes, ['MBF_W0_MOVING_EXPOSURE_METADATA_MISMATCH'], nAdm, null, eStar, null);
+    return { ...r, admittedTauOnsetCount: nAdm };
   }
 
   if (eStar < windowS) {
-    return abstainD8(reasonCodes, ['MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW'], nAdm, null, eStar, null);
+    const r = abstainD8(reasonCodes, ['MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW'], nAdm, null, eStar, null);
+    return { ...r, admittedTauOnsetCount: nAdm };
   }
 
   if (nAdm < DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.minEventsD8) {
-    return abstainD8(reasonCodes, ['MBF_W0_INSUFFICIENT_EVENTS_FOR_BURSTINESS'], nAdm, null, eStar, null);
+    const r = abstainD8(reasonCodes, ['MBF_W0_INSUFFICIENT_EVENTS_FOR_BURSTINESS'], nAdm, null, eStar, null);
+    return { ...r, admittedTauOnsetCount: nAdm };
   }
 
   const totalWindowSlots = Math.max(1, Math.ceil(eStar / windowS));
   const finalBinWidth = eStar - (totalWindowSlots - 1) * windowS;
   const counts = new Array<number>(totalWindowSlots).fill(0);
 
-  for (const ev of admitted) {
-    const w = Math.floor(ev.tauSeconds / windowS);
+  for (const tau of admittedTau) {
+    const w = Math.floor(tau / windowS);
     const wi = Math.min(Math.max(w, 0), totalWindowSlots - 1);
     counts[wi]! += 1;
   }
@@ -277,6 +292,7 @@ export function computeDs4DbiW0D8BurstinessTauNativeV1(input: {
       observationWindowDurationSeconds: eStar,
       finalBinWidthExposureSeconds: finalBinWidth,
       reasonCodes: ['MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS'],
+      admittedTauOnsetCount: nAdm,
     };
   }
 
@@ -289,20 +305,15 @@ export function computeDs4DbiW0D8BurstinessTauNativeV1(input: {
     totalWindowSlots > 1 ? (sumSq - (nAdm * nAdm) / totalWindowSlots) / (totalWindowSlots - 1) : 0;
   const iod = mean > 0 ? variance / mean : null;
 
-  const byUtc = [...admitted].sort((a, b) => a.startMsUtc - b.startMsUtc);
+  const sortedTau = [...admittedTau].sort((a, b) => a - b);
   const shareThresholdTau = DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.burstNextEventMaxSeconds;
   let within = 0;
-  for (let i = 1; i < byUtc.length; i += 1) {
-    if (byUtc[i]!.tauSeconds - byUtc[i - 1]!.tauSeconds <= shareThresholdTau) {
+  for (let i = 1; i < sortedTau.length; i += 1) {
+    if (sortedTau[i]! - sortedTau[i - 1]! <= shareThresholdTau) {
       within += 1;
     }
   }
-  const shareNext = byUtc.length > 1 ? within / (byUtc.length - 1) : null;
-
-  const wallStart =
-    input.clock.dualTime.wallClockStartUtc != null
-      ? parseBucketLabelMs(input.clock.dualTime.wallClockStartUtc)
-      : null;
+  const shareNext = sortedTau.length > 1 ? within / (sortedTau.length - 1) : null;
 
   return {
     status: 'KNOWN',
@@ -313,12 +324,32 @@ export function computeDs4DbiW0D8BurstinessTauNativeV1(input: {
     emptyWindowCount,
     totalWindowSlots,
     eventCount: nAdm,
-    observationWindowStartMsUtc: wallStart,
+    observationWindowStartMsUtc: 0,
     observationWindowEndMsUtc: null,
     observationWindowDurationSeconds: eStar,
     finalBinWidthExposureSeconds: finalBinWidth,
     reasonCodes: ['MBF_W0_OK'],
+    admittedTauOnsetCount: nAdm,
   };
+}
+
+export function computeDs4DbiW0D8BurstinessTauNativeV1(input: {
+  clock: ReturnType<typeof buildDs4DbiW0MovingExposureClockEvidenceV1>;
+  tripMetaSuppliedEs: number | null;
+  failClosedTrip: boolean;
+}): Ds4DbiW0D8TauNativeStatisticalResultV1 {
+  const core = computeDs4DbiW0D8FromTauOnsetsV1({
+    movingExposureSeconds: input.clock.movingExposureSeconds,
+    tauOnsetsSeconds: input.clock.admitted.map((a) => a.tauSeconds),
+    derivable: input.clock.derivable,
+    metadataMismatch: input.clock.metadataMismatch,
+    failClosedTrip: input.failClosedTrip,
+  });
+  const wallStart =
+    input.clock.dualTime.wallClockStartUtc != null
+      ? parseBucketLabelMs(input.clock.dualTime.wallClockStartUtc)
+      : null;
+  return { ...core, observationWindowStartMsUtc: wallStart };
 }
 
 function abstainD8(

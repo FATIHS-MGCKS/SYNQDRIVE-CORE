@@ -490,6 +490,7 @@ export function computeDs4DbiW0D8BurstinessFromObservationWindowV1(input: {
       observationWindowDurationSeconds: null,
       finalBinWidthExposureSeconds: null,
       reasonCodes: ['MBF_W0_NOT_EVALUABLE_NO_TRIP_META', 'MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW'],
+      admittedTauOnsetCount: 0,
     };
   }
 
