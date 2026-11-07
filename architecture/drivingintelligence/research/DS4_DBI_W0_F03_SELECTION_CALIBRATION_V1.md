@@ -37,8 +37,8 @@ Wilson 95% intervals on `P(KNOWN)`; stderr on accepted-only IOD samples — **es
 
 ## Trip + offline reporting
 
-- Kernel field: `d8SelectionCalibrationResearch` (does not alter `d8Burstiness`).
-- Offline CLI: `f03SelectionCalibration` block + sensitivity matrix.
+- Kernel field: `d8SelectionCalibrationResearch` (exact null only; **no** per-trip Monte Carlo).
+- Offline CLI: `f03SelectionCalibration` block + sensitivity matrix (Monte Carlo explicit).
 
 ## Non-effects
 

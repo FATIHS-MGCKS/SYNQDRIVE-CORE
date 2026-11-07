@@ -2829,3 +2829,11 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | D8 gates frozen; no scientific validation claim; 200k audit remains `b3Comparable: false` |
 | REMAINING | Real C4 preregistration; W1 blocked |
 
+### 2026-11-07 — F03 performance and edge closeout
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Trip kernel skips default 25k MC; K&lt;10 exact P=0 supported; edge/perf tests |
+| WHY | Per-trip MC too expensive; short horizon gate semantics |
+| VALIDATION | W0 regression |
+

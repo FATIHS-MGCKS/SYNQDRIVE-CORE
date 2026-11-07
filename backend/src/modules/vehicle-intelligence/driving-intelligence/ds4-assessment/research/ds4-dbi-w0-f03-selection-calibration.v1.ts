@@ -140,11 +140,10 @@ export function exactUniformTauD8EligibilityProbabilityV1(input: {
 
   if (K < MIN_NONEMPTY) {
     return {
-      supported: false,
-      pKnown: null,
+      supported: true,
+      pKnown: 0,
       geometry,
-      method: 'UNSUPPORTED',
-      reason: 'K_LESS_THAN_MIN_NONEMPTY_BINS',
+      method: 'MULTINOMIAL_OCCUPANCY_DP',
       assumptions: UNIFORM_TAU_NULL_ASSUMPTIONS_V1,
     };
   }
@@ -523,7 +522,7 @@ export type Ds4DbiW0D8SelectionCalibrationResearchV1 = {
     meanIodAcceptedOnly: number | null;
     conditionalIodStdError: number | null;
     note: 'Monte Carlo estimation error only; exact DP is primary oracle when supported.';
-  };
+  } | null;
   unrestrictedResearchDiagnostic: ReturnType<typeof unrestrictedIodResearchDiagnosticV1>;
 };
 
@@ -534,8 +533,11 @@ export function buildD8SelectionCalibrationResearchV1(input: {
   observedTotalBins: number | null;
   observedNonemptyBins: number | null;
   observedD8ReasonCodes: readonly string[];
+  /** When omitted or 0, Monte Carlo cross-check is skipped (trip kernel default). */
   mcTrials?: number;
   mcSeed?: number;
+  /** Full conditional-IOD enumeration is research-harness only (trip default: false). */
+  includeConditionalNullExact?: boolean;
 }): Ds4DbiW0D8SelectionCalibrationResearchV1 {
   const n = input.tauOnsetsSeconds.filter(
     (t) => Number.isFinite(t) && t >= 0 && t < input.movingExposureSeconds,
@@ -545,19 +547,32 @@ export function buildD8SelectionCalibrationResearchV1(input: {
     eventCount: n,
     movingExposureSeconds: input.movingExposureSeconds,
   });
-  const exactCond = exactUniformTauConditionalIodReferenceV1({
-    eventCount: n,
-    movingExposureSeconds: input.movingExposureSeconds,
-  });
+  const exactCond = input.includeConditionalNullExact
+    ? exactUniformTauConditionalIodReferenceV1({
+        eventCount: n,
+        movingExposureSeconds: input.movingExposureSeconds,
+      })
+    : {
+        supported: false as const,
+        pKnown: exactP.supported ? exactP.pKnown : null,
+        meanIodGivenKnown: null,
+        quantilesGivenKnown: null,
+        method: 'UNSUPPORTED' as const,
+        enumerationsVisited: 0,
+        reason: 'SKIPPED_TRIP_SUMMARY_CONDITIONAL_EXACT',
+      };
 
-  const mcTrials = input.mcTrials ?? 25_000;
+  const mcTrials = input.mcTrials ?? 0;
   const mcSeed = input.mcSeed ?? 0xf03_c41b;
-  const mc = monteCarloUniformTauEligibilityV1({
-    eventCount: n,
-    movingExposureSeconds: input.movingExposureSeconds,
-    trials: mcTrials,
-    seed: mcSeed,
-  });
+  const mc =
+    mcTrials > 0
+      ? monteCarloUniformTauEligibilityV1({
+          eventCount: n,
+          movingExposureSeconds: input.movingExposureSeconds,
+          trials: mcTrials,
+          seed: mcSeed,
+        })
+      : null;
 
   const censoring: string[] = [];
   if (input.observedD8Status === 'ABSTAIN') {
@@ -597,17 +612,19 @@ export function buildD8SelectionCalibrationResearchV1(input: {
       supported: exactCond.supported,
       unsupportedReason: exactCond.reason,
     },
-    monteCarloCrossCheck: {
-      trials: mcTrials,
-      seed: mcSeed,
-      acceptedCount: mc.acceptedCount,
-      abstainedCount: mc.abstainedCount,
-      empiricalPKnown: mc.empiricalPKnown,
-      wilson95: mc.wilson95,
-      meanIodAcceptedOnly: mc.conditionalIodAcceptedOnly,
-      conditionalIodStdError: mc.conditionalIodStdError,
-      note: 'Monte Carlo estimation error only; exact DP is primary oracle when supported.',
-    },
+    monteCarloCrossCheck: mc
+      ? {
+          trials: mcTrials,
+          seed: mcSeed,
+          acceptedCount: mc.acceptedCount,
+          abstainedCount: mc.abstainedCount,
+          empiricalPKnown: mc.empiricalPKnown,
+          wilson95: mc.wilson95,
+          meanIodAcceptedOnly: mc.conditionalIodAcceptedOnly,
+          conditionalIodStdError: mc.conditionalIodStdError,
+          note: 'Monte Carlo estimation error only; exact DP is primary oracle when supported.',
+        }
+      : null,
     unrestrictedResearchDiagnostic: unrestrictedIodResearchDiagnosticV1({
       tauOnsetsSeconds: input.tauOnsetsSeconds,
       movingExposureSeconds: input.movingExposureSeconds,

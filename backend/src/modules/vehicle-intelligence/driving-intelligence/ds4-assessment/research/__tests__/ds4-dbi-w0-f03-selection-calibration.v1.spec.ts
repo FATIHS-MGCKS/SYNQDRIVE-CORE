@@ -1,4 +1,5 @@
 import {
+  buildD8SelectionCalibrationResearchV1,
   buildF03SensitivityMatrixV1,
   exactUniformTauConditionalIodReferenceV1,
   exactUniformTauD8EligibilityProbabilityV1,
@@ -37,6 +38,77 @@ describe('ds4-dbi-w0-f03-selection-calibration.v1', () => {
     expect(mc.empiricalPKnown).toBeGreaterThanOrEqual(mc.wilson95!.low - 0.005);
     expect(mc.empiricalPKnown).toBeLessThanOrEqual(mc.wilson95!.high + 0.005);
     expect(Math.abs(mc.empiricalPKnown - exact.pKnown!)).toBeLessThan(0.002);
+  });
+
+  it('short exposure: K<10 returns exact P(KNOWN)=0 (supported), not UNSUPPORTED', () => {
+    const p = exactUniformTauD8EligibilityProbabilityV1({ eventCount: 12, movingExposureSeconds: 59 });
+    expect(p.supported).toBe(true);
+    expect(p.pKnown).toBe(0);
+    expect(p.geometry.totalBinCount).toBeLessThan(10);
+    const p2 = exactUniformTauD8EligibilityProbabilityV1({ eventCount: 12, movingExposureSeconds: 540 });
+    expect(p2.supported).toBe(true);
+    expect(p2.pKnown).toBe(0);
+    expect(p2.geometry.totalBinCount).toBe(9);
+  });
+
+  it('zero events and n<10 gates yield P(KNOWN)=0', () => {
+    const z = exactUniformTauD8EligibilityProbabilityV1({ eventCount: 0, movingExposureSeconds: 720 });
+    expect(z.supported).toBe(true);
+    expect(z.pKnown).toBe(0);
+    const few = exactUniformTauD8EligibilityProbabilityV1({ eventCount: 9, movingExposureSeconds: 720 });
+    expect(few.pKnown).toBe(0);
+  });
+
+  it('large n,E* exact eligibility remains supported (conditional iod may enumerate-fail)', () => {
+    const p = exactUniformTauD8EligibilityProbabilityV1({ eventCount: 40, movingExposureSeconds: 1800 });
+    expect(p.supported).toBe(true);
+    expect(p.pKnown).toBeGreaterThan(0.99);
+    const cond = exactUniformTauConditionalIodReferenceV1({ eventCount: 40, movingExposureSeconds: 1800 });
+    expect(cond.supported).toBe(false);
+    expect(cond.reason).toMatch(/ENUMERATION_TOO_LARGE/);
+    expect(cond.pKnown).toBeGreaterThan(0.99);
+  });
+
+  it('trip calibration build skips Monte Carlo by default (kernel path)', () => {
+    const report = buildD8SelectionCalibrationResearchV1({
+      movingExposureSeconds: 660,
+      tauOnsetsSeconds: Array.from({ length: 12 }, (_, i) => i * 50),
+      observedD8Status: 'ABSTAIN',
+      observedTotalBins: 11,
+      observedNonemptyBins: 8,
+      observedD8ReasonCodes: ['MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS'],
+    });
+    expect(report.monteCarloCrossCheck).toBeNull();
+    expect(report.nullModelReference.pD8KnownExact).toBeCloseTo(0.02252486, 5);
+    const withMc = buildD8SelectionCalibrationResearchV1({
+      movingExposureSeconds: 660,
+      tauOnsetsSeconds: Array.from({ length: 12 }, (_, i) => i * 50),
+      observedD8Status: 'ABSTAIN',
+      observedTotalBins: 11,
+      observedNonemptyBins: 8,
+      observedD8ReasonCodes: [],
+      mcTrials: 2000,
+      mcSeed: 99,
+      includeConditionalNullExact: true,
+    });
+    expect(withMc.monteCarloCrossCheck).not.toBeNull();
+    expect(withMc.monteCarloCrossCheck!.trials).toBe(2000);
+  });
+
+  it('performance: exact-only trip calibration build completes 500 iterations quickly', () => {
+    const t0 = performance.now();
+    for (let i = 0; i < 500; i += 1) {
+      buildD8SelectionCalibrationResearchV1({
+        movingExposureSeconds: 719,
+        tauOnsetsSeconds: Array.from({ length: 12 }, (_, j) => j * 55 + (i % 7)),
+        observedD8Status: 'ABSTAIN',
+        observedTotalBins: 12,
+        observedNonemptyBins: 9,
+        observedD8ReasonCodes: [],
+      });
+    }
+    const elapsed = performance.now() - t0;
+    expect(elapsed).toBeLessThan(3000);
   });
 
   it('sensitivity matrix has full n×E* grid with exact probabilities', () => {
