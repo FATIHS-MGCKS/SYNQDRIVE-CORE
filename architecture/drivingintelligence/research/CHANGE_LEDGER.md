@@ -2859,6 +2859,16 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** F04 trust gate change; **no** W1 loader; **no** production/DB/provider access; **no** scientific validation claims; TES16 deferred (`NO_MOTION_PAYLOAD_BYTES`) |
 | REMAINING | Trusted speed-authority attestation on payload; D8 observation window compatibility on sparse historic bundles; TES16 motion payload export |
 
+### 2026-11-07 — DBI W1B1 local byte verification loader
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w1b1-local-evidence.loader.v1.ts`, digest/path/registry modules, offline replay, committed synthetic + historical reference manifests, adversarial Jest (14) |
+| WHY | First executable W1B loader: real bytes, detached manifest digest, strict speedAuthority, max `STRUCTURALLY_BOUND` |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (104); TIG22/TIG22_V4 strict reject; synthetic positive STRUCTURALLY_BOUND |
+| NON_EFFECTS | NOT_AUTHENTICATED; F04 false; no RELAXED inference on W1B1 path |
+| REMAINING | W1B2 independent anchor verification |
+
 ### 2026-11-07 — DBI W1A/W1C architecture hardening P1
 
 | Field | Detail |

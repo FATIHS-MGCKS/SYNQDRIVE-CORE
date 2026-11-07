@@ -1,0 +1,28 @@
+{
+  "fileVersion": "ds4-dbi-w1b1-evidence-manifest-file-v1",
+  "w1a": {
+    "contractVersion": "ds4-dbi-w1a-trusted-evidence-v1",
+    "sourceFileSha256": "67bf0df7e7274ded703441bcbff5e951e5e55b8528b7ca63438e3cd96ea885a6",
+    "canonicalPayloadContentDigestSha256": "6696532b22be19c16d309580e654a506971541a74e96f95c6530c9b6fc0d2bc4",
+    "declaredIndependentTrustAnchorSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "independentTrustAnchorKind": "REPOSITORY_PINNED_MANIFEST",
+    "organizationId": "00000000-0000-4000-8000-000000000001",
+    "vehicleId": "00000000-0000-4000-8000-000000000002",
+    "tripId": "11111111-1111-4111-8111-111111111111",
+    "sourceMotionRunId": "22222222-2222-4222-8222-222222222222",
+    "shadowBundleVersion": "DI_V0_MOTION_CORE_SHADOW_BUNDLE_W1B1_SYNTHETIC_V1",
+    "speedAuthority": "C4_ONLY",
+    "pinnedS4EvidenceIdentity": "SYNTHETIC:W1B1_POSITIVE_V1",
+    "tripStartUtc": "2026-01-01T10:00:00Z",
+    "tripEndUtc": "2026-01-01T10:02:10Z",
+    "algorithmVersions": {
+      "c4": "w1b1-c4",
+      "fsm": "w1b1-fsm",
+      "events": "w1b1-ev",
+      "bundle": "DI_V0_MOTION_CORE_SHADOW_BUNDLE_W1B1_SYNTHETIC_V1"
+    },
+    "recordingClassification": "SYNTHETIC",
+    "sameTripShadowRerunOfRunId": null,
+    "detachedProvenanceManifestDigestSha256": "ad1fd0fcbd57de7865288e6ee7e93c751ebe28f4e608bb5f6d885e93ef8632af"
+  }
+}

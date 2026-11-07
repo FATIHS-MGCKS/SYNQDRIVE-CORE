@@ -1,0 +1,2214 @@
+{
+  "contract": {
+    "algorithmVersions": {
+      "c4": "w1b1-c4",
+      "c5_1": null,
+      "c5_1ProductionSafety": null,
+      "c5_1AlgorithmFileSha256": null,
+      "fsm": "w1b1-fsm",
+      "gapBridgeV1": null,
+      "fsmAuxBinding": null,
+      "events": "w1b1-ev",
+      "bundle": "DI_V0_MOTION_CORE_SHADOW_BUNDLE_W1B1_SYNTHETIC_V1"
+    },
+    "speedAuthority": "C4_ONLY",
+    "timeSemantics": {
+      "processingMode": "POST_TRIP_RETROSPECTIVE",
+      "c4ValueSupportForwardS": 1,
+      "c4FullFinalizationForwardS": 1,
+      "fsmMode": "RETROSPECTIVE",
+      "eventFinalizationNote": "w1b1",
+      "computedAtUtc": "2026-01-01T00:00:00Z"
+    },
+    "sparse": {
+      "channelOutcome": null,
+      "comparable": true,
+      "sampleCount": 0,
+      "samples": [],
+      "limitations": []
+    },
+    "comparisonHints": {
+      "artefactSuspectExcludedFromAcceptedManoeuvreCounts": true,
+      "inferredNeverPromotedToDirect": true,
+      "unknownNotCountedAsConfirmedStandstill": true
+    }
+  },
+  "speeds": [
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:00Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:01Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:02Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:03Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:04Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:05Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:06Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:07Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:08Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:09Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:10Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:11Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:12Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:13Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:14Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:15Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:16Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:17Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:18Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:19Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:20Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:21Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:22Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:23Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:24Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:25Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:26Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:27Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:28Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:29Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:30Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:31Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:32Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:33Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:34Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:35Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:36Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:37Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:38Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:39Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:40Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:41Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:42Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:43Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:44Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:45Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:46Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:47Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:48Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:49Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:50Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:51Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:52Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:53Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:54Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:55Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:56Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:57Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:58Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:59Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:00Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:01Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:02Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:03Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:04Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:05Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:06Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:07Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:08Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:09Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:10Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:11Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:12Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:13Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:14Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:15Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:16Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:17Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:18Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:19Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:20Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:21Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:22Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:23Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:24Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:25Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:26Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:27Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:28Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:29Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:30Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:31Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:32Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:33Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:34Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:35Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:36Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:37Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:38Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:39Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:40Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:41Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:42Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:43Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:44Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:45Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:46Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:47Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:48Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:49Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:50Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:51Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:52Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:53Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:54Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:55Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:56Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:57Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:58Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:59Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:00Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:01Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:02Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:03Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:04Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:05Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:06Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:07Z",
+      "speedKmh": 40.1,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:08Z",
+      "speedKmh": 40.2,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:09Z",
+      "speedKmh": 40,
+      "quality": "OK",
+      "support": [],
+      "estimator": "w1b1-c4",
+      "flags": []
+    }
+  ],
+  "fsmLabels": [
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:00Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:01Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:02Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:03Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:04Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:05Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:06Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:07Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:08Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:09Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:10Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:11Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:12Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:13Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:14Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:15Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:16Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:17Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:18Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:19Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:20Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:21Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:22Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:23Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:24Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:25Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:26Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:27Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:28Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:29Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:30Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:31Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:32Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:33Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:34Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:35Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:36Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:37Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:38Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:39Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:40Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:41Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:42Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:43Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:44Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:45Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:46Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:47Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:48Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:49Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:50Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:51Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:52Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:53Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:54Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:55Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:56Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:57Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:58Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:00:59Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:00Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:01Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:02Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:03Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:04Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:05Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:06Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:07Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:08Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:09Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:10Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:11Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:12Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:13Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:14Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:15Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:16Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:17Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:18Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:19Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:20Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:21Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:22Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:23Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:24Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:25Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:26Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:27Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:28Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:29Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:30Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:31Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:32Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:33Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:34Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:35Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:36Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:37Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:38Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:39Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:40Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:41Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:42Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:43Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:44Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:45Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:46Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:47Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:48Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:49Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:50Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:51Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:52Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:53Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:54Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:55Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:56Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:57Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:58Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:01:59Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:00Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:01Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:02Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:03Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:04Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:05Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:06Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:07Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:08Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    },
+    {
+      "bucketLabelUtc": "2026-01-01T10:02:09Z",
+      "state": "MOVING",
+      "evidenceQuality": "DIRECT",
+      "reason": "t",
+      "flags": []
+    }
+  ],
+  "stopEpisodes": [
+    {
+      "trip": 0,
+      "mode": "RETROSPECTIVE",
+      "startEarliest": "2026-01-01T10:00:00Z",
+      "startLatest": "2026-01-01T10:00:00Z",
+      "endEarliest": "2026-01-01T10:00:05Z",
+      "endLatest": "2026-01-01T10:00:05Z",
+      "minDurationS": 5,
+      "maxDurationS": 5,
+      "evidenceQuality": "DIRECT",
+      "openEnd": false,
+      "labels": 5,
+      "directLabels": 5,
+      "inferredLabels": 0,
+      "indeterminateLabels": 0,
+      "observedLabels": 5,
+      "gapLabels": 0,
+      "lastEvidenceLabel": "2026-01-01T10:00:05Z",
+      "observedMinDurationS": 5,
+      "hysteresisBandLabels": 0,
+      "firstStationarySource": "C4_OK",
+      "firstStationaryC4Quality": "OK"
+    },
+    {
+      "trip": 1,
+      "mode": "RETROSPECTIVE",
+      "startEarliest": "2026-01-01T10:00:50Z",
+      "startLatest": "2026-01-01T10:00:50Z",
+      "endEarliest": "2026-01-01T10:00:55Z",
+      "endLatest": "2026-01-01T10:00:55Z",
+      "minDurationS": 5,
+      "maxDurationS": 5,
+      "evidenceQuality": "DIRECT",
+      "openEnd": false,
+      "labels": 5,
+      "directLabels": 5,
+      "inferredLabels": 0,
+      "indeterminateLabels": 0,
+      "observedLabels": 5,
+      "gapLabels": 0,
+      "lastEvidenceLabel": "2026-01-01T10:00:55Z",
+      "observedMinDurationS": 5,
+      "hysteresisBandLabels": 0,
+      "firstStationarySource": "C4_OK",
+      "firstStationaryC4Quality": "OK"
+    },
+    {
+      "trip": 2,
+      "mode": "RETROSPECTIVE",
+      "startEarliest": "2026-01-01T10:01:40Z",
+      "startLatest": "2026-01-01T10:01:40Z",
+      "endEarliest": "2026-01-01T10:01:45Z",
+      "endLatest": "2026-01-01T10:01:45Z",
+      "minDurationS": 5,
+      "maxDurationS": 5,
+      "evidenceQuality": "DIRECT",
+      "openEnd": false,
+      "labels": 5,
+      "directLabels": 5,
+      "inferredLabels": 0,
+      "indeterminateLabels": 0,
+      "observedLabels": 5,
+      "gapLabels": 0,
+      "lastEvidenceLabel": "2026-01-01T10:01:45Z",
+      "observedMinDurationS": 5,
+      "hysteresisBandLabels": 0,
+      "firstStationarySource": "C4_OK",
+      "firstStationaryC4Quality": "OK"
+    },
+    {
+      "trip": 3,
+      "mode": "RETROSPECTIVE",
+      "startEarliest": "2026-01-01T10:02:30Z",
+      "startLatest": "2026-01-01T10:02:30Z",
+      "endEarliest": "2026-01-01T10:02:35Z",
+      "endLatest": "2026-01-01T10:02:35Z",
+      "minDurationS": 5,
+      "maxDurationS": 5,
+      "evidenceQuality": "DIRECT",
+      "openEnd": false,
+      "labels": 5,
+      "directLabels": 5,
+      "inferredLabels": 0,
+      "indeterminateLabels": 0,
+      "observedLabels": 5,
+      "gapLabels": 0,
+      "lastEvidenceLabel": "2026-01-01T10:02:35Z",
+      "observedMinDurationS": 5,
+      "hysteresisBandLabels": 0,
+      "firstStationarySource": "C4_OK",
+      "firstStationaryC4Quality": "OK"
+    }
+  ],
+  "events": [
+    {
+      "kind": "ACCELERATION",
+      "startLabel": "2026-01-01T10:00:10Z",
+      "endLabel": "2026-01-01T10:00:11Z",
+      "startSpeedKmh": 40,
+      "endSpeedKmh": 41,
+      "deltaKmh": 1,
+      "quality": "OK",
+      "flags": []
+    },
+    {
+      "kind": "ACCELERATION",
+      "startLabel": "2026-01-01T10:01:11Z",
+      "endLabel": "2026-01-01T10:01:12Z",
+      "startSpeedKmh": 40,
+      "endSpeedKmh": 41,
+      "deltaKmh": 1,
+      "quality": "OK",
+      "flags": []
+    },
+    {
+      "kind": "ACCELERATION",
+      "startLabel": "2026-01-01T10:02:12Z",
+      "endLabel": "2026-01-01T10:02:13Z",
+      "startSpeedKmh": 40,
+      "endSpeedKmh": 41,
+      "deltaKmh": 1,
+      "quality": "OK",
+      "flags": []
+    },
+    {
+      "kind": "ACCELERATION",
+      "startLabel": "2026-01-01T10:03:13Z",
+      "endLabel": "2026-01-01T10:03:14Z",
+      "startSpeedKmh": 40,
+      "endSpeedKmh": 41,
+      "deltaKmh": 1,
+      "quality": "OK",
+      "flags": []
+    },
+    {
+      "kind": "ACCELERATION",
+      "startLabel": "2026-01-01T10:04:14Z",
+      "endLabel": "2026-01-01T10:04:15Z",
+      "startSpeedKmh": 40,
+      "endSpeedKmh": 41,
+      "deltaKmh": 1,
+      "quality": "OK",
+      "flags": []
+    },
+    {
+      "kind": "ACCELERATION",
+      "startLabel": "2026-01-01T10:05:15Z",
+      "endLabel": "2026-01-01T10:05:16Z",
+      "startSpeedKmh": 40,
+      "endSpeedKmh": 41,
+      "deltaKmh": 1,
+      "quality": "OK",
+      "flags": []
+    },
+    {
+      "kind": "ACCELERATION",
+      "startLabel": "2026-01-01T10:06:16Z",
+      "endLabel": "2026-01-01T10:06:17Z",
+      "startSpeedKmh": 40,
+      "endSpeedKmh": 41,
+      "deltaKmh": 1,
+      "quality": "OK",
+      "flags": []
+    },
+    {
+      "kind": "ACCELERATION",
+      "startLabel": "2026-01-01T10:07:17Z",
+      "endLabel": "2026-01-01T10:07:18Z",
+      "startSpeedKmh": 40,
+      "endSpeedKmh": 41,
+      "deltaKmh": 1,
+      "quality": "OK",
+      "flags": []
+    },
+    {
+      "kind": "ACCELERATION",
+      "startLabel": "2026-01-01T10:08:18Z",
+      "endLabel": "2026-01-01T10:08:19Z",
+      "startSpeedKmh": 40,
+      "endSpeedKmh": 41,
+      "deltaKmh": 1,
+      "quality": "OK",
+      "flags": []
+    },
+    {
+      "kind": "ACCELERATION",
+      "startLabel": "2026-01-01T10:09:19Z",
+      "endLabel": "2026-01-01T10:09:20Z",
+      "startSpeedKmh": 40,
+      "endSpeedKmh": 41,
+      "deltaKmh": 1,
+      "quality": "OK",
+      "flags": []
+    },
+    {
+      "kind": "ACCELERATION",
+      "startLabel": "2026-01-01T10:10:20Z",
+      "endLabel": "2026-01-01T10:10:21Z",
+      "startSpeedKmh": 40,
+      "endSpeedKmh": 41,
+      "deltaKmh": 1,
+      "quality": "OK",
+      "flags": []
+    },
+    {
+      "kind": "ACCELERATION",
+      "startLabel": "2026-01-01T10:11:21Z",
+      "endLabel": "2026-01-01T10:11:22Z",
+      "startSpeedKmh": 40,
+      "endSpeedKmh": 41,
+      "deltaKmh": 1,
+      "quality": "OK",
+      "flags": []
+    }
+  ],
+  "summary": {
+    "labelCount": 130,
+    "speedNumericCount": 130,
+    "eventCount": 12,
+    "eventAcceptedCount": 12,
+    "eventArtefactSuspectCount": 0,
+    "stopEpisodeCount": 4
+  }
+}
