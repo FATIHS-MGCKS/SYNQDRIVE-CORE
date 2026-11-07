@@ -82,6 +82,8 @@ async function seedDimoBinding(prisma: PrismaClient) {
 }
 
 (LIVE ? describe : describe.skip)('FSD-3 orchestration (PostgreSQL + mock provider)', () => {
+  jest.setTimeout(120_000);
+
   let prisma: PrismaClient;
 
   function assertRunResult(
