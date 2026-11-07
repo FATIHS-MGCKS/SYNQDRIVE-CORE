@@ -1,6 +1,14 @@
 /**
- * Future verified sealed-real C4 loader output. Research harness does not mint this until
- * owner-authorized loader + manifest integration exists.
+ * W0 research gate — statistical eligibility via sealed-real path is **disabled** until an
+ * independently verified loader arms trusted provenance (deferred to W1).
+ *
+ * Structural field binding below is design metadata only; it does **not** authenticate provenance.
+ */
+export const DS4_DBI_W0_TRUSTED_SEALED_REAL_LOADER_ACTIVE_V1 = false as const;
+
+/**
+ * Future verified sealed-real C4 loader output. Not accepted as trusted provenance in W0.
+ * Owner-authorized loader + manifest integration is deferred to W1.
  */
 export type Ds4DbiW0VerifiedSealedRealC4AttestationV1 = {
   contractVersion: 'ds4-dbi-w0-verified-sealed-real-c4-v1';
@@ -14,7 +22,8 @@ export type Ds4DbiW0VerifiedSealedRealC4AttestationV1 = {
   integrityCheckPassed: true;
 };
 
-export function isDs4DbiW0VerifiedSealedRealC4AttestationBoundV1(
+/** Structural binding check only — never implies trusted sealed-real provenance while W0 gate is false. */
+export function isDs4DbiW0VerifiedSealedRealC4AttestationStructurallyBoundV1(
   attestation: Ds4DbiW0VerifiedSealedRealC4AttestationV1 | null | undefined,
   binding: {
     tripMeta: { tripId: string; sourceMotionRunId: string } | null;
@@ -50,4 +59,26 @@ export function isDs4DbiW0VerifiedSealedRealC4AttestationBoundV1(
     return false;
   }
   return true;
+}
+
+/** @deprecated Use isDs4DbiW0VerifiedSealedRealC4AttestationStructurallyBoundV1 — same structural check, no trust. */
+export const isDs4DbiW0VerifiedSealedRealC4AttestationBoundV1 = isDs4DbiW0VerifiedSealedRealC4AttestationStructurallyBoundV1;
+
+/** Trusted provenance for statistical eligibility — always false in W0; wired in W1 with verified loader. */
+export function isDs4DbiW0TrustedSealedRealProvenanceVerifiedV1(
+  _input: {
+    attestation: Ds4DbiW0VerifiedSealedRealC4AttestationV1 | null | undefined;
+    tripMeta: { tripId: string; sourceMotionRunId: string } | null;
+    observedPayloadDigestSha256: string;
+    shadowBundleVersion: string;
+  },
+): boolean {
+  if (!DS4_DBI_W0_TRUSTED_SEALED_REAL_LOADER_ACTIVE_V1) {
+    return false;
+  }
+  return isDs4DbiW0VerifiedSealedRealC4AttestationStructurallyBoundV1(_input.attestation, {
+    tripMeta: _input.tripMeta,
+    observedPayloadDigestSha256: _input.observedPayloadDigestSha256,
+    shadowBundleVersion: _input.shadowBundleVersion,
+  });
 }

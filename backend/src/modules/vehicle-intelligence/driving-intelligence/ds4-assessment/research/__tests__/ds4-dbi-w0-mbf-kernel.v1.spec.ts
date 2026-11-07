@@ -212,7 +212,7 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     expect(r.d4SpeedVariabilityRobustCv.value).toBeNull();
   });
 
-  it('F04: verified attestation binding enables eligibility only when metrics KNOWN', () => {
+  it('F04 adversarial: caller-forged matching attestation still fails closed with no eligibility', () => {
     const payload = mkMovingSeries(130, 40);
     const observed = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
     const attestation: Ds4DbiW0VerifiedSealedRealC4AttestationV1 = {
@@ -231,9 +231,33 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
       evidenceOrigin: 'SEALED_REAL_C4',
       verifiedSealedRealC4Attestation: attestation,
     });
-    expect(r.diagnostics.failClosedReasons).not.toContain('MBF_W0_FAIL_CLOSED_UNVERIFIED_SEALED_REAL_C4_CLAIM');
+    expect(r.diagnostics.failClosedReasons).toContain('MBF_W0_FAIL_CLOSED_UNVERIFIED_SEALED_REAL_C4_CLAIM');
     expect(r.independentScientificValidationStatus).toBe('NOT_EVALUATED');
-    expect(r.sealedRealC4StatisticalEligibility).toBe(true);
+    expect(r.sealedRealC4StatisticalEligibility).toBe(false);
+    expect(r.d4SpeedVariabilityRobustCv.value).toBeNull();
+    expect(r.d5SpeedRoughnessMeanAbsDeltaKmhPerS.value).toBeNull();
+    expect(r.d6StopStructure.directStopCount).toBeNull();
+    expect(r.d8Burstiness.indexOfDispersion).toBeNull();
+  });
+
+  it('F04 adversarial: forged origin on otherwise evaluable synthetic payload strips metrics', () => {
+    const payload = mkMovingSeries(130, 40);
+    const wouldBeKnown = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta: meta,
+      qualityTier: 'STRICT',
+      evidenceOrigin: 'SYNTHETIC_CONTROL',
+    });
+    expect(wouldBeKnown.d4SpeedVariabilityRobustCv.status).toBe('KNOWN');
+    const forged = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta: meta,
+      qualityTier: 'STRICT',
+      evidenceOrigin: 'SEALED_REAL_C4',
+    });
+    expect(forged.sealedRealC4StatisticalEligibility).toBe(false);
+    expect(forged.d4SpeedVariabilityRobustCv.status).toBe('ABSTAIN');
+    expect(forged.d4SpeedVariabilityRobustCv.value).toBeNull();
   });
 
   it('E7-style constant speed yields low D5 on strict tier', () => {

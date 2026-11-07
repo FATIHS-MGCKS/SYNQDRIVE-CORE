@@ -2759,3 +2759,13 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** F01 D8 time-axis change; **no** F03 threshold changes; **no** production motion/FSM/RPM; **no** W1 validation claims |
 | REMAINING | F01 BLOCKER (D8 Es semantics); F03 selection reporting; sealed-real loader not implemented |
 
+### 2026-11-07 — DS4 DBI W0 F04 trust-boundary final closeout
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | **F04:** `sealedRealC4StatisticalEligibility` hard-false in W0; `SEALED_REAL_C4` always fail-closed (including caller-forged structurally matching attestation). `DS4_DBI_W0_TRUSTED_SEALED_REAL_LOADER_ACTIVE_V1=false`; structural binding separated from `isDs4DbiW0TrustedSealedRealProvenanceVerifiedV1` (W1 hook). Adversarial kernel tests replace misleading positive attestation test. |
+| WHY | Architect: structural digest/manifest match is not authenticated provenance without independent loader |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf`; offline `--json`; `validate-module-registry.sh` |
+| NON_EFFECTS | **No** F01/F03/F02 changes; **no** mock signer/loader; **no** production motion paths |
+| REMAINING | Trusted sealed-real loader + W1 arming of eligibility gate |
+

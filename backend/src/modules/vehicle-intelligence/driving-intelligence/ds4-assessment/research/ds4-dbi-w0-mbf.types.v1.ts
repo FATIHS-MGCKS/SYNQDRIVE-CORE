@@ -83,8 +83,8 @@ export type Ds4DbiW0TripKernelResultV1 = {
   /** Kernel code path exercised; does not imply sealed real-data validation. */
   implementationWorks: boolean;
   /**
-   * Sealed-real C4 path only: true when evidenceOrigin is SEALED_REAL_C4, no fail-closed integrity fires,
-   * and D4–D8 are all KNOWN (necessary but NOT sufficient for scientific validation).
+   * Sealed-real C4 statistical gate — **always false in W0** until W1 trusted loader arms provenance.
+   * Never true from caller labels, digests, or userland attestation objects alone.
    */
   sealedRealC4StatisticalEligibility: boolean;
   /**
