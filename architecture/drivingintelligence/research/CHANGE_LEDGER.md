@@ -2859,6 +2859,26 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** F04 trust gate change; **no** W1 loader; **no** production/DB/provider access; **no** scientific validation claims; TES16 deferred (`NO_MOTION_PAYLOAD_BYTES`) |
 | REMAINING | Trusted speed-authority attestation on payload; D8 observation window compatibility on sparse historic bundles; TES16 motion payload export |
 
+### 2026-11-07 — DBI W1A trusted evidence contract foundation
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w1a-trusted-evidence.contract.v1.ts` + adversarial Jest; trust planes `FILE_INTEGRITY_VERIFIED` / `STRUCTURALLY_BOUND` only; `Ds4DbiW1TrustedEvidenceLoaderV1` interface (no loader impl) |
+| WHY | Phase 1 W1A offline contract for future trusted real DS4 evidence without arming F04 or promoting SOURCE_AUTHENTICATED |
+| VALIDATION | Jest `ds4-dbi-w1a-trusted-evidence.contract.v1.spec.ts` (tampered payload/manifest, caller attestation, speedAuthority, run/trip identity, digest semantics) |
+| NON_EFFECTS | `DS4_DBI_W0_TRUSTED_SEALED_REAL_LOADER_ACTIVE_V1=false`; no production access; no API/UI |
+| REMAINING | W1B owner-approved loader; W1D scientific eligibility |
+
+### 2026-11-07 — DBI W1C trip partial-assessment projector
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w1c-trip-assessment-projector.v1.ts`; shared `ds4-dbi-w0-fail-closed-codes.v1.ts`; kernel fail-closed set import; `DBI_W1A_W1C_FOUNDATION.md` |
+| WHY | Trip-level COMPLETE/PARTIAL/NOT_EVALUABLE from W0 metrics without changing D4–D8 math or composite scores |
+| VALIDATION | Jest matrix + TIG22/TIG22_V4 → PARTIAL; `npm run test:di:ds4-dbi-w0-mbf` (81); historical replay CLI |
+| NON_EFFECTS | COMPLETE ≠ scientific validation; fail-closed masks values; F04/W1 unchanged |
+| REMAINING | UI presentation contract; W1B/W1D gates |
+
 ### 2026-11-07 — F03 performance and edge closeout
 
 | Field | Detail |

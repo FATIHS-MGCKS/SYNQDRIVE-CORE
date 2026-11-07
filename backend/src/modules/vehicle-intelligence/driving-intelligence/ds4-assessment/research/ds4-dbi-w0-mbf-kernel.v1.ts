@@ -3,6 +3,10 @@ import type { DiV0MotionCoreShadowPayloadV1 } from '../../motion-core-shadow-wor
 import type { MotionFsmStopEpisode } from '../../core/kinematics/motion-fsm';
 import { parseBucketLabelMs } from '../../core/kinematics/motion-core-grid';
 import {
+  DS4_DBI_W0_FAIL_CLOSED_REASON_CODES_V1,
+  isDs4DbiW0FailClosedReasonCodeV1,
+} from './ds4-dbi-w0-fail-closed-codes.v1';
+import {
   DS4_DBI_W0_RELAXED_SPEED_QUALITIES,
   DS4_DBI_W0_RESEARCH_THRESHOLDS_V1,
   DS4_DBI_W0_STRICT_SPEED_QUALITIES,
@@ -29,19 +33,7 @@ export type Ds4DbiW0TripMetaV1 = {
   distanceKm: number;
 };
 
-const FAIL_CLOSED_CODES = new Set<Ds4DbiW0MbfReasonCodeV1>([
-  'MBF_W0_FAIL_CLOSED_MIXED_SPEED_AUTHORITY',
-  'MBF_W0_FAIL_CLOSED_SOURCE_BUNDLE_MISMATCH',
-  'MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH',
-  'MBF_W0_FAIL_CLOSED_CORRUPT_LABEL_TIME_ORDER',
-  'MBF_W0_FAIL_CLOSED_DUPLICATE_SPEED_LABEL',
-  'MBF_W0_FAIL_CLOSED_INVALID_SPEED_VALUE',
-  'MBF_W0_FAIL_CLOSED_FSM_DUPLICATE_LABEL',
-  'MBF_W0_FAIL_CLOSED_FSM_MISSING_FOR_SPEED_LABEL',
-  'MBF_W0_FAIL_CLOSED_DUPLICATE_EVENT_START_TIME',
-  'MBF_W0_FAIL_CLOSED_EVENT_VALIDATION',
-  'MBF_W0_FAIL_CLOSED_UNVERIFIED_SEALED_REAL_C4_CLAIM',
-]);
+const FAIL_CLOSED_CODES = DS4_DBI_W0_FAIL_CLOSED_REASON_CODES_V1;
 
 function fingerprintPayloadV1(payload: DiV0MotionCoreShadowPayloadV1): string {
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
@@ -49,7 +41,7 @@ function fingerprintPayloadV1(payload: DiV0MotionCoreShadowPayloadV1): string {
 
 function isFailClosed(reasons: ReadonlySet<Ds4DbiW0MbfReasonCodeV1>): boolean {
   for (const c of reasons) {
-    if (FAIL_CLOSED_CODES.has(c)) {
+    if (isDs4DbiW0FailClosedReasonCodeV1(c)) {
       return true;
     }
   }
