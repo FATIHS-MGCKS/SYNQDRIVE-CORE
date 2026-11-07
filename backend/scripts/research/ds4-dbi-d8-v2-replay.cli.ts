@@ -182,10 +182,14 @@ async function main(): Promise<void> {
       continue;
     }
     const hist = runHistoricalKernelStrict(load);
+    const tripMetaBound = {
+      ...load.tripMeta,
+      contentFingerprint: hist.digestBinding.canonicalPayloadDigestSha256,
+    };
     const v2 = computeDs4DbiD8V2FromW0ContextV1({
       kernel: hist.kernel,
       payload: load.payload,
-      tripMeta: load.tripMeta,
+      tripMeta: tripMetaBound,
       researchSpeedAuthorityPartitionOverride: hist.failBinding.tripFailClosed
         ? undefined
         : load.speedAuthorityBinding.partition,

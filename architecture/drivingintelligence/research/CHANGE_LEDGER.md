@@ -2932,3 +2932,12 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (126); guard bootstrap dry-run PASS; adversarial V2 fail-closed tests |
 | NON_EFFECTS | Frozen D8 V1/W1C math unchanged; no trusted-real promotion |
 
+### 2026-11-07 — D8 V2 Garwood numeric fix + W0 context binding
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Replace broken gamma binary-search Garwood with exact χ² quantile limits; `verifyDs4DbiD8V2W0EvaluationContextV1` on kernel/payload/tripMeta |
+| WHY | Rate CIs were orders-of-magnitude wrong; prevent V2 on mismatched evaluation triples |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (133); oracle tests n∈{0,1,4,15} + Tesla rate CI |
+| NON_EFFECTS | Public rate CI shape preserved; no new deps |
+

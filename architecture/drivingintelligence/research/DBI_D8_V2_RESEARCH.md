@@ -9,6 +9,10 @@
 
 **W0 fail-closed inheritance:** `computeDs4DbiD8V2FromW0ContextV1` requires a full `Ds4DbiW0TripKernelResultV1` and derives trip-level fail-closed from `diagnostics.failClosedReasons` (same typed set as W1C). On fail-closed, both layers are `NOT_EVALUABLE` with no valid rate or Greenwood output; callers cannot override with a boolean flag. Historical replay passes **canonical** payload digest to the kernel; raw file SHA is verified separately against pinned source evidence.
 
+**W0 evaluation context binding:** `verifyDs4DbiD8V2W0EvaluationContextV1` checks trip/run identity, `kernel.contentFingerprintObserved` vs supplied payload, tripMeta fingerprint vs observed digest, and shadow bundle consistency before valid V2 output.
+
+**Garwood rate CI:** exact χ² (Garwood) count limits via stable regularized-gamma / χ² quantiles (`garwoodPoissonCountCiV1`, `garwoodPoissonRatePerMinuteCiV1`).
+
 ## Frozen references
 
 - D8 V1: `computeDs4DbiW0D8FromTauOnsetsV1` unchanged.

@@ -16,12 +16,15 @@ import { computeCanonicalPayloadDigestV1 } from '../ds4-dbi-w1b1-digest-semantic
 import {
   buildGreenwoodConditionalNullReferenceV1,
   computeDs4DbiD8V2FromW0ContextV1,
+  garwoodPoissonCountCiV1,
+  garwoodPoissonRatePerMinuteCiV1,
   DS4_DBI_D8_V2_NULL_MC_SEED_V1,
   DS4_DBI_D8_V2_RESEARCH_NMIN_V1,
   greenwoodNormalizedSpacingsV1,
   greenwoodNullExpectationV1,
   mulberry32D8V2,
   sampleGreenwoodNullDrawV1,
+  verifyDs4DbiD8V2W0EvaluationContextV1,
 } from '../ds4-dbi-d8-v2-event-intelligence.research.v1';
 
 const REPO_ROOT = join(__dirname, '../../../../../../../..');
@@ -145,12 +148,13 @@ function runKernelAndV2(
 ) {
   const speedAuthority = resolveW0SpeedAuthorityPartitionV1(payload);
   const exposure = deriveDs4DrivingExposureV1({ payload, speedAuthority });
+  const canonicalFp = computeCanonicalPayloadDigestV1(payload);
   const tripMeta: Ds4DbiW0TripMetaV1 = {
     tripId: 'test-trip',
     sourceMotionRunId: 'test-run',
     speedAuthority: payload.contract.speedAuthority ?? 'C4_ONLY',
-    shadowBundleVersion: 'TV',
-    contentFingerprint: '00',
+    shadowBundleVersion: payload.contract.algorithmVersions.bundle,
+    contentFingerprint: canonicalFp,
     exposureSecondsEs: exposure.exposureSeconds,
     distanceKm: 10,
   };
@@ -158,6 +162,8 @@ function runKernelAndV2(
     payload,
     tripMeta,
     qualityTier: 'STRICT',
+    expectedContentFingerprint: canonicalFp,
+    expectedShadowBundleVersion: payload.contract.algorithmVersions.bundle,
     evidenceOrigin: 'SYNTHETIC_CONTROL',
   });
   opts?.kernelPatch?.(kernel);
@@ -355,10 +361,11 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
         expectedShadowBundleVersion: load.tripMeta.shadowBundleVersion,
         evidenceOrigin: 'HISTORICAL_RESEARCH_RECORDING',
       });
+      const tripMetaBound = { ...load.tripMeta, contentFingerprint: canonicalDigest };
       const v2 = computeDs4DbiD8V2FromW0ContextV1({
         kernel,
         payload: load.payload,
-        tripMeta: load.tripMeta,
+        tripMeta: tripMetaBound,
         researchSpeedAuthorityPartitionOverride: load.speedAuthorityBinding.partition,
         nullDraws: 10_000,
       });
@@ -439,12 +446,13 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
       eStarSeconds: 660,
       eventTauSeconds: Array.from({ length: 12 }, (_, i) => 20 + i * 45),
     });
+    const canonicalFp = computeCanonicalPayloadDigestV1(payload);
     const tripMeta: Ds4DbiW0TripMetaV1 = {
       tripId: 't',
       sourceMotionRunId: 'r',
       speedAuthority: 'C4_ONLY',
-      shadowBundleVersion: 'b',
-      contentFingerprint: 'c',
+      shadowBundleVersion: payload.contract.algorithmVersions.bundle,
+      contentFingerprint: canonicalFp,
       exposureSecondsEs: 660,
       distanceKm: 12,
     };
@@ -452,6 +460,8 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
       payload,
       tripMeta,
       qualityTier: 'STRICT',
+      expectedContentFingerprint: canonicalFp,
+      expectedShadowBundleVersion: payload.contract.algorithmVersions.bundle,
       evidenceOrigin: 'SYNTHETIC_CONTROL',
     });
     computeDs4DbiD8V2FromW0ContextV1({ kernel: k1, payload, tripMeta });
@@ -459,6 +469,8 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
       payload,
       tripMeta,
       qualityTier: 'STRICT',
+      expectedContentFingerprint: canonicalFp,
+      expectedShadowBundleVersion: payload.contract.algorithmVersions.bundle,
       evidenceOrigin: 'SYNTHETIC_CONTROL',
     });
     expect(k2.d8Burstiness).toEqual(k1.d8Burstiness);
@@ -488,10 +500,11 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
     });
     expect(kernel.diagnostics.failClosedReasons).not.toContain('MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH');
     expect(kernel.d8Burstiness.status).toBe('ABSTAIN');
+    const tripMetaBound = { ...load.tripMeta, contentFingerprint: canonical };
     const v2 = computeDs4DbiD8V2FromW0ContextV1({
       kernel,
       payload: load.payload,
-      tripMeta: load.tripMeta,
+      tripMeta: tripMetaBound,
       researchSpeedAuthorityPartitionOverride: load.speedAuthorityBinding.partition,
       nullDraws: 8000,
     });
@@ -508,12 +521,13 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
       eventTauSeconds: [40, 80, 120, 160, 200, 240, 280, 320, 360, 400],
     });
     const { kernel, v2, w1c } = runKernelAndV2(payload, 400);
+    const canonicalFp = computeCanonicalPayloadDigestV1(payload);
     const tripMeta: Ds4DbiW0TripMetaV1 = {
       tripId: 't',
       sourceMotionRunId: 'r',
       speedAuthority: 'C4_ONLY',
       shadowBundleVersion: payload.contract.algorithmVersions.bundle,
-      contentFingerprint: '00',
+      contentFingerprint: canonicalFp,
       exposureSecondsEs: 400,
       distanceKm: 5,
     };
@@ -598,6 +612,95 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
     });
     expect(dupV2.w0TripFailClosed).toBe(true);
     expect(dupV2.w0TripFailClosedReasonCodes).toContain('MBF_W0_FAIL_CLOSED_DUPLICATE_SPEED_LABEL');
+  });
+
+  it('W0 evaluation context mismatch rejects V2 findings', () => {
+    const payload = mkUniformMovingPayload({ eStarSeconds: 300, eventTauSeconds: [50, 150] });
+    const canonicalFp = computeCanonicalPayloadDigestV1(payload);
+    const tripMeta: Ds4DbiW0TripMetaV1 = {
+      tripId: 'trip-a',
+      sourceMotionRunId: 'run-a',
+      speedAuthority: payload.contract.speedAuthority ?? 'C4_ONLY',
+      shadowBundleVersion: payload.contract.algorithmVersions.bundle,
+      contentFingerprint: canonicalFp,
+      exposureSecondsEs: 300,
+      distanceKm: 3,
+    };
+    const kernel = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta,
+      qualityTier: 'STRICT',
+      expectedContentFingerprint: canonicalFp,
+      evidenceOrigin: 'SYNTHETIC_CONTROL',
+    });
+    const mismatchedMeta = { ...tripMeta, tripId: 'trip-b' };
+    const binding = verifyDs4DbiD8V2W0EvaluationContextV1({ kernel, payload, tripMeta: mismatchedMeta });
+    expect(binding.ok).toBe(false);
+    if (!binding.ok) {
+      expect(binding.codes).toContain('D8V2_CTX_TRIP_ID_MISMATCH');
+    }
+    const v2 = computeDs4DbiD8V2FromW0ContextV1({ kernel, payload, tripMeta: mismatchedMeta });
+    expect(v2.w0EvaluationContextMismatch).toBe(true);
+    expect(v2.w0TripFailClosed).toBe(true);
+    expect(v2.descriptive.status).toBe('NOT_EVALUABLE');
+    expect(v2.inference.observedGreenwoodG).toBeNull();
+  });
+});
+
+describe('ds4-dbi-d8-v2 garwood exact CIs', () => {
+  const TOL = 1e-5;
+
+  it('reproduces broken legacy orders-of-magnitude inflation (documented regression guard)', () => {
+    const buggyUpper = 55.92370428450183;
+    const fixed = garwoodPoissonRatePerMinuteCiV1({ admittedEventCount: 0, movingExposureSeconds: 832 });
+    expect(fixed.hi).not.toBeNull();
+    expect(fixed.hi!).toBeLessThan(1);
+    expect(buggyUpper).toBeGreaterThan(50);
+  });
+
+  it('matches independent 95% count oracles', () => {
+    const cases: Array<{ n: number; lo: number; hi: number }> = [
+      { n: 0, lo: 0, hi: 3.68887945 },
+      { n: 1, lo: 0.02531781, hi: 5.57164339 },
+      { n: 4, lo: 1.08986537, hi: 10.24158868 },
+      { n: 15, lo: 8.39538613, hi: 24.74021887 },
+    ];
+    for (const c of cases) {
+      const ci = garwoodPoissonCountCiV1({ admittedEventCount: c.n });
+      expect(ci.lo).toBeCloseTo(c.lo, 5);
+      expect(ci.hi).toBeCloseTo(c.hi, 5);
+    }
+  });
+
+  it('matches Tesla rate/min CI at n=4, E*=832s', () => {
+    const rate = garwoodPoissonRatePerMinuteCiV1({ admittedEventCount: 4, movingExposureSeconds: 832 });
+    expect(rate.lo).toBeCloseTo(0.0785961, 5);
+    expect(rate.hi).toBeCloseTo(0.7385761, 5);
+    const expectedRate = 4 / (832 / 60);
+    expect(expectedRate).toBeCloseTo(0.28846154, 5);
+  });
+
+  it('invalid exposure returns null bounds', () => {
+    expect(garwoodPoissonRatePerMinuteCiV1({ admittedEventCount: 4, movingExposureSeconds: 0 }).hi).toBeNull();
+    expect(garwoodPoissonRatePerMinuteCiV1({ admittedEventCount: 4, movingExposureSeconds: -1 }).hi).toBeNull();
+  });
+
+  it('monotone widening with count at fixed exposure', () => {
+    const e = 600;
+    const widths = [1, 4, 10, 30].map((n) => {
+      const ci = garwoodPoissonRatePerMinuteCiV1({ admittedEventCount: n, movingExposureSeconds: e });
+      return ci.hi! - ci.lo!;
+    });
+    for (let i = 1; i < widths.length; i += 1) {
+      expect(widths[i]!).toBeGreaterThan(widths[i - 1]!);
+    }
+  });
+
+  it('returns finite values without NaN for large n', () => {
+    const ci = garwoodPoissonCountCiV1({ admittedEventCount: 500 });
+    expect(Number.isFinite(ci.lo!)).toBe(true);
+    expect(Number.isFinite(ci.hi!)).toBe(true);
+    expect(ci.hi!).toBeGreaterThan(ci.lo!);
   });
 });
 
