@@ -2941,3 +2941,12 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (133); oracle tests n∈{0,1,4,15} + Tesla rate CI |
 | NON_EFFECTS | Public rate CI shape preserved; no new deps |
 
+### 2026-11-07 — D8 V2 Opus P2 minimal closeout (entrypoint, override, coverage, MC p)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Module-private `computeDs4DbiD8V2EventIntelligenceV1`; `SPEED_AUTHORITY_RESEARCH_OVERRIDE_INFERRED` + inference cap; FULL-only `STATISTICAL_RESULT_AVAILABLE`; MC p=(ge+1)/(N+1); spec/ESLint |
+| WHY | Independent audit P2-A/B/C: no forged fail-closed, no qualified stats on inferred authority or PARTIAL coverage |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (135); replay TIG22/TIG22_V4/Tesla; changed-file ESLint PASS |
+| NON_EFFECTS | D4/D5/D6/D8 V1/W1C/F04 unchanged; exploratory small-n G/p retained |
+
