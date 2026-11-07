@@ -10,6 +10,7 @@ import { join } from 'path';
 import { computeDs4DbiW0MbfFromPayloadV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-mbf-kernel.v1';
 import type { Ds4DbiW0TripKernelResultV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-mbf.types.v1';
 import type { Ds4DbiW0HistoricalFixtureIdV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-historical-replay.fixture-registry.v1';
+import { buildDs4DbiW0HistoricalCohortD8ReportV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-historical-cohort-d8.v1';
 import { buildDs4DbiW0HistoricalD8CompatibilityReportV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-historical-replay-d8-compat.v1';
 import {
   loadDs4DbiW0HistoricalMotionFixtureV1,
@@ -109,6 +110,11 @@ async function main(): Promise<void> {
 
     (report.fixtures as Record<string, unknown>)[fixtureId] = entry;
   }
+
+  report.cohortD8Validation = buildDs4DbiW0HistoricalCohortD8ReportV1({
+    fixtureIds: ['TIG22', 'TIG22_V4', 'TES16'],
+    repositoryRoot: repoRoot,
+  });
 
   report.videoReferenceNote =
     'Speed video references (TIG22/TES16) are kinematic ground truth only — not independent DBI style labels; no comparison emitted in this harness.';

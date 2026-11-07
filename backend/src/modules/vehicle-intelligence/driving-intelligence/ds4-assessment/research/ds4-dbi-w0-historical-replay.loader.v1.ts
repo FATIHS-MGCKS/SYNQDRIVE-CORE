@@ -177,9 +177,13 @@ export function loadDs4DbiW0HistoricalMotionFixtureV1(input: {
   }
 
   const payloadSha = sha256File(payloadAbs);
-  const manifestKey = fixture.motionCoreShadowPayloadRelPath.split('/inputs/tiguan-20261022/')[1]
-    ? `snapshots/di_v0_motion_core_shadow_payload.json`
-    : null;
+  const payloadBaseName = fixture.motionCoreShadowPayloadRelPath.split('/').pop() ?? '';
+  const manifestKey =
+    manifest.file_hashes?.[payloadBaseName] != null
+      ? payloadBaseName
+      : manifest.file_hashes?.[`snapshots/${payloadBaseName}`] != null
+        ? `snapshots/${payloadBaseName}`
+        : null;
   if (manifestKey && manifest.file_hashes?.[manifestKey] && manifest.file_hashes[manifestKey] !== payloadSha) {
     return {
       ok: false,
@@ -235,26 +239,35 @@ export function loadDs4DbiW0HistoricalMotionFixtureV1(input: {
     }
     const meta = JSON.parse(readFileSync(metaAbs, 'utf8')) as {
       id?: string;
+      run_id?: string;
       content_fingerprint?: string;
       shadow_bundle_version?: string;
     };
-    if (fixture.expectedSourceMotionRunId && meta.id !== fixture.expectedSourceMotionRunId) {
+    const runId = meta.id ?? meta.run_id ?? null;
+    if (fixture.expectedSourceMotionRunId && runId !== fixture.expectedSourceMotionRunId) {
       return {
         ok: false,
         fixtureId: input.fixtureId,
         codes: ['SOURCE_MOTION_RUN_ID_MISMATCH'],
-        detail: `Run meta id ${meta.id} != ${fixture.expectedSourceMotionRunId}`,
+        detail: `Run meta id ${runId} != ${fixture.expectedSourceMotionRunId}`,
         provenanceLimitations,
       };
     }
     if (meta.content_fingerprint && meta.content_fingerprint !== payloadSha) {
-      return {
-        ok: false,
-        fixtureId: input.fixtureId,
-        codes: ['RUN_META_MISMATCH'],
-        detail: `Run meta fingerprint ${meta.content_fingerprint} != payload file sha ${payloadSha}`,
-        provenanceLimitations,
-      };
+      if (
+        fixture.expectedRunMetaContentFingerprintSha256 &&
+        meta.content_fingerprint === fixture.expectedRunMetaContentFingerprintSha256
+      ) {
+        provenanceLimitations.push('RUN_META_CANONICAL_DIGEST_DIFFERS_FROM_FILE_SHA256');
+      } else if (!fixture.expectedRunMetaContentFingerprintSha256) {
+        return {
+          ok: false,
+          fixtureId: input.fixtureId,
+          codes: ['RUN_META_MISMATCH'],
+          detail: `Run meta fingerprint ${meta.content_fingerprint} != payload file sha ${payloadSha}`,
+          provenanceLimitations,
+        };
+      }
     }
   }
 
@@ -292,6 +305,7 @@ export function loadDs4DbiW0HistoricalMotionFixtureV1(input: {
       };
     }
     if (
+      fixture.enforceTripIdentityShadowRunMatch &&
       fixture.expectedSourceMotionRunId &&
       identity.di_artifacts?.motion_core_shadow_run_id &&
       identity.di_artifacts.motion_core_shadow_run_id !== fixture.expectedSourceMotionRunId
@@ -303,6 +317,14 @@ export function loadDs4DbiW0HistoricalMotionFixtureV1(input: {
         detail: 'TRIP_IDENTITY motion_core_shadow_run_id mismatch',
         provenanceLimitations,
       };
+    }
+    if (
+      !fixture.enforceTripIdentityShadowRunMatch &&
+      identity.di_artifacts?.motion_core_shadow_run_id &&
+      fixture.expectedSourceMotionRunId &&
+      identity.di_artifacts.motion_core_shadow_run_id !== fixture.expectedSourceMotionRunId
+    ) {
+      provenanceLimitations.push('SAME_TRIP_LATER_SHADOW_RUN_THAN_TRIP_IDENTITY_ANCHOR');
     }
   }
 

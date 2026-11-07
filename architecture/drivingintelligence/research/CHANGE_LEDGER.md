@@ -2829,6 +2829,16 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | D8 gates frozen; no scientific validation claim; 200k audit remains `b3Comparable: false` |
 | REMAINING | Real C4 preregistration; W1 blocked |
 
+### 2026-11-07 — Historical cohort D8 validation P3 (TIG22 V4)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Materialized `prod_run_v4_20261023` fixture (sha `ddcf32cd…`, run `15cdc8ae…`); registry `TIG22_V4`; `ds4-dbi-w0-historical-cohort-d8.v1.ts`; loader meta `run_id` + digest drift handling |
+| WHY | Same trip shadow reprocess (V4 leg-gate) — distinct from pre-FABLE run; assess frozen D8 gates without conflating independent drives |
+| VALIDATION | Cohort: both arms research D8 ABSTAIN `MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS` (9 nonempty windows); V4 does not clear 10-window gate |
+| NON_EFFECTS | No threshold changes; no new scientific claims; compact package duplicate excluded as alias |
+| REMAINING | No in-repo Audi/Arteon/Tesla Motion-Core JSON; need new recorded trip with ≥10 occupied τ bins |
+
 ### 2026-11-07 — TIG22 historical D8 B3 compatibility (Phase 1 P2)
 
 | Field | Detail |

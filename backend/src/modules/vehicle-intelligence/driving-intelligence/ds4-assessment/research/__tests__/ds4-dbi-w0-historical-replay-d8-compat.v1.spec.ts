@@ -47,7 +47,7 @@ describe('ds4-dbi-w0-historical-replay-d8-compat.v1', () => {
     expect(adaptedClock.dualTime.admittedEventCount).toBeGreaterThanOrEqual(10);
   });
 
-  it('canonical kernel D8 ABSTAIN; research-adapted D8 KNOWN on TIG22', () => {
+  it('canonical kernel D8 ABSTAIN; research-adapted D8 ABSTAIN on window gate (TIG22 pre-FABLE)', () => {
     const loaded = loadDs4DbiW0HistoricalMotionFixtureV1({
       fixtureId: 'TIG22',
       bindingTier: 'RELAXED',

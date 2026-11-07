@@ -1,0 +1,20 @@
+{
+  "schema": "SYNQDRIVE_ACCEL_BRAKE_V4_FIXTURE_PROVENANCE_V1",
+  "generated_at_utc": "2026-11-07T00:00:00Z",
+  "source_branch": "cursor/ds4-accel-brake-video-eval-192d",
+  "trip_id": "98d2a8e0-8b7d-4529-bf76-acee44d61fbe",
+  "motion_core_shadow_run_id": "15cdc8ae-35b5-44a1-9c91-2cd9120d1546",
+  "shadow_bundle_version": "DI_V0_MOTION_CORE_SHADOW_BUNDLE_V1_LEG_GATE_OBD_POINT_AUTH_V4",
+  "pinned_snapshot_hash": "DI_V0_S4_EVIDENCE_V1:sha256:22e2a662af3a07458e5713bd004f563e9d038c86fb89f3353d39b8e7ea3504b3",
+  "file_hashes": {
+    "di_v0_motion_core_shadow_payload.json": "ddcf32cd111ef21859e7df9f20915190efbe89aa416a22132e02c7d658712ccd",
+    "di_v0_motion_core_shadow_run_meta.json": "see_repo_commit_materialization"
+  },
+  "digest_notes": {
+    "authoritative_payload_integrity": "SHA-256 of on-disk JSON bytes (ddcf32cd…)",
+    "run_meta_content_fingerprint": "ebfc60ab2aefbea8cdf0e41c76e9177da9209896a1f6cbe8012ff6b64f792ed3",
+    "run_meta_vs_file_sha_mismatch_explicit": true,
+    "relationship_to_tig22_pre_fable": "Same trip and pinned S4 snapshot; distinct Motion-Core shadow run (V4 leg-gate bundle) — not a replay alias of run 8ec6306e"
+  },
+  "repository_note": "Imported from historical branch for offline DBI research; no production DB at reproduce time."
+}
