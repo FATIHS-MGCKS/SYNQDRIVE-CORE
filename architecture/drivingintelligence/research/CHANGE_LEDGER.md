@@ -2789,3 +2789,13 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** kernel implementation; **no** F03/F04 changes; **no** deploy/merge |
 | REMAINING | Executable kernel fixtures for TV-F01..F11 |
 
+### 2026-11-07 — DS4 DBI W0 F01 B3 implementation P1 (research kernel)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | **F01 B3 implementation:** `ds4-dbi-w0-moving-exposure-clock.v1.ts`; τ-native D8 in kernel; dual-time metadata on trip result; canonical exposure timeline export; E9 τ sampling in offline CLI; TV-F01..F11 executable spec; pinned-11 D8 may ABSTAIN on Es≠E* (U3) |
+| WHY | Architect-approved contract v1.1 implementation tranche |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (37 tests); offline CLI `--json`; `validate-module-registry.sh`; prod DB guard manifest regen |
+| NON_EFFECTS | **No** production motion/FSM/deploy; **F03/F04 frozen**; `sealedRealC4StatisticalEligibility` remains false |
+| REMAINING | Expand TV coverage F03/F04/F06/F08/F10; analytic E9 references under unequal τ bins |
+

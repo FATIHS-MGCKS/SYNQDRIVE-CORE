@@ -13,6 +13,10 @@ import {
   type Ds4DbiW0TripKernelResultV1,
 } from './ds4-dbi-w0-mbf.types.v1';
 import type { Ds4DbiW0VerifiedSealedRealC4AttestationV1 } from './ds4-dbi-w0-sealed-real-attestation.v1';
+import {
+  buildDs4DbiW0MovingExposureClockEvidenceV1,
+  computeDs4DbiW0D8BurstinessTauNativeV1,
+} from './ds4-dbi-w0-moving-exposure-clock.v1';
 
 export type Ds4DbiW0TripMetaV1 = {
   tripId: string;
@@ -459,30 +463,19 @@ function computeD6V1(input: {
   };
 }
 
-/** Exported for E9 null-process studies and tests — same D8 counting rules as the kernel. */
+type Ds4DbiW0D8BurstinessResultV1 = ReturnType<typeof computeDs4DbiW0D8BurstinessTauNativeV1>;
+
+/** Exported for E9 null-process studies and tests — τ-native B3 D8 (F01). */
 export function computeDs4DbiW0D8BurstinessFromObservationWindowV1(input: {
   tripMeta: Ds4DbiW0TripMetaV1 | null;
-  speedLabelsUtc: readonly string[];
-  events: DiV0MotionCoreShadowPayloadV1['events'];
-}): {
-  status: 'KNOWN' | 'ABSTAIN';
-  indexOfDispersion: number | null;
-  shareNextEventWithin30s: number | null;
-  windowCount: number | null;
-  nonEmptyWindowCount: number | null;
-  emptyWindowCount: number | null;
-  totalWindowSlots: number | null;
-  eventCount: number | null;
-  observationWindowStartMsUtc: number | null;
-  observationWindowEndMsUtc: number | null;
-  observationWindowDurationSeconds: number | null;
-  reasonCodes: Ds4DbiW0MbfReasonCodeV1[];
-} {
-  const admitted = input.events.filter((e) => e.quality === 'OK');
-  const nEv = admitted.length;
-  const windowMs = DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.burstWindowSeconds * 1000;
-
-  if (!input.tripMeta || !(input.tripMeta.exposureSecondsEs > 0) || !Number.isFinite(input.tripMeta.exposureSecondsEs)) {
+  payload: DiV0MotionCoreShadowPayloadV1;
+  /** @deprecated ignored — use payload.speeds */
+  speedLabelsUtc?: readonly string[];
+  events?: DiV0MotionCoreShadowPayloadV1['events'];
+  failClosedTrip?: boolean;
+}): Ds4DbiW0D8BurstinessResultV1 {
+  const nEvRaw = (input.events ?? input.payload.events).filter((e) => e.quality === 'OK').length;
+  if (!input.tripMeta) {
     return {
       status: 'ABSTAIN',
       indexOfDispersion: null,
@@ -491,147 +484,36 @@ export function computeDs4DbiW0D8BurstinessFromObservationWindowV1(input: {
       nonEmptyWindowCount: null,
       emptyWindowCount: null,
       totalWindowSlots: null,
-      eventCount: nEv,
+      eventCount: nEvRaw,
       observationWindowStartMsUtc: null,
       observationWindowEndMsUtc: null,
       observationWindowDurationSeconds: null,
+      finalBinWidthExposureSeconds: null,
       reasonCodes: ['MBF_W0_NOT_EVALUABLE_NO_TRIP_META', 'MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW'],
     };
   }
 
-  const esMs = Math.round(input.tripMeta.exposureSecondsEs * 1000);
-  if (esMs < windowMs) {
-    return {
-      status: 'ABSTAIN',
-      indexOfDispersion: null,
-      shareNextEventWithin30s: null,
-      windowCount: null,
-      nonEmptyWindowCount: null,
-      emptyWindowCount: null,
-      totalWindowSlots: null,
-      eventCount: nEv,
-      observationWindowStartMsUtc: null,
-      observationWindowEndMsUtc: null,
-      observationWindowDurationSeconds: null,
-      reasonCodes: ['MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW'],
-    };
-  }
+  const payloadWithEvents: DiV0MotionCoreShadowPayloadV1 = input.events
+    ? { ...input.payload, events: input.events }
+    : input.payload;
 
-  if (nEv < DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.minEventsD8) {
-    return {
-      status: 'ABSTAIN',
-      indexOfDispersion: null,
-      shareNextEventWithin30s: null,
-      windowCount: null,
-      nonEmptyWindowCount: null,
-      emptyWindowCount: null,
-      totalWindowSlots: null,
-      eventCount: nEv,
-      observationWindowStartMsUtc: null,
-      observationWindowEndMsUtc: null,
-      observationWindowDurationSeconds: null,
-      reasonCodes: ['MBF_W0_INSUFFICIENT_EVENTS_FOR_BURSTINESS'],
-    };
-  }
+  const clock = buildDs4DbiW0MovingExposureClockEvidenceV1({
+    payload: payloadWithEvents,
+    suppliedExposureSecondsEs: input.tripMeta.exposureSecondsEs,
+  });
 
-  let minSpeedMs = Number.POSITIVE_INFINITY;
-  for (const lab of input.speedLabelsUtc) {
-    const t = parseBucketLabelMs(lab);
-    if (Number.isFinite(t)) {
-      minSpeedMs = Math.min(minSpeedMs, t);
-    }
-  }
-  const startsRaw = admitted.map((e) => parseBucketLabelMs(e.startLabel));
-  const minEventMs = Math.min(...startsRaw);
-  const t0 =
-    Number.isFinite(minSpeedMs) && minSpeedMs < Number.POSITIVE_INFINITY
-      ? Math.min(minSpeedMs, minEventMs)
-      : minEventMs;
-  const t1 = t0 + esMs;
-
-  for (const t of startsRaw) {
-    if (t < t0 || t >= t1) {
-      return {
-        status: 'ABSTAIN',
-        indexOfDispersion: null,
-        shareNextEventWithin30s: null,
-        windowCount: null,
-        nonEmptyWindowCount: null,
-        emptyWindowCount: null,
-        totalWindowSlots: null,
-        eventCount: nEv,
-        observationWindowStartMsUtc: t0,
-        observationWindowEndMsUtc: t1,
-        observationWindowDurationSeconds: esMs / 1000,
-        reasonCodes: ['MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW'],
-      };
-    }
-  }
-
-  const totalWindowSlots = Math.max(1, Math.ceil(esMs / windowMs));
-  const counts = new Array<number>(totalWindowSlots).fill(0);
-  const starts = [...startsRaw].sort((a, b) => a - b);
-  for (const t of starts) {
-    const w = Math.floor((t - t0) / windowMs);
-    const wi = Math.min(Math.max(w, 0), totalWindowSlots - 1);
-    counts[wi] += 1;
-  }
-  const nonEmpty = counts.filter((c) => c > 0).length;
-  const emptyWindowCount = counts.filter((c) => c === 0).length;
-  let sumSq = 0;
-  for (const c of counts) {
-    sumSq += c * c;
-  }
-  if (nonEmpty < DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.minNonEmptyWindowsD8) {
-    return {
-      status: 'ABSTAIN',
-      indexOfDispersion: null,
-      shareNextEventWithin30s: null,
-      windowCount: nonEmpty,
-      nonEmptyWindowCount: nonEmpty,
-      emptyWindowCount,
-      totalWindowSlots,
-      eventCount: nEv,
-      observationWindowStartMsUtc: t0,
-      observationWindowEndMsUtc: t1,
-      observationWindowDurationSeconds: esMs / 1000,
-      reasonCodes: ['MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS'],
-    };
-  }
-
-  const mean = nEv / totalWindowSlots;
-  const variance =
-    totalWindowSlots > 1 ? (sumSq - (nEv * nEv) / totalWindowSlots) / (totalWindowSlots - 1) : 0;
-  const iod = mean > 0 ? variance / mean : null;
-
-  let within = 0;
-  for (let i = 1; i < starts.length; i += 1) {
-    if (starts[i]! - starts[i - 1]! <= DS4_DBI_W0_RESEARCH_THRESHOLDS_V1.burstNextEventMaxSeconds * 1000) {
-      within += 1;
-    }
-  }
-  const shareNext = starts.length > 1 ? within / (starts.length - 1) : null;
-
-  return {
-    status: 'KNOWN',
-    indexOfDispersion: iod,
-    shareNextEventWithin30s: shareNext,
-    windowCount: totalWindowSlots,
-    nonEmptyWindowCount: nonEmpty,
-    emptyWindowCount,
-    totalWindowSlots,
-    eventCount: nEv,
-    observationWindowStartMsUtc: t0,
-    observationWindowEndMsUtc: t1,
-    observationWindowDurationSeconds: esMs / 1000,
-    reasonCodes: ['MBF_W0_OK'],
-  };
+  return computeDs4DbiW0D8BurstinessTauNativeV1({
+    clock,
+    tripMetaSuppliedEs: input.tripMeta.exposureSecondsEs,
+    failClosedTrip: input.failClosedTrip ?? false,
+  });
 }
 
 function computeD8V1(
   payload: DiV0MotionCoreShadowPayloadV1,
   tripMeta: Ds4DbiW0TripMetaV1 | null,
   failClosed: boolean,
+  clock: ReturnType<typeof buildDs4DbiW0MovingExposureClockEvidenceV1>,
 ): Ds4DbiW0TripKernelResultV1['d8Burstiness'] {
   if (failClosed) {
     return {
@@ -646,14 +528,14 @@ function computeD8V1(
       observationWindowStartMsUtc: null,
       observationWindowEndMsUtc: null,
       observationWindowDurationSeconds: null,
+      finalBinWidthExposureSeconds: null,
       reasonCodes: [],
     };
   }
-  const speedLabs = payload.speeds.map((s) => s.bucketLabelUtc);
-  const core = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
-    tripMeta,
-    speedLabelsUtc: speedLabs,
-    events: payload.events,
+  const core = computeDs4DbiW0D8BurstinessTauNativeV1({
+    clock,
+    tripMetaSuppliedEs: tripMeta?.exposureSecondsEs ?? null,
+    failClosedTrip: false,
   });
   return {
     status: core.status,
@@ -667,6 +549,7 @@ function computeD8V1(
     observationWindowStartMsUtc: core.observationWindowStartMsUtc,
     observationWindowEndMsUtc: core.observationWindowEndMsUtc,
     observationWindowDurationSeconds: core.observationWindowDurationSeconds,
+    finalBinWidthExposureSeconds: core.finalBinWidthExposureSeconds,
     reasonCodes: core.reasonCodes,
   };
 }
@@ -743,8 +626,10 @@ function emptyTripResultV1(
       observationWindowStartMsUtc: null,
       observationWindowEndMsUtc: null,
       observationWindowDurationSeconds: null,
+      finalBinWidthExposureSeconds: null,
       reasonCodes: merged,
     },
+    dualTimeDomain: null,
     diagnostics: {
       speedRowCount: 0,
       fsmRowCount: 0,
@@ -917,7 +802,11 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
     });
   }
 
-  const d8Full = computeD8V1(payload, input.tripMeta, failClosed);
+  const movingClock = buildDs4DbiW0MovingExposureClockEvidenceV1({
+    payload,
+    suppliedExposureSecondsEs: input.tripMeta?.exposureSecondsEs ?? null,
+  });
+  const d8Full = computeD8V1(payload, input.tripMeta, failClosed, movingClock);
 
   const d4: Ds4DbiW0SingleMetricResultV1 = {
     status: failClosed ? 'ABSTAIN' : d4Full.status,
@@ -954,6 +843,7 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
     emptyWindowCount: failClosed ? null : d8Full.emptyWindowCount,
     totalWindowSlots: failClosed ? null : d8Full.totalWindowSlots,
     eventCount: failClosed ? null : d8Full.eventCount,
+    finalBinWidthExposureSeconds: failClosed ? null : d8Full.finalBinWidthExposureSeconds,
     status: failClosed ? 'ABSTAIN' : d8Full.status,
     reasonCodes: mergeReasons(d8Full.reasonCodes),
   };
@@ -996,6 +886,7 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
     d5SpeedRoughnessMeanAbsDeltaKmhPerS: d5,
     d6StopStructure: d6,
     d8Burstiness: d8,
+    dualTimeDomain: failClosed ? null : movingClock.dualTime,
     diagnostics: {
       speedRowCount: payload.speeds.length,
       fsmRowCount: payload.fsmLabels.length,

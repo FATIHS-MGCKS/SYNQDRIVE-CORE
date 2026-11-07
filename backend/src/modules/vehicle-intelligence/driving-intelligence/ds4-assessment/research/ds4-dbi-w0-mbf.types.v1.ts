@@ -3,6 +3,8 @@
  * Pure functions; no Nest, no DB, no production flags.
  */
 
+import { DS4_ASSESSMENT_DRIVING_EXPOSURE_PROVENANCE_V2 } from '../ds4-assessment-driving-exposure.v1';
+
 export type Ds4DbiW0QualityTierV1 = 'STRICT' | 'RELAXED';
 
 /** Provenance for scientific interpretation — never conflate synthetic with sealed real. */
@@ -67,7 +69,30 @@ export type Ds4DbiW0MbfReasonCodeV1 =
   | 'MBF_W0_FAIL_CLOSED_DUPLICATE_EVENT_START_TIME'
   | 'MBF_W0_FAIL_CLOSED_EVENT_VALIDATION'
   | 'MBF_W0_FAIL_CLOSED_UNVERIFIED_SEALED_REAL_C4_CLAIM'
-  | 'MBF_W0_SYNTHETIC_CONTROL_SCENARIO';
+  | 'MBF_W0_SYNTHETIC_CONTROL_SCENARIO'
+  | 'MBF_W0_MOVING_EXPOSURE_METADATA_MISMATCH'
+  | 'MBF_W0_EVENT_QUALITY_NOT_OK_FOR_D8'
+  | 'MBF_W0_EVENT_START_OUTSIDE_MOVING_DIRECT_SUPPORT'
+  | 'MBF_W0_EVENT_START_IN_EXCLUDED_GAP'
+  | 'MBF_W0_EVENT_START_ON_INTERVAL_UPPER_BOUNDARY'
+  | 'MBF_W0_EVENT_START_OUTSIDE_MOVING_EXPOSURE_HORIZON';
+
+export type Ds4DbiW0DualTimeDomainDiagnosticsV1 = {
+  clockDomain: 'MOVING_EXPOSURE_PRIMARY' | 'WALL_CLOCK_SECONDARY';
+  wallClockStartUtc: string | null;
+  wallClockEndUtc: string | null;
+  elapsedWallClockSeconds: number | null;
+  movingExposureSeconds: number;
+  movingExposureSecondsRecomputed: number;
+  movingExposureMetadataSupplied: number | null;
+  movingExposureMetadataMismatch: boolean;
+  qualifyingIntervalCount: number;
+  excludedGapCount: number;
+  admittedEventCount: number;
+  excludedEventCount: number;
+  eventMappingReasonCodes: string[];
+  exposureProvenanceVersion: typeof DS4_ASSESSMENT_DRIVING_EXPOSURE_PROVENANCE_V2;
+};
 
 export type Ds4DbiW0SingleMetricResultV1 = {
   status: 'KNOWN' | 'ABSTAIN';
@@ -133,8 +158,10 @@ export type Ds4DbiW0TripKernelResultV1 = {
     observationWindowStartMsUtc: number | null;
     observationWindowEndMsUtc: number | null;
     observationWindowDurationSeconds: number | null;
+    finalBinWidthExposureSeconds: number | null;
     reasonCodes: Ds4DbiW0MbfReasonCodeV1[];
   };
+  dualTimeDomain: Ds4DbiW0DualTimeDomainDiagnosticsV1 | null;
   diagnostics: {
     speedRowCount: number;
     fsmRowCount: number;

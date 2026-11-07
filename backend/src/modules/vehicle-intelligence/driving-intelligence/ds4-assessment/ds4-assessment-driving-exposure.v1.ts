@@ -226,10 +226,25 @@ export function emptyDs4DrivingExposureV1(speedAuthority: Ds4SpeedAuthorityParti
   };
 }
 
-export function deriveDs4DrivingExposureV1(input: {
+export type Ds4EligibleExposureHalfOpenIntervalV1 = {
+  startMsUtc: number;
+  endMsUtc: number;
+  tauStartSeconds: number;
+  durationSeconds: number;
+};
+
+export function ds4MovingExposureMetadataEpsilonV1(eStar: number, esSupplied: number): number {
+  return Math.max(1e-3, 1e-6 * Math.max(eStar, esSupplied));
+}
+
+export function buildDs4EligibleExposureTimelineV1(input: {
   payload: DiV0MotionCoreShadowPayloadV1;
   speedAuthority: Ds4SpeedAuthorityPartitionV1 | null;
-}): Ds4DrivingExposureV1 {
+}): {
+  exposure: Ds4DrivingExposureV1;
+  intervals: Ds4EligibleExposureHalfOpenIntervalV1[];
+  acceptedSpeedLabelsUtc: string[];
+} {
   const {
     rows,
     fsmMap,
@@ -245,6 +260,8 @@ export function deriveDs4DrivingExposureV1(input: {
   let maxObservedIntervalGapS = 0;
   let exposureSeconds = 0;
   let distanceKm = 0;
+  let tauEnd = 0;
+  const intervals: Ds4EligibleExposureHalfOpenIntervalV1[] = [];
 
   for (const row of rows) {
     const fsm = fsmMap.get(row.bucketLabelUtc);
@@ -256,10 +273,12 @@ export function deriveDs4DrivingExposureV1(input: {
     }
   }
 
-  for (let i = 0; i < rows.length - 1; i++) {
+  for (let i = 0; i < rows.length - 1; i += 1) {
     const current = rows[i]!;
     const next = rows[i + 1]!;
-    const dtS = (parseBucketLabelMs(next.bucketLabelUtc) - parseBucketLabelMs(current.bucketLabelUtc)) / 1000;
+    const startMs = parseBucketLabelMs(current.bucketLabelUtc);
+    const endMs = parseBucketLabelMs(next.bucketLabelUtc);
+    const dtS = (endMs - startMs) / 1000;
     if (dtS <= 0) {
       continue;
     }
@@ -280,6 +299,13 @@ export function deriveDs4DrivingExposureV1(input: {
     qualifyingIntervalCount += 1;
     exposureSeconds += dtS;
     distanceKm += (speedKmh * dtS) / 3600;
+    intervals.push({
+      startMsUtc: startMs,
+      endMsUtc: endMs,
+      tauStartSeconds: tauEnd,
+      durationSeconds: dtS,
+    });
+    tauEnd += dtS;
   }
 
   const derivable =
@@ -290,7 +316,7 @@ export function deriveDs4DrivingExposureV1(input: {
     exposureSeconds > 0;
   const estimator = rows[0]?.estimator ?? null;
 
-  return {
+  const exposure: Ds4DrivingExposureV1 = {
     exposureSeconds: derivable ? exposureSeconds : 0,
     distanceKm: derivable ? distanceKm : 0,
     derivable,
@@ -310,4 +336,17 @@ export function deriveDs4DrivingExposureV1(input: {
       canonicalSpeedSeriesMissing,
     },
   };
+
+  return {
+    exposure,
+    intervals,
+    acceptedSpeedLabelsUtc: rows.map((r) => r.bucketLabelUtc),
+  };
+}
+
+export function deriveDs4DrivingExposureV1(input: {
+  payload: DiV0MotionCoreShadowPayloadV1;
+  speedAuthority: Ds4SpeedAuthorityPartitionV1 | null;
+}): Ds4DrivingExposureV1 {
+  return buildDs4EligibleExposureTimelineV1(input).exposure;
 }

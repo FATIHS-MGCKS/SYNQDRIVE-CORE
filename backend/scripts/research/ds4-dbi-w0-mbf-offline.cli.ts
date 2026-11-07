@@ -31,8 +31,16 @@ import type {
 import type { DiV0MotionCoreShadowPayloadV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/motion-core-shadow-worker/di-v0-motion-core-shadow.types';
 import type { MotionFsmStopEpisode } from '../../src/modules/vehicle-intelligence/driving-intelligence/core/kinematics/motion-fsm';
 import { bucketLabelPlusSeconds, parseBucketLabelMs } from '../../src/modules/vehicle-intelligence/driving-intelligence/core/kinematics/motion-core-grid';
-import { buildE9NullDistributionSelectionBlockV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-e9-null-selection-report.v1';
+import {
+  DS4_DBI_W0_E9_EXTERNAL_ELIGIBILITY_AUDIT_200K_V1,
+  buildE9NullDistributionSelectionBlockV1,
+} from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-e9-null-selection-report.v1';
 import { enrichSyntheticPayloadForW0V1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-synthetic-enrichment.v1';
+import {
+  buildDs4DbiW0MovingExposureClockEvidenceV1,
+  exposureBinWidthsSecondsV1,
+  mapMovingExposureTauSecondsToUtcMsV1,
+} from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-moving-exposure-clock.v1';
 
 /** Deterministic PRNG for E9 (LCG-style; research control only). */
 function mulberry32(seed: number): () => number {
@@ -51,35 +59,33 @@ function msToIsoLabelZ(ms: number): string {
 }
 
 /**
- * E9 — OCCUPANCY_CONDITIONED_NULL: one independent Uniform draw in each of the first 10 × 60s bins (conditions on ≥10 occupied bins),
- * then additional independent Uniform draws on [0, maxOff) until n unique start offsets. Not an unrestricted homogeneous Poisson/uniform null.
+ * E9 — OCCUPANCY_CONDITIONED_NULL on moving-exposure τ: one Uniform draw per first 10 exposure bins
+ * (unequal final width respected), then fill to n with Uniform τ on [0, E*).
  */
-function sampleE9OccupancyConditionedNullOffsetsV1(n: number, horizonMs: number, seed: number): number[] {
-  const windowMs = 60_000;
+function sampleE9OccupancyConditionedNullTauSecondsV1(n: number, eStar: number, seed: number): number[] {
   const rand = mulberry32(seed);
-  const maxOff = Math.max(1, horizonMs - 1000);
+  const widths = exposureBinWidthsSecondsV1(eStar, 60);
   const uniq = new Set<number>();
-  const numBins = Math.floor(horizonMs / windowMs);
-  for (let w = 0; w < Math.min(10, numBins); w += 1) {
-    const binStart = w * windowMs;
-    const binEnd = Math.min((w + 1) * windowMs, horizonMs) - 1000;
-    uniq.add(binStart + Math.floor(rand() * Math.max(1, binEnd - binStart)));
+  for (let w = 0; w < Math.min(10, widths.length); w += 1) {
+    const binStart = widths.slice(0, w).reduce((a, b) => a + b, 0);
+    const wk = widths[w]!;
+    const draw = rand() * Math.max(wk - 1e-6, wk);
+    uniq.add(binStart + draw);
   }
   let guard = 0;
   while (uniq.size < n && guard < n * 100_000) {
     guard += 1;
-    uniq.add(Math.floor(rand() * maxOff));
+    uniq.add(rand() * Math.max(eStar - 1e-9, eStar));
   }
   return [...uniq].sort((a, b) => a - b).slice(0, n);
 }
 
-/** E9 — unrestricted independent Uniform(start offsets) on [0, maxOff); allows empty 60s bins; may produce duplicate offsets (same-window stacking). */
-function sampleE9UnrestrictedUniformOffsetsV1(n: number, horizonMs: number, seed: number): number[] {
+/** E9 — unrestricted IID Uniform onsets in τ on [0, E*). */
+function sampleE9UnrestrictedUniformTauSecondsV1(n: number, eStar: number, seed: number): number[] {
   const rand = mulberry32(seed);
-  const maxOff = Math.max(1, horizonMs - 1000);
   const out: number[] = [];
   for (let i = 0; i < n; i += 1) {
-    out.push(Math.floor(rand() * maxOff));
+    out.push(rand() * Math.max(eStar - 1e-9, eStar));
   }
   return out.sort((a, b) => a - b);
 }
@@ -95,10 +101,9 @@ function runE9NullMonteCarloV1(input: {
   draws: number;
   seedStrideStart: number;
   nEv: number;
-  horizonMs: number;
-  t0ms: number;
-  sampleOffsets: (n: number, horizonMs: number, seed: number) => number[];
-  speedLabelsUtc: readonly string[];
+  eStar: number;
+  sampleTauSeconds: (n: number, eStar: number, seed: number) => number[];
+  basePayload: DiV0MotionCoreShadowPayloadV1;
   tripMeta: {
     tripId: string;
     sourceMotionRunId: string;
@@ -115,26 +120,38 @@ function runE9NullMonteCarloV1(input: {
   drawRecords: E9NullMonteCarloDrawRecordV1[];
   meanIod: number | null;
 } {
+  const clock0 = buildDs4DbiW0MovingExposureClockEvidenceV1({
+    payload: input.basePayload,
+    suppliedExposureSecondsEs: input.eStar,
+  });
   const records: E9NullMonteCarloDrawRecordV1[] = [];
   const acceptedIOD: number[] = [];
   let acceptedCount = 0;
   let abstainedCount = 0;
   for (let k = 0; k < input.draws; k += 1) {
     const seed = input.seedStrideStart + k;
-    const offs = input.sampleOffsets(input.nEv, input.horizonMs, seed);
-    const rr = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
-      tripMeta: input.tripMeta,
-      speedLabelsUtc: input.speedLabelsUtc,
-      events: offs.map((off) => ({
+    const tauStarts = input.sampleTauSeconds(input.nEv, input.eStar, seed);
+    const events: DiV0MotionCoreShadowPayloadV1['events'] = [];
+    for (const tau of tauStarts) {
+      const ms = mapMovingExposureTauSecondsToUtcMsV1(tau, clock0.intervals, input.eStar);
+      if (ms == null) {
+        continue;
+      }
+      events.push({
         kind: 'ACCELERATION' as const,
-        startLabel: msToIsoLabelZ(input.t0ms + off),
-        endLabel: msToIsoLabelZ(input.t0ms + off + 1000),
+        startLabel: msToIsoLabelZ(ms),
+        endLabel: msToIsoLabelZ(ms + 1000),
         startSpeedKmh: 40,
         endSpeedKmh: 41,
         deltaKmh: 1,
         quality: 'OK' as const,
         flags: [],
-      })),
+      });
+    }
+    const rr = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+      tripMeta: { ...input.tripMeta, exposureSecondsEs: input.eStar },
+      payload: input.basePayload,
+      events,
     });
     records.push({
       seed,
@@ -201,15 +218,17 @@ function runSyntheticControlsV1(): {
   e7: { scenario: string; d5Rough: number | null; reasonSample: string[] }[];
   e9: {
     observationWindow: {
-      durationSeconds: number;
-      startLabelUtc: string;
-      endLabelUtc: string;
+      movingExposureSeconds: number;
+      clockDomain: 'MOVING_EXPOSURE_PRIMARY';
+      wallClockStartLabelUtc: string | null;
+      wallClockEndLabelUtc: string | null;
+      elapsedWallClockSeconds: number | null;
     };
     eventCount: number;
     baseSeed: number;
     scenarios: {
       name: 'regular_spacing' | 'clustered' | 'occupancy_conditioned_null' | 'unrestricted_uniform_null_primary';
-      nullModel: 'STRUCTURED' | 'OCCUPANCY_CONDITIONED_NULL' | 'UNRESTRICTED_UNIFORM_ON_EXPOSURE';
+      nullModel: 'STRUCTURED' | 'OCCUPANCY_CONDITIONED_NULL' | 'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE';
       description: string;
       seed: number;
       d8: ReturnType<typeof computeDs4DbiW0D8BurstinessFromObservationWindowV1>;
@@ -238,7 +257,7 @@ function runSyntheticControlsV1(): {
         drawRecords: E9NullMonteCarloDrawRecordV1[];
       };
       unrestrictedUniformNull: {
-        model: 'UNRESTRICTED_UNIFORM_ON_EXPOSURE';
+        model: 'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE';
         selectionLimitation: string;
         draws: number;
         totalDraws: number;
@@ -256,6 +275,7 @@ function runSyntheticControlsV1(): {
           estimatedEligibilityRateApprox: number;
           methodologyNote: string;
         };
+        historicalWallClockEligibilityAudit?: typeof DS4_DBI_W0_E9_EXTERNAL_ELIGIBILITY_AUDIT_200K_V1;
         iodValuesAcceptedOnly: number[];
         meanIodAcceptedOnly: number | null;
         drawRecords: E9NullMonteCarloDrawRecordV1[];
@@ -369,8 +389,8 @@ function runSyntheticControlsV1(): {
     speedAuthority: 'C4_ONLY',
     shadowBundleVersion: 'CTRL',
     contentFingerprint: 'a'.repeat(64),
-    /** Grounds D8 in [t0, t0+660s) including empty trailing windows vs event-only span. */
-    exposureSecondsEs: 660,
+    /** B3 parity: canonical moving exposure E* for 720 labels (719 qualifying seconds). */
+    exposureSecondsEs: 719,
     distanceKm: 1,
   };
 
@@ -383,26 +403,37 @@ function runSyntheticControlsV1(): {
     };
   }
   const t0ms = parseBucketLabelMs(bucketLabelPlusSeconds(baseTime, 0));
-  const horizonMs = meta.exposureSecondsEs * 1000;
   const nEv = 12;
-  const windowMs = 60_000;
-  const eventOffsetsRegular = Array.from({ length: nEv }, (_, j) => Math.min(horizonMs - 2000, j * 55_000));
-  const eventOffsetsClustered: number[] = [5000, 25_000, windowMs + 5000, windowMs + 25_000];
+  const eStarCtrl = meta.exposureSecondsEs;
+  const clockCtrl = buildDs4DbiW0MovingExposureClockEvidenceV1({
+    payload: noisy,
+    suppliedExposureSecondsEs: eStarCtrl,
+  });
+  const eventsFromTauSeconds = (tauList: number[]): DiV0MotionCoreShadowPayloadV1['events'] =>
+    tauList
+      .map((tau) => {
+        const ms = mapMovingExposureTauSecondsToUtcMsV1(tau, clockCtrl.intervals, eStarCtrl);
+        if (ms == null) {
+          return null;
+        }
+        return {
+          kind: 'ACCELERATION' as const,
+          startLabel: msToIsoLabelZ(ms),
+          endLabel: msToIsoLabelZ(ms + 1000),
+          startSpeedKmh: 40,
+          endSpeedKmh: 41,
+          deltaKmh: 1,
+          quality: 'OK' as const,
+          flags: [],
+        };
+      })
+      .filter((e): e is NonNullable<typeof e> => e != null);
+  const tauRegular = [0, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600, 660];
+  const tauClustered: number[] = [1, 25, 61, 85];
   for (let w = 2; w <= 9; w += 1) {
-    eventOffsetsClustered.push(w * windowMs + 30_000);
+    tauClustered.push(w * 60 + 30);
   }
-  const eventsFromOffsets = (offsets: number[]): DiV0MotionCoreShadowPayloadV1['events'] =>
-    offsets.map((off) => ({
-      kind: 'ACCELERATION' as const,
-      startLabel: msToIsoLabelZ(t0ms + off),
-      endLabel: msToIsoLabelZ(t0ms + off + 1000),
-      startSpeedKmh: 40,
-      endSpeedKmh: 41,
-      deltaKmh: 1,
-      quality: 'OK' as const,
-      flags: [],
-    }));
-  noisy.events = eventsFromOffsets(eventOffsetsRegular);
+  noisy.events = eventsFromTauSeconds(tauRegular);
   const rNoise = computeDs4DbiW0MbfFromPayloadV1({
     payload: noisy,
     tripMeta: meta,
@@ -441,48 +472,45 @@ function runSyntheticControlsV1(): {
 
   // E9: structured baselines + two null models (occupancy-conditioned vs unrestricted uniform on exposure); Monte Carlo records all D8 outcomes.
   const e9BaseSeed = 0xe9d00142;
-  const speedLabsE9 = noisy.speeds.map((s) => s.bucketLabelUtc);
-  const eventOffsetsOccupancyNull = sampleE9OccupancyConditionedNullOffsetsV1(nEv, horizonMs, e9BaseSeed);
-  const eventOffsetsUnrestrictedPrimary = sampleE9UnrestrictedUniformOffsetsV1(nEv, horizonMs, e9BaseSeed);
+  const eventTauOccupancyNull = sampleE9OccupancyConditionedNullTauSecondsV1(nEv, eStarCtrl, e9BaseSeed);
+  const eventTauUnrestrictedPrimary = sampleE9UnrestrictedUniformTauSecondsV1(nEv, eStarCtrl, e9BaseSeed);
   const d8Regular = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
     tripMeta: meta,
-    speedLabelsUtc: speedLabsE9,
-    events: eventsFromOffsets(eventOffsetsRegular),
+    payload: noisy,
+    events: eventsFromTauSeconds(tauRegular),
   });
   const d8Clustered = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
     tripMeta: meta,
-    speedLabelsUtc: speedLabsE9,
-    events: eventsFromOffsets(eventOffsetsClustered),
+    payload: noisy,
+    events: eventsFromTauSeconds(tauClustered),
   });
   const d8OccupancyNullPrimary = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
     tripMeta: meta,
-    speedLabelsUtc: speedLabsE9,
-    events: eventsFromOffsets(eventOffsetsOccupancyNull),
+    payload: noisy,
+    events: eventsFromTauSeconds(eventTauOccupancyNull),
   });
   const d8UnrestrictedPrimary = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
     tripMeta: meta,
-    speedLabelsUtc: speedLabsE9,
-    events: eventsFromOffsets(eventOffsetsUnrestrictedPrimary),
+    payload: noisy,
+    events: eventsFromTauSeconds(eventTauUnrestrictedPrimary),
   });
   const nullDraws = 50;
   const conditionedMc = runE9NullMonteCarloV1({
     draws: nullDraws,
     seedStrideStart: e9BaseSeed + 1,
     nEv,
-    horizonMs,
-    t0ms,
-    sampleOffsets: sampleE9OccupancyConditionedNullOffsetsV1,
-    speedLabelsUtc: speedLabsE9,
+    eStar: eStarCtrl,
+    sampleTauSeconds: sampleE9OccupancyConditionedNullTauSecondsV1,
+    basePayload: noisy,
     tripMeta: meta,
   });
   const unrestrictedMc = runE9NullMonteCarloV1({
     draws: nullDraws,
     seedStrideStart: e9BaseSeed + 1 + nullDraws,
     nEv,
-    horizonMs,
-    t0ms,
-    sampleOffsets: sampleE9UnrestrictedUniformOffsetsV1,
-    speedLabelsUtc: speedLabsE9,
+    eStar: eStarCtrl,
+    sampleTauSeconds: sampleE9UnrestrictedUniformTauSecondsV1,
+    basePayload: noisy,
     tripMeta: meta,
   });
 
@@ -513,9 +541,11 @@ function runSyntheticControlsV1(): {
     ],
     e9: {
       observationWindow: {
-        durationSeconds: meta.exposureSecondsEs,
-        startLabelUtc: msToIsoLabelZ(t0ms),
-        endLabelUtc: msToIsoLabelZ(t0ms + horizonMs),
+        movingExposureSeconds: eStarCtrl,
+        clockDomain: 'MOVING_EXPOSURE_PRIMARY' as const,
+        wallClockStartLabelUtc: clockCtrl.dualTime.wallClockStartUtc,
+        wallClockEndLabelUtc: clockCtrl.dualTime.wallClockEndUtc,
+        elapsedWallClockSeconds: clockCtrl.dualTime.elapsedWallClockSeconds,
       },
       eventCount: nEv,
       baseSeed: e9BaseSeed,
@@ -544,20 +574,20 @@ function runSyntheticControlsV1(): {
         },
         {
           name: 'unrestricted_uniform_null_primary',
-          nullModel: 'UNRESTRICTED_UNIFORM_ON_EXPOSURE',
+          nullModel: 'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE',
           description:
-            'Twelve independent Uniform draws of event start offset on [0, Es−1s); empty 60s bins allowed; duplicates allowed (D8 bins stack).',
+            'Twelve independent Uniform draws of event onset in moving-exposure τ on [0, E*); empty τ bins allowed; duplicates stack in-bin.',
           seed: e9BaseSeed,
           d8: d8UnrestrictedPrimary,
         },
       ],
       scientificInterpretation: {
         summary:
-          'Compare structured layouts to two distinct null constructions: OCCUPANCY_CONDITIONED_NULL (occupancy-enforcing in early bins; not an exact conditional-IID-uniform reference) vs UNRESTRICTED_UNIFORM_ON_EXPOSURE (no empty-window forcing; censored by the same D8 support gate). Monte Carlo lists every draw; IOD summaries use D8-accepted draws only.',
+          'Compare structured layouts to two distinct null constructions: OCCUPANCY_CONDITIONED_NULL (occupancy-enforcing in early τ bins; not an exact conditional-IID-uniform reference) vs UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE (τ uniform on [0,E*); censored by the same D8 support gate). Monte Carlo lists every draw; IOD summaries use D8-accepted draws only.',
         monteCarloDoesNotImplyValidation:
           'Finite synthetic IOD values from this harness do not constitute scientific validation of E9 or W0; research-only reporting.',
         d8SupportGate:
-          'D8 may ABSTAIN per preregistered gates (e.g. MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS); abstentions are reported per draw, not silently dropped without record. Unrestricted uniform draws evaluated through D8 yield a censored reference — empiricalEligibilityRate is from this batch; see externalEligibilityScaleEvidence for a separate large-trial scale estimate.',
+          'D8 may ABSTAIN per preregistered gates on moving-exposure τ (e.g. MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS); abstentions are reported per draw. empiricalEligibilityRate is from this τ-native batch only; historical wall-clock 200k audit is not B3-comparable (see historicalWallClockEligibilityAudit).',
       },
       nullDistributions: {
         occupancyConditionedNull: {
@@ -572,7 +602,7 @@ function runSyntheticControlsV1(): {
             interpretationLimitation:
               'Accepted-only IOD here reflects D8-eligible draws under this construction; the sampler enforces early-bin occupancy rather than sampling from a fully explicit conditional IID-uniform law.',
             constructionSemantics:
-              'OCCUPANCY_CONDITIONED_NULL: one independent Uniform draw in each of the first ten 60s bins, then additional Uniform draws on [0, Es−1s) until n unique start offsets — an occupancy-enforcing recipe, not an exact conditional IID-uniform on exposure.',
+              'OCCUPANCY_CONDITIONED_NULL: one independent Uniform draw in each of the first ten τ exposure bins (widths w_k), then additional Uniform draws on [0, E*) until n unique τ onsets — occupancy-enforcing, not exact conditional IID-uniform on τ.',
             includeExternalEligibilityEvidence: false,
           }),
           seedStrideStart: e9BaseSeed + 1,
@@ -581,20 +611,21 @@ function runSyntheticControlsV1(): {
           drawRecords: conditionedMc.drawRecords,
         },
         unrestrictedUniformNull: {
-          model: 'UNRESTRICTED_UNIFORM_ON_EXPOSURE',
+          model: 'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE',
           selectionLimitation:
-            'Independent uniform start times on [0, Es−1s) with replacement; duplicate offsets stack in D8 bins. D8 support-gate censoring is severe for (Es=660s, n=12, minNonemptyWindows=10) — accepted-only IOD is not the full marginal unrestricted law.',
+            'Independent uniform τ onsets on [0, E*) with replacement; duplicate τ values stack in D8 τ bins. D8 support-gate censoring applies to this B3 batch — accepted-only IOD is not the full marginal unrestricted law.',
           draws: nullDraws,
           ...buildE9NullDistributionSelectionBlockV1({
-            model: 'UNRESTRICTED_UNIFORM_ON_EXPOSURE',
+            model: 'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE',
             totalDraws: nullDraws,
             mc: unrestrictedMc,
             interpretationLimitation:
-              'D8 preregistered support gate (min events + min nonempty 60s windows) censors most unrestricted draws; empiricalEligibilityRate is the observed acceptance in this batch only (0 accepted does not imply true eligibility is zero). externalEligibilityScaleEvidence records a separate audited large-MC scale rate.',
+              'D8 preregistered support gate (min events + min nonempty 60s τ windows) censors many unrestricted τ draws; empiricalEligibilityRate is this batch only.',
             constructionSemantics:
-              'UNRESTRICTED_UNIFORM_ON_EXPOSURE: n independent Uniform draws of event start offset on [0, Es−1s); empty 60s bins allowed; duplicates allowed (D8 counts stack in-bin).',
-            includeExternalEligibilityEvidence: true,
+              'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE: n independent Uniform draws of τ on [0, E*); unequal final bin width; duplicates allowed (in-bin stacking).',
+            includeExternalEligibilityEvidence: false,
           }),
+          historicalWallClockEligibilityAudit: DS4_DBI_W0_E9_EXTERNAL_ELIGIBILITY_AUDIT_200K_V1,
           seedStrideStart: e9BaseSeed + 1 + nullDraws,
           iodValuesAcceptedOnly: unrestrictedMc.acceptedIOD,
           meanIodAcceptedOnly: unrestrictedMc.meanIod,

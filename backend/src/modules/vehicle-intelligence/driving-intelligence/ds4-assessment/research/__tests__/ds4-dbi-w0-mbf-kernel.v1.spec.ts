@@ -126,10 +126,14 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     speedAuthority: 'C4_ONLY',
     shadowBundleVersion: 'x',
     contentFingerprint: 'a'.repeat(64),
-    /** Must cover all event starts under D8 fixed exposure window [t0, t0+Es). */
-    exposureSecondsEs: 900,
+    /** B3: supplied Es should match E* (N−1 for N contiguous 1 Hz labels). */
+    exposureSecondsEs: 129,
     distanceKm: 2,
   };
+
+  function mk720D8Payload() {
+    return mkMovingSeries(720, 40);
+  }
 
   it('numerical oracle: constant speed yields D4 ratio 0 and D5 mean delta 0', () => {
     const payload = mkMovingSeries(130, 40);
@@ -164,13 +168,16 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
   it('numerical oracle: D8 IOD with one event per first ten 60s bins', () => {
     const t0 = '2026-01-01T12:00:00Z';
     const t0ms = Date.parse(t0);
-    const esSec = 660;
-    const windowMs = 60_000;
-    const speedLabs = Array.from({ length: 720 }, (_, i) => new Date(t0ms + i * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+    const esSec = 719;
+    const payload = mk720D8Payload();
+    for (let i = 0; i < payload.speeds.length; i += 1) {
+      payload.speeds[i] = { ...payload.speeds[i]!, speedKmh: 40, bucketLabelUtc: new Date(t0ms + i * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z') };
+      payload.fsmLabels[i] = { ...payload.fsmLabels[i]!, bucketLabelUtc: payload.speeds[i]!.bucketLabelUtc };
+    }
     const offsets = [
-      ...Array.from({ length: 10 }, (_, w) => w * windowMs + 1000),
-      10 * windowMs + 1000,
-      10 * windowMs + 8000,
+      ...Array.from({ length: 10 }, (_, w) => w * 60_000 + 1000),
+      10 * 60_000 + 1000,
+      10 * 60_000 + 8000,
     ];
     const events = offsets.map((off) => ({
       kind: 'ACCELERATION' as const,
@@ -182,16 +189,17 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
       quality: 'OK' as const,
       flags: [],
     }));
+    payload.events = events;
     const d8 = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
       tripMeta: { ...meta, exposureSecondsEs: esSec },
-      speedLabelsUtc: speedLabs,
+      payload,
       events,
     });
     expect(d8.status).toBe('KNOWN');
     const n = 12;
-    const k = 11;
+    const k = 12;
     const mean = n / k;
-    const counts = [2, ...Array.from({ length: 10 }, () => 1)];
+    const counts = [...Array.from({ length: 10 }, () => 1), 2, 0];
     const sumSq = counts.reduce((a, x) => a + x * x, 0);
     const variance = (sumSq - (n * n) / k) / (k - 1);
     const expectedIod = variance / mean;
@@ -369,21 +377,32 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     expect(r.d6StopStructure.movingRunSplitReasonSample).toContain('MBF_W0_GAP_BREAKS_CONSECUTIVE_CHAIN');
   });
 
-  it('D8 uses fixed exposure window anchored at min(speed, event) starts', () => {
-    const payload = mkMovingSeries(130, 40);
-    const r = computeDs4DbiW0MbfFromPayloadV1({ payload, tripMeta: meta, qualityTier: 'STRICT', evidenceOrigin: 'SYNTHETIC_CONTROL' });
-    expect(r.d8Burstiness.observationWindowDurationSeconds).toBe(meta.exposureSecondsEs);
+  it('D8 uses moving-exposure horizon E* (B3) with parity-supplied Es', () => {
+    const payload = mk720D8Payload();
+    const meta720 = { ...meta, exposureSecondsEs: 719 };
+    const r = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta: meta720,
+      qualityTier: 'STRICT',
+      evidenceOrigin: 'SYNTHETIC_CONTROL',
+    });
+    expect(r.dualTimeDomain?.movingExposureSeconds).toBe(719);
+    expect(r.d8Burstiness.observationWindowDurationSeconds).toBe(719);
     expect(r.d8Burstiness.status).toBe('KNOWN');
   });
 
   it('E9: clustered vs regular sensitivity (shareWithin30s; fixed Es window) — scenarios need not both be KNOWN', () => {
     const t0 = '2026-01-01T12:00:00Z';
     const t0ms = Date.parse(t0);
-    const esSec = 660;
-    const horizonMs = esSec * 1000;
+    const esSec = 719;
     const windowMs = 60_000;
     const nEv = 12;
-    const speedLabs = Array.from({ length: 720 }, (_, i) => new Date(t0ms + i * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+    const payload = mk720D8Payload();
+    for (let i = 0; i < payload.speeds.length; i += 1) {
+      const lab = new Date(t0ms + i * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      payload.speeds[i] = { ...payload.speeds[i]!, bucketLabelUtc: lab, speedKmh: 40 };
+      payload.fsmLabels[i] = { ...payload.fsmLabels[i]!, bucketLabelUtc: lab };
+    }
     const mkEv = (offsetsMs: number[]) =>
       offsetsMs.map((off) => ({
         kind: 'ACCELERATION' as const,
@@ -395,7 +414,7 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
         quality: 'OK' as const,
         flags: [],
       }));
-    const regular = Array.from({ length: nEv }, (_, j) => Math.min(horizonMs - 2000, j * 55_000));
+    const regular = Array.from({ length: nEv }, (_, j) => j * 55_000);
     const rand = (seed: number) => {
       let a = seed >>> 0;
       return () => {
@@ -411,7 +430,7 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     const nullOffsets: number[] = [];
     for (let w = 0; w < 10; w += 1) {
       const binStart = w * windowMs;
-      const binEnd = Math.min((w + 1) * windowMs, horizonMs) - 1000;
+      const binEnd = Math.min((w + 1) * windowMs, esSec * 1000) - 1000;
       nullOffsets.push(binStart + Math.floor(rdraw() * Math.max(1, binEnd - binStart)));
     }
     nullOffsets.push(600_000 + 1000, 600_000 + 8000);
@@ -429,17 +448,17 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     const tripMetaLocal = { ...meta, exposureSecondsEs: esSec };
     const dReg = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
       tripMeta: tripMetaLocal,
-      speedLabelsUtc: speedLabs,
+      payload,
       events: mkEv(regular),
     });
     const dNull = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
       tripMeta: tripMetaLocal,
-      speedLabelsUtc: speedLabs,
+      payload,
       events: mkEv(nullOffsets.sort((a, b) => a - b)),
     });
     const dClust = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
       tripMeta: tripMetaLocal,
-      speedLabelsUtc: speedLabs,
+      payload,
       events: mkEv(clustered.sort((a, b) => a - b)),
     });
     expect(dReg.shareNextEventWithin30s).not.toBeNull();
@@ -451,9 +470,14 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
   it('E9: unrestricted uniform null may ABSTAIN under D8 window gate (no scientific failure)', () => {
     const t0 = '2026-01-01T12:00:00Z';
     const t0ms = Date.parse(t0);
-    const esSec = 660;
+    const esSec = 719;
     const nEv = 12;
-    const speedLabs = Array.from({ length: 720 }, (_, i) => new Date(t0ms + i * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+    const payload = mk720D8Payload();
+    for (let i = 0; i < payload.speeds.length; i += 1) {
+      const lab = new Date(t0ms + i * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      payload.speeds[i] = { ...payload.speeds[i]!, bucketLabelUtc: lab, speedKmh: 40 };
+      payload.fsmLabels[i] = { ...payload.fsmLabels[i]!, bucketLabelUtc: lab };
+    }
     /** Deterministic stack in first bin → insufficient nonempty windows under preregistered gate. */
     const unrestrictedOffsets = Array.from({ length: nEv }, (_, i) => i * 1000).sort((a, b) => a - b);
     const mkEv = (offsetsMs: number[]) =>
@@ -470,7 +494,7 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     const tripMetaLocal = { ...meta, exposureSecondsEs: esSec };
     const dUnres = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
       tripMeta: tripMetaLocal,
-      speedLabelsUtc: speedLabs,
+      payload,
       events: mkEv(unrestrictedOffsets),
     });
     expect(dUnres.status).toBe('ABSTAIN');

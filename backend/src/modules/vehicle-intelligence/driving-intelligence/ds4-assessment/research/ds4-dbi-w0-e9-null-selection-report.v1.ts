@@ -3,13 +3,14 @@
  * Aggregates abstention accounting and empirical eligibility from drawRecords without changing D8.
  */
 
-/** Independent audit: 200k-trial MC (~0.02251 P(D8 KNOWN)); not the same random stream as the offline 50-draw batch. */
+/** Historical wall-clock audit (~0.02251 P(D8 KNOWN)); **not comparable** to B3 τ-native D8 after F01. */
 export const DS4_DBI_W0_E9_EXTERNAL_ELIGIBILITY_AUDIT_200K_V1 = {
   source: 'ARCHITECT_SELECTION_GATE_AUDIT_2026_11_06',
   totalTrials: 200_000,
   estimatedEligibilityRateApprox: 0.02251,
   methodologyNote:
-    'Separate deterministic MC with same mulberry32 PRNG and E9 geometry (Es=660s, n=12, 11 × 60s slots); not produced by this CLI draw batch.',
+    'Historical wall-clock D8 reference (Es=660s wall horizon, 11 × 60s slots). Superseded for B3 interpretation by offline τ-native unrestricted draws in ds4-dbi-w0-mbf-offline.cli.ts.',
+  b3Comparable: false,
 } as const;
 
 export type E9NullMonteCarloDrawRecordLikeV1 = {
@@ -34,7 +35,10 @@ function abstentionReasonKeyV1(r: E9NullMonteCarloDrawRecordLikeV1): string {
 
 /** Verdict when empirical acceptance is zero in a finite batch (not "the probability is zero"). */
 export function buildE9SelectionHazardV1(input: {
-  model: 'OCCUPANCY_CONDITIONED_NULL' | 'UNRESTRICTED_UNIFORM_ON_EXPOSURE';
+  model:
+    | 'OCCUPANCY_CONDITIONED_NULL'
+    | 'UNRESTRICTED_UNIFORM_ON_EXPOSURE'
+    | 'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE';
   empiricalEligibilityRate: number;
   totalDraws: number;
   abstainedCount: number;
@@ -60,10 +64,13 @@ export function buildE9SelectionHazardV1(input: {
   }
 
   const highCensorship = input.empiricalEligibilityRate === 0 || input.abstainedCount / Math.max(1, input.totalDraws) > 0.85;
+  const unrestrictedLabel =
+    input.model === 'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE'
+      ? 'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE (τ on [0,E*))'
+      : 'UNRESTRICTED_UNIFORM_ON_EXPOSURE';
   return {
     verdict: highCensorship ? 'HIGH_D8_GATE_CENSORSHIP' : 'LOW_FINITE_BATCH_CENSORSHIP_RISK',
-    summary:
-      'UNRESTRICTED_UNIFORM_ON_EXPOSURE draws are evaluated through the same preregistered D8 support gate; most draws may ABSTAIN (e.g. insufficient nonempty 60s windows). IOD summaries on accepted-only paths therefore reflect a censored reference, not the full unrestricted process.',
+    summary: `${unrestrictedLabel} draws are evaluated through the same preregistered D8 support gate on moving exposure; many finite batches ABSTAIN (e.g. insufficient nonempty 60s τ windows). IOD summaries on accepted-only paths reflect censored reference draws, not the full unrestricted process.`,
     empiricalRateFromThisRunOnly: input.empiricalEligibilityRate,
     finiteBatchWarning,
     d8SupportGateAffectsUnrestrictedReference: true,
@@ -71,7 +78,10 @@ export function buildE9SelectionHazardV1(input: {
 }
 
 export function buildE9NullDistributionSelectionBlockV1(input: {
-  model: 'OCCUPANCY_CONDITIONED_NULL' | 'UNRESTRICTED_UNIFORM_ON_EXPOSURE';
+  model:
+    | 'OCCUPANCY_CONDITIONED_NULL'
+    | 'UNRESTRICTED_UNIFORM_ON_EXPOSURE'
+    | 'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE';
   totalDraws: number;
   mc: E9NullMonteCarloCoreResultLikeV1;
   /** Extra narrative for unrestricted vs occupancy */
