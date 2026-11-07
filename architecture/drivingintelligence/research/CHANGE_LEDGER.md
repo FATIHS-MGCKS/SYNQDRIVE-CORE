@@ -2819,3 +2819,13 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | No B3/B2 model, D8 thresholds, F04, motion/FSM, deploy |
 | REMAINING | GitHub required checks on PR; unrelated repo `tsc` debt (FSD/service-compliance) |
 
+### 2026-11-07 — DS4 DBI W0 F03 selection calibration v1 (A+B+C)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w0-f03-selection-calibration.v1.ts`: exact occupancy DP, conditional IOD enumeration, Wilson MC cross-check, trip `d8SelectionCalibrationResearch`, offline sensitivity matrix; evidence doc F03 v1 |
+| WHY | Architect F03 options A+B+C under B3 τ — explicit selection science without threshold changes |
+| VALIDATION | Jest oracles 0.02252486 / 0.28260870 (660) and 0.02806004 / 0.37711880 (665); W0 regression |
+| NON_EFFECTS | D8 gates frozen; no scientific validation claim; 200k audit remains `b3Comparable: false` |
+| REMAINING | Real C4 preregistration; W1 blocked |
+

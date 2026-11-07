@@ -17,6 +17,7 @@ import {
   buildDs4DbiW0MovingExposureClockEvidenceV1,
   computeDs4DbiW0D8BurstinessTauNativeV1,
 } from './ds4-dbi-w0-moving-exposure-clock.v1';
+import { buildD8SelectionCalibrationResearchV1 } from './ds4-dbi-w0-f03-selection-calibration.v1';
 
 export type Ds4DbiW0TripMetaV1 = {
   tripId: string;
@@ -631,6 +632,7 @@ function emptyTripResultV1(
       reasonCodes: merged,
     },
     dualTimeDomain: null,
+    d8SelectionCalibrationResearch: null,
     diagnostics: {
       speedRowCount: 0,
       fsmRowCount: 0,
@@ -888,6 +890,17 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
     d6StopStructure: d6,
     d8Burstiness: d8,
     dualTimeDomain: failClosed ? null : movingClock.dualTime,
+    d8SelectionCalibrationResearch:
+      failClosed || movingClock.movingExposureSeconds <= 0
+        ? null
+        : buildD8SelectionCalibrationResearchV1({
+            movingExposureSeconds: movingClock.movingExposureSeconds,
+            tauOnsetsSeconds: movingClock.admitted.map((a) => a.tauSeconds),
+            observedD8Status: d8.status,
+            observedTotalBins: d8.totalWindowSlots,
+            observedNonemptyBins: d8.nonEmptyWindowCount,
+            observedD8ReasonCodes: d8.reasonCodes,
+          }),
     diagnostics: {
       speedRowCount: payload.speeds.length,
       fsmRowCount: payload.fsmLabels.length,

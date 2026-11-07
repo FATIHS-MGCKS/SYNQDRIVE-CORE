@@ -1,3 +1,5 @@
+import type { Ds4DbiW0D8SelectionCalibrationResearchV1 } from './ds4-dbi-w0-f03-selection-calibration.v1';
+
 /**
  * DS4 Driving Behavior Intelligence — W0 Motion Behavior Fingerprint (research only).
  * Pure functions; no Nest, no DB, no production flags.
@@ -162,6 +164,8 @@ export type Ds4DbiW0TripKernelResultV1 = {
     reasonCodes: Ds4DbiW0MbfReasonCodeV1[];
   };
   dualTimeDomain: Ds4DbiW0DualTimeDomainDiagnosticsV1 | null;
+  /** F03 selection calibration — research-only; does not change d8Burstiness.status. */
+  d8SelectionCalibrationResearch: Ds4DbiW0D8SelectionCalibrationResearchV1 | null;
   diagnostics: {
     speedRowCount: number;
     fsmRowCount: number;

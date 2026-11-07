@@ -45,6 +45,12 @@ import {
   buildE9B3ReferenceSnapshotV1,
   runE9TauNativeMonteCarloV1,
 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-e9-tau-native-null.v1';
+import {
+  buildF03PatternSensitivityV1,
+  buildF03SensitivityMatrixV1,
+  exactUniformTauConditionalIodReferenceV1,
+  exactUniformTauD8EligibilityProbabilityV1,
+} from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-f03-selection-calibration.v1';
 
 /** Deterministic PRNG for E9 (LCG-style; research control only). */
 function mulberry32(seed: number): () => number {
@@ -750,12 +756,36 @@ async function main(): Promise<void> {
     inputFeasibilityMatrix: matrix,
     tripResultsStrict: results,
     syntheticControls: controls,
+    f03SelectionCalibration: {
+      architectOptions: 'A+B+C (D deferred)',
+      independentOracles: {
+        n12E660: {
+          exactPKnown: exactUniformTauD8EligibilityProbabilityV1({ eventCount: 12, movingExposureSeconds: 660 }),
+          conditionalIod: exactUniformTauConditionalIodReferenceV1({ eventCount: 12, movingExposureSeconds: 660 }),
+        },
+        n12E665: {
+          exactPKnown: exactUniformTauD8EligibilityProbabilityV1({ eventCount: 12, movingExposureSeconds: 665 }),
+          conditionalIod: exactUniformTauConditionalIodReferenceV1({ eventCount: 12, movingExposureSeconds: 665 }),
+        },
+      },
+      sensitivityMatrixUniformTau: buildF03SensitivityMatrixV1({ mcTrials: 12_000 }),
+      patternSensitivityNotIidNull: buildF03PatternSensitivityV1(),
+      estimandLabels: [
+        'OBSERVED_TRIP_METRIC',
+        'UNRESTRICTED_RESEARCH_DIAGNOSTIC',
+        'NULL_MODEL_REFERENCE',
+        'CONDITIONAL_NULL_REFERENCE',
+      ],
+      scientificValidationClaim: false,
+      tripLevelDiagnosticsField: 'd8SelectionCalibrationResearch',
+    },
     scientificNote: [
       'SYNTHETIC_ONLY: evidenceOrigin SYNTHETIC_P2_ENRICHMENT / SYNTHETIC_CONTROL — 1Hz speeds, FSM, and stops are methodological fixtures from sealed P2 timing columns, not raw sealed C4 gzip.',
       'F01 B3 clock: moving exposure E* is the primary D8 horizon; canonical UTC→τ maps admitted OK event onsets through eligible half-open intervals; dualTimeDomain diagnostics report wall clock vs E*, gaps, and admission/exclusion reason codes.',
       'D8: τ-native binning with K=ceil(E*/60), unequal final exposure-bin width, fixed preregistered support gates (min events, min nonempty windows); burst metrics computed on admitted τ only — trip results may ABSTAIN when supplied Es metadata mismatches recomputed E* (U3).',
       'E9: OCCUPANCY_CONDITIONED_NULL is an occupancy-enforcing τ construction (not an exact conditional IID-uniform law); UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE draws τ IID Uniform on [0,E*) with τ-native Monte Carlo evaluation (no UTC second quantization on null draws).',
-      'Selection reporting: empiricalEligibilityRate, abstentionReasonCounts, accepted-only IOD (meanIodAcceptedOnly) — censored by the same D8 gate; not scientific validation.',
+      'F03 (A+B+C): exact P(D8 KNOWN|Uniform τ) via multinomial occupancy DP; conditional IOD reference via enumeration when supported; per-trip d8SelectionCalibrationResearch separates observed gate outcome from unrestricted diagnostic — never promotes ABSTAIN to KNOWN.',
+      'Selection reporting: empiricalEligibilityRate, abstentionReasonCounts, accepted-only IOD — censored by frozen D8 gate; not scientific validation.',
       'historicalWallClockEligibilityAudit (~200k, b3Comparable=false) is retained for provenance only — wall-clock Es horizon superseded for B3 interpretation.',
       'sealedRealC4StatisticalEligibility=false; independentScientificValidationStatus=NOT_EVALUATED; verified SEALED_REAL_C4 loader deferred to W1.',
       'P2 placeholder events (1970-01-01) stripped before kernel; sealedReferenceContentFingerprintSha256 is CSV attestation metadata, not JSON.stringify(payload) digest.',
