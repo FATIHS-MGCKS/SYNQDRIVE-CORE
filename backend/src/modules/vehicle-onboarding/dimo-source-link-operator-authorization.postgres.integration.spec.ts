@@ -3,6 +3,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { PrismaService } from '@shared/database/prisma.service';
 import { DimoSourceLinkOperatorAuthorizationService } from './services/dimo-source-link-operator-authorization.service';
 import { VehicleOnboardingError } from './errors/vehicle-onboarding.errors';
 
@@ -33,7 +34,7 @@ async function ensurePlatformUser(
   jest.setTimeout(60_000);
   const prisma = new PrismaClient();
   const authz = () =>
-    new DimoSourceLinkOperatorAuthorizationService({ prisma } as never);
+    new DimoSourceLinkOperatorAuthorizationService(prisma as unknown as PrismaService);
 
   afterAll(async () => {
     await prisma.$disconnect();
