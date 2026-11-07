@@ -53,8 +53,10 @@ promtool_check_rules_file() {
     return $?
   fi
   if command -v docker >/dev/null 2>&1; then
-    docker run --rm -v "${dir}:/rules:ro" prom/prometheus:v2.54.1 \
-      promtool check rules "/rules/${base}"
+    # prom/prometheus image ENTRYPOINT is the prometheus binary — promtool must be the entrypoint.
+    docker run --rm --entrypoint promtool \
+      -v "${dir}:/rules:ro" prom/prometheus:v2.54.1 \
+      check rules "/rules/${base}"
     return $?
   fi
   echo "ERROR: promtool unavailable — cannot validate candidate Prometheus rules ($(basename "$rules_file"))" >&2
@@ -292,9 +294,15 @@ refresh_grafana() {
   echo "Grafana: configs synced to $GRAFANA_DIR (container not running; set MONITORING_AUTO_BOOTSTRAP=1 to install)"
 }
 
-echo "==> SynqDrive monitoring refresh (release: $SYNQDRIVE_ROOT)"
-refresh_prometheus
-refresh_alertmanager
-refresh_exporters
-refresh_grafana
-echo "==> Monitoring refresh complete"
+vps_refresh_monitoring_main() {
+  echo "==> SynqDrive monitoring refresh (release: $SYNQDRIVE_ROOT)"
+  refresh_prometheus
+  refresh_alertmanager
+  refresh_exporters
+  refresh_grafana
+  echo "==> Monitoring refresh complete"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  vps_refresh_monitoring_main "$@"
+fi
