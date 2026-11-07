@@ -20,8 +20,10 @@ import {
   garwoodPoissonRatePerMinuteCiV1,
   DS4_DBI_D8_V2_NULL_MC_SEED_V1,
   DS4_DBI_D8_V2_RESEARCH_NMIN_V1,
+  DS4_DBI_D8_V2_SPEED_AUTHORITY_RESEARCH_OVERRIDE_INFERRED_V1,
   greenwoodNormalizedSpacingsV1,
   greenwoodNullExpectationV1,
+  greenwoodUpperTailPValueV1,
   mulberry32D8V2,
   sampleGreenwoodNullDrawV1,
   verifyDs4DbiD8V2W0EvaluationContextV1,
@@ -158,7 +160,7 @@ function runKernelAndV2(
     exposureSecondsEs: exposure.exposureSeconds,
     distanceKm: 10,
   };
-  let kernel = computeDs4DbiW0MbfFromPayloadV1({
+  const kernel = computeDs4DbiW0MbfFromPayloadV1({
     payload,
     tripMeta,
     qualityTier: 'STRICT',
@@ -298,7 +300,7 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
     expect(v2.inference.status).toBe('INSUFFICIENT_INFORMATION');
   });
 
-  it('ten clustered events → statistical inference (V1 may abstain on windows)', () => {
+  it('ten clustered events with FULL coverage → statistical inference (V1 may abstain on windows)', () => {
     const clustered = [100, 102, 104, 106, 108, 200, 202, 204, 206, 208];
     const payload = mkUniformMovingPayload({ eStarSeconds: 900, eventTauSeconds: clustered });
     const { kernel, v2 } = runKernelAndV2(payload, 900);
@@ -306,6 +308,26 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
     expect(v2.inference.status).toBe('STATISTICAL_RESULT_AVAILABLE');
     expect(v2.inference.observedGreenwoodG).not.toBeNull();
     expect(kernel.d8Burstiness.status).toBe('ABSTAIN');
+    expect(v2.descriptive.coverageClass).toBe('FULL');
+  });
+
+  it('ten events with PARTIAL coverage → descriptive only, no qualified inference', () => {
+    const clustered = [100, 102, 104, 106, 108, 200, 202, 204, 206, 208];
+    const payload = mkUniformMovingPayload({ eStarSeconds: 900, eventTauSeconds: clustered });
+    payload.contract.sparse = {
+      channelOutcome: 'SPARSE',
+      comparable: true,
+      sampleCount: 0,
+      samples: [],
+      limitations: ['AUDIT_PARTIAL_COVERAGE_SYNTHETIC'],
+    };
+    const { v2 } = runKernelAndV2(payload, 900);
+    expect(v2.descriptive.coverageClass).toBe('PARTIAL');
+    expect(v2.descriptive.admittedEventCount).toBe(10);
+    expect(v2.inference.status).toBe('INSUFFICIENT_INFORMATION');
+    expect(v2.inference.reasonCodes).toContain('D8V2_COVERAGE_PARTIAL_NO_STATISTICAL_INFERENCE');
+    expect(v2.inference.pValueUpper).toBeNull();
+    expect(v2.inference.observedGreenwoodG).toBeNull();
   });
 
   it('fifteen evenly distributed events → statistical inference', () => {
@@ -373,6 +395,13 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
       expect(v2.v1Reference.status).toBe(kernel.d8Burstiness.status);
       expect(v2.v1Reference.indexOfDispersion).toBe(kernel.d8Burstiness.indexOfDispersion);
       expect(v2.contractVersion).toBe('ds4-dbi-d8-v2-research-v1');
+      expect(v2.descriptive.status).toBe('DESCRIPTIVE_RESULT_AVAILABLE');
+      expect(v2.descriptive.coverageLimitations).toContain(
+        DS4_DBI_D8_V2_SPEED_AUTHORITY_RESEARCH_OVERRIDE_INFERRED_V1,
+      );
+      expect(v2.inference.status).toBe('INSUFFICIENT_INFORMATION');
+      expect(v2.inference.reasonCodes).toContain('D8V2_SPEED_AUTHORITY_RESEARCH_OVERRIDE_INFERRED');
+      expect(v2.inference.pValueUpper).toBeNull();
     }
 
     const w1b1Load = loadDs4DbiW1b1LocalEvidenceV1({ fixtureId: 'W1B1_SYNTHETIC_POSITIVE', repositoryRoot: REPO_ROOT });
@@ -510,7 +539,12 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
     });
     expect(v2.w0TripFailClosed).toBe(false);
     expect(v2.descriptive.status).toBe('DESCRIPTIVE_RESULT_AVAILABLE');
-    expect(v2.inference.status).toBe('STATISTICAL_RESULT_AVAILABLE');
+    expect(v2.descriptive.coverageLimitations).toContain(
+      DS4_DBI_D8_V2_SPEED_AUTHORITY_RESEARCH_OVERRIDE_INFERRED_V1,
+    );
+    expect(v2.inference.status).toBe('INSUFFICIENT_INFORMATION');
+    expect(v2.inference.reasonCodes).toContain('D8V2_SPEED_AUTHORITY_RESEARCH_OVERRIDE_INFERRED');
+    expect(v2.inference.pValueUpper).toBeNull();
     const w1c = projectDs4DbiW1cTripAssessmentFromW0KernelV1(kernel);
     expect(w1c.ok && w1c.summary.tripOutcome).toBe('PARTIAL');
   });
@@ -705,6 +739,14 @@ describe('ds4-dbi-d8-v2 garwood exact CIs', () => {
 });
 
 describe('ds4-dbi-d8-v2 greenwood primitives', () => {
+  it('upper-tail MC p uses (ge+1)/(N+1) and is never zero', () => {
+    const samples = new Array(5000).fill(1);
+    const tail = greenwoodUpperTailPValueV1(2, samples);
+    expect(tail.pValueUpper).toBeGreaterThan(0);
+    expect(tail.pValueUpper).toBeCloseTo(1 / 5001, 8);
+    expect(greenwoodUpperTailPValueV1(0.5, []).pValueUpper).toBe(1);
+  });
+
   it('power sensitivity increases with n (research table sanity)', () => {
     const n = 10;
     const nullRef = buildGreenwoodConditionalNullReferenceV1({ eventCount: n, nullDraws: 5000, seed: 7 });

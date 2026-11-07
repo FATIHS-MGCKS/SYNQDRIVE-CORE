@@ -37,7 +37,13 @@ export type Ds4DbiD8V2ReasonCodeV1 =
   | 'D8V2_COVERAGE_DEGRADED'
   | 'D8V2_INSUFFICIENT_EVENTS'
   | 'D8V2_METADATA_MISMATCH'
-  | 'D8V2_NO_STATISTICAL_INFERENCE_AT_SMALL_N';
+  | 'D8V2_NO_STATISTICAL_INFERENCE_AT_SMALL_N'
+  | 'D8V2_COVERAGE_PARTIAL_NO_STATISTICAL_INFERENCE'
+  | 'D8V2_SPEED_AUTHORITY_RESEARCH_OVERRIDE_INFERRED';
+
+/** Descriptive coverage limitation when historical replay supplies inferred speed authority. */
+export const DS4_DBI_D8_V2_SPEED_AUTHORITY_RESEARCH_OVERRIDE_INFERRED_V1 =
+  'SPEED_AUTHORITY_RESEARCH_OVERRIDE_INFERRED' as const;
 
 export type Ds4DbiD8V2W0ContextMismatchCodeV1 =
   | 'D8V2_CTX_TRIP_ID_MISMATCH'
@@ -279,7 +285,8 @@ export function greenwoodUpperTailPValueV1(
       ge += 1;
     }
   }
-  const p = ge / nullSamples.length;
+  const n = nullSamples.length;
+  const p = (ge + 1) / (n + 1);
   return { pValueUpper: p, percentile: 1 - p };
 }
 
@@ -597,23 +604,28 @@ function eventKindCounts(
   return { acceleration, braking, other, refs };
 }
 
-export function computeDs4DbiD8V2EventIntelligenceV1(input: {
+function computeDs4DbiD8V2EventIntelligenceV1(input: {
   payload: DiV0MotionCoreShadowPayloadV1;
   clock: ReturnType<typeof buildDs4DbiW0MovingExposureClockEvidenceV1>;
   v1D8: Ds4DbiW0TripKernelResultV1['d8Burstiness'];
   w0TripFailClosed: boolean;
   w0TripFailClosedReasonCodes: readonly Ds4DbiW0MbfReasonCodeV1[];
+  speedAuthorityResearchOverrideApplied?: boolean;
   nullDraws?: number;
   seed?: number;
 }): Ds4DbiD8V2ResultV1 {
   const failClosed = input.w0TripFailClosed;
   const speedAuthority = resolveW0SpeedAuthorityPartitionV1(input.payload);
-  const { coverageClass, limitations: coverageLimitations } = resolveD8V2CoverageClassV1({
+  const { coverageClass, limitations: coverageLimitationsBase } = resolveD8V2CoverageClassV1({
     derivable: input.clock.derivable,
     payload: input.payload,
     speedAuthority,
     metadataMismatch: input.clock.metadataMismatch,
   });
+  const coverageLimitations = [...coverageLimitationsBase];
+  if (input.speedAuthorityResearchOverrideApplied) {
+    coverageLimitations.push(DS4_DBI_D8_V2_SPEED_AUTHORITY_RESEARCH_OVERRIDE_INFERRED_V1);
+  }
 
   const dual = input.clock.dualTime;
   const eStar = input.clock.derivable ? input.clock.movingExposureSeconds : null;
@@ -748,6 +760,12 @@ export function computeDs4DbiD8V2EventIntelligenceV1(input: {
       pValue = tail.pValueUpper;
       percentile = tail.percentile;
     }
+  } else if (input.speedAuthorityResearchOverrideApplied) {
+    inferStatus = 'INSUFFICIENT_INFORMATION';
+    inferReasons.push('D8V2_SPEED_AUTHORITY_RESEARCH_OVERRIDE_INFERRED');
+  } else if (coverageClass !== 'FULL') {
+    inferStatus = 'INSUFFICIENT_INFORMATION';
+    inferReasons.push('D8V2_COVERAGE_PARTIAL_NO_STATISTICAL_INFERENCE');
   } else {
     const normalized = sortedTau.map((t) => t / eStar);
     observed = greenwoodNormalizedSpacingsV1(normalized);
@@ -832,12 +850,14 @@ export function computeDs4DbiD8V2FromW0ContextV1(input: {
   const failBinding = deriveDs4DbiD8V2W0TripFailClosedV1(input.kernel);
   const tripIntegrityBlocked =
     failBinding.tripFailClosed || failBinding.bindingRejected || contextMismatch;
+  const researchOverrideApplied =
+    !tripIntegrityBlocked && input.researchSpeedAuthorityPartitionOverride != null;
   const clock = buildDs4DbiW0MovingExposureClockEvidenceV1({
     payload: input.payload,
     suppliedExposureSecondsEs: input.tripMeta?.exposureSecondsEs ?? null,
-    researchSpeedAuthorityPartitionOverride: tripIntegrityBlocked
-      ? undefined
-      : input.researchSpeedAuthorityPartitionOverride,
+    researchSpeedAuthorityPartitionOverride: researchOverrideApplied
+      ? input.researchSpeedAuthorityPartitionOverride
+      : undefined,
   });
   const core = computeDs4DbiD8V2EventIntelligenceV1({
     payload: input.payload,
@@ -845,6 +865,7 @@ export function computeDs4DbiD8V2FromW0ContextV1(input: {
     v1D8: input.kernel.d8Burstiness,
     w0TripFailClosed: tripIntegrityBlocked,
     w0TripFailClosedReasonCodes: failBinding.typedReasons,
+    speedAuthorityResearchOverrideApplied: researchOverrideApplied,
     nullDraws: input.nullDraws,
     seed: input.seed,
   });
