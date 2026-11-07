@@ -110,6 +110,11 @@ jobs:
         working-directory: backend
       - run: npm run test:vehicle-detail:verify:unit
         working-directory: backend
+      - name: VPS monitoring promtool contract (EXP021 S4P2)
+        working-directory: backend
+        env:
+          PROMTOOL_VERSION: '2.54.1'
+        run: npm run test:di:s4p2:vps-monitoring-contract
 
   backend-ds4-motion-gap-bridge-safety:
     name: DS4 motion FSM gap-bridge safety gate
