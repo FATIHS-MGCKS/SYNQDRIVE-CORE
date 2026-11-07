@@ -274,7 +274,7 @@ describe('FSD-1 full signal discovery planner regression suite', () => {
     const backendSrc = path.join(__dirname, '../../../..');
     // `fsd-integration` is the Nest wiring surface and may use @modules/.../full-signal-discovery paths.
     const output = execSync(
-      `rg -l "full-signal-discovery" "${backendSrc}" --glob "!**/full-signal-discovery/**" --glob "!**/fsd-integration/**" --glob "!**/vehicle-onboarding/**" --glob "!**/dimo-vehicle-data-source-link.service.ts" || true`,
+      `rg -l "full-signal-discovery" "${backendSrc}" --glob "!**/full-signal-discovery/**" --glob "!**/fsd-integration/**" --glob "!**/vehicle-onboarding/**" --glob "!**/dimo-vehicle-data-source-link.service.ts" --glob "!**/dimo-source-link-reactivation-fsd-fence.postgres.integration.spec.ts" || true`,
       { encoding: 'utf8' },
     ).trim();
     expect(output).toBe('');

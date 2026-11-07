@@ -242,6 +242,7 @@ export class DimoVehicleDataSourceLinkService {
         {
           deactivatedAt: inactiveMatch.deactivatedAt,
           metadata: inactiveMatch.metadata,
+          deactivationReason: inactiveMatch.deactivationReason,
         },
         input.provenance ?? 'manual',
       );
@@ -753,7 +754,6 @@ export class DimoVehicleDataSourceLinkService {
 
     const run = async (tx: DbClient): Promise<EnsureDimoVehicleDataSourceLinkResult> => {
       const txClient = tx as Prisma.TransactionClient;
-      const now = new Date();
       const registryLifecycle = await lockVehicleRowForLifecycleMutation(txClient, {
         organizationId: params.input.organizationId,
         vehicleId: params.input.vehicleId,
@@ -787,6 +787,8 @@ export class DimoVehicleDataSourceLinkService {
         vehicleId: params.input.vehicleId,
         providerSourceLinkId: params.inactiveLinkId,
       });
+
+      const now = new Date();
 
       const linkRow = await txClient.vehicleDataSourceLink.findFirst({
         where: {

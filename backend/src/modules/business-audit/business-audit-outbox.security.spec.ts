@@ -6,7 +6,9 @@ import { BusinessAuditOutboxMetricsService } from './business-audit-outbox.metri
 import { BusinessAuditService } from './business-audit.service';
 import { BusinessAuditAction } from './business-audit.constants';
 import {
+  hashBusinessAuditValue,
   sanitizeBusinessAuditValue,
+  summarizeBusinessAuditValue,
   scanBusinessAuditPayloadForSecrets,
 } from './business-audit-sanitize.util';
 import { buildBusinessAuditIdempotencyKey } from './business-audit-idempotency.util';
@@ -50,6 +52,10 @@ describe('business audit outbox', () => {
   });
 
   describe('BusinessAuditOutboxRepository', () => {
+    function rawSqlBindValues(queryRaw: jest.Mock): unknown[] {
+      return queryRaw.mock.calls[0]?.slice(1) ?? [];
+    }
+
     const buildTx = (overrides?: {
       inserted?: boolean;
       existing?: Record<string, unknown>;
@@ -93,6 +99,17 @@ describe('business audit outbox', () => {
     };
 
     it('stores hashed summaries via raw SQL insert path', async () => {
+      const beforePayload = {
+        document: { extractedJson: { licenseNumber: 'PLAIN-123' } },
+        token: 'super-secret-token',
+        status: 'PENDING',
+      };
+      const afterPayload = { status: 'DRAFT' };
+      const expectedBeforeSummary = summarizeBusinessAuditValue(beforePayload);
+      const expectedAfterSummary = summarizeBusinessAuditValue(afterPayload);
+      const expectedBeforeHash = hashBusinessAuditValue(beforePayload);
+      const expectedAfterHash = hashBusinessAuditValue(afterPayload);
+
       const tx = buildTx({ inserted: true });
       const repo = new BusinessAuditOutboxRepository({} as never);
       await repo.enqueueInTransaction(tx as never, {
@@ -102,11 +119,29 @@ describe('business audit outbox', () => {
         entityType: 'RENTAL_RULE_REVISION',
         entityId: 'rev-1',
         description: 'draft created',
-        before: { document: { extractedJson: { secret: 'value' } } },
-        after: { status: 'DRAFT' },
+        before: beforePayload,
+        after: afterPayload,
       });
-      expect(tx.$queryRaw).toHaveBeenCalled();
-      expect(tx.businessAuditOutbox.findUniqueOrThrow).toHaveBeenCalled();
+
+      const bindValues = rawSqlBindValues(tx.$queryRaw as jest.Mock);
+      expect(bindValues).toEqual(expect.arrayContaining([expectedBeforeSummary, expectedAfterSummary]));
+      expect(bindValues).toEqual(expect.arrayContaining([expectedBeforeHash, expectedAfterHash]));
+      expect(JSON.stringify(bindValues)).not.toContain('super-secret-token');
+      expect(JSON.stringify(bindValues)).not.toContain('PLAIN-123');
+      expect(String(expectedBeforeSummary)).toContain('[REDACTED]');
+      expect(String(expectedAfterSummary)).toContain('DRAFT');
+    });
+
+    it('fails redaction assertions when sanitization is bypassed (guard)', () => {
+      const beforePayload = {
+        document: { extractedJson: { licenseNumber: 'PLAIN-123' } },
+        token: 'super-secret-token',
+      };
+      const unsanitizedSummary = JSON.stringify(beforePayload);
+      const bindValues = [unsanitizedSummary];
+      expect(() => {
+        expect(JSON.stringify(bindValues)).not.toContain('super-secret-token');
+      }).toThrow();
     });
 
     it('returns existing row on duplicate idempotency key when semantics match', async () => {
