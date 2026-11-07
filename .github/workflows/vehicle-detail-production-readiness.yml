@@ -114,7 +114,10 @@ jobs:
         working-directory: backend
         env:
           PROMTOOL_VERSION: '2.54.1'
-        run: npm run test:di:s4p2:vps-monitoring-contract
+        run: |
+          set -euo pipefail
+          docker pull prom/prometheus:v2.54.1
+          npm run test:di:s4p2:vps-monitoring-contract
 
   backend-ds4-motion-gap-bridge-safety:
     name: DS4 motion FSM gap-bridge safety gate

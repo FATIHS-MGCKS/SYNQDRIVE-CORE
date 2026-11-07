@@ -352,25 +352,21 @@ assert_legacy_docker_false_green_baseline() {
     return 1
   fi
   if docker_daemon_ready; then
-    unset PROMTOOL_BIN
-    FAKE_BIN_DIR="$(mktemp -d)"
-    cat >"$FAKE_BIN_DIR/promtool" <<'SH'
-#!/usr/bin/env bash
-exit 1
-SH
-    chmod +x "$FAKE_BIN_DIR/promtool"
     rules="$tmp/alerts.yml"
-    PATH="$FAKE_BIN_DIR:$PATH" PROMTOOL_BIN="" bash -c '
+    local rc
+    set +e
+    # No host promtool on PATH — exercise docker --entrypoint promtool fallback (GHA has Docker).
+    PATH="/usr/bin:/bin" PROMTOOL_BIN="" bash -c '
       set +e
       # shellcheck disable=SC1090
       source "$1"
       promtool_check_rules_file "$2"
       exit $?
     ' _ "$OPS_SCRIPT" "$rules"
-    local rc=$?
-    PATH="$PATH"
+    rc=$?
+    set -e
     if [[ "$rc" -ne 0 ]]; then
-      echo "docker entrypoint path should validate valid rules" >&2
+      echo "docker entrypoint path should validate valid rules (rc=$rc)" >&2
       return 1
     fi
   fi
