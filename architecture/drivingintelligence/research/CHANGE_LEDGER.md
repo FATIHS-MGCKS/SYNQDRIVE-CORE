@@ -2713,3 +2713,240 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** S4 physics/C5.1; **no** scoring; **no** production env activation; **no** automatic historical backfill |
 | REMAINING | Owner sets `TRIP_DI_BOUNDARY_ADMISSION_RECOVERY_ACTIVATED_AT_UTC` + writer flag in controlled rollout; historical trips (e.g. `2245f107…`) require separate approval |
 
+### 2026-11-06 — DS4 DBI W0 MBF offline kernel: E9 point-process null, D8 exposure window, provenance fail-closed
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Research-only MBF W0 kernel (`ds4-dbi-w0-mbf-kernel.v1`): D8 burstiness on fixed trip-exposure interval `[t0, t0+E_s)`; E9 compares regular / clustered / uniform random null with seeded null distribution; default `evidenceOrigin` does not infer sealed real; `independentScientificValidationStatus: NOT_EVALUATED` until verified sealed-real loader; removed misleading validation / JSON-vs-seal fingerprint pairing; targeted Jest spec + offline CLI alignment; regenerated `production-database-guard-bundle.manifest.sha256` for `backend/package.json` hash (guard unchanged) |
+| WHY | H7: multiset shuffle made IOD degenerate under sorted IOD; H8: provenance contract must not treat synthetic as sealed or conflate digests; CI: manifest drift caused Production DB guard hash mismatch |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (12 tests); offline CLI `--json` E9 scenarios KNOWN; `bash architecture/scripts/validate-module-registry.sh` (Driving Intelligence registry row unchanged) |
+| NON_EFFECTS | **No** C4/L3/FSM; **no** DS4×RPM joins; **no** product integration; **no** production/VPS/DB access |
+
+### 2026-11-06 — DS4 DBI W0 E9 null model labels (occupancy-conditioned vs unrestricted uniform)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Offline CLI (`ds4-dbi-w0-mbf-offline.cli.ts`): **OCCUPANCY_CONDITIONED_NULL** explicitly labeled; **UNRESTRICTED_UNIFORM_ON_EXPOSURE** (no forced nonempty bins); dual Monte Carlo with per-draw `drawRecords` (KNOWN vs ABSTAIN + reasonCodes); `iodValuesAcceptedOnly` naming; `scientificInterpretation` states MC does not validate; Jest: regular/clustered sensitivity without requiring both KNOWN; unrestricted-null may ABSTAIN |
+| WHY | Uniform random label previously mixed a **conditioned occupancy** construction with interpretation as unrestricted uniform |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf`; offline `--json`; `validate-module-registry.sh` |
+| NON_EFFECTS | **No** kernel D8 gate changes; **no** product paths |
+
+### 2026-11-06 — DS4 DBI W0 E9 selection-report hardening P1 (D8 gate censoring disclosure)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w0-e9-null-selection-report.v1.ts` + offline CLI: each null arm exposes `totalDraws`, `empiricalEligibilityRate`, `abstentionReasonCounts`, `selectionHazard`, `interpretationLimitation`, `constructionSemantics`; unrestricted arm adds `externalEligibilityScaleEvidence` (~200k audited rate **not** conflated with 50-draw empirical); occupancy scenario description states **occupancy-enforcing**, not exact conditional IID-uniform |
+| WHY | Architect audit (W0 **CONDITIONAL**): unrestricted reference for D8 IOD is **censored** by preregistered support gate — must not read 0/50 as P=0 |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (kernel + E9 selection spec); offline `--json`; `validate-module-registry.sh`; regenerated `production-database-guard-bundle.manifest.sha256` (`package.json` script list pin drift) |
+| NON_EFFECTS | **No** D8 threshold / counting / window / IOD formula changes; **no** production integration |
+
+### 2026-11-06 — DS4 DBI W0 independent scientific architecture audit (read-only artifact)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Durable markdown: **DS4_DBI_W0_INDEPENDENT_SCIENTIFIC_ARCHITECTURE_AUDIT_2026-11-06.md** in `architecture/drivingintelligence/research/evidence/` (sections A–J + machine-readable verdict; cites reviewed HEAD) |
+| WHY | Architect handoff / external agent consumption (e.g. ChatGPT); transcript-only answers are not durable repo evidence |
+| VALIDATION | N/A (documentation-only); module registry unchanged |
+| NON_EFFECTS | **No** kernel/CLI/threshold changes; **no** production/DB/VPS; **no** merge claim |
+
+### 2026-11-07 — DS4 DBI W0 post-Opus P1 integrity remediation (F02/F04/F16)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | **F02:** `ds4-dbi-w0-synthetic-event-hygiene.v1` + `ds4-dbi-w0-synthetic-enrichment.v1` — strip P2 index-placeholder events from enriched `payload.events`; align `summary.eventCount`. **F04:** `MBF_W0_FAIL_CLOSED_UNVERIFIED_SEALED_REAL_C4_CLAIM` + `verifiedSealedRealC4Attestation` binding (`ds4-dbi-w0-sealed-real-attestation.v1.ts`). **F16:** numeric oracles (D4/D5/D6/D8), strengthened E9 unrestricted abstention assertion, enrichment + attestation specs. Offline CLI imports shared enrichment; `scientificNote` updated. |
+| WHY | Opus audit P0: harness placeholder contamination (2 fail-closed trips) and caller-forged `SEALED_REAL_C4` statistical eligibility |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (29 tests); offline `--json` — zero fail-closed trips; `validate-module-registry.sh`; prod DB guard manifest regen for `package.json` test script |
+| NON_EFFECTS | **No** F01 D8 time-axis change; **no** F03 threshold changes; **no** production motion/FSM/RPM; **no** W1 validation claims |
+| REMAINING | F01 BLOCKER (D8 Es semantics); F03 selection reporting; sealed-real loader not implemented |
+
+### 2026-11-07 — DS4 DBI W0 F04 trust-boundary final closeout
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | **F04:** `sealedRealC4StatisticalEligibility` hard-false in W0; `SEALED_REAL_C4` always fail-closed (including caller-forged structurally matching attestation). `DS4_DBI_W0_TRUSTED_SEALED_REAL_LOADER_ACTIVE_V1=false`; structural binding separated from `isDs4DbiW0TrustedSealedRealProvenanceVerifiedV1` (W1 hook). Adversarial kernel tests replace misleading positive attestation test. |
+| WHY | Architect: structural digest/manifest match is not authenticated provenance without independent loader |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf`; offline `--json`; `validate-module-registry.sh` |
+| NON_EFFECTS | **No** F01/F03/F02 changes; **no** mock signer/loader; **no** production motion paths |
+| REMAINING | Trusted sealed-real loader + W1 arming of eligibility gate |
+
+### 2026-11-07 — DS4 DBI W0 F01 B3 moving-exposure clock contract lock (documentation only)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | **F01 B3 contract:** `DS4_DBI_W0_F01_B3_MOVING_EXPOSURE_CLOCK_CONTRACT_V1.md` + `DS4_DBI_W0_F01_B3_TEST_VECTORS_V1.json` — exposure parity with `deriveDs4DrivingExposureV1`, UTC→τ mapper (half-open eligible intervals), event admission + dual-time metadata fields, D8 on moving-exposure 60s bins (frozen thresholds), E9 realignment plan, TV-F01..TV-F10; architect decisions U1–U6 unresolved where not locked |
+| WHY | Opus P0 F01 BLOCKER: D8 must not use wall-clock `Es`; primary clock = B3 moving exposure; secondary = B2 dual-time diagnostics |
+| VALIDATION | `validate-module-registry.sh`; HEAD lock `9ec0e4c1a5d1888f2f5ccfc5d6e4ce15b38a7060` |
+| NON_EFFECTS | **No** kernel/CLI D8 implementation; **no** F03 threshold changes; **no** F04 reopening; **no** motion/FSM/trip/RPM/DB/deploy/merge |
+| REMAINING | Kernel implementation tranche + architect resolution U1–U6; executable pinned fixtures for TV-F01..F10 |
+
+### 2026-11-07 — DS4 DBI W0 F01 contract errata and U1–U6 closeout
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | **Contract v1.1 errata:** corrected TV-F01 (720-label D8 KNOWN + 200-label D4/D5 baseline), TV-F02 (`E*=118`), TV-F05 (shared boundary admit / terminal upper exclude), TV-F09 (ABSTAIN windows), TV-F11 (`E*=665` partial 5s bin KNOWN); locked U1–U6; E9 unequal-width bin null reference science; gate validation table; JSON vectors **v2** |
+| WHY | Architect verdict: B3+B2 approved; prior test vector set not approved; mathematical consistency with frozen `K=ceil(E*/60)`, `minEventsD8=10`, `minNonEmptyWindowsD8=10` |
+| VALIDATION | Documentation audit of KNOWN/ABSTAIN outcomes; `validate-module-registry.sh` |
+| NON_EFFECTS | **No** kernel implementation; **no** F03/F04 changes; **no** deploy/merge |
+| REMAINING | Executable kernel fixtures for TV-F01..F11 |
+
+### 2026-11-07 — DS4 DBI W0 F01 B3 implementation P1 (research kernel)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | **F01 B3 implementation:** `ds4-dbi-w0-moving-exposure-clock.v1.ts`; τ-native D8 in kernel; dual-time metadata on trip result; canonical exposure timeline export; E9 τ sampling in offline CLI; TV-F01..F11 executable spec; pinned-11 D8 may ABSTAIN on Es≠E* (U3) |
+| WHY | Architect-approved contract v1.1 implementation tranche |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (37 tests); offline CLI `--json`; `validate-module-registry.sh`; prod DB guard manifest regen |
+| NON_EFFECTS | **No** production motion/FSM/deploy; **F03/F04 frozen**; `sealedRealC4StatisticalEligibility` remains false |
+| REMAINING | Expand TV coverage F03/F04/F06/F08/F10; analytic E9 references under unequal τ bins |
+
+### 2026-11-07 — DS4 DBI W0 F01 B3 verification closeout P2 (research hardening)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | **Verification closeout:** executable TV-F01..F11 Jest coverage (gap/stationary/duplicate/E*&lt;60/partial-bin); τ-native E9 Monte Carlo (`ds4-dbi-w0-e9-tau-native-null.v1.ts`) bypassing UTC ms quantization for null D8; legacy UTC roundtrip contrast tests; offline CLI `b3TauNativeReporting` + fixed-seed reference; clock syntax/refactor fix (`computeDs4DbiW0D8FromTauOnsetsV1`) |
+| WHY | Architect F01 conditional sign-off requires executable contract vectors and U5 τ-native E9 null integrity without reopening frozen B3/B2/F03/F04 |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (45 tests); offline CLI `--json`; `validate-module-registry.sh`; CI prod DB guard run **42347963564** diagnosed as Postgres readiness race (no guard script changes) |
+| NON_EFFECTS | **No** D8 threshold edits; **no** production motion/FSM/trip/RPM; **no** F04 reopening; **no** W1 loader/deploy/merge; 200k wall-clock audit remains `b3Comparable: false` |
+| REMAINING | Full F03 calibration workstream; W1 blocked; CI prod DB guard flake may need workflow retry only |
+
+### 2026-11-07 — DS4 DBI W0 F01 P3 CI and reporting closeout
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Typed `runSyntheticControlsV1` E9 report contract (`movingExposureSeconds`, `exposureBinWidthsSeconds`, `b3TauNativeReporting`); corrected offline `scientificNote`; regen `production-database-guard-bundle.manifest.sha256` after `test:di:ds4-dbi-w0-mbf` script pin |
+| WHY | CI TS2353 on offline CLI; prod DB guard hash drift on `package.json` (distinct from prior Postgres startup race) |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (45); `research:ds4-dbi-w0-mbf-offline --json`; manifest regen; full `tsc` — no new DS4 CLI errors |
+| NON_EFFECTS | No B3/B2 model, D8 thresholds, F04, motion/FSM, deploy |
+| REMAINING | GitHub required checks on PR; unrelated repo `tsc` debt (FSD/service-compliance) |
+
+### 2026-11-07 — DS4 DBI W0 F03 selection calibration v1 (A+B+C)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w0-f03-selection-calibration.v1.ts`: exact occupancy DP, conditional IOD enumeration, Wilson MC cross-check, trip `d8SelectionCalibrationResearch`, offline sensitivity matrix; evidence doc F03 v1 |
+| WHY | Architect F03 options A+B+C under B3 τ — explicit selection science without threshold changes |
+| VALIDATION | Jest oracles 0.02252486 / 0.28260870 (660) and 0.02806004 / 0.37711880 (665); W0 regression |
+| NON_EFFECTS | D8 gates frozen; no scientific validation claim; 200k audit remains `b3Comparable: false` |
+| REMAINING | Real C4 preregistration; W1 blocked |
+
+### 2026-11-07 — Historical cohort D8 validation P3 (TIG22 V4)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Materialized `prod_run_v4_20261023` fixture (sha `ddcf32cd…`, run `15cdc8ae…`); registry `TIG22_V4`; `ds4-dbi-w0-historical-cohort-d8.v1.ts`; loader meta `run_id` + digest drift handling |
+| WHY | Same trip shadow reprocess (V4 leg-gate) — distinct from pre-FABLE run; assess frozen D8 gates without conflating independent drives |
+| VALIDATION | Cohort: both arms research D8 ABSTAIN `MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS` (9 nonempty windows); V4 does not clear 10-window gate |
+| NON_EFFECTS | No threshold changes; no new scientific claims; compact package duplicate excluded as alias |
+| REMAINING | No in-repo Audi/Arteon/Tesla Motion-Core JSON; need new recorded trip with ≥10 occupied τ bins |
+
+### 2026-11-07 — TIG22 historical D8 B3 compatibility (Phase 1 P2)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w0-historical-replay-d8-compat.v1.ts`; optional `researchSpeedAuthorityPartitionOverride` on B3 clock builder (kernel does not pass it); CLI `d8HistoricalCompatibility` block; Jest root-cause + canonical vs research split |
+| WHY | TIG22 payload omits `contract.speedAuthority` → canonical clock `derivable=false` / E*=0 → D8 ABSTAIN; trip-meta Es from RELAXED loader was not visible to B3 without explicit partition override |
+| VALIDATION | Jest confirms canonical ABSTAIN + research clock E*≈1705, 15 admitted events; research D8 still ABSTAIN `MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS` (9/29 nonempty windows < frozen gate 10) |
+| NON_EFFECTS | No payload mutation; canonical `computeDs4DbiW0MbfFromPayloadV1` unchanged; no F04/W1; no threshold changes |
+| REMAINING | Attested `contract.speedAuthority` on export; optional window-gate review only via architect — not changed here |
+
+### 2026-11-07 — DS4 DBI W0 historical Motion-Core offline replay (Phase 1 P1)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w0-historical-replay.fixture-registry.v1.ts`, `ds4-dbi-w0-historical-replay.loader.v1.ts`, `ds4-dbi-w0-historical-replay.cli.ts`, Jest `ds4-dbi-w0-historical-replay.v1.spec.ts`; evidence origin `HISTORICAL_RESEARCH_RECORDING`; TIG22 hash-verified load; STRICT binding fails without `contract.speedAuthority`; RELAXED allows unanimous C4 estimator partition inference with explicit limitations |
+| WHY | Architect-directed Phase 1 offline replay on frozen production-shadow TIG22 without W1/F04 promotion or synthetic conflation |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (59); `npx ts-node scripts/research/ds4-dbi-w0-historical-replay.cli.ts --fixture TIG22 --json`; TIG22 D4/D5/D6 KNOWN, D8 ABSTAIN (`MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW`) |
+| NON_EFFECTS | **No** F04 trust gate change; **no** W1 loader; **no** production/DB/provider access; **no** scientific validation claims; TES16 deferred (`NO_MOTION_PAYLOAD_BYTES`) |
+| REMAINING | Trusted speed-authority attestation on payload; D8 observation window compatibility on sparse historic bundles; TES16 motion payload export |
+
+### 2026-11-07 — DBI W1B1 final hardening closeout
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Stricter path validation; bounded file reads; historical manifest safety flags; symlink tests |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (108) |
+
+### 2026-11-07 — DBI W1B1 local byte verification loader
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w1b1-local-evidence.loader.v1.ts`, digest/path/registry modules, offline replay, committed synthetic + historical reference manifests, adversarial Jest (14) |
+| WHY | First executable W1B loader: real bytes, detached manifest digest, strict speedAuthority, max `STRUCTURALLY_BOUND` |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (104); TIG22/TIG22_V4 strict reject; synthetic positive STRUCTURALLY_BOUND |
+| NON_EFFECTS | NOT_AUTHENTICATED; F04 false; no RELAXED inference on W1B1 path |
+| REMAINING | W1B2 independent anchor verification |
+
+### 2026-11-07 — DBI W1A/W1C architecture hardening P1
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | W1A: `STRUCTURE_VALID` vs byte `BYTE_INSPECTION`; detached manifest digest; reject caller digest claims; runtime enum/UTC/bundle validation; allow equal file/canonical hex. W1C: typed fail-closed only, unknown status rejection, KNOWN/value consistency, D6/D8 evidence shape, auth vs integrity fields |
+| WHY | Architect P1 — correct trust semantics before W1B loader |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (90); adversarial W1A/W1C specs |
+| NON_EFFECTS | F04/W1 loader/D8 thresholds unchanged |
+
+### 2026-11-07 — DBI W1A trusted evidence contract foundation
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w1a-trusted-evidence.contract.v1.ts` + adversarial Jest; trust planes `FILE_INTEGRITY_VERIFIED` / `STRUCTURALLY_BOUND` only; `Ds4DbiW1TrustedEvidenceLoaderV1` interface (no loader impl) |
+| WHY | Phase 1 W1A offline contract for future trusted real DS4 evidence without arming F04 or promoting SOURCE_AUTHENTICATED |
+| VALIDATION | Jest `ds4-dbi-w1a-trusted-evidence.contract.v1.spec.ts` (tampered payload/manifest, caller attestation, speedAuthority, run/trip identity, digest semantics) |
+| NON_EFFECTS | `DS4_DBI_W0_TRUSTED_SEALED_REAL_LOADER_ACTIVE_V1=false`; no production access; no API/UI |
+| REMAINING | W1B owner-approved loader; W1D scientific eligibility |
+
+### 2026-11-07 — DBI W1C trip partial-assessment projector
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w1c-trip-assessment-projector.v1.ts`; shared `ds4-dbi-w0-fail-closed-codes.v1.ts`; kernel fail-closed set import; `DBI_W1A_W1C_FOUNDATION.md` |
+| WHY | Trip-level COMPLETE/PARTIAL/NOT_EVALUABLE from W0 metrics without changing D4–D8 math or composite scores |
+| VALIDATION | Jest matrix + TIG22/TIG22_V4 → PARTIAL; `npm run test:di:ds4-dbi-w0-mbf` (81); historical replay CLI |
+| NON_EFFECTS | COMPLETE ≠ scientific validation; fail-closed masks values; F04/W1 unchanged |
+| REMAINING | UI presentation contract; W1B/W1D gates |
+
+### 2026-11-07 — F03 performance and edge closeout
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Trip kernel skips default 25k MC; K&lt;10 exact P=0 supported; edge/perf tests |
+| WHY | Per-trip MC too expensive; short horizon gate semantics |
+| VALIDATION | W0 regression |
+
+### 2026-11-07 — DBI D8 V2 research sidecar (descriptive + Greenwood)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-d8-v2-event-intelligence.research.v1.ts`, Jest suite, optional `research:ds4-dbi-d8-v2-replay` CLI, `DBI_D8_V2_RESEARCH.md` |
+| WHY | Fable two-layer D8: descriptive event intelligence + bin-free Greenwood burstiness candidate; frozen D8 V1 unchanged |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (122); Tesla artifact replay when present |
+| NON_EFFECTS | No W1C/D8 V1 threshold/API/UI/production changes; inference withheld below nMin=10 |
+| REMAINING | Architect review; no F04 trust promotion |
+
+### 2026-11-07 — D8 V2 fail-closed + TIG22_V4 digest + prod DB guard pin
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | D8 V2 bound to full W0 kernel fail-closed diagnostics; replay uses canonical digest; regen `production-database-guard-bundle.manifest.sha256` for `research:ds4-dbi-d8-v2-replay` script pin |
+| WHY | Close TIG22_V4 false statistics under fingerprint mismatch; CI prod DB guard hash drift |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (126); guard bootstrap dry-run PASS; adversarial V2 fail-closed tests |
+| NON_EFFECTS | Frozen D8 V1/W1C math unchanged; no trusted-real promotion |
+
+### 2026-11-07 — D8 V2 Garwood numeric fix + W0 context binding
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Replace broken gamma binary-search Garwood with exact χ² quantile limits; `verifyDs4DbiD8V2W0EvaluationContextV1` on kernel/payload/tripMeta |
+| WHY | Rate CIs were orders-of-magnitude wrong; prevent V2 on mismatched evaluation triples |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (133); oracle tests n∈{0,1,4,15} + Tesla rate CI |
+| NON_EFFECTS | Public rate CI shape preserved; no new deps |
+
+### 2026-11-07 — D8 V2 Opus P2 minimal closeout (entrypoint, override, coverage, MC p)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Module-private `computeDs4DbiD8V2EventIntelligenceV1`; `SPEED_AUTHORITY_RESEARCH_OVERRIDE_INFERRED` + inference cap; FULL-only `STATISTICAL_RESULT_AVAILABLE`; MC p=(ge+1)/(N+1); spec/ESLint |
+| WHY | Independent audit P2-A/B/C: no forged fail-closed, no qualified stats on inferred authority or PARTIAL coverage |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (135); replay TIG22/TIG22_V4/Tesla; changed-file ESLint PASS |
+| NON_EFFECTS | D4/D5/D6/D8 V1/W1C/F04 unchanged; exploratory small-n G/p retained |
+

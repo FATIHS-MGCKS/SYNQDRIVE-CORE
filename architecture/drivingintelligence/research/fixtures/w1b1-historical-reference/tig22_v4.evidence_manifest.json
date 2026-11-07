@@ -1,0 +1,28 @@
+{
+  "fileVersion": "ds4-dbi-w1b1-evidence-manifest-file-v1",
+  "w1a": {
+    "contractVersion": "ds4-dbi-w1a-trusted-evidence-v1",
+    "sourceFileSha256": "ddcf32cd111ef21859e7df9f20915190efbe89aa416a22132e02c7d658712ccd",
+    "canonicalPayloadContentDigestSha256": "12ab041c699c0abd2acc793fcb4ad8f9a3ef86f8515601f687a2af2cc1cc9e6a",
+    "declaredIndependentTrustAnchorSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "independentTrustAnchorKind": "REPOSITORY_PINNED_MANIFEST",
+    "organizationId": "faa710c9-6d91-4079-a7d5-91fdccdec14a",
+    "vehicleId": "00000000-0000-4000-8000-hist00000001",
+    "tripId": "98d2a8e0-8b7d-4529-bf76-acee44d61fbe",
+    "sourceMotionRunId": "15cdc8ae-35b5-44a1-9c91-2cd9120d1546",
+    "shadowBundleVersion": "DI_V0_MOTION_CORE_SHADOW_BUNDLE_V1_LEG_GATE_OBD_POINT_AUTH_V4",
+    "speedAuthority": "C4_ONLY",
+    "pinnedS4EvidenceIdentity": "HISTORICAL:NOT_AUTHENTICATED",
+    "tripStartUtc": "2026-10-22T18:00:00Z",
+    "tripEndUtc": "2026-10-22T19:30:00Z",
+    "algorithmVersions": {
+      "c4": "MOTION_CORE_SPEED_C4_V0_5_DEV",
+      "fsm": "MOTION_FSM_V0_3_CAND_DEV[staleSpeedContextFix+startingTimeout+evidencePropagation]",
+      "events": "HF_THRESHOLDS_V1_REUSED (trips/hf-acceleration.ts, trips/hf-braking.ts) + MOTION_CORE_EVENT_GUARDS_V0_1_DEV + MOTION_EVENT_V0_2_CAND_DEV[spikeReversionCheck]",
+      "bundle": "DI_V0_MOTION_CORE_SHADOW_BUNDLE_V1_LEG_GATE_OBD_POINT_AUTH_V4"
+    },
+    "recordingClassification": "HISTORICAL_RESEARCH_EXPORT",
+    "sameTripShadowRerunOfRunId": "8ec6306e-606b-4507-ab03-ea058c5d810d",
+    "detachedProvenanceManifestDigestSha256": "6434ba0f4d723b307d95a5976ec68d05dd4f5c5ad9b3ec289c05844456738ae3"
+  }
+}

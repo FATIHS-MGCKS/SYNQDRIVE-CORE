@@ -68,6 +68,7 @@ Do **not** say "HF Recovery V2 not deployed" — say **code deployed, feature di
 | **RPM Reference Intelligence** | **IMPLEMENTED (Phase 5A library + Phase 5B V1B attach)** — `rpm-reference-intelligence-v1/`; optional `rpmReferenceIntelligenceV1` on V1B `summary_json` when `DS4_RPM_REF_INTEL_V1_V1B_ATTACH_ENABLED=true` (default OFF); **no** DS4 consumer; ADR [`design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md`](design/RPM_REFERENCE_INTELLIGENCE_AND_DI_OWNERSHIP_BOUNDARIES_ADR_2026-10-30.md) (`DI-DEC-RPM-REF-INTEL-001`) |
 | **DS4 consumes RPM reference metrics** | **NOT YET IMPLEMENTED** — future versioned optional interface only |
 | **DS4 × RPM shadow correlation harness V1** | **IMPLEMENTED (Phase 0 research library + CLI, review-hardened)** — `ds4-rpm-shadow-correlation/`; half-open join + admitted-sequence temporal support; fixture replay only; evidence [`evidence/DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md`](evidence/DS4_RPM_SHADOW_CORRELATION_HARNESS_V1_2026-11-03.md); **no** production/DB loader in v1 |
+| **DBI D8 V2 event intelligence (research sidecar)** | **IMPLEMENTED (offline research only)** — `ds4-assessment/research/ds4-dbi-d8-v2-event-intelligence.research.v1.ts`; descriptive layer + Greenwood conditional-null inference; `nMin=10`; frozen D8 V1/W1C unchanged; doc [`research/DBI_D8_V2_RESEARCH.md`](research/DBI_D8_V2_RESEARCH.md); CLI `npm run research:ds4-dbi-d8-v2-replay` |
 
 ## Production path today (CONFIRMED)
 

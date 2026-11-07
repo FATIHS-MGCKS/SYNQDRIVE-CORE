@@ -1,0 +1,30 @@
+{
+  "combined_input_identity": "DI_V0_COMBINED_INPUT_IDENTITY_V0_3:sha256:5d9ff3cbe66fec0f3973d3cc160cfa2d150f5882b03711109e3abbc42f11be83",
+  "content_fingerprint": "ebfc60ab2aefbea8cdf0e41c76e9177da9209896a1f6cbe8012ff6b64f792ed3",
+  "created_at": "2026-10-23T11:16:33.407468+00:00",
+  "organization_id": "faa710c9-6d91-4079-a7d5-91fdccdec14a",
+  "pinned_snapshot_hash": "DI_V0_S4_EVIDENCE_V1:sha256:22e2a662af3a07458e5713bd004f563e9d038c86fb89f3353d39b8e7ea3504b3",
+  "run_id": "15cdc8ae-35b5-44a1-9c91-2cd9120d1546",
+  "shadow_bundle_version": "DI_V0_MOTION_CORE_SHADOW_BUNDLE_V1_LEG_GATE_OBD_POINT_AUTH_V4",
+  "shadow_intent_key": "DI_V0_MOTION_CORE_SHADOW_BUNDLE_V1_LEG_GATE_OBD_POINT_AUTH_V4|DI_V0_S4_EVIDENCE_V1:sha256:22e2a662af3a07458e5713bd004f563e9d038c86fb89f3353d39b8e7ea3504b3|DI_V0_COMBINED_INPUT_IDENTITY_V0_3:sha256:5d9ff3cbe66fec0f3973d3cc160cfa2d150f5882b03711109e3abbc42f11be83",
+  "shadow_status": "SUCCEEDED",
+  "summary_json": {
+    "bundleVersion": "DI_V0_MOTION_CORE_SHADOW_BUNDLE_V1_LEG_GATE_OBD_POINT_AUTH_V4",
+    "contentFingerprint": "ebfc60ab2aefbea8cdf0e41c76e9177da9209896a1f6cbe8012ff6b64f792ed3",
+    "eventAcceptedCount": 20,
+    "eventArtefactSuspectCount": 0,
+    "intentKey": "DI_V0_MOTION_CORE_SHADOW_BUNDLE_V1_LEG_GATE_OBD_POINT_AUTH_V4|DI_V0_S4_EVIDENCE_V1:sha256:22e2a662af3a07458e5713bd004f563e9d038c86fb89f3353d39b8e7ea3504b3|DI_V0_COMBINED_INPUT_IDENTITY_V0_3:sha256:5d9ff3cbe66fec0f3973d3cc160cfa2d150f5882b03711109e3abbc42f11be83",
+    "labelCount": 2094,
+    "limitations": [
+      "SPARSE_DECISION_ARRIVAL_LATENCY_UNKNOWN",
+      "R1_VEHICLE_SPEED_EXCLUDED_FROM_DS4_FSM",
+      "SPARSE_R1_BUCKET_ONLY_NO_FSM_POINT_AUTHORITY"
+    ],
+    "processingMode": "POST_TRIP_RETROSPECTIVE",
+    "sparseComparable": true
+  },
+  "trip_id": "98d2a8e0-8b7d-4529-bf76-acee44d61fbe",
+  "uncompressed_bytes": 874007,
+  "vehicle_id": "19fedd4b-c4e8-4de8-a125-dab293326e7e",
+  "work_item_id": "63c73afa-debf-473d-b770-30acec388774"
+}
