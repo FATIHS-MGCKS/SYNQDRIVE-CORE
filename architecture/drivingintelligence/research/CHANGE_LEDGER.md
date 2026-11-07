@@ -2769,3 +2769,13 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** F01/F03/F02 changes; **no** mock signer/loader; **no** production motion paths |
 | REMAINING | Trusted sealed-real loader + W1 arming of eligibility gate |
 
+### 2026-11-07 — DS4 DBI W0 F01 B3 moving-exposure clock contract lock (documentation only)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | **F01 B3 contract:** `DS4_DBI_W0_F01_B3_MOVING_EXPOSURE_CLOCK_CONTRACT_V1.md` + `DS4_DBI_W0_F01_B3_TEST_VECTORS_V1.json` — exposure parity with `deriveDs4DrivingExposureV1`, UTC→τ mapper (half-open eligible intervals), event admission + dual-time metadata fields, D8 on moving-exposure 60s bins (frozen thresholds), E9 realignment plan, TV-F01..TV-F10; architect decisions U1–U6 unresolved where not locked |
+| WHY | Opus P0 F01 BLOCKER: D8 must not use wall-clock `Es`; primary clock = B3 moving exposure; secondary = B2 dual-time diagnostics |
+| VALIDATION | `validate-module-registry.sh`; HEAD lock `9ec0e4c1a5d1888f2f5ccfc5d6e4ce15b38a7060` |
+| NON_EFFECTS | **No** kernel/CLI D8 implementation; **no** F03 threshold changes; **no** F04 reopening; **no** motion/FSM/trip/RPM/DB/deploy/merge |
+| REMAINING | Kernel implementation tranche + architect resolution U1–U6; executable pinned fixtures for TV-F01..F10 |
+
