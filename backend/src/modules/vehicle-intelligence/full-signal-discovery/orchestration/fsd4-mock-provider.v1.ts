@@ -10,6 +10,7 @@ import {
   FSD4_MOCK_P2E_WINDOW_V1,
 } from './fsd4-mock-p2e-historical.v1';
 import { FSD_TESLA_P2E_DECLARED_FIELDS_V1 } from '../__fixtures__/fsd-p2e-tesla.fixture.v1';
+import type { FsdDiscoveryRunIdentityV1 } from '../persistence/fsd-discovery-persistence.contract.v1';
 
 export type Fsd4MockProviderModeV1 =
   | 'TESLA_P2E_HISTORICAL'
@@ -33,14 +34,23 @@ export function createFsd4MockHistoricalProvider(input: {
 
   return {
     providerKind: 'mock',
-    async fetchAvailableSignals() {
+    async fetchAvailableSignals(_input?: {
+      tokenId: number;
+      dispatchContext?: FsdDiscoveryRunIdentityV1;
+    }) {
       catalogCallCount += 1;
       if (input.mode === 'CATALOG_HTTP_500') {
         return { availableSignals: [], httpStatus: 500 };
       }
       return buildFsd3TeslaMockCatalogResultV1();
     },
-    async executeHistoricalDocument(request): Promise<Fsd4ProviderHistoricalResultV1> {
+    async executeHistoricalDocument(request: {
+      tokenId: number;
+      queryText: string;
+      documentFingerprint: string;
+      fieldNamesInDocument: readonly string[];
+      dispatchContext?: FsdDiscoveryRunIdentityV1;
+    }): Promise<Fsd4ProviderHistoricalResultV1> {
       historicalCallCount += 1;
       if (rejected.has(request.documentFingerprint)) {
         return {
@@ -109,10 +119,15 @@ export function createFsd4MockHistoricalProvider(input: {
 export function createFsd4LiveStubHistoricalProvider(): Fsd4HistoricalDiscoveryProviderPortV1 {
   return {
     providerKind: 'live',
-    async fetchAvailableSignals() {
+    async fetchAvailableSignals(_input?: { tokenId: number }) {
       return { availableSignals: [], httpStatus: 503 };
     },
-    async executeHistoricalDocument() {
+    async executeHistoricalDocument(_input?: {
+      tokenId: number;
+      queryText: string;
+      documentFingerprint: string;
+      fieldNamesInDocument: readonly string[];
+    }) {
       return {
         documentFingerprint: '',
         fieldNamesInDocument: [],

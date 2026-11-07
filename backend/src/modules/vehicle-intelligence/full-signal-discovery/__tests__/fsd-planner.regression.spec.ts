@@ -272,8 +272,9 @@ describe('FSD-1 full signal discovery planner regression suite', () => {
 
   it('Test 15 — no production pipeline imports full-signal-discovery module', () => {
     const backendSrc = path.join(__dirname, '../../../..');
+    // `fsd-integration` is the Nest wiring surface and may use @modules/.../full-signal-discovery paths.
     const output = execSync(
-      `rg -l "full-signal-discovery" "${backendSrc}" --glob "!**/full-signal-discovery/**" || true`,
+      `rg -l "full-signal-discovery" "${backendSrc}" --glob "!**/full-signal-discovery/**" --glob "!**/fsd-integration/**" || true`,
       { encoding: 'utf8' },
     ).trim();
     expect(output).toBe('');

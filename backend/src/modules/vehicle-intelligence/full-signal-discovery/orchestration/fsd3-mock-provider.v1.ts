@@ -8,6 +8,7 @@ import type {
   Fsd3ProviderSnapshotFieldValueV1,
   Fsd3ProviderSnapshotResultV1,
 } from './fsd3-provider.port.v1';
+import type { FsdDiscoveryRunIdentityV1 } from '../persistence/fsd-discovery-persistence.contract.v1';
 
 export type Fsd3MockProviderModeV1 =
   | 'TESLA_REFERENCE_26'
@@ -61,7 +62,10 @@ export function createFsd3MockDiscoveryProvider(input: {
 
   return {
     providerKind: 'mock' as const,
-    async fetchAvailableSignals(): Promise<Fsd3ProviderCatalogResultV1> {
+    async fetchAvailableSignals(_input?: {
+      tokenId: number;
+      dispatchContext?: FsdDiscoveryRunIdentityV1;
+    }): Promise<Fsd3ProviderCatalogResultV1> {
       catalogCallCount += 1;
       if (input.catalogDelayMs && input.catalogDelayMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, input.catalogDelayMs));
@@ -71,7 +75,13 @@ export function createFsd3MockDiscoveryProvider(input: {
       }
       return { availableSignals: catalog, httpStatus: 200 };
     },
-    async executeSnapshotDocument(request): Promise<Fsd3ProviderSnapshotResultV1> {
+    async executeSnapshotDocument(request: {
+      tokenId: number;
+      queryText: string;
+      documentFingerprint: string;
+      fieldNamesInDocument: readonly string[];
+      dispatchContext?: FsdDiscoveryRunIdentityV1;
+    }): Promise<Fsd3ProviderSnapshotResultV1> {
       snapshotCallCount += 1;
       if (input.snapshotDelayMs && input.snapshotDelayMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, input.snapshotDelayMs));
@@ -139,10 +149,15 @@ export function createFsd3MockDiscoveryProvider(input: {
 export function createFsd3LiveStubDiscoveryProvider(): Fsd3DiscoveryProviderPortV1 {
   return {
     providerKind: 'live',
-    async fetchAvailableSignals() {
+    async fetchAvailableSignals(_input?: { tokenId: number }) {
       throw new Error('live provider should not run in tests');
     },
-    async executeSnapshotDocument() {
+    async executeSnapshotDocument(_input?: {
+      tokenId: number;
+      queryText: string;
+      documentFingerprint: string;
+      fieldNamesInDocument: readonly string[];
+    }) {
       throw new Error('live provider should not run in tests');
     },
   };

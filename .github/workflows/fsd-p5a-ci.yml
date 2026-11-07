@@ -1,0 +1,104 @@
+name: FSD P5A (DIMO adapter integration)
+
+on:
+  pull_request:
+    paths:
+      - 'backend/src/modules/vehicle-intelligence/full-signal-discovery/**'
+      - 'backend/src/modules/vehicle-intelligence/vehicle-intelligence.module.ts'
+      - 'backend/src/modules/vehicle-intelligence/fsd-integration/**'
+      - 'backend/src/modules/dimo/dimo-telemetry.service.ts'
+      - 'backend/src/modules/dimo/dimo-telemetry.service.spec.ts'
+      - 'backend/src/modules/dimo/fsd-dimo-graphql-result.ts'
+      - 'backend/src/modules/dimo/fsd-graphql.types.v1.ts'
+      - 'backend/src/modules/dimo/fsd-query-fingerprint.v1.ts'
+      - 'backend/src/modules/dimo/provider/dimo-provider-http-classifier.ts'
+      - 'backend/src/modules/dimo/provider/dimo-provider-http-classifier.spec.ts'
+      - 'backend/scripts/test/fsd2-persistence-postgres-ci.sh'
+      - 'backend/scripts/test/lib/fsd2-persistence-postgres-guard.sh'
+      - 'backend/prisma/schema.prisma'
+      - 'backend/package.json'
+      - 'backend/package-lock.json'
+      - '.github/workflows/fsd-p5a-ci.yml'
+  push:
+    branches:
+      - main
+      - 'cursor/fsd-*'
+  workflow_dispatch:
+
+concurrency:
+  group: fsd-p5a-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  CI_PG_CONTAINER: ci-postgres-fsd
+
+jobs:
+  fsd-ci:
+    name: FSD unit, adapter, Postgres, quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start local PostgreSQL (disposable)
+        run: bash backend/scripts/test/ci-start-postgres.sh
+
+      - name: Create disposable FSD test database
+        run: |
+          set -euo pipefail
+          docker exec "${CI_PG_CONTAINER}" psql -U synqdrive -d postgres -tc \
+            "SELECT 1 FROM pg_database WHERE datname = 'fsd2_test_ci'" | grep -q 1 \
+            || docker exec "${CI_PG_CONTAINER}" psql -U synqdrive -d postgres \
+            -c "CREATE DATABASE fsd2_test_ci;"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install and Prisma (validate / generate)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://synqdrive:synqdrive@127.0.0.1:5432/fsd2_test_ci?schema=public
+        run: |
+          npm ci
+          npx prisma validate
+          npx prisma generate
+
+      - name: ESLint (full-signal-discovery + dimo telemetry touchpoints)
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          npx eslint \
+            "src/modules/vehicle-intelligence/full-signal-discovery/**/*.ts" \
+            "src/modules/vehicle-intelligence/fsd-integration/**/*.ts" \
+            "src/modules/dimo/dimo-telemetry.service.ts" \
+            "src/modules/dimo/fsd-dimo-graphql-result.ts" \
+            "src/modules/dimo/fsd-graphql.types.v1.ts" \
+            "src/modules/dimo/fsd-query-fingerprint.v1.ts" \
+            "src/modules/dimo/provider/dimo-provider-http-classifier.ts" \
+            "src/modules/dimo/provider/dimo-provider-http-classifier.spec.ts" \
+            --max-warnings 0
+
+      - name: TypeScript (noEmit)
+        working-directory: backend
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: FSD unit and adapter Jest
+        working-directory: backend
+        env:
+          DIMO_CLIENT_ID: ""
+          DIMO_PRIVATE_KEY: ""
+        run: |
+          npx jest \
+            --runInBand \
+            --testPathPatterns='full-signal-discovery|dimo-telemetry\.service\.spec' \
+            --testPathIgnorePatterns='postgres\.integration'
+
+      - name: FSD PostgreSQL integration (disposable DB)
+        working-directory: backend
+        run: bash scripts/test/fsd2-persistence-postgres-ci.sh

@@ -47,6 +47,11 @@ import {
 } from './fsd3-orchestration.config.v1';
 import type { Fsd3DiscoveryProviderPortV1 } from './fsd3-provider.port.v1';
 import {
+  classifyFsd3CatalogProviderLedgerOutcomeV1,
+  classifyFsd3SnapshotDocumentLedgerOutcomeV1,
+} from './fsd-provider-outcome.util.v1';
+import { hasPersistedFsdCatalogFetchV1 } from './fsd-catalog-persist.util.v1';
+import {
   createEmptyFsd3RequestLedger,
   emptyFsd3SnapshotProgressCheckpoint,
   finalizeFsd3ProviderRequestAttempt,
@@ -164,13 +169,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       if (acquired.kind === 'REPLAYED') {
         return await this.continueOrReportExistingRun(input, scope, acquired, budget);
       }
-      return await this.executeFreshDiscovery(
-        input,
-        scope,
-        acquired,
-        budget,
-        connectionIdentityFingerprint,
-      );
+      return await this.executeFreshDiscovery(input, scope, acquired, budget, identity);
     } catch (err) {
       if (err instanceof FsdDiscoveryPersistenceError && err.code === 'LEASE_LOST') {
         const runId = acquired.kind === 'REPLAYED' ? acquired.runId : acquired.runId;
@@ -259,14 +258,15 @@ export class Fsd3CatalogSnapshotOrchestratorService {
     const catalogStageVersionRef = { value: catalogStage.version };
 
     const catalogCheckpoint = readCatalogCheckpointFromBundle(bundle);
-    const catalogSignals = catalogCheckpoint?.catalogFetch?.availableSignalNames;
-    const catalogFingerprint = catalogCheckpoint?.catalogFetch?.declaredCatalogFingerprint;
-    if (!catalogSignals?.length || !catalogFingerprint) {
+    const persistedCatalogFetch = catalogCheckpoint?.catalogFetch;
+    if (!hasPersistedFsdCatalogFetchV1(persistedCatalogFetch) || !persistedCatalogFetch.declaredCatalogFingerprint) {
       return buildTerminalFailureResult({
         runId: acquired.runId,
         reason: 'RESUME_MISSING_CATALOG_EVIDENCE',
       });
     }
+    const catalogSignals = persistedCatalogFetch.availableSignalNames;
+    const catalogFingerprint = persistedCatalogFetch.declaredCatalogFingerprint;
 
     const resumeProgress = parseFsd3SnapshotStageCheckpoint(
       findStageInBundle(bundle, 'SNAPSHOT')?.checkpointJson,
@@ -284,6 +284,18 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       }
     }
 
+    const resumeConnectionIdentityFingerprint = buildFsdDimoConnectionIdentityFingerprint({
+      dimoVehicleId: input.dimoVehicleId,
+      tokenId: input.dimoTokenId,
+    });
+    const dispatchContext: FsdDiscoveryRunIdentityV1 = {
+      ...scope,
+      runKey: bundle.run.runKey,
+      dimoTokenId: input.dimoTokenId,
+      connectionIdentityFingerprint: resumeConnectionIdentityFingerprint,
+      discoveryStream: 'FSD3_CATALOG_SNAPSHOT',
+    };
+
     return this.executeSnapshotPhase({
       input,
       scope,
@@ -297,6 +309,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       catalogStageVersionRef,
       resumeSnapshotProgress: resumeProgress,
       existingSnapshotStage: findStageInBundle(bundle, 'SNAPSHOT'),
+      dispatchContext,
     });
   }
 
@@ -305,7 +318,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
     scope: { organizationId: string; vehicleId: string; providerSourceLinkId: string },
     acquired: Extract<AcquireFsdDiscoveryRunResultV1, { kind: 'CREATED' }>,
     budget: FsdBudgetConfigV1,
-    connectionIdentityFingerprint: string,
+    dispatchContext: FsdDiscoveryRunIdentityV1,
   ): Promise<Fsd3OrchestrationRunResultV1> {
     const claimed = await this.persistence.claimRunLease({
       scope,
@@ -409,10 +422,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
     let catalogFingerprint = '';
 
     if (catalogDispatchGate.action === 'SKIP_SETTLED') {
-      if (
-        reserve.checkpoint.catalogFetch?.succeeded !== true ||
-        !reserve.checkpoint.catalogFetch.availableSignalNames?.length
-      ) {
+      if (!hasPersistedFsdCatalogFetchV1(reserve.checkpoint.catalogFetch)) {
         return buildTerminalFailureResult({
           runId: acquired.runId,
           reason: 'CATALOG_SKIP_WITHOUT_PERSISTED_FETCH',
@@ -426,8 +436,35 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       try {
         const catalogResult = await this.provider.fetchAvailableSignals({
           tokenId: input.dimoTokenId,
+          dispatchContext,
         });
-        if (catalogResult.httpStatus !== 200 || !Array.isArray(catalogResult.availableSignals)) {
+        const catalogDispatchOutcome = classifyFsd3CatalogProviderLedgerOutcomeV1(catalogResult);
+        if (catalogDispatchOutcome.ledgerOutcome !== 'SUCCEEDED') {
+          if (catalogDispatchOutcome.ledgerOutcome === 'UNKNOWN') {
+            const uFin = await this.finalizeCatalogAttemptUnknown(
+              writeAuth,
+              catalogPlanFingerprint,
+              catalogStageVersionRef,
+              budget.maxRequestsPerRun,
+            );
+            if (!uFin) {
+              return buildTerminalFailureResult({
+                runId: acquired.runId,
+                reason: 'CATALOG_LEDGER_FINALIZE_CAS_FAILED',
+              });
+            }
+            await this.failCatalogAndRun(
+              scope,
+              acquired.runId,
+              runVersionRef,
+              writeAuth,
+              catalogStageVersionRef.value,
+            );
+            return buildTerminalFailureResult({
+              runId: acquired.runId,
+              reason: 'CATALOG_PROVIDER_UNKNOWN_OUTCOME',
+            });
+          }
           const fin = await this.finalizeCatalogAttempt(
             writeAuth,
             catalogPlanFingerprint,
@@ -598,6 +635,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       catalogStageVersionRef,
       resumeSnapshotProgress: emptyFsd3SnapshotProgressCheckpoint(),
       existingSnapshotStage: null,
+      dispatchContext,
     });
   }
 
@@ -614,6 +652,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
     catalogStageVersionRef: { value: number };
     resumeSnapshotProgress: Fsd3SnapshotProgressCheckpointV1;
     existingSnapshotStage: ReturnType<typeof findStageInBundle>;
+    dispatchContext: FsdDiscoveryRunIdentityV1;
   }): Promise<Fsd3OrchestrationRunResultV1> {
     const remainingDocs = resolveMaxSnapshotDocumentsFromRemainingBudget(
       input.budget.maxRequestsPerRun - FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1,
@@ -809,6 +848,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
           queryText: document.queryText,
           documentFingerprint: document.fingerprint,
           fieldNamesInDocument: document.fieldNames,
+          dispatchContext: input.dispatchContext,
         });
         await this.testHooks?.afterSnapshotProviderResponse?.(index);
       } catch (err) {
@@ -851,6 +891,33 @@ export class Fsd3CatalogSnapshotOrchestratorService {
         httpStatus: providerResponse.httpStatus,
         errors: providerResponse.errors,
       });
+
+      if (interpreted.fields.some((f) => f.attribution === 'AMBIGUOUS')) {
+        unknownOutcome = true;
+        const ambFin = await this.finalizeSnapshotLedgerAttempt(
+          input.writeAuth,
+          catalogPlanFingerprint,
+          input.catalogStageVersionRef,
+          input.budget.maxRequestsPerRun,
+          document.fingerprint,
+          'UNKNOWN',
+        );
+        if (!ambFin) {
+          return buildTerminalFailureResult({
+            runId: input.runId,
+            reason: 'SNAPSHOT_LEDGER_FINALIZE_CAS_FAILED',
+          });
+        }
+        await this.persistence.transitionStageStatus({
+          auth: input.writeAuth(),
+          stageType: 'SNAPSHOT',
+          expectedStageVersion: snapshotStageVersion,
+          fromStatus: 'IN_PROGRESS',
+          toStatus: 'UNKNOWN_OUTCOME',
+          lastOutcome: 'UNKNOWN_OUTCOME',
+        });
+        break;
+      }
 
       if (providerResponse.httpStatus === 422 || providerResponse.httpStatus === 400) {
         if (!checkpoint.rejectedQueryFingerprints.includes(document.fingerprint)) {
@@ -905,17 +972,49 @@ export class Fsd3CatalogSnapshotOrchestratorService {
         continue;
       }
 
-      if (interpreted.fields.some((f) => f.attribution === 'AMBIGUOUS')) {
+      const dispatchOutcome = classifyFsd3SnapshotDocumentLedgerOutcomeV1(providerResponse, interpreted);
+      if (dispatchOutcome.ledgerOutcome === 'FAILED') {
+        const fin = await this.finalizeSnapshotLedgerAttempt(
+          input.writeAuth,
+          catalogPlanFingerprint,
+          input.catalogStageVersionRef,
+          input.budget.maxRequestsPerRun,
+          document.fingerprint,
+          'FAILED',
+          providerResponse.httpStatus,
+        );
+        if (!fin) {
+          return buildTerminalFailureResult({
+            runId: input.runId,
+            reason: 'SNAPSHOT_LEDGER_FINALIZE_CAS_FAILED',
+          });
+        }
+        await this.persistence.transitionStageStatus({
+          auth: input.writeAuth(),
+          stageType: 'SNAPSHOT',
+          expectedStageVersion: snapshotStageVersion,
+          fromStatus: 'IN_PROGRESS',
+          toStatus: 'FAILED',
+          lastOutcome: 'FAILED',
+        });
+        await this.failRun(input.scope, input.runId, input.runVersionRef, input.writeAuth, 'SNAPSHOT_PROVIDER_FAILED');
+        return buildTerminalFailureResult({
+          runId: input.runId,
+          reason: 'SNAPSHOT_PROVIDER_NON_SUCCESS',
+        });
+      }
+      if (dispatchOutcome.ledgerOutcome === 'UNKNOWN') {
         unknownOutcome = true;
-        const ambFin = await this.finalizeSnapshotLedgerAttempt(
+        const uFin = await this.finalizeSnapshotLedgerAttempt(
           input.writeAuth,
           catalogPlanFingerprint,
           input.catalogStageVersionRef,
           input.budget.maxRequestsPerRun,
           document.fingerprint,
           'UNKNOWN',
+          providerResponse.httpStatus,
         );
-        if (!ambFin) {
+        if (!uFin) {
           return buildTerminalFailureResult({
             runId: input.runId,
             reason: 'SNAPSHOT_LEDGER_FINALIZE_CAS_FAILED',

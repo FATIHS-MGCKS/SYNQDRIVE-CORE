@@ -47,6 +47,7 @@ export type TransitionFsdDiscoveryRunResultV1 =
 export type FsdDiscoveryRunOrchestrationBundleV1 = {
   run: {
     id: string;
+    runKey: string;
     status: FsdDiscoveryRunStatus;
     version: number;
     leaseOwner: string | null;
@@ -823,6 +824,21 @@ export class FsdDiscoveryPersistenceRepository {
     });
   }
 
+  /**
+   * P5: full DIMO source-link + token + connection-identity validation before live provider dispatch.
+   * Uses the same scoped advisory lock as other source-link fences.
+   */
+  async assertDimoDispatchBinding(identity: FsdDiscoveryRunIdentityV1): Promise<void> {
+    const scope: FsdDiscoveryRunScopeV1 = {
+      organizationId: identity.organizationId,
+      vehicleId: identity.vehicleId,
+      providerSourceLinkId: identity.providerSourceLinkId,
+    };
+    await this.withSourceLinkLock(scope, async (tx) => {
+      await this.validateDimoSourceLink(tx, identity);
+    });
+  }
+
   async loadRunOrchestrationBundle(input: {
     scope: FsdDiscoveryRunScopeV1;
     runId: string;
@@ -842,6 +858,7 @@ export class FsdDiscoveryPersistenceRepository {
     return {
       run: {
         id: run.id,
+        runKey: run.runKey,
         status: run.status,
         version: run.version,
         leaseOwner: run.leaseOwner,

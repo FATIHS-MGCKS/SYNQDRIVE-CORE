@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { computeFsdQueryFingerprintV1, normalizeFsdQueryTextForFingerprintV1 } from '@modules/dimo/fsd-query-fingerprint.v1';
 
 export type FsdHistoricalWindowV1 = {
   fromUtc: string;
@@ -19,13 +19,7 @@ export type FsdPlannedQueryDocumentV1 = {
   fingerprint: string;
 };
 
-function normalizeQueryTextForFingerprint(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
-}
-
-export function computeFsdQueryFingerprintV1(normalizedQueryText: string): string {
-  return createHash('sha256').update(normalizedQueryText, 'utf8').digest('hex');
-}
+export { computeFsdQueryFingerprintV1, normalizeFsdQueryTextForFingerprintV1 };
 
 export function buildFsdSignalsLatestQueryDocument(input: {
   tokenId: number;
@@ -44,7 +38,7 @@ export function buildFsdSignalsLatestQueryDocument(input: {
       }
     }
   `.trim();
-  const normalized = normalizeQueryTextForFingerprint(body);
+  const normalized = normalizeFsdQueryTextForFingerprintV1(body);
   return {
     stage: 'SNAPSHOT',
     tokenId: input.tokenId,
@@ -84,7 +78,7 @@ export function buildFsdHistoricalSignalsQueryDocument(input: {
       }
     }
   `.trim();
-  const normalized = normalizeQueryTextForFingerprint(body);
+  const normalized = normalizeFsdQueryTextForFingerprintV1(body);
   return {
     stage: 'HISTORICAL',
     tokenId: input.tokenId,

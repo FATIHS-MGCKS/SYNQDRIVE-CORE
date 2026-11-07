@@ -45,6 +45,11 @@ import { assertFsd4VehicleAllowed, type Fsd4OrchestrationConfigV1 } from './fsd4
 import { mapHistoricalFieldEvidence } from './fsd4-historical-evidence.v1';
 import type { Fsd4HistoricalDiscoveryProviderPortV1 } from './fsd4-provider.port.v1';
 import {
+  classifyFsd4CatalogProviderLedgerOutcomeV1,
+  classifyFsd4HistoricalDocumentLedgerOutcomeV1,
+} from './fsd-provider-outcome.util.v1';
+import { hasPersistedFsdCatalogFetchV1 } from './fsd-catalog-persist.util.v1';
+import {
   classifyFsd4CatalogReserveForProviderDispatch,
   classifyFsd4HistoricalReserveForProviderDispatch,
   createEmptyFsd4RequestLedger,
@@ -146,9 +151,8 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
         return await this.continueOrReportExistingRun(input, scope, acquired, budget);
       }
       return await this.executeFreshRun(input, scope, acquired, budget, {
-        connectionIdentityFingerprint,
         historicalWindowFingerprint,
-      });
+      }, identity);
     } catch (err) {
       if (err instanceof FsdDiscoveryPersistenceError && err.code === 'LEASE_LOST') {
         return buildTerminalFailureResult({
@@ -237,14 +241,18 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     }
 
     const catalogCheckpoint = readCatalogCheckpointFromBundle(bundle);
-    const catalogSignals = catalogCheckpoint?.catalogFetch?.availableSignalNames;
-    const catalogFingerprint = catalogCheckpoint?.catalogFetch?.declaredCatalogFingerprint ?? '';
-    if (!catalogSignals?.length || !catalogFingerprint) {
+    const persistedCatalogFetch = catalogCheckpoint?.catalogFetch;
+    if (
+      !hasPersistedFsdCatalogFetchV1(persistedCatalogFetch) ||
+      !persistedCatalogFetch.declaredCatalogFingerprint
+    ) {
       return buildTerminalFailureResult({
         runId: acquired.runId,
         reason: 'RESUME_MISSING_CATALOG_EVIDENCE',
       });
     }
+    const catalogSignals = persistedCatalogFetch.availableSignalNames;
+    const catalogFingerprint = persistedCatalogFetch.declaredCatalogFingerprint;
 
     const catalogStageVersionRef = { value: catalogStage.version };
     const resumeProgress = parseHistoricalProgressFromBundle(bundle);
@@ -315,6 +323,18 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       });
     }
 
+    const resumeConnectionIdentityFingerprint = buildFsdDimoConnectionIdentityFingerprint({
+      dimoVehicleId: input.dimoVehicleId,
+      tokenId: input.dimoTokenId,
+    });
+    const dispatchContext: FsdDiscoveryRunIdentityV1 = {
+      ...scope,
+      runKey: bundle.run.runKey,
+      dimoTokenId: input.dimoTokenId,
+      connectionIdentityFingerprint: resumeConnectionIdentityFingerprint,
+      discoveryStream: 'FSD4_HISTORICAL',
+    };
+
     return this.executeHistoricalPhase({
       input,
       scope,
@@ -333,6 +353,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       historicalPlanFingerprint,
       resumeProgress,
       existingHistoricalStage: existingHistorical,
+      dispatchContext,
     });
   }
 
@@ -341,7 +362,8 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     scope: { organizationId: string; vehicleId: string; providerSourceLinkId: string },
     acquired: Extract<AcquireFsdDiscoveryRunResultV1, { kind: 'CREATED' }>,
     budget: FsdBudgetConfigV1,
-    ctx: { connectionIdentityFingerprint: string; historicalWindowFingerprint: string },
+    ctx: { historicalWindowFingerprint: string },
+    dispatchContext: FsdDiscoveryRunIdentityV1,
   ): Promise<Fsd4OrchestrationRunResultV1> {
     const claimed = await this.persistence.claimRunLease({
       scope,
@@ -532,10 +554,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       }
 
       if (gate.action === 'SKIP_SETTLED') {
-        if (
-          reserve.checkpoint.catalogFetch?.succeeded !== true ||
-          !reserve.checkpoint.catalogFetch.availableSignalNames?.length
-        ) {
+        if (!hasPersistedFsdCatalogFetchV1(reserve.checkpoint.catalogFetch)) {
           return buildTerminalFailureResult({
             runId: acquired.runId,
             reason: 'CATALOG_SKIP_WITHOUT_PERSISTED_FETCH',
@@ -549,8 +568,35 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
         try {
           const catalogResult = await this.provider.fetchAvailableSignals({
             tokenId: input.dimoTokenId,
+            dispatchContext,
           });
-          if (catalogResult.httpStatus !== 200 || !Array.isArray(catalogResult.availableSignals)) {
+          const catalogDispatchOutcome = classifyFsd4CatalogProviderLedgerOutcomeV1(catalogResult);
+          if (catalogDispatchOutcome.ledgerOutcome !== 'SUCCEEDED') {
+            if (catalogDispatchOutcome.ledgerOutcome === 'UNKNOWN') {
+              const uFin = await this.finalizeCatalogAttemptUnknown(
+                writeAuth,
+                catalogPlanFingerprint,
+                catalogStageVersionRef,
+                budget.maxRequestsPerRun,
+              );
+              if (!uFin) {
+                return buildTerminalFailureResult({
+                  runId: acquired.runId,
+                  reason: 'CATALOG_LEDGER_FINALIZE_CAS_FAILED',
+                });
+              }
+              await this.failCatalogAndRun(
+                scope,
+                acquired.runId,
+                runVersionRef,
+                writeAuth,
+                catalogStageVersionRef.value,
+              );
+              return buildTerminalFailureResult({
+                runId: acquired.runId,
+                reason: 'CATALOG_PROVIDER_UNKNOWN_OUTCOME',
+              });
+            }
             const fin = await this.finalizeCatalogAttempt(
               writeAuth,
               catalogPlanFingerprint,
@@ -764,6 +810,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       historicalPlanFingerprint,
       resumeProgress: emptyFsd4HistoricalProgressCheckpoint(),
       existingHistoricalStage: null,
+      dispatchContext,
     });
   }
 
@@ -797,7 +844,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       return null;
     }
     const cp = parseFsd4CatalogStageCheckpoint(cat.checkpointJson);
-    if (!cp?.catalogFetch?.succeeded || !cp.catalogFetch.availableSignalNames?.length) {
+    if (!hasPersistedFsdCatalogFetchV1(cp?.catalogFetch)) {
       return null;
     }
     const persistedNames = await this.persistence.listCatalogSignalNamesForRun(fsd3RunId, cat.id);
@@ -836,6 +883,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       status: string;
       planFingerprint: string;
     } | null;
+    dispatchContext: FsdDiscoveryRunIdentityV1;
   }): Promise<Fsd4OrchestrationRunResultV1> {
     const plan = input.historicalPlan;
     const expectedBuckets = plan.expectedBucketPositions;
@@ -849,6 +897,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     let signalsWithCoverage = 0;
     let unknownOutcome = false;
     let chunksExecuted = 0;
+    const scope = input.scope;
 
     if (input.existingHistoricalStage) {
       historicalStageId = input.existingHistoricalStage.id;
@@ -1021,6 +1070,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
           queryText: doc.queryText,
           documentFingerprint: doc.fingerprint,
           fieldNamesInDocument: doc.fieldNames,
+          dispatchContext: input.dispatchContext,
         });
         await this.testHooks?.afterHistoricalProviderResponse?.(index);
       } catch (err) {
@@ -1063,6 +1113,33 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
         httpStatus: providerResponse.httpStatus,
         errors: providerResponse.errors,
       });
+
+      if (interpreted.fields.some((f) => f.attribution === 'AMBIGUOUS')) {
+        unknownOutcome = true;
+        const ambFin = await this.finalizeHistoricalLedgerAttempt(
+          input.writeAuth,
+          input.catalogPlanFingerprint,
+          input.catalogStageVersionRef,
+          input.budget.maxRequestsPerRun,
+          doc.fingerprint,
+          'UNKNOWN',
+        );
+        if (!ambFin) {
+          return buildTerminalFailureResult({
+            runId: input.runId,
+            reason: 'HISTORICAL_LEDGER_FINALIZE_CAS_FAILED',
+          });
+        }
+        await this.persistence.transitionStageStatus({
+          auth: input.writeAuth(),
+          stageType: 'HISTORICAL',
+          expectedStageVersion: historicalStageVersion,
+          fromStatus: 'IN_PROGRESS',
+          toStatus: 'UNKNOWN_OUTCOME',
+          lastOutcome: 'UNKNOWN_OUTCOME',
+        });
+        break;
+      }
 
       if (providerResponse.httpStatus === 422 || providerResponse.httpStatus === 400) {
         if (!checkpoint.rejectedQueryFingerprints.includes(doc.fingerprint)) {
@@ -1114,17 +1191,49 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
         continue;
       }
 
-      if (interpreted.fields.some((f) => f.attribution === 'AMBIGUOUS')) {
+      const histDispatch = classifyFsd4HistoricalDocumentLedgerOutcomeV1(providerResponse, interpreted);
+      if (histDispatch.ledgerOutcome === 'FAILED') {
+        const fFin = await this.finalizeHistoricalLedgerAttempt(
+          input.writeAuth,
+          input.catalogPlanFingerprint,
+          input.catalogStageVersionRef,
+          input.budget.maxRequestsPerRun,
+          doc.fingerprint,
+          'FAILED',
+          providerResponse.httpStatus,
+        );
+        if (!fFin) {
+          return buildTerminalFailureResult({
+            runId: input.runId,
+            reason: 'HISTORICAL_LEDGER_FINALIZE_CAS_FAILED',
+          });
+        }
+        await this.persistence.transitionStageStatus({
+          auth: input.writeAuth(),
+          stageType: 'HISTORICAL',
+          expectedStageVersion: historicalStageVersion,
+          fromStatus: 'IN_PROGRESS',
+          toStatus: 'FAILED',
+          lastOutcome: 'FAILED',
+        });
+        await this.failRun(scope, input.runId, input.runVersionRef, input.writeAuth);
+        return buildTerminalFailureResult({
+          runId: input.runId,
+          reason: 'HISTORICAL_PROVIDER_NON_SUCCESS',
+        });
+      }
+      if (histDispatch.ledgerOutcome === 'UNKNOWN') {
         unknownOutcome = true;
-        const ambFin = await this.finalizeHistoricalLedgerAttempt(
+        const uFin = await this.finalizeHistoricalLedgerAttempt(
           input.writeAuth,
           input.catalogPlanFingerprint,
           input.catalogStageVersionRef,
           input.budget.maxRequestsPerRun,
           doc.fingerprint,
           'UNKNOWN',
+          providerResponse.httpStatus,
         );
-        if (!ambFin) {
+        if (!uFin) {
           return buildTerminalFailureResult({
             runId: input.runId,
             reason: 'HISTORICAL_LEDGER_FINALIZE_CAS_FAILED',

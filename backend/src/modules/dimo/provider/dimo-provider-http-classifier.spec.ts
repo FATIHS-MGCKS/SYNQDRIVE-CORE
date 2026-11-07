@@ -1,3 +1,4 @@
+import { DimoRateLimitedError } from '../provider-budget/dimo-http-error.util';
 import { classifyDimoProviderHttpError } from './dimo-provider-http-classifier';
 
 describe('dimo-provider-http-classifier', () => {
@@ -18,5 +19,13 @@ describe('dimo-provider-http-classifier', () => {
   it('classifies timeout via ECONNABORTED', () => {
     const err = Object.assign(new Error('timeout'), { code: 'ECONNABORTED' });
     expect(classifyDimoProviderHttpError(err).statusClass).toBe('timeout');
+  });
+
+  it('classifies DimoRateLimitedError for gateway metrics', () => {
+    const err = new DimoRateLimitedError('rl', 2000, 'ADMIN');
+    const obs = classifyDimoProviderHttpError(err);
+    expect(obs.statusClass).toBe('rate_limited');
+    expect(obs.httpStatus).toBe(429);
+    expect(obs.retryAfterSeconds).toBe(2);
   });
 });
