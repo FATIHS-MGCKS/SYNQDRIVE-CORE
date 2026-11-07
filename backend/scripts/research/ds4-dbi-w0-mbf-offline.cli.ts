@@ -29,9 +29,10 @@ import type {
   Ds4DbiW0TripKernelResultV1,
 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-mbf.types.v1';
 import type { DiV0MotionCoreShadowPayloadV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/motion-core-shadow-worker/di-v0-motion-core-shadow.types';
-import type { MotionFsmState, MotionFsmStopEpisode } from '../../src/modules/vehicle-intelligence/driving-intelligence/core/kinematics/motion-fsm';
+import type { MotionFsmStopEpisode } from '../../src/modules/vehicle-intelligence/driving-intelligence/core/kinematics/motion-fsm';
 import { bucketLabelPlusSeconds, parseBucketLabelMs } from '../../src/modules/vehicle-intelligence/driving-intelligence/core/kinematics/motion-core-grid';
 import { buildE9NullDistributionSelectionBlockV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-e9-null-selection-report.v1';
+import { enrichSyntheticPayloadForW0V1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-synthetic-enrichment.v1';
 
 /** Deterministic PRNG for E9 (LCG-style; research control only). */
 function mulberry32(seed: number): () => number {
@@ -194,137 +195,6 @@ function admissibleRowsFromLongitudinalCsvV1(vehicleIdByTripId: ReadonlyMap<stri
 function reconstructedTripRowsV1() {
   const text = readFileSync(join(fixtureDir, 'p2_reconstructed_assessments.csv'), 'utf8');
   return parseDs4Layer2P2PinnedCsvV1(text);
-}
-
-/**
- * Rich-enough synthetic payload for W0 D4/D5/D6: consecutive 1s labels on MOVING_DIRECT intersection,
- * DIRECT stop episodes, and FSM timeline.
- */
-function enrichSyntheticPayloadForW0V1(
-  _tripId: string,
-  base: DiV0MotionCoreShadowPayloadV1,
-  tripMeta: {
-    exposureSecondsEs: number;
-  },
-): DiV0MotionCoreShadowPayloadV1 {
-  /** P2 synth inserts placeholder events at missing indices (1970-01-01…) — exclude from temporal span. */
-  const YEAR_2000_MS = 946684800000;
-  const admitted = base.events.filter(
-    (e) => e.quality === 'OK' && parseBucketLabelMs(e.startLabel) >= YEAR_2000_MS && parseBucketLabelMs(e.endLabel) >= YEAR_2000_MS,
-  );
-  const eventEdgesMs =
-    admitted.length > 0
-      ? admitted.flatMap((e) => [parseBucketLabelMs(e.startLabel), parseBucketLabelMs(e.endLabel)])
-      : [parseBucketLabelMs('2026-10-28T00:00:00Z')];
-  const tEventMin = Math.min(...eventEdgesMs);
-  const tEventMax = Math.max(...eventEdgesMs);
-  const padStartMs = tEventMin - 120_000;
-  const esSeconds = Math.max(
-    1,
-    Math.round(tripMeta.exposureSecondsEs),
-    admitted.length > 0 ? Math.ceil((tEventMax - tEventMin) / 1000) + 240 : Math.round(tripMeta.exposureSecondsEs),
-  );
-
-  const stopWindows: { startMs: number; endMs: number }[] = [];
-  for (const e of admitted) {
-    if (e.kind !== 'DECELERATION') {
-      continue;
-    }
-    const stopStartMs = parseBucketLabelMs(e.endLabel) + 1000;
-    const stopEndMs = stopStartMs + 4000;
-    stopWindows.push({ startMs: stopStartMs, endMs: stopEndMs });
-  }
-
-  const speeds: DiV0MotionCoreShadowPayloadV1['speeds'] = [];
-  const fsmLabels: DiV0MotionCoreShadowPayloadV1['fsmLabels'] = [];
-  for (let s = 0; s < esSeconds; s += 1) {
-    const t = padStartMs + s * 1000;
-    const label = new Date(t).toISOString().replace(/\.\d{3}Z$/, 'Z');
-
-    const inStop = stopWindows.some((w) => t >= w.startMs && t <= w.endMs);
-    const inManeuvre = admitted.some((e) => {
-      const a = parseBucketLabelMs(e.startLabel);
-      const b = parseBucketLabelMs(e.endLabel);
-      return t >= a && t <= b;
-    });
-
-    let speedKmh = 32 + (s % 5);
-    let state: MotionFsmState = 'MOVING';
-    let evidenceQuality: 'DIRECT' | 'INFERRED' = 'DIRECT';
-    if (inStop) {
-      speedKmh = 0;
-      state = 'STATIONARY';
-      evidenceQuality = 'DIRECT';
-    } else if (inManeuvre) {
-      state = 'MOVING';
-      speedKmh = 30 + ((s % 11) - 5);
-      evidenceQuality = 'DIRECT';
-    } else {
-      state = 'MOVING';
-      speedKmh = 36 + (s % 4);
-      evidenceQuality = 'DIRECT';
-    }
-
-    speeds.push({
-      bucketLabelUtc: label,
-      speedKmh,
-      quality: 'OK',
-      support: [],
-      estimator: 'W0_SYNTH',
-      flags: [],
-    });
-    fsmLabels.push({
-      bucketLabelUtc: label,
-      state,
-      evidenceQuality,
-      reason: 'W0_SYNTH',
-      flags: [],
-    });
-  }
-
-  const stopEpisodes: MotionFsmStopEpisode[] = [];
-  let tripCounter = 0;
-  for (const w of stopWindows) {
-    const startLab = new Date(w.startMs).toISOString().replace(/\.\d{3}Z$/, 'Z');
-    const endLab = new Date(w.endMs).toISOString().replace(/\.\d{3}Z$/, 'Z');
-    stopEpisodes.push({
-      trip: tripCounter,
-      mode: 'RETROSPECTIVE',
-      startEarliest: startLab,
-      startLatest: startLab,
-      endEarliest: endLab,
-      endLatest: endLab,
-      minDurationS: 5,
-      maxDurationS: 5,
-      evidenceQuality: 'DIRECT',
-      openEnd: false,
-      labels: 5,
-      directLabels: 5,
-      inferredLabels: 0,
-      indeterminateLabels: 0,
-      observedLabels: 5,
-      gapLabels: 0,
-      lastEvidenceLabel: endLab,
-      observedMinDurationS: 5,
-      hysteresisBandLabels: 0,
-      firstStationarySource: 'C4_OK',
-      firstStationaryC4Quality: 'OK',
-    });
-    tripCounter += 1;
-  }
-
-  return {
-    ...base,
-    speeds,
-    fsmLabels,
-    stopEpisodes,
-    summary: {
-      ...base.summary,
-      labelCount: speeds.length,
-      speedNumericCount: speeds.length,
-      stopEpisodeCount: stopEpisodes.length,
-    },
-  };
 }
 
 function runSyntheticControlsV1(): {
@@ -867,7 +737,7 @@ async function main(): Promise<void> {
     tripResultsStrict: results,
     syntheticControls: controls,
     scientificNote:
-      'evidenceOrigin=SYNTHETIC_P2_ENRICHMENT: 1Hz speeds/FSM/stops are synthetic from sealed P2 timing (not raw sealed C4 gzip). sealedReferenceContentFingerprintSha256 is CSV attestation metadata only — never compared to JSON.stringify(payload) digest unless explicit SEALED_REAL_C4 contract exists. independentScientificValidationStatus is always NOT_EVALUATED until a verified sealed-real loader exists. sealedRealC4StatisticalEligibility is false for synthetic paths. D8 uses fixed trip exposureSecondsEs as observation horizon from min(first speed, first event start). E9 syntheticControls distinguishes OCCUPANCY_CONDITIONED_NULL from UNRESTRICTED_UNIFORM_ON_EXPOSURE; OCCUPANCY_CONDITIONED_NULL is an occupancy-enforcing construction (not an exact conditional IID-uniform reference). E9 nullDistributions report empiricalEligibilityRate from the batch and abstentionReasonCounts; unrestricted reference distributions are censored by the D8 support gate — use externalEligibilityScaleEvidence for a separate large-trial scale estimate, not a substitute for empirical batch rates. Monte Carlo records every draw including D8 ABSTAIN — finite accepted IOD summaries are not validation. D4–D8 thresholds are preregistered candidates.',
+      'evidenceOrigin=SYNTHETIC_P2_ENRICHMENT: 1Hz speeds/FSM/stops are synthetic from sealed P2 timing (not raw sealed C4 gzip). P2 index-placeholder events (1970-01-01) are stripped from payload.events before kernel evaluation. sealedReferenceContentFingerprintSha256 is CSV attestation metadata only — never compared to JSON.stringify(payload) digest unless explicit verified SEALED_REAL_C4 attestation exists. independentScientificValidationStatus is always NOT_EVALUATED until a verified sealed-real loader exists. sealedRealC4StatisticalEligibility requires verifiedSealedRealC4Attestation binding — caller origin labels alone are insufficient. D8 uses fixed trip exposureSecondsEs as observation horizon from min(first speed, first event start). E9 syntheticControls distinguishes OCCUPANCY_CONDITIONED_NULL from UNRESTRICTED_UNIFORM_ON_EXPOSURE; OCCUPANCY_CONDITIONED_NULL is an occupancy-enforcing construction (not an exact conditional IID-uniform reference). E9 nullDistributions report empiricalEligibilityRate from the batch and abstentionReasonCounts; unrestricted reference distributions are censored by the D8 support gate — use externalEligibilityScaleEvidence for a separate large-trial scale estimate, not a substitute for empirical batch rates. Monte Carlo records every draw including D8 ABSTAIN — finite accepted IOD summaries are not validation. D4–D8 thresholds are preregistered candidates.',
     realVsSyntheticBoundary:
       'SYNTHETIC_CONTROL / SYNTHETIC_P2_ENRICHMENT: speed-based metrics are methodological only. SEALED_REAL_C4 reserved for future unmodified shadow exports.',
   };

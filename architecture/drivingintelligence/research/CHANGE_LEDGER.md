@@ -2749,3 +2749,13 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | VALIDATION | N/A (documentation-only); module registry unchanged |
 | NON_EFFECTS | **No** kernel/CLI/threshold changes; **no** production/DB/VPS; **no** merge claim |
 
+### 2026-11-07 — DS4 DBI W0 post-Opus P1 integrity remediation (F02/F04/F16)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | **F02:** `ds4-dbi-w0-synthetic-event-hygiene.v1` + `ds4-dbi-w0-synthetic-enrichment.v1` — strip P2 index-placeholder events from enriched `payload.events`; align `summary.eventCount`. **F04:** `MBF_W0_FAIL_CLOSED_UNVERIFIED_SEALED_REAL_C4_CLAIM` + `verifiedSealedRealC4Attestation` binding (`ds4-dbi-w0-sealed-real-attestation.v1.ts`). **F16:** numeric oracles (D4/D5/D6/D8), strengthened E9 unrestricted abstention assertion, enrichment + attestation specs. Offline CLI imports shared enrichment; `scientificNote` updated. |
+| WHY | Opus audit P0: harness placeholder contamination (2 fail-closed trips) and caller-forged `SEALED_REAL_C4` statistical eligibility |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (29 tests); offline `--json` — zero fail-closed trips; `validate-module-registry.sh`; prod DB guard manifest regen for `package.json` test script |
+| NON_EFFECTS | **No** F01 D8 time-axis change; **no** F03 threshold changes; **no** production motion/FSM/RPM; **no** W1 validation claims |
+| REMAINING | F01 BLOCKER (D8 Es semantics); F03 selection reporting; sealed-real loader not implemented |
+

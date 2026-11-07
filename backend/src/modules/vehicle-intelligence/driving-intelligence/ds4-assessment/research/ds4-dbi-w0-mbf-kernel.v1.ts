@@ -12,6 +12,8 @@ import {
   type Ds4DbiW0SingleMetricResultV1,
   type Ds4DbiW0TripKernelResultV1,
 } from './ds4-dbi-w0-mbf.types.v1';
+import type { Ds4DbiW0VerifiedSealedRealC4AttestationV1 } from './ds4-dbi-w0-sealed-real-attestation.v1';
+import { isDs4DbiW0VerifiedSealedRealC4AttestationBoundV1 } from './ds4-dbi-w0-sealed-real-attestation.v1';
 
 export type Ds4DbiW0TripMetaV1 = {
   tripId: string;
@@ -34,6 +36,7 @@ const FAIL_CLOSED_CODES = new Set<Ds4DbiW0MbfReasonCodeV1>([
   'MBF_W0_FAIL_CLOSED_FSM_MISSING_FOR_SPEED_LABEL',
   'MBF_W0_FAIL_CLOSED_DUPLICATE_EVENT_START_TIME',
   'MBF_W0_FAIL_CLOSED_EVENT_VALIDATION',
+  'MBF_W0_FAIL_CLOSED_UNVERIFIED_SEALED_REAL_C4_CLAIM',
 ]);
 
 function fingerprintPayloadV1(payload: DiV0MotionCoreShadowPayloadV1): string {
@@ -771,6 +774,11 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
   evidenceOrigin?: Ds4DbiW0EvidenceOriginV1;
   /** Sealed file/content fingerprint from P2 CSV — compare only to JSON digest when using sealed-real semantics. */
   sealedReferenceContentFingerprintSha256?: string | null;
+  /**
+   * Required for statistical eligibility when evidenceOrigin is SEALED_REAL_C4.
+   * Omitted until a verified sealed-real loader exists — unverified caller claims fail closed.
+   */
+  verifiedSealedRealC4Attestation?: Ds4DbiW0VerifiedSealedRealC4AttestationV1 | null;
 }): Ds4DbiW0TripKernelResultV1 {
   const reasonSet = new Set<Ds4DbiW0MbfReasonCodeV1>();
   const pushReason = (c: Ds4DbiW0MbfReasonCodeV1) => {
@@ -806,6 +814,16 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
   const bundleObs = payload.contract.algorithmVersions.bundle;
   if (input.expectedShadowBundleVersion && bundleObs !== input.expectedShadowBundleVersion) {
     pushReason('MBF_W0_FAIL_CLOSED_SOURCE_BUNDLE_MISMATCH');
+  }
+  if (evidenceOrigin === 'SEALED_REAL_C4') {
+    const sealedVerified = isDs4DbiW0VerifiedSealedRealC4AttestationBoundV1(input.verifiedSealedRealC4Attestation ?? null, {
+      tripMeta: input.tripMeta,
+      observedPayloadDigestSha256: observedFp,
+      shadowBundleVersion: bundleObs,
+    });
+    if (!sealedVerified) {
+      pushReason('MBF_W0_FAIL_CLOSED_UNVERIFIED_SEALED_REAL_C4_CLAIM');
+    }
   }
   if (
     input.tripMeta &&
@@ -956,8 +974,16 @@ export function computeDs4DbiW0MbfFromPayloadV1(input: {
 
   const implementationWorks = true;
 
-  const sealedRealC4StatisticalEligibility =
+  const sealedAttestationVerified =
     evidenceOrigin === 'SEALED_REAL_C4' &&
+    isDs4DbiW0VerifiedSealedRealC4AttestationBoundV1(input.verifiedSealedRealC4Attestation ?? null, {
+      tripMeta: input.tripMeta,
+      observedPayloadDigestSha256: observedFp,
+      shadowBundleVersion: bundleObs,
+    });
+
+  const sealedRealC4StatisticalEligibility =
+    sealedAttestationVerified &&
     !failClosed &&
     d4.status === 'KNOWN' &&
     d5.status === 'KNOWN' &&

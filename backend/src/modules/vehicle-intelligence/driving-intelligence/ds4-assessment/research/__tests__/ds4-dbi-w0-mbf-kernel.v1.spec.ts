@@ -5,6 +5,7 @@ import {
   computeDs4DbiW0D8BurstinessFromObservationWindowV1,
   computeDs4DbiW0MbfFromPayloadV1,
 } from '../ds4-dbi-w0-mbf-kernel.v1';
+import type { Ds4DbiW0VerifiedSealedRealC4AttestationV1 } from '../ds4-dbi-w0-sealed-real-attestation.v1';
 
 describe('ds4-dbi-w0-mbf-kernel.v1', () => {
   const baseContract: DiV0MotionCoreShadowPayloadV1['contract'] = {
@@ -129,6 +130,111 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     exposureSecondsEs: 900,
     distanceKm: 2,
   };
+
+  it('numerical oracle: constant speed yields D4 ratio 0 and D5 mean delta 0', () => {
+    const payload = mkMovingSeries(130, 40);
+    for (let i = 0; i < payload.speeds.length; i += 1) {
+      payload.speeds[i] = { ...payload.speeds[i]!, speedKmh: 40 };
+    }
+    const r = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta: meta,
+      qualityTier: 'STRICT',
+      evidenceOrigin: 'SYNTHETIC_CONTROL',
+    });
+    expect(r.d4SpeedVariabilityRobustCv.status).toBe('KNOWN');
+    expect(r.d4SpeedVariabilityRobustCv.value).toBeCloseTo(0, 10);
+    expect(r.d5SpeedRoughnessMeanAbsDeltaKmhPerS.status).toBe('KNOWN');
+    expect(r.d5SpeedRoughnessMeanAbsDeltaKmhPerS.value).toBeCloseTo(0, 10);
+  });
+
+  it('numerical oracle: D6 direct stop count over distance', () => {
+    const payload = mkMovingSeries(130, 40);
+    const r = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta: meta,
+      qualityTier: 'STRICT',
+      evidenceOrigin: 'SYNTHETIC_CONTROL',
+    });
+    expect(r.d6StopStructure.status).toBe('KNOWN');
+    expect(r.d6StopStructure.directStopCount).toBe(4);
+    expect(r.d6StopStructure.stopsPerKm).toBeCloseTo(2, 5);
+  });
+
+  it('numerical oracle: D8 IOD with one event per first ten 60s bins', () => {
+    const t0 = '2026-01-01T12:00:00Z';
+    const t0ms = Date.parse(t0);
+    const esSec = 660;
+    const windowMs = 60_000;
+    const speedLabs = Array.from({ length: 720 }, (_, i) => new Date(t0ms + i * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+    const offsets = [
+      ...Array.from({ length: 10 }, (_, w) => w * windowMs + 1000),
+      10 * windowMs + 1000,
+      10 * windowMs + 8000,
+    ];
+    const events = offsets.map((off) => ({
+      kind: 'ACCELERATION' as const,
+      startLabel: new Date(t0ms + off).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+      endLabel: new Date(t0ms + off + 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+      startSpeedKmh: 40,
+      endSpeedKmh: 41,
+      deltaKmh: 1,
+      quality: 'OK' as const,
+      flags: [],
+    }));
+    const d8 = computeDs4DbiW0D8BurstinessFromObservationWindowV1({
+      tripMeta: { ...meta, exposureSecondsEs: esSec },
+      speedLabelsUtc: speedLabs,
+      events,
+    });
+    expect(d8.status).toBe('KNOWN');
+    const n = 12;
+    const k = 11;
+    const mean = n / k;
+    const counts = [2, ...Array.from({ length: 10 }, () => 1)];
+    const sumSq = counts.reduce((a, x) => a + x * x, 0);
+    const variance = (sumSq - (n * n) / k) / (k - 1);
+    const expectedIod = variance / mean;
+    expect(d8.indexOfDispersion).toBeCloseTo(expectedIod, 5);
+  });
+
+  it('F04: forged SEALED_REAL_C4 never grants statistical eligibility', () => {
+    const payload = mkMovingSeries(130, 40);
+    const r = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta: meta,
+      qualityTier: 'STRICT',
+      evidenceOrigin: 'SEALED_REAL_C4',
+    });
+    expect(r.sealedRealC4StatisticalEligibility).toBe(false);
+    expect(r.independentScientificValidationStatus).toBe('NOT_EVALUATED');
+    expect(r.diagnostics.failClosedReasons).toContain('MBF_W0_FAIL_CLOSED_UNVERIFIED_SEALED_REAL_C4_CLAIM');
+    expect(r.d4SpeedVariabilityRobustCv.value).toBeNull();
+  });
+
+  it('F04: verified attestation binding enables eligibility only when metrics KNOWN', () => {
+    const payload = mkMovingSeries(130, 40);
+    const observed = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+    const attestation: Ds4DbiW0VerifiedSealedRealC4AttestationV1 = {
+      contractVersion: 'ds4-dbi-w0-verified-sealed-real-c4-v1',
+      tripId: meta.tripId,
+      sourceMotionRunId: meta.sourceMotionRunId,
+      shadowBundleVersion: payload.contract.algorithmVersions.bundle,
+      payloadContentDigestSha256: observed,
+      provenanceManifestSha256: 'd'.repeat(64),
+      integrityCheckPassed: true,
+    };
+    const r = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta: { ...meta, shadowBundleVersion: payload.contract.algorithmVersions.bundle },
+      qualityTier: 'STRICT',
+      evidenceOrigin: 'SEALED_REAL_C4',
+      verifiedSealedRealC4Attestation: attestation,
+    });
+    expect(r.diagnostics.failClosedReasons).not.toContain('MBF_W0_FAIL_CLOSED_UNVERIFIED_SEALED_REAL_C4_CLAIM');
+    expect(r.independentScientificValidationStatus).toBe('NOT_EVALUATED');
+    expect(r.sealedRealC4StatisticalEligibility).toBe(true);
+  });
 
   it('E7-style constant speed yields low D5 on strict tier', () => {
     const payload = mkMovingSeries(130, 40);
@@ -322,22 +428,10 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
     const t0 = '2026-01-01T12:00:00Z';
     const t0ms = Date.parse(t0);
     const esSec = 660;
-    const horizonMs = esSec * 1000;
     const nEv = 12;
-    const rand = (seed: number) => {
-      let a = seed >>> 0;
-      return () => {
-        a += 0x6d2b79f5;
-        let t = a;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-      };
-    };
     const speedLabs = Array.from({ length: 720 }, (_, i) => new Date(t0ms + i * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'));
-    const rdraw = rand(0xbad5eed);
-    const maxOff = Math.max(1, horizonMs - 1000);
-    const unrestrictedOffsets = Array.from({ length: nEv }, () => Math.floor(rdraw() * maxOff)).sort((a, b) => a - b);
+    /** Deterministic stack in first bin → insufficient nonempty windows under preregistered gate. */
+    const unrestrictedOffsets = Array.from({ length: nEv }, (_, i) => i * 1000).sort((a, b) => a - b);
     const mkEv = (offsetsMs: number[]) =>
       offsetsMs.map((off) => ({
         kind: 'ACCELERATION' as const,
@@ -355,10 +449,8 @@ describe('ds4-dbi-w0-mbf-kernel.v1', () => {
       speedLabelsUtc: speedLabs,
       events: mkEv(unrestrictedOffsets),
     });
-    expect(['KNOWN', 'ABSTAIN']).toContain(dUnres.status);
-    if (dUnres.status === 'ABSTAIN') {
-      expect(dUnres.reasonCodes.length).toBeGreaterThan(0);
-    }
+    expect(dUnres.status).toBe('ABSTAIN');
+    expect(dUnres.reasonCodes).toContain('MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS');
   });
 
   it('recomputing same payload is deterministic', () => {
