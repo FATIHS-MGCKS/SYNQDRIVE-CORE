@@ -12,6 +12,7 @@ import type { Ds4DbiW0TripMetaV1 } from '../ds4-dbi-w0-mbf-kernel.v1';
 import { loadDs4DbiW0HistoricalMotionFixtureV1 } from '../ds4-dbi-w0-historical-replay.loader.v1';
 import { projectDs4DbiW1cTripAssessmentFromW0KernelV1 } from '../ds4-dbi-w1c-trip-assessment-projector.v1';
 import { loadDs4DbiW1b1LocalEvidenceV1 } from '../ds4-dbi-w1b1-local-evidence.loader.v1';
+import { computeCanonicalPayloadDigestV1 } from '../ds4-dbi-w1b1-digest-semantics.v1';
 import {
   buildGreenwoodConditionalNullReferenceV1,
   computeDs4DbiD8V2FromW0ContextV1,
@@ -140,7 +141,7 @@ function mkUniformMovingPayload(input: {
 function runKernelAndV2(
   payload: DiV0MotionCoreShadowPayloadV1,
   _eStarHint: number,
-  opts?: { failClosed?: boolean; nullDraws?: number },
+  opts?: { nullDraws?: number; kernelPatch?: (k: ReturnType<typeof computeDs4DbiW0MbfFromPayloadV1>) => void },
 ) {
   const speedAuthority = resolveW0SpeedAuthorityPartitionV1(payload);
   const exposure = deriveDs4DrivingExposureV1({ payload, speedAuthority });
@@ -153,17 +154,17 @@ function runKernelAndV2(
     exposureSecondsEs: exposure.exposureSeconds,
     distanceKm: 10,
   };
-  const kernel = computeDs4DbiW0MbfFromPayloadV1({
+  let kernel = computeDs4DbiW0MbfFromPayloadV1({
     payload,
     tripMeta,
     qualityTier: 'STRICT',
     evidenceOrigin: 'SYNTHETIC_CONTROL',
   });
+  opts?.kernelPatch?.(kernel);
   const v2 = computeDs4DbiD8V2FromW0ContextV1({
+    kernel,
     payload,
     tripMeta,
-    v1D8: kernel.d8Burstiness,
-    failClosedTrip: opts?.failClosed,
     nullDraws: opts?.nullDraws ?? 20_000,
     seed: DS4_DBI_D8_V2_NULL_MC_SEED_V1,
   });
@@ -345,21 +346,23 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
       if (!load.ok) {
         throw new Error(`fixture ${fixtureId}: ${load.detail}`);
       }
+      const canonicalDigest = computeCanonicalPayloadDigestV1(load.payload);
       const kernel = computeDs4DbiW0MbfFromPayloadV1({
         payload: load.payload,
         tripMeta: load.tripMeta,
-        qualityTier: 'RELAXED',
-        expectedContentFingerprint: load.payloadFileSha256,
+        qualityTier: 'STRICT',
+        expectedContentFingerprint: canonicalDigest,
         expectedShadowBundleVersion: load.tripMeta.shadowBundleVersion,
         evidenceOrigin: 'HISTORICAL_RESEARCH_RECORDING',
       });
       const v2 = computeDs4DbiD8V2FromW0ContextV1({
+        kernel,
         payload: load.payload,
         tripMeta: load.tripMeta,
-        v1D8: kernel.d8Burstiness,
         researchSpeedAuthorityPartitionOverride: load.speedAuthorityBinding.partition,
         nullDraws: 10_000,
       });
+      expect(v2.w0TripFailClosed).toBe(false);
       expect(v2.v1Reference.status).toBe(kernel.d8Burstiness.status);
       expect(v2.v1Reference.indexOfDispersion).toBe(kernel.d8Burstiness.indexOfDispersion);
       expect(v2.contractVersion).toBe('ds4-dbi-d8-v2-research-v1');
@@ -377,9 +380,9 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
         evidenceOrigin: 'SYNTHETIC_CONTROL',
       });
       const v2 = computeDs4DbiD8V2FromW0ContextV1({
+        kernel,
         payload: w1b1Load.payload,
         tripMeta: w1b1Load.tripMeta,
-        v1D8: kernel.d8Burstiness,
         nullDraws: 10_000,
       });
       expect(v2.inference.nMinInference).toBe(DS4_DBI_D8_V2_RESEARCH_NMIN_V1);
@@ -394,12 +397,14 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
     const gzip = readFileSync(TESLA_ARTIFACT);
     const { payload } = decodeMotionCoreShadowPayloadGzipV1(gzip);
     expect(payload).toBeTruthy();
+    const observedCanonical = computeCanonicalPayloadDigestV1(payload!);
+    const bundleObs = payload!.contract.algorithmVersions.bundle;
     const tripMeta: Ds4DbiW0TripMetaV1 = {
       tripId: '0bf6fa50-5f0e-4bc4-9a75-777711d66063',
       sourceMotionRunId: '316cddb2-372d-4084-ab2d-25d456470eab',
-      speedAuthority: 'C5_1_PREFERRED',
-      shadowBundleVersion: 'TV',
-      contentFingerprint: '4dba502e04a658d199b7e8dca9ffdcfcc68776db82c05fabf5623f2d23d04cf3',
+      speedAuthority: payload!.contract.speedAuthority ?? 'C5_1_PREFERRED',
+      shadowBundleVersion: bundleObs,
+      contentFingerprint: observedCanonical,
       exposureSecondsEs: 832,
       distanceKm: 15.4,
     };
@@ -407,15 +412,24 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
       payload: payload!,
       tripMeta,
       qualityTier: 'STRICT',
+      expectedContentFingerprint: observedCanonical,
+      expectedShadowBundleVersion: bundleObs,
       evidenceOrigin: 'HISTORICAL_RESEARCH_RECORDING',
     });
+    const w1c = projectDs4DbiW1cTripAssessmentFromW0KernelV1(kernel);
     const v2 = computeDs4DbiD8V2FromW0ContextV1({
+      kernel,
       payload: payload!,
       tripMeta,
-      v1D8: kernel.d8Burstiness,
       nullDraws: 50_000,
     });
+    expect(v2.w0TripFailClosed).toBe(false);
+    expect(kernel.d8Burstiness.status).toBe('ABSTAIN');
+    expect(w1c.ok && w1c.summary.tripOutcome).toBe('PARTIAL');
+    expect(v2.descriptive.status).toBe('DESCRIPTIVE_RESULT_AVAILABLE');
     expect(v2.descriptive.admittedEventCount).toBe(4);
+    expect(v2.descriptive.accelerationCount).toBe(1);
+    expect(v2.descriptive.brakingCount).toBe(3);
     expect(v2.inference.observedGreenwoodG).toBeCloseTo(0.4034, 2);
     expect(v2.inference.status).toBe('INSUFFICIENT_INFORMATION');
   });
@@ -440,7 +454,7 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
       qualityTier: 'STRICT',
       evidenceOrigin: 'SYNTHETIC_CONTROL',
     });
-    computeDs4DbiD8V2FromW0ContextV1({ payload, tripMeta, v1D8: k1.d8Burstiness });
+    computeDs4DbiD8V2FromW0ContextV1({ kernel: k1, payload, tripMeta });
     const k2 = computeDs4DbiW0MbfFromPayloadV1({
       payload,
       tripMeta,
@@ -448,6 +462,142 @@ describe('ds4-dbi-d8-v2-event-intelligence', () => {
       evidenceOrigin: 'SYNTHETIC_CONTROL',
     });
     expect(k2.d8Burstiness).toEqual(k1.d8Burstiness);
+  });
+
+  it('TIG22_V4: raw file SHA and canonical digest are distinct and both verifiable', () => {
+    const load = loadDs4DbiW0HistoricalMotionFixtureV1({
+      fixtureId: 'TIG22_V4',
+      bindingTier: 'RELAXED',
+      repositoryRoot: REPO_ROOT,
+    });
+    expect(load.ok).toBe(true);
+    if (!load.ok) {
+      return;
+    }
+    expect(load.payloadFileSha256).toBe('ddcf32cd111ef21859e7df9f20915190efbe89aa416a22132e02c7d658712ccd');
+    const canonical = computeCanonicalPayloadDigestV1(load.payload);
+    expect(canonical).not.toBe(load.payloadFileSha256);
+    expect(canonical).toMatch(/^[a-f0-9]{64}$/);
+    const kernel = computeDs4DbiW0MbfFromPayloadV1({
+      payload: load.payload,
+      tripMeta: load.tripMeta,
+      qualityTier: 'STRICT',
+      expectedContentFingerprint: canonical,
+      expectedShadowBundleVersion: load.tripMeta.shadowBundleVersion,
+      evidenceOrigin: 'HISTORICAL_RESEARCH_RECORDING',
+    });
+    expect(kernel.diagnostics.failClosedReasons).not.toContain('MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH');
+    expect(kernel.d8Burstiness.status).toBe('ABSTAIN');
+    const v2 = computeDs4DbiD8V2FromW0ContextV1({
+      kernel,
+      payload: load.payload,
+      tripMeta: load.tripMeta,
+      researchSpeedAuthorityPartitionOverride: load.speedAuthorityBinding.partition,
+      nullDraws: 8000,
+    });
+    expect(v2.w0TripFailClosed).toBe(false);
+    expect(v2.descriptive.status).toBe('DESCRIPTIVE_RESULT_AVAILABLE');
+    expect(v2.inference.status).toBe('STATISTICAL_RESULT_AVAILABLE');
+    const w1c = projectDs4DbiW1cTripAssessmentFromW0KernelV1(kernel);
+    expect(w1c.ok && w1c.summary.tripOutcome).toBe('PARTIAL');
+  });
+
+  it('adversarial: wrong canonical fingerprint forces W0 fail-closed and V2 NOT_EVALUABLE', () => {
+    const payload = mkUniformMovingPayload({
+      eStarSeconds: 400,
+      eventTauSeconds: [40, 80, 120, 160, 200, 240, 280, 320, 360, 400],
+    });
+    const { kernel, v2, w1c } = runKernelAndV2(payload, 400);
+    const tripMeta: Ds4DbiW0TripMetaV1 = {
+      tripId: 't',
+      sourceMotionRunId: 'r',
+      speedAuthority: 'C4_ONLY',
+      shadowBundleVersion: payload.contract.algorithmVersions.bundle,
+      contentFingerprint: '00',
+      exposureSecondsEs: 400,
+      distanceKm: 5,
+    };
+    const failKernel = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta,
+      qualityTier: 'STRICT',
+      expectedContentFingerprint: 'f'.repeat(64),
+      evidenceOrigin: 'SYNTHETIC_CONTROL',
+    });
+    const failV2 = computeDs4DbiD8V2FromW0ContextV1({ kernel: failKernel, payload, tripMeta });
+    expect(failKernel.diagnostics.failClosedReasons).toContain('MBF_W0_FAIL_CLOSED_CONTENT_FINGERPRINT_MISMATCH');
+    expect(failV2.w0TripFailClosed).toBe(true);
+    expect(failV2.descriptive.status).toBe('NOT_EVALUABLE');
+    expect(failV2.inference.status).toBe('NOT_EVALUABLE');
+    expect(failV2.descriptive.ratePerMovingMinute).toBeNull();
+    expect(failV2.inference.observedGreenwoodG).toBeNull();
+    const failW1c = projectDs4DbiW1cTripAssessmentFromW0KernelV1(failKernel);
+    expect(failW1c.ok && failW1c.summary.tripOutcome).toBe('NOT_EVALUABLE');
+    expect(kernel.diagnostics.failClosedReasons).toHaveLength(0);
+    expect(v2.descriptive.status).toBe('DESCRIPTIVE_RESULT_AVAILABLE');
+    expect(w1c.ok && w1c.summary.tripOutcome).not.toBe('NOT_EVALUABLE');
+  });
+
+  it('adversarial: TIG22_V4 raw-SHA-as-canonical fail-closed blocks V2 statistics', () => {
+    const load = loadDs4DbiW0HistoricalMotionFixtureV1({
+      fixtureId: 'TIG22_V4',
+      bindingTier: 'RELAXED',
+      repositoryRoot: REPO_ROOT,
+    });
+    if (!load.ok) {
+      throw new Error(load.detail);
+    }
+    const wrongKernel = computeDs4DbiW0MbfFromPayloadV1({
+      payload: load.payload,
+      tripMeta: load.tripMeta,
+      qualityTier: 'STRICT',
+      expectedContentFingerprint: load.payloadFileSha256,
+      expectedShadowBundleVersion: load.tripMeta.shadowBundleVersion,
+      evidenceOrigin: 'HISTORICAL_RESEARCH_RECORDING',
+    });
+    const wrongV2 = computeDs4DbiD8V2FromW0ContextV1({ kernel: wrongKernel, payload: load.payload, tripMeta: load.tripMeta });
+    expect(wrongV2.w0TripFailClosed).toBe(true);
+    expect(wrongV2.descriptive.status).toBe('NOT_EVALUABLE');
+    expect(wrongV2.inference.status).toBe('NOT_EVALUABLE');
+  });
+
+  it('adversarial: bundle mismatch and duplicate speed label fail-closed', () => {
+    const payload = mkUniformMovingPayload({ eStarSeconds: 300, eventTauSeconds: [50, 150] });
+    const tripMeta: Ds4DbiW0TripMetaV1 = {
+      tripId: 't',
+      sourceMotionRunId: 'r',
+      speedAuthority: 'C4_ONLY',
+      shadowBundleVersion: payload.contract.algorithmVersions.bundle,
+      contentFingerprint: computeCanonicalPayloadDigestV1(payload),
+      exposureSecondsEs: 300,
+      distanceKm: 3,
+    };
+    const bundleBad = computeDs4DbiW0MbfFromPayloadV1({
+      payload,
+      tripMeta,
+      qualityTier: 'STRICT',
+      expectedShadowBundleVersion: 'NOT_A_REAL_BUNDLE',
+      evidenceOrigin: 'SYNTHETIC_CONTROL',
+    });
+    const bundleV2 = computeDs4DbiD8V2FromW0ContextV1({ kernel: bundleBad, payload, tripMeta });
+    expect(bundleV2.w0TripFailClosed).toBe(true);
+    expect(bundleV2.descriptive.status).toBe('NOT_EVALUABLE');
+
+    const dupPayload = mkUniformMovingPayload({ eStarSeconds: 300, eventTauSeconds: [50] });
+    dupPayload.speeds = [...dupPayload.speeds, { ...dupPayload.speeds[0]! }];
+    const dupKernel = computeDs4DbiW0MbfFromPayloadV1({
+      payload: dupPayload,
+      tripMeta: { ...tripMeta, contentFingerprint: computeCanonicalPayloadDigestV1(dupPayload) },
+      qualityTier: 'STRICT',
+      evidenceOrigin: 'SYNTHETIC_CONTROL',
+    });
+    const dupV2 = computeDs4DbiD8V2FromW0ContextV1({
+      kernel: dupKernel,
+      payload: dupPayload,
+      tripMeta,
+    });
+    expect(dupV2.w0TripFailClosed).toBe(true);
+    expect(dupV2.w0TripFailClosedReasonCodes).toContain('MBF_W0_FAIL_CLOSED_DUPLICATE_SPEED_LABEL');
   });
 });
 

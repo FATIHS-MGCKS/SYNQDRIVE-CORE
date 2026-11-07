@@ -7,6 +7,8 @@
 1. **Descriptive** — DS4-admitted events + moving-exposure clock (no re-detection): counts, rate + Garwood Poisson CI, gaps, `shareGapsWithin30s`, descriptive event groups (`clusters`, chained while inter-event gap ≤ 120 s), coverage class, event refs.
 2. **Inference** — Greenwood normalized-spacing statistic, conditional IID-uniform τ null (seeded MC), one-sided clustering p-value when `admittedEventCount ≥ nMin`.
 
+**W0 fail-closed inheritance:** `computeDs4DbiD8V2FromW0ContextV1` requires a full `Ds4DbiW0TripKernelResultV1` and derives trip-level fail-closed from `diagnostics.failClosedReasons` (same typed set as W1C). On fail-closed, both layers are `NOT_EVALUABLE` with no valid rate or Greenwood output; callers cannot override with a boolean flag. Historical replay passes **canonical** payload digest to the kernel; raw file SHA is verified separately against pinned source evidence.
+
 ## Frozen references
 
 - D8 V1: `computeDs4DbiW0D8FromTauOnsetsV1` unchanged.

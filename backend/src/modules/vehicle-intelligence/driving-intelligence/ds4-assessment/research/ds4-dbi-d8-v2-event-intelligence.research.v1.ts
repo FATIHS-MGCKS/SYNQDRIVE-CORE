@@ -5,8 +5,9 @@
 
 import type { DiV0MotionCoreShadowPayloadV1 } from '../../motion-core-shadow-worker/di-v0-motion-core-shadow.types';
 import { deriveDs4DrivingExposureV1 } from '../ds4-assessment-driving-exposure.v1';
-import type { Ds4DbiW0TripKernelResultV1 } from './ds4-dbi-w0-mbf.types.v1';
+import type { Ds4DbiW0MbfReasonCodeV1, Ds4DbiW0TripKernelResultV1 } from './ds4-dbi-w0-mbf.types.v1';
 import type { Ds4DbiW0TripMetaV1 } from './ds4-dbi-w0-mbf-kernel.v1';
+import { deriveTripFailClosedFromDiagnosticsV1 } from './ds4-dbi-w1c-trip-assessment-projector.v1';
 import {
   buildDs4DbiW0MovingExposureClockEvidenceV1,
   resolveW0SpeedAuthorityPartitionV1,
@@ -150,11 +151,26 @@ export type Ds4DbiD8V2V1ReferenceV1 = {
 
 export type Ds4DbiD8V2ResultV1 = {
   contractVersion: typeof DS4_DBI_D8_V2_CONTRACT_VERSION;
+  w0TripFailClosed: boolean;
+  w0TripFailClosedReasonCodes: readonly Ds4DbiW0MbfReasonCodeV1[];
   descriptive: Ds4DbiD8V2DescriptiveV1;
   inference: Ds4DbiD8V2InferenceV1;
   v1Reference: Ds4DbiD8V2V1ReferenceV1;
   interpretationLimits: readonly string[];
 };
+
+export function deriveDs4DbiD8V2W0TripFailClosedV1(kernel: Ds4DbiW0TripKernelResultV1): {
+  tripFailClosed: boolean;
+  typedReasons: readonly Ds4DbiW0MbfReasonCodeV1[];
+  bindingRejected: boolean;
+} {
+  const derived = deriveTripFailClosedFromDiagnosticsV1(kernel);
+  return {
+    tripFailClosed: derived.tripFailClosed || derived.projectionFailures.length > 0,
+    typedReasons: derived.typedReasons,
+    bindingRejected: derived.projectionFailures.length > 0,
+  };
+}
 
 /** Deterministic PRNG (LCG-style) for conditional null MC. */
 export function mulberry32D8V2(seed: number): () => number {
@@ -445,11 +461,12 @@ export function computeDs4DbiD8V2EventIntelligenceV1(input: {
   payload: DiV0MotionCoreShadowPayloadV1;
   clock: ReturnType<typeof buildDs4DbiW0MovingExposureClockEvidenceV1>;
   v1D8: Ds4DbiW0TripKernelResultV1['d8Burstiness'];
-  failClosedTrip?: boolean;
+  w0TripFailClosed: boolean;
+  w0TripFailClosedReasonCodes: readonly Ds4DbiW0MbfReasonCodeV1[];
   nullDraws?: number;
   seed?: number;
 }): Ds4DbiD8V2ResultV1 {
-  const failClosed = input.failClosedTrip === true;
+  const failClosed = input.w0TripFailClosed;
   const speedAuthority = resolveW0SpeedAuthorityPartitionV1(input.payload);
   const { coverageClass, limitations: coverageLimitations } = resolveD8V2CoverageClassV1({
     derivable: input.clock.derivable,
@@ -471,6 +488,7 @@ export function computeDs4DbiD8V2EventIntelligenceV1(input: {
 
   if (failClosed) {
     descReasons.push('D8V2_FAIL_CLOSED');
+    descStatus = 'NOT_EVALUABLE';
   } else if (!input.clock.derivable || eStar == null || eStar <= 0) {
     descReasons.push('D8V2_EXPOSURE_NOT_DERIVABLE');
   } else if (coverageClass === 'DEGRADED') {
@@ -485,45 +503,69 @@ export function computeDs4DbiD8V2EventIntelligenceV1(input: {
   }
 
   const rate =
-    eStar != null && eStar > 0 && descStatus !== 'NOT_EVALUABLE'
+    !failClosed && eStar != null && eStar > 0 && descStatus !== 'NOT_EVALUABLE'
       ? admitted.length / (eStar / 60)
       : null;
   const rateCi =
-    eStar != null && descStatus !== 'NOT_EVALUABLE'
+    !failClosed && eStar != null && descStatus !== 'NOT_EVALUABLE'
       ? garwoodPoissonRatePerMinuteCiV1({ admittedEventCount: admitted.length, movingExposureSeconds: eStar })
       : null;
 
   const within30 =
-    gaps.length > 0
+    !failClosed && gaps.length > 0
       ? gaps.filter((g) => g <= DS4_DBI_D8_V2_SHORT_GAP_TAU_SECONDS_V1).length / gaps.length
       : null;
 
-  const descriptive: Ds4DbiD8V2DescriptiveV1 = {
-    status: descStatus,
-    totalEventCount: input.payload.events.length,
-    admittedEventCount: admitted.length,
-    excludedEventCount: dual.excludedEventCount,
-    excludedReasonCodes: [...dual.eventMappingReasonCodes],
-    accelerationCount: kinds.acceleration,
-    brakingCount: kinds.braking,
-    otherKindCount: kinds.other,
-    movingExposureSeconds: eStar,
-    detectionOpportunitySeconds: dual.movingExposureSeconds,
-    coverageClass,
-    coverageLimitations,
-    ratePerMovingMinute: rate,
-    rateCi95: rateCi,
-    interEventGapsTauSeconds: gaps,
-    minGapTauSeconds: gaps.length ? Math.min(...gaps) : null,
-    medianGapTauSeconds: median([...gaps]),
-    shareGapsWithin30s: within30,
-    clusters: buildEventClustersV1(
-      sortedTau,
-      DS4_DBI_D8_V2_DESCRIPTIVE_GROUP_MAX_INTER_EVENT_GAP_SECONDS_V1,
-    ),
-    eventRefs: kinds.refs,
-    reasonCodes: descReasons,
-  };
+  const descriptive: Ds4DbiD8V2DescriptiveV1 = failClosed
+    ? {
+        status: 'NOT_EVALUABLE',
+        totalEventCount: input.payload.events.length,
+        admittedEventCount: 0,
+        excludedEventCount: 0,
+        excludedReasonCodes: [],
+        accelerationCount: 0,
+        brakingCount: 0,
+        otherKindCount: 0,
+        movingExposureSeconds: null,
+        detectionOpportunitySeconds: null,
+        coverageClass,
+        coverageLimitations: [...coverageLimitations, 'W0_TRIP_FAIL_CLOSED'],
+        ratePerMovingMinute: null,
+        rateCi95: null,
+        interEventGapsTauSeconds: [],
+        minGapTauSeconds: null,
+        medianGapTauSeconds: null,
+        shareGapsWithin30s: null,
+        clusters: [],
+        eventRefs: [],
+        reasonCodes: descReasons,
+      }
+    : {
+        status: descStatus,
+        totalEventCount: input.payload.events.length,
+        admittedEventCount: admitted.length,
+        excludedEventCount: dual.excludedEventCount,
+        excludedReasonCodes: [...dual.eventMappingReasonCodes],
+        accelerationCount: kinds.acceleration,
+        brakingCount: kinds.braking,
+        otherKindCount: kinds.other,
+        movingExposureSeconds: eStar,
+        detectionOpportunitySeconds: dual.movingExposureSeconds,
+        coverageClass,
+        coverageLimitations,
+        ratePerMovingMinute: rate,
+        rateCi95: rateCi,
+        interEventGapsTauSeconds: gaps,
+        minGapTauSeconds: gaps.length ? Math.min(...gaps) : null,
+        medianGapTauSeconds: median([...gaps]),
+        shareGapsWithin30s: within30,
+        clusters: buildEventClustersV1(
+          sortedTau,
+          DS4_DBI_D8_V2_DESCRIPTIVE_GROUP_MAX_INTER_EVENT_GAP_SECONDS_V1,
+        ),
+        eventRefs: kinds.refs,
+        reasonCodes: descReasons,
+      };
 
   const inferReasons: Ds4DbiD8V2ReasonCodeV1[] = [];
   let inferStatus: Ds4DbiD8V2InferenceStatusV1 = 'NOT_EVALUABLE';
@@ -542,6 +584,7 @@ export function computeDs4DbiD8V2EventIntelligenceV1(input: {
 
   if (failClosed) {
     inferReasons.push('D8V2_FAIL_CLOSED');
+    inferStatus = 'NOT_EVALUABLE';
   } else if (!input.clock.derivable || eStar == null || eStar <= 0) {
     inferReasons.push('D8V2_EXPOSURE_NOT_DERIVABLE');
   } else if (coverageClass === 'DEGRADED') {
@@ -618,6 +661,8 @@ export function computeDs4DbiD8V2EventIntelligenceV1(input: {
 
   return {
     contractVersion: DS4_DBI_D8_V2_CONTRACT_VERSION,
+    w0TripFailClosed: failClosed,
+    w0TripFailClosedReasonCodes: [...input.w0TripFailClosedReasonCodes],
     descriptive,
     inference,
     v1Reference,
@@ -626,26 +671,29 @@ export function computeDs4DbiD8V2EventIntelligenceV1(input: {
 }
 
 export function computeDs4DbiD8V2FromW0ContextV1(input: {
+  kernel: Ds4DbiW0TripKernelResultV1;
   payload: DiV0MotionCoreShadowPayloadV1;
   tripMeta: Ds4DbiW0TripMetaV1 | null;
-  v1D8: Ds4DbiW0TripKernelResultV1['d8Burstiness'];
-  failClosedTrip?: boolean;
   researchSpeedAuthorityPartitionOverride?: Parameters<
     typeof buildDs4DbiW0MovingExposureClockEvidenceV1
   >[0]['researchSpeedAuthorityPartitionOverride'];
   nullDraws?: number;
   seed?: number;
 }): Ds4DbiD8V2ResultV1 {
+  const failBinding = deriveDs4DbiD8V2W0TripFailClosedV1(input.kernel);
   const clock = buildDs4DbiW0MovingExposureClockEvidenceV1({
     payload: input.payload,
     suppliedExposureSecondsEs: input.tripMeta?.exposureSecondsEs ?? null,
-    researchSpeedAuthorityPartitionOverride: input.researchSpeedAuthorityPartitionOverride,
+    researchSpeedAuthorityPartitionOverride: failBinding.tripFailClosed
+      ? undefined
+      : input.researchSpeedAuthorityPartitionOverride,
   });
   return computeDs4DbiD8V2EventIntelligenceV1({
     payload: input.payload,
     clock,
-    v1D8: input.v1D8,
-    failClosedTrip: input.failClosedTrip,
+    v1D8: input.kernel.d8Burstiness,
+    w0TripFailClosed: failBinding.tripFailClosed,
+    w0TripFailClosedReasonCodes: failBinding.typedReasons,
     nullDraws: input.nullDraws,
     seed: input.seed,
   });

@@ -2923,3 +2923,12 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | No W1C/D8 V1 threshold/API/UI/production changes; inference withheld below nMin=10 |
 | REMAINING | Architect review; no F04 trust promotion |
 
+### 2026-11-07 — D8 V2 fail-closed + TIG22_V4 digest + prod DB guard pin
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | D8 V2 bound to full W0 kernel fail-closed diagnostics; replay uses canonical digest; regen `production-database-guard-bundle.manifest.sha256` for `research:ds4-dbi-d8-v2-replay` script pin |
+| WHY | Close TIG22_V4 false statistics under fingerprint mismatch; CI prod DB guard hash drift |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (126); guard bootstrap dry-run PASS; adversarial V2 fail-closed tests |
+| NON_EFFECTS | Frozen D8 V1/W1C math unchanged; no trusted-real promotion |
+
