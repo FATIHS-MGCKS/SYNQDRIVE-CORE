@@ -17,6 +17,12 @@
 - Normal production: **no direct SQL** on `vehicle_data_source_links` for deactivation.
 - Audited path: `backend/scripts/ops/fsd-lifecycle-deactivate-dimo-source-link.ts` (transactional deactivate + FSD invalidation).
 
+### Operator attribution vs host trust
+
+- **`--actor-user-id`** selects which SynqDrive user record is checked for `MASTER_ADMIN` platform role and written into audit metadata. It does **not** authenticate the SSH shell or database session that invoked the script.
+- Production trust boundary for these ops is **host access** (authorized SSH principal + `DATABASE_URL` credentials on the VPS). Operator attribution is a separate, auditable platform identity choice after that boundary.
+- Dry-run performs authorization lookup only and performs no mutations.
+
 ## Live activation
 
 - FSD orchestration flags remain **default OFF**; live activation is a separate owner-authorized gate.

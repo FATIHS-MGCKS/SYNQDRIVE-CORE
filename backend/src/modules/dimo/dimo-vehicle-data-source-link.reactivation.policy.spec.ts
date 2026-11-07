@@ -42,6 +42,19 @@ describe('assessInactiveLinkReactivation', () => {
     ).toEqual({ eligible: false, reason: 'deactivation_reason_recorded' });
   });
 
+  it('blocks column deactivationReason even when metadata still shows reactivationEligible', () => {
+    expect(
+      assessInactiveLinkReactivation(
+        {
+          ...inactiveLink,
+          metadata: { reactivationEligible: true },
+          deactivationReason: 'OPS_MANUAL_DEACTIVATE',
+        },
+        'manual',
+      ),
+    ).toEqual({ eligible: false, reason: 'deactivation_reason_recorded' });
+  });
+
   it('allows explicit reactivationEligible flag on registration path', () => {
     expect(
       assessInactiveLinkReactivation(

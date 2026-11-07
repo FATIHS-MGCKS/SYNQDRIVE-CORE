@@ -848,9 +848,24 @@ export class FsdDiscoveryPersistenceRepository {
     expectedVersion: number;
     leaseOwner: string;
   }): Promise<{ renewed: boolean; version: number }> {
-    const now = new Date();
-    const nextLeaseExpiresAt = new Date(now.getTime() + FSD_DISCOVERY_RUN_LEASE_RENEWAL_TTL_MS_V1);
     return this.withSourceLinkLock(input.scope, async (tx) => {
+      const now = new Date();
+      const minNextLeaseExpiresAt = new Date(
+        now.getTime() + FSD_DISCOVERY_RUN_LEASE_RENEWAL_TTL_MS_V1,
+      );
+      const current = await tx.fsdDiscoveryRun.findFirst({
+        where: {
+          id: input.runId,
+          organizationId: input.scope.organizationId,
+          vehicleId: input.scope.vehicleId,
+          providerSourceLinkId: input.scope.providerSourceLinkId,
+        },
+        select: { leaseExpiresAt: true },
+      });
+      const nextLeaseExpiresAt =
+        current?.leaseExpiresAt && current.leaseExpiresAt > minNextLeaseExpiresAt
+          ? current.leaseExpiresAt
+          : minNextLeaseExpiresAt;
       const result = await tx.fsdDiscoveryRun.updateMany({
         where: {
           id: input.runId,

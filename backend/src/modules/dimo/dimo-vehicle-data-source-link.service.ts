@@ -271,7 +271,9 @@ export class DimoVehicleDataSourceLinkService {
         inactiveLinkedByUserId: inactiveMatch.linkedByUserId,
         dimoVehicle,
         dimoVehicleId,
-        now,
+        lockedEpisode: {
+          deactivatedAt: inactiveMatch.deactivatedAt,
+        },
       });
     }
 
@@ -745,12 +747,13 @@ export class DimoVehicleDataSourceLinkService {
     inactiveLinkedByUserId: string | null;
     dimoVehicle: { externalId: string };
     dimoVehicleId: string;
-    now: Date;
+    lockedEpisode: { deactivatedAt: Date | null };
   }): Promise<EnsureDimoVehicleDataSourceLinkResult> {
     this.assertFsdLifecycleInvalidationAvailable();
 
     const run = async (tx: DbClient): Promise<EnsureDimoVehicleDataSourceLinkResult> => {
       const txClient = tx as Prisma.TransactionClient;
+      const now = new Date();
       const registryLifecycle = await lockVehicleRowForLifecycleMutation(txClient, {
         organizationId: params.input.organizationId,
         vehicleId: params.input.vehicleId,
@@ -799,6 +802,9 @@ export class DimoVehicleDataSourceLinkService {
           dimoVehicleId: true,
           consentId: true,
           linkedByUserId: true,
+          deactivatedAt: true,
+          deactivationReason: true,
+          metadata: true,
         },
       });
       if (!linkRow || linkRow.dimoVehicleId !== params.dimoVehicleId) {
@@ -820,6 +826,39 @@ export class DimoVehicleDataSourceLinkService {
         };
       }
 
+      const expectedDeactivatedAtMs = params.lockedEpisode.deactivatedAt?.getTime() ?? null;
+      const actualDeactivatedAtMs = linkRow.deactivatedAt?.getTime() ?? null;
+      if (expectedDeactivatedAtMs !== actualDeactivatedAtMs) {
+        return {
+          action: 'CONFLICT',
+          linkId: params.inactiveLinkId,
+          reason: 'inactive_episode_superseded',
+          dimoVehicleId: params.dimoVehicleId,
+          consentId: params.inactiveConsentId,
+        };
+      }
+
+      const reactivation = assessInactiveLinkReactivation(
+        {
+          deactivatedAt: linkRow.deactivatedAt,
+          metadata: linkRow.metadata,
+          deactivationReason: linkRow.deactivationReason,
+        },
+        params.input.provenance ?? 'manual',
+      );
+      if (!reactivation.eligible) {
+        return {
+          action: 'CONFLICT',
+          linkId: params.inactiveLinkId,
+          reason:
+            reactivation.reason === 'backfill_reconciliation_never_reactivates'
+              ? 'inactive_link_requires_manual_review'
+              : reactivation.reason,
+          dimoVehicleId: params.dimoVehicleId,
+          consentId: params.inactiveConsentId,
+        };
+      }
+
       const consentId =
         params.input.consentId !== undefined ? params.input.consentId : linkRow.consentId;
       const updated = await tx.vehicleDataSourceLink.update({
@@ -827,8 +866,8 @@ export class DimoVehicleDataSourceLinkService {
         data: {
           isActive: true,
           deactivatedAt: null,
-          activatedAt: params.now,
-          lastVerifiedAt: params.now,
+          activatedAt: now,
+          lastVerifiedAt: now,
           consentId,
           linkedByUserId: params.input.linkedByUserId ?? linkRow.linkedByUserId,
           metadata: this.buildMetadata(params.dimoVehicle.externalId, params.input),
@@ -850,7 +889,7 @@ export class DimoVehicleDataSourceLinkService {
           organizationId: params.input.organizationId,
           vehicleId: params.input.vehicleId,
           providerSourceLinkId: updated.id,
-          occurredAt: params.now,
+          occurredAt: now,
           reason: params.input.provenance ?? 'dimo_link_reactivated',
         },
         tx,

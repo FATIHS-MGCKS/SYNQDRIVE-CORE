@@ -4,7 +4,7 @@ import {
   BusinessAuditAction,
   BUSINESS_AUDIT_ENTITY_TYPE,
 } from '@modules/business-audit/business-audit.constants';
-import type { BusinessAuditOutboxRepository } from '@modules/business-audit/business-audit-outbox.repository';
+import { BusinessAuditOutboxRepository } from '@modules/business-audit/business-audit-outbox.repository';
 import { FSD_SOURCE_LINK_INVALIDATION_REASON_DEACTIVATED } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-source-link-lifecycle-invalidation.v1';
 import { lockDimoSourceLinkRowForLifecycleMutation } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-dimo-source-link-row-lock.v1';
 import { FsdSourceLinkLifecycleService } from '@modules/vehicle-intelligence/fsd-integration/fsd-source-link-lifecycle.service';

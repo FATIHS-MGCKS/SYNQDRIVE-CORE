@@ -106,6 +106,7 @@ async function resumeReactivationTransaction(
   svc: DimoVehicleDataSourceLinkService,
   seed: Awaited<ReturnType<typeof seedDimoBinding>>,
   client: PrismaClient,
+  lockedEpisodeOverride?: { deactivatedAt: Date | null },
 ) {
   const dimoVehicle = await client.dimoVehicle.findUniqueOrThrow({
     where: { id: seed.dimoVehicleId },
@@ -124,7 +125,14 @@ async function resumeReactivationTransaction(
     inactiveLinkedByUserId: null,
     dimoVehicle,
     dimoVehicleId: seed.dimoVehicleId,
-    now: new Date(),
+    lockedEpisode: lockedEpisodeOverride ?? {
+      deactivatedAt: (
+        await client.vehicleDataSourceLink.findUniqueOrThrow({
+          where: { id: seed.linkId },
+          select: { deactivatedAt: true },
+        })
+      ).deactivatedAt,
+    },
   });
 }
 
@@ -298,6 +306,41 @@ async function seedExecutableRun(
     expect(outcome.reason).toBe('vehicle_registry_not_operational');
     const link = await prisma.vehicleDataSourceLink.findUniqueOrThrow({ where: { id: seed.linkId } });
     expect(link.isActive).toBe(false);
+  });
+
+  it('rejects stale inactive episode (deactivatedAt superseded under lock contract)', async () => {
+    const seed = await seedDimoBinding(prisma);
+    await oobDeactivateLink(prisma, seed.linkId);
+    const svc = createDimoVehicleDataSourceLinkServiceForTests(prisma);
+    const outcome = await resumeReactivationTransaction(svc, seed, prisma, {
+      deactivatedAt: new Date('2019-06-01T00:00:00.000Z'),
+    });
+    expect(outcome.action).toBe('CONFLICT');
+    expect(outcome.reason).toBe('inactive_episode_superseded');
+    const link = await prisma.vehicleDataSourceLink.findUniqueOrThrow({ where: { id: seed.linkId } });
+    expect(link.isActive).toBe(false);
+  });
+
+  it('rejects reactivation when audited deactivationReason is set despite eligible metadata', async () => {
+    const seed = await seedDimoBinding(prisma);
+    await prisma.vehicleDataSourceLink.update({
+      where: { id: seed.linkId },
+      data: {
+        isActive: false,
+        deactivatedAt: new Date(),
+        metadata: { reactivationEligible: true },
+        deactivationReason: 'OPS_MANUAL_DEACTIVATE',
+      },
+    });
+    const svc = createDimoVehicleDataSourceLinkServiceForTests(prisma);
+    const result = await svc.ensureDimoVehicleDataSourceLink({
+      organizationId: seed.organizationId,
+      vehicleId: seed.vehicleId,
+      dimoVehicleId: seed.dimoVehicleId,
+      provenance: 'manual',
+    });
+    expect(result.action).toBe('CONFLICT');
+    expect(result.reason).toBe('deactivation_reason_recorded');
   });
 
   it('two concurrent reactivations yield one success and one episode conflict', async () => {

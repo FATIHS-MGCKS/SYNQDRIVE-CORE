@@ -113,6 +113,25 @@ async function seedBinding(prisma: PrismaClient) {
     return { scope, acquired, leaseOwner, leaseExpiresAt };
   }
 
+  it('renewal does not shorten a longer claimed lease', async () => {
+    const seed = await seedBinding(prisma);
+    const { scope, acquired, leaseOwner } = await acquireInProgress(seed);
+    const longLease = new Date(Date.now() + 30 * 60_000);
+    await prisma.fsdDiscoveryRun.update({
+      where: { id: acquired.runId },
+      data: { leaseExpiresAt: longLease },
+    });
+    const renewed = await repo().renewRunLease({
+      scope,
+      runId: acquired.runId,
+      expectedVersion: acquired.version + 1,
+      leaseOwner,
+    });
+    expect(renewed.renewed).toBe(true);
+    const after = await prisma.fsdDiscoveryRun.findUniqueOrThrow({ where: { id: acquired.runId } });
+    expect(after.leaseExpiresAt!.getTime()).toBeGreaterThanOrEqual(longLease.getTime());
+  });
+
   it('valid owner extends an active lease with bounded TTL', async () => {
     const seed = await seedBinding(prisma);
     const { scope, acquired, leaseOwner } = await acquireInProgress(seed);

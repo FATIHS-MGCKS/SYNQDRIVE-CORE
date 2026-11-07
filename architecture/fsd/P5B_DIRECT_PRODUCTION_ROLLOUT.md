@@ -48,7 +48,7 @@ Requires explicit owner authorization, verified orchestration entrypoint, budget
 Minimum activation prerequisites (owner sign-off, not automatic):
 
 1. Production caller wired for `FsdDiscoveryOrchestratorFactoryService` (today: **none**).
-2. Lease renewal / ownership policy validated under multi-replica PM2.
+2. Lease renewal / ownership policy validated under multi-replica PM2 (`renewRunLease` extends expiry monotonically and evaluates lease freshness after the source-link advisory lock).
 3. DIMO provider budget + admission configuration attested.
 4. Monitoring for stranded `IN_PROGRESS` runs and unsettled ledger attempts.
 5. P5B lifecycle + audit paths deployed (this rollout).

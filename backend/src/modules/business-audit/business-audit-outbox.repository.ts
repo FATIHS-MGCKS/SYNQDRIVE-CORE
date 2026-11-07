@@ -11,6 +11,8 @@ import {
   hashBusinessAuditValue,
   summarizeBusinessAuditValue,
 } from './business-audit-sanitize.util';
+import { assertBusinessAuditOutboxIdempotencySemanticMatch } from './business-audit-outbox-idempotency.semantics';
+import { BusinessAuditOutboxError } from './business-audit-outbox.errors';
 
 export type BusinessAuditEnqueueInTransactionResultV1 =
   | { kind: 'CREATED'; record: BusinessAuditOutbox }
@@ -44,6 +46,9 @@ export class BusinessAuditOutboxRepository {
     input: EnqueueBusinessAuditOutboxInput,
   ): Promise<BusinessAuditOutbox> {
     const result = await this.enqueueInTransactionIdempotent(tx, input);
+    if (result.kind === 'EXISTING') {
+      assertBusinessAuditOutboxIdempotencySemanticMatch(result.record, input);
+    }
     return result.record;
   }
 
@@ -138,7 +143,10 @@ export class BusinessAuditOutboxRepository {
       where: { idempotencyKey: input.idempotencyKey },
     });
     if (!existing) {
-      throw new Error('BUSINESS_AUDIT_IDEMPOTENCY_RACE_WITHOUT_ROW');
+      throw new BusinessAuditOutboxError(
+        'BUSINESS_AUDIT_IDEMPOTENCY_RACE_WITHOUT_ROW',
+        'Business audit idempotency conflict race without visible row',
+      );
     }
     return { kind: 'EXISTING', record: existing };
   }

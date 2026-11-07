@@ -24,6 +24,7 @@ npx jest \
   src/modules/vehicle-intelligence/full-signal-discovery/persistence \
   src/modules/vehicle-intelligence/full-signal-discovery/persistence/__tests__/fsd-source-link-lifecycle-invalidation.postgres.integration.spec.ts \
   src/modules/vehicle-intelligence/full-signal-discovery/persistence/__tests__/fsd-p5b-offboard-acquire-adversarial.postgres.integration.spec.ts \
+  src/modules/business-audit/business-audit-outbox-idempotency.postgres.integration.spec.ts \
   src/modules/vehicle-onboarding/dimo-source-link-audited-deactivation.postgres.integration.spec.ts \
   src/modules/vehicle-onboarding/dimo-source-link-operator-authorization.postgres.integration.spec.ts \
   src/modules/dimo/dimo-source-link-reactivation-fsd-fence.postgres.integration.spec.ts \
