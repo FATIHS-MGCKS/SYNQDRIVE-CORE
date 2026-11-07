@@ -2829,6 +2829,16 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | D8 gates frozen; no scientific validation claim; 200k audit remains `b3Comparable: false` |
 | REMAINING | Real C4 preregistration; W1 blocked |
 
+### 2026-11-07 — TIG22 historical D8 B3 compatibility (Phase 1 P2)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w0-historical-replay-d8-compat.v1.ts`; optional `researchSpeedAuthorityPartitionOverride` on B3 clock builder (kernel does not pass it); CLI `d8HistoricalCompatibility` block; Jest root-cause + canonical vs research split |
+| WHY | TIG22 payload omits `contract.speedAuthority` → canonical clock `derivable=false` / E*=0 → D8 ABSTAIN; trip-meta Es from RELAXED loader was not visible to B3 without explicit partition override |
+| VALIDATION | Jest confirms canonical ABSTAIN + research clock E*≈1705, 15 admitted events; research D8 still ABSTAIN `MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS` (9/29 nonempty windows < frozen gate 10) |
+| NON_EFFECTS | No payload mutation; canonical `computeDs4DbiW0MbfFromPayloadV1` unchanged; no F04/W1; no threshold changes |
+| REMAINING | Attested `contract.speedAuthority` on export; optional window-gate review only via architect — not changed here |
+
 ### 2026-11-07 — DS4 DBI W0 historical Motion-Core offline replay (Phase 1 P1)
 
 | Field | Detail |

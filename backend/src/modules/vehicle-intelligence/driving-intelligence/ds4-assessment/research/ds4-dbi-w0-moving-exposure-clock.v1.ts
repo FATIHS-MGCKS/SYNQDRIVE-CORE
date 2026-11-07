@@ -84,6 +84,11 @@ function msToIsoZ(ms: number): string {
 export function buildDs4DbiW0MovingExposureClockEvidenceV1(input: {
   payload: DiV0MotionCoreShadowPayloadV1;
   suppliedExposureSecondsEs: number | null;
+  /**
+   * Research-only override when historical bytes omit `contract.speedAuthority`.
+   * Production W0 kernel must never pass this; canonical MBF keeps fail-closed D8.
+   */
+  researchSpeedAuthorityPartitionOverride?: Ds4SpeedAuthorityPartitionV1 | null;
 }): {
   dualTime: Ds4DbiW0DualTimeDomainDiagnosticsV1;
   intervals: Ds4EligibleExposureHalfOpenIntervalV1[];
@@ -92,7 +97,10 @@ export function buildDs4DbiW0MovingExposureClockEvidenceV1(input: {
   metadataMismatch: boolean;
   admitted: Ds4DbiW0AdmittedEventOnsetV1[];
 } {
-  const speedAuthority = resolveW0SpeedAuthorityPartitionV1(input.payload);
+  const speedAuthority =
+    input.researchSpeedAuthorityPartitionOverride !== undefined
+      ? input.researchSpeedAuthorityPartitionOverride
+      : resolveW0SpeedAuthorityPartitionV1(input.payload);
   const { exposure, intervals, acceptedSpeedLabelsUtc } = buildDs4EligibleExposureTimelineV1({
     payload: input.payload,
     speedAuthority,

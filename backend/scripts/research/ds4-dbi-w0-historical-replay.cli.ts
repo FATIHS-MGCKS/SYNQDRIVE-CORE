@@ -10,6 +10,7 @@ import { join } from 'path';
 import { computeDs4DbiW0MbfFromPayloadV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-mbf-kernel.v1';
 import type { Ds4DbiW0TripKernelResultV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-mbf.types.v1';
 import type { Ds4DbiW0HistoricalFixtureIdV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-historical-replay.fixture-registry.v1';
+import { buildDs4DbiW0HistoricalD8CompatibilityReportV1 } from '../../src/modules/vehicle-intelligence/driving-intelligence/ds4-assessment/research/ds4-dbi-w0-historical-replay-d8-compat.v1';
 import {
   loadDs4DbiW0HistoricalMotionFixtureV1,
   type Ds4DbiW0HistoricalReplayBindingTierV1,
@@ -98,6 +99,12 @@ async function main(): Promise<void> {
         };
         break;
       }
+    }
+
+    if (relaxedBindingStrictQ.load.ok) {
+      entry.d8HistoricalCompatibility = buildDs4DbiW0HistoricalD8CompatibilityReportV1(
+        relaxedBindingStrictQ.load,
+      );
     }
 
     (report.fixtures as Record<string, unknown>)[fixtureId] = entry;
