@@ -23,6 +23,7 @@ import type {
   FsdDimoGraphqlExecutionResultV1,
   FsdDimoGraphqlOutcomeKindV1,
 } from './fsd-dimo-graphql-result';
+import { parseDimoFsdGraphqlMaxResponseBytesEnv } from './fsd-dimo-graphql-response-limit.v1';
 
 export type { DimoProviderRequestContext };
 
@@ -92,9 +93,8 @@ export class DimoTelemetryService {
       timeout,
       headers: { 'Content-Type': 'application/json' },
     });
-    this.fsdGraphqlMaxResponseBytes = Math.max(
-      64 * 1024,
-      parseInt(process.env.DIMO_FSD_GRAPHQL_MAX_RESPONSE_BYTES || `${12 * 1024 * 1024}`, 10),
+    this.fsdGraphqlMaxResponseBytes = parseDimoFsdGraphqlMaxResponseBytesEnv(
+      process.env.DIMO_FSD_GRAPHQL_MAX_RESPONSE_BYTES,
     );
   }
 
@@ -384,10 +384,20 @@ export class DimoTelemetryService {
     if (variables) body.variables = variables;
 
     const httpRequestStartedAt = new Date();
-    const response = await this.client.post('', body, {
+    const axiosOptions: {
+      headers: { Authorization: string };
+      timeout: number;
+      maxContentLength?: number;
+      maxBodyLength?: number;
+    } = {
       headers: { Authorization: `Bearer ${vehicleJwt}` },
       timeout: 15000,
-    });
+    };
+    if (options.fsdTelemetryPath) {
+      axiosOptions.maxContentLength = this.fsdGraphqlMaxResponseBytes;
+      axiosOptions.maxBodyLength = this.fsdGraphqlMaxResponseBytes;
+    }
+    const response = await this.client.post('', body, axiosOptions);
     const httpResponseReceivedAt = new Date();
 
     const gqlErrors = (response.data as { errors?: unknown })?.errors;
@@ -529,6 +539,19 @@ export class DimoTelemetryService {
     const status = readAxiosStatus(err);
     if (status != null) {
       return this.mapHttpStatusToFsdOutcome(status, null, []);
+    }
+    if (
+      isAxiosError(err) &&
+      (err.code === 'ERR_BAD_RESPONSE' ||
+        (typeof err.message === 'string' && err.message.includes('maxContentLength')))
+    ) {
+      return {
+        kind: 'OVERSIZED_RESPONSE',
+        httpStatus: null,
+        data: null,
+        errors: [],
+        diagnostic: 'axios_max_content_length',
+      };
     }
     if (isAxiosTimeout(err) || (isAxiosError(err) && err.code === 'ECONNRESET')) {
       return {

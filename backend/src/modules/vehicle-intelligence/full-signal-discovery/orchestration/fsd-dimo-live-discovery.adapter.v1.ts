@@ -295,6 +295,8 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
             availableSignals: [],
             httpStatus: http.httpStatus,
             catalogFetchSucceeded: false,
+            providerOutcomeKind: classified.kind,
+            providerDiagnostic: classified.diagnostic,
           };
         }
         if (!isFsdCatalogFetchSucceededV1(classified)) {
@@ -302,6 +304,8 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
             availableSignals: [],
             httpStatus: http.httpStatus,
             catalogFetchSucceeded: false,
+            providerOutcomeKind: classified.kind,
+            providerDiagnostic: classified.diagnostic,
           };
         }
         const parsed = parseFsdCatalogAvailableSignalsFromDataV1(classified.data);
@@ -310,12 +314,15 @@ export class FsdDimoLiveDiscoveryAdapterV1 {
             availableSignals: [],
             httpStatus: 200,
             catalogFetchSucceeded: false,
+            providerOutcomeKind: 'MALFORMED_RESPONSE',
+            providerDiagnostic: parsed.reason,
           };
         }
         return {
           availableSignals: parsed.availableSignals,
           httpStatus: 200,
           catalogFetchSucceeded: true,
+          providerOutcomeKind: classified.kind,
         };
       },
 

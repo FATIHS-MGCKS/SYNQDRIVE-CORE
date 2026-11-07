@@ -11,6 +11,8 @@ export type Fsd3ProviderCatalogResultV1 = {
    * Undefined means success if httpStatus is 200 and availableSignals is an array (mock compatibility).
    */
   catalogFetchSucceeded?: boolean;
+  providerOutcomeKind?: FsdDimoGraphqlOutcomeKindV1;
+  providerDiagnostic?: string;
 };
 
 export type Fsd3ProviderSnapshotFieldValueV1 = {

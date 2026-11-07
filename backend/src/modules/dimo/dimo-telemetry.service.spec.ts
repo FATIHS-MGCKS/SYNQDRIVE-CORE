@@ -476,5 +476,43 @@ describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
       expect(result.kind).toBe('QUERY_FINGERPRINT_MISMATCH');
       expect(postMock).not.toHaveBeenCalled();
     });
+
+    it('classifies oversize response at FSD ingress byte limit', async () => {
+      const prev = process.env.DIMO_FSD_GRAPHQL_MAX_RESPONSE_BYTES;
+      process.env.DIMO_FSD_GRAPHQL_MAX_RESPONSE_BYTES = '131072';
+      try {
+        const limited = new DimoTelemetryService(
+          {
+            get: jest.fn((key: string) => {
+              if (key === 'dimo.telemetryApiUrl') {
+                return 'https://telemetry-api.dimo.zone/query';
+              }
+              if (key === 'dimo.requestTimeoutMs') {
+                return 10000;
+              }
+              return undefined;
+            }),
+          } as unknown as ConfigService,
+          createTestExecutorWithBudgetMocks().executor,
+          createOffGateway().gateway,
+        );
+        const huge = { data: { data: { availableSignals: ['x'.repeat(200_000)] } } };
+        postMock.mockResolvedValue({ status: 200, data: huge });
+        const q = 'query Big { availableSignals(tokenId: 1) }';
+        const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
+        const result = await limited.queryFsdGraphql({
+          vehicleJwt,
+          query: q,
+          expectedQueryFingerprint: fp,
+        });
+        expect(result.kind).toBe('OVERSIZED_RESPONSE');
+      } finally {
+        if (prev === undefined) {
+          delete process.env.DIMO_FSD_GRAPHQL_MAX_RESPONSE_BYTES;
+        } else {
+          process.env.DIMO_FSD_GRAPHQL_MAX_RESPONSE_BYTES = prev;
+        }
+      }
+    });
   });
 });

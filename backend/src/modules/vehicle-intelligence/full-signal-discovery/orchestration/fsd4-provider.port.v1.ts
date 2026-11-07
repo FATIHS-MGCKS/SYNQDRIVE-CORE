@@ -14,6 +14,8 @@ export type Fsd4ProviderCatalogResultV1 = {
   httpStatus: number;
   /** See Fsd3ProviderCatalogResultV1.catalogFetchSucceeded */
   catalogFetchSucceeded?: boolean;
+  providerOutcomeKind?: FsdDimoGraphqlOutcomeKindV1;
+  providerDiagnostic?: string;
 };
 
 export type Fsd4ProviderHistoricalResultV1 = {

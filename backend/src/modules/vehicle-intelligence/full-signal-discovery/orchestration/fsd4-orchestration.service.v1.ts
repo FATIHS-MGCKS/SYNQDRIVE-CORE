@@ -44,7 +44,11 @@ import type { Fsd4OrchestrationInputV1, Fsd4OrchestrationRunResultV1 } from './f
 import { assertFsd4VehicleAllowed, type Fsd4OrchestrationConfigV1 } from './fsd4-orchestration.config.v1';
 import { mapHistoricalFieldEvidence } from './fsd4-historical-evidence.v1';
 import type { Fsd4HistoricalDiscoveryProviderPortV1 } from './fsd4-provider.port.v1';
-import { classifyFsd4HistoricalDocumentLedgerOutcomeV1 } from './fsd-provider-outcome.util.v1';
+import {
+  classifyFsd4CatalogProviderLedgerOutcomeV1,
+  classifyFsd4HistoricalDocumentLedgerOutcomeV1,
+} from './fsd-provider-outcome.util.v1';
+import { hasPersistedFsdCatalogFetchV1 } from './fsd-catalog-persist.util.v1';
 import {
   classifyFsd4CatalogReserveForProviderDispatch,
   classifyFsd4HistoricalReserveForProviderDispatch,
@@ -237,14 +241,18 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     }
 
     const catalogCheckpoint = readCatalogCheckpointFromBundle(bundle);
-    const catalogSignals = catalogCheckpoint?.catalogFetch?.availableSignalNames;
-    const catalogFingerprint = catalogCheckpoint?.catalogFetch?.declaredCatalogFingerprint ?? '';
-    if (!catalogSignals?.length || !catalogFingerprint) {
+    const persistedCatalogFetch = catalogCheckpoint?.catalogFetch;
+    if (
+      !hasPersistedFsdCatalogFetchV1(persistedCatalogFetch) ||
+      !persistedCatalogFetch.declaredCatalogFingerprint
+    ) {
       return buildTerminalFailureResult({
         runId: acquired.runId,
         reason: 'RESUME_MISSING_CATALOG_EVIDENCE',
       });
     }
+    const catalogSignals = persistedCatalogFetch.availableSignalNames;
+    const catalogFingerprint = persistedCatalogFetch.declaredCatalogFingerprint;
 
     const catalogStageVersionRef = { value: catalogStage.version };
     const resumeProgress = parseHistoricalProgressFromBundle(bundle);
@@ -546,10 +554,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       }
 
       if (gate.action === 'SKIP_SETTLED') {
-        if (
-          reserve.checkpoint.catalogFetch?.succeeded !== true ||
-          !reserve.checkpoint.catalogFetch.availableSignalNames?.length
-        ) {
+        if (!hasPersistedFsdCatalogFetchV1(reserve.checkpoint.catalogFetch)) {
           return buildTerminalFailureResult({
             runId: acquired.runId,
             reason: 'CATALOG_SKIP_WITHOUT_PERSISTED_FETCH',
@@ -565,11 +570,33 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
             tokenId: input.dimoTokenId,
             dispatchContext,
           });
-          if (
-            catalogResult.httpStatus !== 200 ||
-            !Array.isArray(catalogResult.availableSignals) ||
-            catalogResult.catalogFetchSucceeded === false
-          ) {
+          const catalogDispatchOutcome = classifyFsd4CatalogProviderLedgerOutcomeV1(catalogResult);
+          if (catalogDispatchOutcome.ledgerOutcome !== 'SUCCEEDED') {
+            if (catalogDispatchOutcome.ledgerOutcome === 'UNKNOWN') {
+              const uFin = await this.finalizeCatalogAttemptUnknown(
+                writeAuth,
+                catalogPlanFingerprint,
+                catalogStageVersionRef,
+                budget.maxRequestsPerRun,
+              );
+              if (!uFin) {
+                return buildTerminalFailureResult({
+                  runId: acquired.runId,
+                  reason: 'CATALOG_LEDGER_FINALIZE_CAS_FAILED',
+                });
+              }
+              await this.failCatalogAndRun(
+                scope,
+                acquired.runId,
+                runVersionRef,
+                writeAuth,
+                catalogStageVersionRef.value,
+              );
+              return buildTerminalFailureResult({
+                runId: acquired.runId,
+                reason: 'CATALOG_PROVIDER_UNKNOWN_OUTCOME',
+              });
+            }
             const fin = await this.finalizeCatalogAttempt(
               writeAuth,
               catalogPlanFingerprint,
@@ -817,7 +844,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       return null;
     }
     const cp = parseFsd4CatalogStageCheckpoint(cat.checkpointJson);
-    if (!cp?.catalogFetch?.succeeded || !cp.catalogFetch.availableSignalNames?.length) {
+    if (!hasPersistedFsdCatalogFetchV1(cp?.catalogFetch)) {
       return null;
     }
     const persistedNames = await this.persistence.listCatalogSignalNamesForRun(fsd3RunId, cat.id);

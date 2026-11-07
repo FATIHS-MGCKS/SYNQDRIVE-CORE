@@ -47,8 +47,10 @@ import {
 } from './fsd3-orchestration.config.v1';
 import type { Fsd3DiscoveryProviderPortV1 } from './fsd3-provider.port.v1';
 import {
+  classifyFsd3CatalogProviderLedgerOutcomeV1,
   classifyFsd3SnapshotDocumentLedgerOutcomeV1,
 } from './fsd-provider-outcome.util.v1';
+import { hasPersistedFsdCatalogFetchV1 } from './fsd-catalog-persist.util.v1';
 import {
   createEmptyFsd3RequestLedger,
   emptyFsd3SnapshotProgressCheckpoint,
@@ -256,14 +258,15 @@ export class Fsd3CatalogSnapshotOrchestratorService {
     const catalogStageVersionRef = { value: catalogStage.version };
 
     const catalogCheckpoint = readCatalogCheckpointFromBundle(bundle);
-    const catalogSignals = catalogCheckpoint?.catalogFetch?.availableSignalNames;
-    const catalogFingerprint = catalogCheckpoint?.catalogFetch?.declaredCatalogFingerprint;
-    if (!catalogSignals?.length || !catalogFingerprint) {
+    const persistedCatalogFetch = catalogCheckpoint?.catalogFetch;
+    if (!hasPersistedFsdCatalogFetchV1(persistedCatalogFetch) || !persistedCatalogFetch.declaredCatalogFingerprint) {
       return buildTerminalFailureResult({
         runId: acquired.runId,
         reason: 'RESUME_MISSING_CATALOG_EVIDENCE',
       });
     }
+    const catalogSignals = persistedCatalogFetch.availableSignalNames;
+    const catalogFingerprint = persistedCatalogFetch.declaredCatalogFingerprint;
 
     const resumeProgress = parseFsd3SnapshotStageCheckpoint(
       findStageInBundle(bundle, 'SNAPSHOT')?.checkpointJson,
@@ -419,10 +422,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
     let catalogFingerprint = '';
 
     if (catalogDispatchGate.action === 'SKIP_SETTLED') {
-      if (
-        reserve.checkpoint.catalogFetch?.succeeded !== true ||
-        !reserve.checkpoint.catalogFetch.availableSignalNames?.length
-      ) {
+      if (!hasPersistedFsdCatalogFetchV1(reserve.checkpoint.catalogFetch)) {
         return buildTerminalFailureResult({
           runId: acquired.runId,
           reason: 'CATALOG_SKIP_WITHOUT_PERSISTED_FETCH',
@@ -438,11 +438,33 @@ export class Fsd3CatalogSnapshotOrchestratorService {
           tokenId: input.dimoTokenId,
           dispatchContext,
         });
-        if (
-          catalogResult.httpStatus !== 200 ||
-          !Array.isArray(catalogResult.availableSignals) ||
-          catalogResult.catalogFetchSucceeded === false
-        ) {
+        const catalogDispatchOutcome = classifyFsd3CatalogProviderLedgerOutcomeV1(catalogResult);
+        if (catalogDispatchOutcome.ledgerOutcome !== 'SUCCEEDED') {
+          if (catalogDispatchOutcome.ledgerOutcome === 'UNKNOWN') {
+            const uFin = await this.finalizeCatalogAttemptUnknown(
+              writeAuth,
+              catalogPlanFingerprint,
+              catalogStageVersionRef,
+              budget.maxRequestsPerRun,
+            );
+            if (!uFin) {
+              return buildTerminalFailureResult({
+                runId: acquired.runId,
+                reason: 'CATALOG_LEDGER_FINALIZE_CAS_FAILED',
+              });
+            }
+            await this.failCatalogAndRun(
+              scope,
+              acquired.runId,
+              runVersionRef,
+              writeAuth,
+              catalogStageVersionRef.value,
+            );
+            return buildTerminalFailureResult({
+              runId: acquired.runId,
+              reason: 'CATALOG_PROVIDER_UNKNOWN_OUTCOME',
+            });
+          }
           const fin = await this.finalizeCatalogAttempt(
             writeAuth,
             catalogPlanFingerprint,

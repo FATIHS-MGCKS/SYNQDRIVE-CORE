@@ -1,5 +1,6 @@
 import type { FsdGraphqlResponseInterpretationV1 } from '../../fsd-response.interpreter.v1';
 import {
+  classifyFsd3CatalogProviderLedgerOutcomeV1,
   classifyFsd3SnapshotDocumentLedgerOutcomeV1,
   classifyFsd4HistoricalDocumentLedgerOutcomeV1,
 } from '../fsd-provider-outcome.util.v1';
@@ -23,6 +24,41 @@ function okInterpreted(fieldNames: string[]): FsdGraphqlResponseInterpretationV1
 describe('fsd-provider-outcome.util.v1 (ledger classification)', () => {
   const fields = ['speed'];
   const interpretedOk = okInterpreted(fields);
+
+  describe('classifyFsd3CatalogProviderLedgerOutcomeV1', () => {
+    it('succeeds for empty catalog list', () => {
+      expect(
+        classifyFsd3CatalogProviderLedgerOutcomeV1({
+          availableSignals: [],
+          httpStatus: 200,
+          catalogFetchSucceeded: true,
+          providerOutcomeKind: 'HTTP_200_OK',
+        }),
+      ).toEqual({ ledgerOutcome: 'SUCCEEDED' });
+    });
+
+    it('unknown on HTTP_429', () => {
+      expect(
+        classifyFsd3CatalogProviderLedgerOutcomeV1({
+          availableSignals: [],
+          httpStatus: 429,
+          catalogFetchSucceeded: false,
+          providerOutcomeKind: 'HTTP_429',
+        }),
+      ).toEqual({ ledgerOutcome: 'UNKNOWN', stageOutcome: 'UNKNOWN_OUTCOME' });
+    });
+
+    it('failed on malformed catalog', () => {
+      expect(
+        classifyFsd3CatalogProviderLedgerOutcomeV1({
+          availableSignals: [],
+          httpStatus: 200,
+          catalogFetchSucceeded: false,
+          providerOutcomeKind: 'MALFORMED_RESPONSE',
+        }),
+      ).toEqual({ ledgerOutcome: 'FAILED' });
+    });
+  });
 
   describe('classifyFsd3SnapshotDocumentLedgerOutcomeV1', () => {
     it('never succeeds on HTTP_429 classified kind', () => {
