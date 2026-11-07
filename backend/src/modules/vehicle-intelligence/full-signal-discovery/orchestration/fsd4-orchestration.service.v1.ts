@@ -1438,6 +1438,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       fromStatus: 'IN_PROGRESS',
       toStatus: runTarget,
       failureClass: input.unknownOutcome ? 'UNKNOWN' : input.hasRejections ? 'UNKNOWN' : undefined,
+      leaseFence: { leaseOwner: input.writeAuth().leaseOwner },
     });
     if (!applied.applied) {
       return buildTerminalFailureResult({

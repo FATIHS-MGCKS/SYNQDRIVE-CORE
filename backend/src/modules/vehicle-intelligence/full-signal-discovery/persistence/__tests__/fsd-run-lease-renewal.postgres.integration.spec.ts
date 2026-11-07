@@ -185,6 +185,125 @@ async function seedBinding(prisma: PrismaClient) {
     expect(renewed.renewed).toBe(false);
   });
 
+  it('stale owner cannot COMPLETE with lease fence', async () => {
+    const seed = await seedBinding(prisma);
+    const { scope, acquired, leaseOwner } = await acquireInProgress(seed);
+    await prisma.fsdDiscoveryRun.update({
+      where: { id: acquired.runId },
+      data: { status: 'IN_PROGRESS' },
+    });
+    const otherOwner = `other-${randomUUID().slice(0, 8)}`;
+    const applied = await repo().transitionRunStatus({
+      scope,
+      runId: acquired.runId,
+      expectedVersion: acquired.version + 1,
+      fromStatus: 'IN_PROGRESS',
+      toStatus: 'COMPLETED',
+      leaseFence: { leaseOwner: otherOwner },
+    });
+    expect(applied.applied).toBe(false);
+    const row = await prisma.fsdDiscoveryRun.findUniqueOrThrow({ where: { id: acquired.runId } });
+    expect(row.status).toBe('IN_PROGRESS');
+  });
+
+  it('stale owner cannot FAIL with lease fence', async () => {
+    const seed = await seedBinding(prisma);
+    const { scope, acquired, leaseOwner } = await acquireInProgress(seed);
+    await prisma.fsdDiscoveryRun.update({
+      where: { id: acquired.runId },
+      data: { status: 'IN_PROGRESS' },
+    });
+    const applied = await repo().transitionRunStatus({
+      scope,
+      runId: acquired.runId,
+      expectedVersion: acquired.version + 1,
+      fromStatus: 'IN_PROGRESS',
+      toStatus: 'FAILED',
+      leaseFence: { leaseOwner: `stale-${randomUUID().slice(0, 6)}` },
+    });
+    expect(applied.applied).toBe(false);
+  });
+
+  it('current owner COMPLETED succeeds with active lease', async () => {
+    const seed = await seedBinding(prisma);
+    const { scope, acquired, leaseOwner } = await acquireInProgress(seed);
+    await prisma.fsdDiscoveryRun.update({
+      where: { id: acquired.runId },
+      data: { status: 'IN_PROGRESS' },
+    });
+    const applied = await repo().transitionRunStatus({
+      scope,
+      runId: acquired.runId,
+      expectedVersion: acquired.version + 1,
+      fromStatus: 'IN_PROGRESS',
+      toStatus: 'COMPLETED',
+      leaseFence: { leaseOwner },
+    });
+    expect(applied.applied).toBe(true);
+    const row = await prisma.fsdDiscoveryRun.findUniqueOrThrow({ where: { id: acquired.runId } });
+    expect(row.status).toBe('COMPLETED');
+    expect(row.leaseOwner).toBeNull();
+  });
+
+  it('expired lease cannot COMPLETE even for current owner', async () => {
+    const seed = await seedBinding(prisma);
+    const { scope, acquired, leaseOwner } = await acquireInProgress(seed);
+    await prisma.fsdDiscoveryRun.update({
+      where: { id: acquired.runId },
+      data: { status: 'IN_PROGRESS', leaseExpiresAt: new Date(Date.now() - 500) },
+    });
+    const applied = await repo().transitionRunStatus({
+      scope,
+      runId: acquired.runId,
+      expectedVersion: acquired.version + 1,
+      fromStatus: 'IN_PROGRESS',
+      toStatus: 'COMPLETED',
+      leaseFence: { leaseOwner },
+    });
+    expect(applied.applied).toBe(false);
+  });
+
+  it('competing replica takeover prevents old owner terminalization', async () => {
+    const seed = await seedBinding(prisma);
+    const { scope, acquired, leaseOwner } = await acquireInProgress(seed);
+    await prisma.fsdDiscoveryRun.update({
+      where: { id: acquired.runId },
+      data: { status: 'IN_PROGRESS', leaseExpiresAt: new Date(Date.now() - 500) },
+    });
+    const newOwner = `replica-${randomUUID().slice(0, 8)}`;
+    expect(
+      await repo().claimRunLease({
+        scope,
+        runId: acquired.runId,
+        expectedVersion: acquired.version + 1,
+        leaseOwner: newOwner,
+        leaseExpiresAt: new Date(Date.now() + 60_000),
+      }),
+    ).toBe(true);
+    await prisma.fsdDiscoveryRun.update({
+      where: { id: acquired.runId },
+      data: { status: 'IN_PROGRESS' },
+    });
+    const stale = await repo().transitionRunStatus({
+      scope,
+      runId: acquired.runId,
+      expectedVersion: acquired.version + 2,
+      fromStatus: 'IN_PROGRESS',
+      toStatus: 'COMPLETED',
+      leaseFence: { leaseOwner },
+    });
+    expect(stale.applied).toBe(false);
+    const current = await repo().transitionRunStatus({
+      scope,
+      runId: acquired.runId,
+      expectedVersion: acquired.version + 2,
+      fromStatus: 'IN_PROGRESS',
+      toStatus: 'COMPLETED',
+      leaseFence: { leaseOwner: newOwner },
+    });
+    expect(current.applied).toBe(true);
+  });
+
   it('invalidated run rejects renewal', async () => {
     const seed = await seedBinding(prisma);
     const { scope, acquired, leaseOwner } = await acquireInProgress(seed);

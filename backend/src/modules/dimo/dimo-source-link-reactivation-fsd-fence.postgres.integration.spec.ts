@@ -17,6 +17,7 @@ import {
   buildFsdDiscoveryRunKey,
 } from '@modules/vehicle-intelligence/full-signal-discovery/persistence';
 import { createDimoVehicleDataSourceLinkServiceForTests } from '@modules/vehicle-onboarding/testing/vehicle-onboarding-test.harness';
+import { createVehicleOffboardingServiceForTests } from '@modules/vehicle-onboarding/testing/vehicle-offboarding-test.harness';
 import { ensureOrganizationProductEntitlement } from '@modules/vehicle-onboarding/testing/org-product-test.harness';
 import { DimoVehicleDataSourceLinkService } from './dimo-vehicle-data-source-link.service';
 import type { FsdSourceLinkLifecycleService as FsdLifecycleType } from '@modules/vehicle-intelligence/fsd-integration/fsd-source-link-lifecycle.service';
@@ -77,6 +78,16 @@ async function seedDimoBinding(prisma: PrismaClient) {
       dimoVehicleId,
     },
   });
+  await prisma.vehicleOrganizationAssignment.create({
+    data: {
+      id: randomUUID(),
+      vehicleId,
+      organizationId,
+      validFrom: new Date(),
+      assignmentReason: 'REACT_FENCE',
+      assignmentSource: 'REACT_FENCE',
+    },
+  });
   await prisma.vehicleDataSourceLink.create({
     data: {
       id: linkId,
@@ -89,6 +100,32 @@ async function seedDimoBinding(prisma: PrismaClient) {
   });
   const fingerprint = buildFsdDimoConnectionIdentityFingerprint({ dimoVehicleId, tokenId });
   return { organizationId, vehicleId, linkId, dimoVehicleId, tokenId, fingerprint };
+}
+
+async function resumeReactivationTransaction(
+  svc: DimoVehicleDataSourceLinkService,
+  seed: Awaited<ReturnType<typeof seedDimoBinding>>,
+  client: PrismaClient,
+) {
+  const dimoVehicle = await client.dimoVehicle.findUniqueOrThrow({
+    where: { id: seed.dimoVehicleId },
+    select: { externalId: true },
+  });
+  return (svc as unknown as { reactivateInactiveDimoLinkInTransaction: (params: unknown) => Promise<{ action: string; reason?: string }> }).reactivateInactiveDimoLinkInTransaction({
+    input: {
+      organizationId: seed.organizationId,
+      vehicleId: seed.vehicleId,
+      dimoVehicleId: seed.dimoVehicleId,
+      provenance: 'manual',
+    },
+    client,
+    inactiveLinkId: seed.linkId,
+    inactiveConsentId: null,
+    inactiveLinkedByUserId: null,
+    dimoVehicle,
+    dimoVehicleId: seed.dimoVehicleId,
+    now: new Date(),
+  });
 }
 
 async function seedExecutableRun(
@@ -235,11 +272,51 @@ async function seedExecutableRun(
       dimoVehicleId: seedA.dimoVehicleId,
       provenance: 'manual',
     });
-    const runA = await prisma.fsdDiscoveryRun.findFirst({ where: { id: { not: runB.runId } } });
+    const runA = await prisma.fsdDiscoveryRun.findFirst({
+      where: { providerSourceLinkId: seedA.linkId },
+    });
     expect(runA?.status).toBe('INVALIDATED');
     const still = await prisma.fsdDiscoveryRun.findUniqueOrThrow({ where: { id: runB.runId } });
     expect(still.status).not.toBe('INVALIDATED');
     expect(still.invalidatedAt).toBeNull();
+  });
+
+  it('after offboarding commits, reactivation tx fails closed and link stays inactive', async () => {
+    const seed = await seedDimoBinding(prisma);
+    await oobDeactivateLink(prisma, seed.linkId);
+    const offboarding = createVehicleOffboardingServiceForTests(prisma);
+    await offboarding.offboardVehicle({
+      organizationId: seed.organizationId,
+      vehicleId: seed.vehicleId,
+      reason: 'ADMINISTRATIVE_OFFBOARD',
+      actorUserId: null,
+      idempotencyKey: randomUUID(),
+    });
+    const svc = createDimoVehicleDataSourceLinkServiceForTests(prisma);
+    const outcome = await resumeReactivationTransaction(svc, seed, prisma);
+    expect(outcome.action).toBe('CONFLICT');
+    expect(outcome.reason).toBe('vehicle_registry_not_operational');
+    const link = await prisma.vehicleDataSourceLink.findUniqueOrThrow({ where: { id: seed.linkId } });
+    expect(link.isActive).toBe(false);
+  });
+
+  it('two concurrent reactivations yield one success and one episode conflict', async () => {
+    const seed = await seedDimoBinding(prisma);
+    await oobDeactivateLink(prisma, seed.linkId);
+    const svc = createDimoVehicleDataSourceLinkServiceForTests(prisma);
+    const input = {
+      organizationId: seed.organizationId,
+      vehicleId: seed.vehicleId,
+      dimoVehicleId: seed.dimoVehicleId,
+      provenance: 'manual' as const,
+    };
+    const [a, b] = await Promise.all([
+      svc.ensureDimoVehicleDataSourceLink(input),
+      svc.ensureDimoVehicleDataSourceLink(input),
+    ]);
+    expect([a, b].filter((r) => r.action === 'REACTIVATE').length).toBe(1);
+    const follower = a.action === 'REACTIVATE' ? b : a;
+    expect(['NOOP', 'CONFLICT']).toContain(follower.action);
   });
 
   it('concurrent reactivation vs FSD acquire serializes safely', async () => {

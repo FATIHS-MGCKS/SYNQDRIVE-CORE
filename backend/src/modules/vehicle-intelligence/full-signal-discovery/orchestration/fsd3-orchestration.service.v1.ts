@@ -1203,6 +1203,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       fromStatus: 'IN_PROGRESS',
       toStatus: runTarget,
       failureClass: input.unknownOutcome ? 'UNKNOWN' : input.hasRejections ? 'UNKNOWN' : undefined,
+      leaseFence: { leaseOwner: input.writeAuth().leaseOwner },
     });
     if (!applied.applied) {
       return buildTerminalFailureResult({
