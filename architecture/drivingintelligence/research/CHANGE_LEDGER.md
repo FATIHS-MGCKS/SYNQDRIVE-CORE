@@ -2829,6 +2829,16 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | D8 gates frozen; no scientific validation claim; 200k audit remains `b3Comparable: false` |
 | REMAINING | Real C4 preregistration; W1 blocked |
 
+### 2026-11-07 — DS4 DBI W0 historical Motion-Core offline replay (Phase 1 P1)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-w0-historical-replay.fixture-registry.v1.ts`, `ds4-dbi-w0-historical-replay.loader.v1.ts`, `ds4-dbi-w0-historical-replay.cli.ts`, Jest `ds4-dbi-w0-historical-replay.v1.spec.ts`; evidence origin `HISTORICAL_RESEARCH_RECORDING`; TIG22 hash-verified load; STRICT binding fails without `contract.speedAuthority`; RELAXED allows unanimous C4 estimator partition inference with explicit limitations |
+| WHY | Architect-directed Phase 1 offline replay on frozen production-shadow TIG22 without W1/F04 promotion or synthetic conflation |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (59); `npx ts-node scripts/research/ds4-dbi-w0-historical-replay.cli.ts --fixture TIG22 --json`; TIG22 D4/D5/D6 KNOWN, D8 ABSTAIN (`MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW`) |
+| NON_EFFECTS | **No** F04 trust gate change; **no** W1 loader; **no** production/DB/provider access; **no** scientific validation claims; TES16 deferred (`NO_MOTION_PAYLOAD_BYTES`) |
+| REMAINING | Trusted speed-authority attestation on payload; D8 observation window compatibility on sparse historic bundles; TES16 motion payload export |
+
 ### 2026-11-07 — F03 performance and edge closeout
 
 | Field | Detail |

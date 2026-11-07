@@ -15,7 +15,12 @@ export type Ds4DbiW0EvidenceOriginV1 =
   | 'SYNTHETIC_P2_ENRICHMENT'
   | 'SYNTHETIC_CONTROL'
   /** Caller omitted explicit origin — not sealed real; treat as synthetic/unspecified. */
-  | 'SYNTHETIC_UNSPECIFIED';
+  | 'SYNTHETIC_UNSPECIFIED'
+  /**
+   * Frozen historical Motion-Core shadow bytes replayed offline — not W1 sealed real;
+   * does not promote scientific validation or F04 trust.
+   */
+  | 'HISTORICAL_RESEARCH_RECORDING';
 
 export const DS4_DBI_W0_STRICT_SPEED_QUALITIES: ReadonlySet<string> = new Set(['OK']);
 
