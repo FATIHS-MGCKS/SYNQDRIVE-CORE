@@ -8,21 +8,25 @@ Arbitrary direct SQL is **not** intercepted by the application or by database tr
 
 ## Approved operational path
 
-Use the audited ops entrypoint (single transaction):
+Use the audited Nest entrypoint (single transaction; **not** offboarding):
 
 ```bash
 cd backend
-npx tsx scripts/ops/fsd-lifecycle-deactivate-dimo-source-link.ts --help
+npx tsx scripts/ops/fsd-lifecycle-deactivate-dimo-source-link.ts \
+  --organization-id=<org> --vehicle-id=<vehicle> --link-id=<link> \
+  --actor-user-id=<user> --idempotency-key=<key> \
+  [--reason=OPS_MANUAL_DEACTIVATE] [--dry-run]
 ```
 
-The script:
+`DimoSourceLinkAuditedDeactivationService` enforces:
 
-1. Resolves org/vehicle scope from the link row (fail-closed on cross-tenant mismatch).
-2. Acquires vehicle lifecycle consistency via transactional updates.
-3. Runs FSD P5B invalidation per DIMO link.
-4. Deactivates the link with a recorded `deactivationReason`.
+1. Re-validated org/vehicle/link scope inside the transaction.
+2. Lock order: vehicle `FOR NO KEY UPDATE` → link row `FOR UPDATE` → FSD advisory invalidation → link deactivate.
+3. VSI `SOURCE_LINK_DEACTIVATED` outbox (reason = operator `deactivationReason`, not `VEHICLE_OFFBOARDED`).
+4. **No** vehicle provider consent mutation (explicit boundary — use offboarding to revoke consent).
+5. Durable `business_audit_outbox` row (`DIMO_SOURCE_LINK_DEACTIVATED`); console output is not audit.
 
-Requires disposable or production-local credentials per operator runbook; never run against production without explicit owner authorization.
+Requires explicit owner authorization for production `DATABASE_URL`.
 
 ## Incident response
 

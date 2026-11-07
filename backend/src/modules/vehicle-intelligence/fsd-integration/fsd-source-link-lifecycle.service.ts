@@ -53,6 +53,10 @@ export class FsdSourceLinkLifecycleService {
 
     const perLink: InvalidateVehicleDimoSourceLinksLifecycleResultV1['perLink'] = [];
     for (const link of links) {
+      await tx.$queryRaw`
+        SELECT id FROM vehicle_data_source_links WHERE id = ${link.id} AND vehicle_id = ${input.vehicleId}
+        FOR UPDATE
+      `;
       const invalidated = await this.persistence.invalidateExecutableRunsForDimoSourceLinkInTransaction(
         tx,
         {

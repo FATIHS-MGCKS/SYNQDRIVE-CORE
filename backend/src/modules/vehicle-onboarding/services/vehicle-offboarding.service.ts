@@ -23,6 +23,7 @@ import {
   buildExpectedOffboardAuditSemantics,
   ensureOffboardAuditRecord,
 } from '../offboarding/offboard-registry-audit';
+import { lockVehicleRowForLifecycleMutation } from '../offboarding/vehicle-lifecycle-row-lock';
 import {
   FSD_LIFECYCLE_REASON_OFFBOARD,
   FsdSourceLinkLifecycleService,
@@ -139,19 +140,15 @@ export class VehicleOffboardingService {
     const actorUserId = input.actorUserId;
 
     const result = await this.prisma.$transaction<OffboardVehicleResult>(async (tx) => {
-      const lockedRows = await tx.$queryRaw<
-        Array<{ registry_lifecycle: VehicleRegistryLifecycle }>
-      >`
-        SELECT registry_lifecycle
-        FROM vehicles
-        WHERE id = ${input.vehicleId}
-          AND organization_id = ${input.organizationId}
-        FOR UPDATE
-      `;
-      if (lockedRows.length === 0) {
+      let registryLifecycle: VehicleRegistryLifecycle;
+      try {
+        registryLifecycle = await lockVehicleRowForLifecycleMutation(tx, {
+          organizationId: input.organizationId,
+          vehicleId: input.vehicleId,
+        });
+      } catch {
         throw new VehicleOnboardingError('CASE_NOT_FOUND', 'Vehicle not found for organization');
       }
-      const registryLifecycle = lockedRows[0]!.registry_lifecycle;
 
       const replayFromOutbox = async (): Promise<OffboardVehicleResult | null> => {
         const existingOutbox = await tx.vehicleRegistryLifecycleOutbox.findUnique({
@@ -224,8 +221,8 @@ export class VehicleOffboardingService {
         orderBy: { id: 'asc' },
       });
 
-      // Lock order: vehicles FOR UPDATE (above) → per-link FSD advisory locks (sorted link ids)
-      // → deactivate links. FSD orchestration never takes the vehicle row lock.
+      // Lock order: vehicles FOR NO KEY UPDATE → per-link row FOR UPDATE + FSD advisory (sorted ids)
+      // → deactivate links. FK inserts from FSD acquire may KEY SHARE the vehicle row.
       await this.fsdSourceLinkLifecycle.invalidateDimoSourceLinksForVehicleLifecycle(tx, {
         organizationId: input.organizationId,
         vehicleId: input.vehicleId,

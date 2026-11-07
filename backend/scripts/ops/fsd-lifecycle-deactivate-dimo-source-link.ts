@@ -1,27 +1,60 @@
 /**
- * Audited transactional DIMO source-link deactivation with FSD P5B invalidation.
+ * FSD P5B — audited operator DIMO source-link deactivation (Nest transaction path).
  *
  * Usage:
- *   cd backend && npx tsx scripts/ops/fsd-lifecycle-deactivate-dimo-source-link.ts --link-id=<uuid> [--reason=OPS_MANUAL] [--dry-run]
+ *   cd backend && npx tsx scripts/ops/fsd-lifecycle-deactivate-dimo-source-link.ts \
+ *     --organization-id=<uuid> --vehicle-id=<uuid> --link-id=<uuid> \
+ *     --actor-user-id=<uuid> --idempotency-key=<key> \
+ *     [--reason=OPS_MANUAL_DEACTIVATE] [--note=...] [--dry-run]
  *
- * Requires DATABASE_URL. Does not perform live DIMO calls.
+ * Not vehicle offboarding. Does not revoke vehicle provider consent. Requires DATABASE_URL.
  */
-import { PrismaClient } from '@prisma/client';
-import { FsdDiscoveryPersistenceRepository } from '../../src/modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.repository';
-import { FsdSourceLinkLifecycleService } from '../../src/modules/vehicle-intelligence/fsd-integration/fsd-source-link-lifecycle.service';
-import { FSD_LIFECYCLE_REASON_OFFBOARD } from '../../src/modules/vehicle-intelligence/fsd-integration/fsd-source-link-lifecycle.service';
+import * as fs from 'fs';
+import * as path from 'path';
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from '../../src/app.module';
+import { DimoSourceLinkAuditedDeactivationService } from '../../src/modules/vehicle-onboarding/services/dimo-source-link-audited-deactivation.service';
+import { PrismaService } from '../../src/shared/database/prisma.service';
 
-function parseArgs(): { linkId: string | undefined; reason: string; dryRun: boolean } {
-  const linkId = process.argv.find((a) => a.startsWith('--link-id='))?.slice('--link-id='.length);
-  const reasonArg = process.argv.find((a) => a.startsWith('--reason='))?.slice('--reason='.length);
-  const dryRun = process.argv.includes('--dry-run');
-  return { linkId, reason: reasonArg ?? 'OPS_MANUAL_DEACTIVATE', dryRun };
+{
+  const envPath =
+    process.env.SYNQDRIVE_BACKEND_ENV ?? path.resolve(__dirname, '..', '..', '.env');
+  if (fs.existsSync(envPath)) {
+    for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+      if (m && !process.env[m[1]]) {
+        process.env[m[1]] = m[2].replace(/^"(.*)"$/, '$1');
+      }
+    }
+  }
+}
+
+function parseArgs() {
+  const get = (prefix: string) =>
+    process.argv.find((a) => a.startsWith(prefix))?.slice(prefix.length);
+  return {
+    organizationId: get('--organization-id='),
+    vehicleId: get('--vehicle-id='),
+    linkId: get('--link-id='),
+    actorUserId: get('--actor-user-id='),
+    idempotencyKey: get('--idempotency-key='),
+    reason: get('--reason=') ?? 'OPS_MANUAL_DEACTIVATE',
+    note: get('--note='),
+    dryRun: process.argv.includes('--dry-run'),
+  };
 }
 
 async function main(): Promise<void> {
-  const { linkId, reason, dryRun } = parseArgs();
-  if (!linkId?.trim()) {
-    console.error('Missing --link-id=<uuid>');
+  const args = parseArgs();
+  const missing = [
+    ['--organization-id', args.organizationId],
+    ['--vehicle-id', args.vehicleId],
+    ['--link-id', args.linkId],
+    ['--actor-user-id', args.actorUserId],
+    ['--idempotency-key', args.idempotencyKey],
+  ].filter(([, v]) => !v?.trim());
+  if (missing.length) {
+    console.error(`Missing: ${missing.map(([k]) => k).join(', ')}`);
     process.exit(2);
   }
   if (!process.env.DATABASE_URL) {
@@ -29,65 +62,57 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const prisma = new PrismaClient();
-  const persistence = new FsdDiscoveryPersistenceRepository(prisma as never);
-  const lifecycle = new FsdSourceLinkLifecycleService(persistence);
+  const appModule = await AppModule.forRootAsync();
+  const app = await NestFactory.createApplicationContext(appModule, {
+    logger: ['error', 'warn'],
+  });
 
   try {
-    const link = await prisma.vehicleDataSourceLink.findUnique({
-      where: { id: linkId },
-      include: {
-        vehicle: { select: { id: true, organizationId: true } },
+    const prisma = app.get(PrismaService);
+    const scoped = await prisma.vehicleDataSourceLink.findFirst({
+      where: {
+        id: args.linkId,
+        vehicleId: args.vehicleId,
+        vehicle: { organizationId: args.organizationId, id: args.vehicleId },
+        provider: 'DIMO',
+        sourceType: 'DIMO',
       },
+      select: { id: true, isActive: true },
     });
-    if (!link?.vehicle) {
-      console.error('Source link not found');
-      process.exit(1);
-    }
-    if (link.provider !== 'DIMO' || link.sourceType !== 'DIMO') {
-      console.error('Link is not a DIMO source link');
+    if (!scoped) {
+      console.error('Link not found for org/vehicle scope');
       process.exit(1);
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          dryRun,
-          linkId,
-          vehicleId: link.vehicle.id,
-          organizationId: link.vehicle.organizationId,
-          reason,
-        },
-        null,
-        2,
-      ),
-    );
-
-    if (dryRun) {
+    const plan = {
+      dryRun: args.dryRun,
+      organizationId: args.organizationId,
+      vehicleId: args.vehicleId,
+      providerSourceLinkId: args.linkId,
+      actorUserId: args.actorUserId,
+      deactivationReason: args.reason,
+      idempotencyKey: args.idempotencyKey,
+      note: args.note ?? null,
+      isActiveBefore: scoped.isActive,
+    };
+    console.log(JSON.stringify(plan, null, 2));
+    if (args.dryRun) {
       return;
     }
 
-    const deactivatedAt = new Date();
-    await prisma.$transaction(async (tx) => {
-      await lifecycle.invalidateSingleDimoSourceLinkForLifecycle(tx, {
-        organizationId: link.vehicle!.organizationId,
-        vehicleId: link.vehicle!.id,
-        providerSourceLinkId: link.id,
-        invalidationReason: FSD_LIFECYCLE_REASON_OFFBOARD,
-      });
-      await tx.vehicleDataSourceLink.update({
-        where: { id: link.id },
-        data: {
-          isActive: false,
-          deactivatedAt,
-          deactivationReason: reason,
-        },
-      });
+    const svc = app.get(DimoSourceLinkAuditedDeactivationService);
+    const result = await svc.deactivateAudited({
+      organizationId: args.organizationId!,
+      vehicleId: args.vehicleId!,
+      providerSourceLinkId: args.linkId!,
+      actorUserId: args.actorUserId!,
+      deactivationReason: args.reason!,
+      idempotencyKey: args.idempotencyKey!,
+      note: args.note,
     });
-
-    console.log('OK: link deactivated and FSD runs invalidated');
+    console.log(JSON.stringify({ status: 'OK', deactivatedAt: result.deactivatedAt.toISOString() }));
   } finally {
-    await prisma.$disconnect();
+    await app.close();
   }
 }
 

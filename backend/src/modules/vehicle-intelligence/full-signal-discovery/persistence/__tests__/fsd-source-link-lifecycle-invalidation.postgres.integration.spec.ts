@@ -13,6 +13,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { ensureOrganizationProductEntitlement } from '@modules/vehicle-onboarding/testing/org-product-test.harness';
 import { createVehicleOffboardingServiceForTests } from '@modules/vehicle-onboarding/testing/vehicle-offboarding-test.harness';
+import { lockVehicleRowForLifecycleMutation } from '@modules/vehicle-onboarding/offboarding/vehicle-lifecycle-row-lock';
 import { BusinessAuditOutboxRepository } from '@modules/business-audit/business-audit-outbox.repository';
 import { VehicleOffboardingService } from '@modules/vehicle-onboarding/services/vehicle-offboarding.service';
 import { FsdDiscoveryPersistenceRepository } from '../fsd-discovery-persistence.repository';
@@ -303,12 +304,13 @@ async function seedExecutableRun(
     expect(oldRun?.leaseExpiresAt).toBeNull();
   });
 
-  it('offboarding lock order (vehicle FOR UPDATE then FSD advisory) completes', async () => {
+  it('offboarding lock order (vehicle FOR NO KEY UPDATE then FSD advisory) completes', async () => {
     const seed = await seedVehicleWithDimo(prisma);
     await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`
-        SELECT id FROM vehicles WHERE id = ${seed.vehicleId}::text FOR UPDATE
-      `;
+      await lockVehicleRowForLifecycleMutation(tx, {
+        organizationId: seed.organizationId,
+        vehicleId: seed.vehicleId,
+      });
       await invalidateExecutableFsdRunsForDimoSourceLinkInTransaction(tx, {
         organizationId: seed.organizationId,
         vehicleId: seed.vehicleId,
