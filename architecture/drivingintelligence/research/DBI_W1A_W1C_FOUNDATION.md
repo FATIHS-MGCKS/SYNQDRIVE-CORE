@@ -8,51 +8,46 @@
 
 | Plane | W1A may achieve? |
 |-------|------------------|
-| `FILE_INTEGRITY_VERIFIED` | Yes (manifest schema valid, no binding) |
-| `STRUCTURALLY_BOUND` | Yes (manifest + observed SHA bindings match) |
-| `SOURCE_AUTHENTICATED` | **No** — requires W1B + owner-approved acquisition |
-| `SCIENTIFICALLY_ELIGIBLE` | **No** — requires W1D protocol; `NOT_EVALUATED` preserved |
+| `STRUCTURE_VALID` | Yes — schema + runtime field validation only (no byte read) |
+| `FILE_BYTES_INTEGRITY_VERIFIED` | Reserved naming; W1A promotes to `STRUCTURALLY_BOUND` when loader byte inspection binds all digests |
+| `STRUCTURALLY_BOUND` | Yes — manifest + `BYTE_INSPECTION` proofs match declarations |
+| `SOURCE_AUTHENTICATED` | **No** — W1B + owner-approved acquisition |
+| `SCIENTIFICALLY_ELIGIBLE` | **No** — W1D; `NOT_EVALUATED` preserved |
 
-### Boundaries
+### Integrity rules
 
-- Caller attestation (`CALLER_ATTESTATION_UNTRUSTED`) is never an independent trust anchor.
-- Provenance manifest hash must not equal the independent anchor alone.
-- `speedAuthority` is required on trusted manifests; historical C4 estimator inference is **not** accepted as trusted authority.
-- Raw file SHA-256 and canonical JSON payload digest are distinct fields.
-- `sourceMotionRunId` must differ from `tripId`; `sameTripShadowRerunOfRunId` must not equal `tripId`.
-
-**Non-effects:** `DS4_DBI_W0_TRUSTED_SEALED_REAL_LOADER_ACTIVE_V1 = false`, `sealedRealC4StatisticalEligibility: false`, `F04_TRUST_GATE` unchanged.
+- Structure-only validation never implies hashed bytes (`STRUCTURE_VALID`).
+- Detached provenance uses `detachedProvenanceManifestDigestSha256` (digest of manifest body excluding the digest field). No inline self-hash as trust proof.
+- `declaredIndependentTrustAnchorSha256` is declarative only in W1A — **not** verified; unequal digests do not imply authenticity.
+- Caller-supplied `observed*` digests (`CALLER_DIGEST_CLAIM`) are rejected — not byte proof.
+- Raw file SHA-256 and canonical payload digest are **semantically** distinct; values may equal.
+- Runtime checks: `speedAuthority` enum, UTC trip bounds, `algorithmVersions.bundle === shadowBundleVersion`, UUID identities, rerun linkage.
 
 ## W1C — Trip assessment projector
 
-### Metric eligibility (from W0 kernel status)
+### Trip outcome state machine (unchanged)
 
-- `KNOWN` ← kernel `KNOWN`
-- `ABSTAIN` / `NOT_AVAILABLE` ← kernel statuses
-- `BLOCKED_FAIL_CLOSED` when trip-level fail-closed reasons are present (typed codes from `ds4-dbi-w0-fail-closed-codes.v1.ts`)
-
-### Trip outcome state machine
-
-Trip-level fail-closed **overrides** metric availability.
+Trip-level typed fail-closed **overrides** metric availability.
 
 | Condition | `tripOutcome` |
 |-----------|---------------|
-| Trip fail-closed | `NOT_EVALUABLE` |
+| Trip fail-closed (typed codes only) | `NOT_EVALUABLE` |
 | 0 metrics `KNOWN` | `NOT_EVALUABLE` |
 | 4 metrics `KNOWN` | `COMPLETE` |
 | 1–3 `KNOWN` and ≥1 not `KNOWN` | `PARTIAL` |
 
-`COMPLETE` means **metric availability only** — not scientific validation. No composite score, imputation, or weight redistribution.
+### Hardening
 
-### Examples
-
-- **TIG22 (canonical kernel):** D4/D5/D6 `KNOWN`, D8 `ABSTAIN` → `PARTIAL` (preserve D8 reason e.g. `MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW` on canonical path).
-- **Source integrity failure:** all metric values nulled; `NOT_EVALUABLE`.
+- Fail-closed only from `ds4-dbi-w0-fail-closed-codes.v1.ts`; unknown diagnostic codes reject projection.
+- Unknown kernel metric statuses reject projection (no silent ABSTAIN).
+- `KNOWN` requires finite primary value.
+- `kernelInputValidationStatus` vs `sourceAuthenticationStatus` (`NOT_AUTHENTICATED`) vs `sourceIntegrityStatus`.
+- D6 multidimensional evidence; D8 window slot counts (no misleading coverage labels).
 
 ## Remaining work
 
 | Track | Requirement |
 |-------|-------------|
-| **W1B** | Owner-approved trusted loader implementing `Ds4DbiW1TrustedEvidenceLoaderV1`, independent manifest verification, `SOURCE_AUTHENTICATED` gate |
-| **W1D** | Scientific eligibility protocol; must not conflate with W1C `COMPLETE` |
-| **UI** | Present trust planes separately; partial assessments must show interpretation limits |
+| **W1B** | Trusted loader with real byte reads + independent anchor verification |
+| **W1D** | Scientific eligibility protocol |
+| **UI** | Separate trust planes; partial assessment interpretation limits |

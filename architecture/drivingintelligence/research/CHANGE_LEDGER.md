@@ -2859,6 +2859,15 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** F04 trust gate change; **no** W1 loader; **no** production/DB/provider access; **no** scientific validation claims; TES16 deferred (`NO_MOTION_PAYLOAD_BYTES`) |
 | REMAINING | Trusted speed-authority attestation on payload; D8 observation window compatibility on sparse historic bundles; TES16 motion payload export |
 
+### 2026-11-07 — DBI W1A/W1C architecture hardening P1
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | W1A: `STRUCTURE_VALID` vs byte `BYTE_INSPECTION`; detached manifest digest; reject caller digest claims; runtime enum/UTC/bundle validation; allow equal file/canonical hex. W1C: typed fail-closed only, unknown status rejection, KNOWN/value consistency, D6/D8 evidence shape, auth vs integrity fields |
+| WHY | Architect P1 — correct trust semantics before W1B loader |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (90); adversarial W1A/W1C specs |
+| NON_EFFECTS | F04/W1 loader/D8 thresholds unchanged |
+
 ### 2026-11-07 — DBI W1A trusted evidence contract foundation
 
 | Field | Detail |
