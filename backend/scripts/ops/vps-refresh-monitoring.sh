@@ -53,8 +53,10 @@ promtool_check_rules_file() {
     return $?
   fi
   if command -v docker >/dev/null 2>&1; then
-    docker run --rm -v "${dir}:/rules:ro" prom/prometheus:v2.54.1 \
-      promtool check rules "/rules/${base}"
+    # prom/prometheus image ENTRYPOINT is the prometheus binary — promtool must be the entrypoint.
+    docker run --rm --entrypoint promtool \
+      -v "${dir}:/rules:ro" prom/prometheus:v2.54.1 \
+      check rules "/rules/${base}"
     return $?
   fi
   echo "ERROR: promtool unavailable — cannot validate candidate Prometheus rules ($(basename "$rules_file"))" >&2
@@ -62,16 +64,53 @@ promtool_check_rules_file() {
 }
 
 validate_prometheus_bundle() {
-  local tmp
-  tmp="$(mktemp -d)"
-  cp "$SRC_PROM/alerts.yml" "$tmp/alerts.yml"
-  cp "$SRC_PROM/alerts-infra.yml" "$tmp/alerts-infra.yml"
-  cp "$SRC_PROM/alerts-di-s4.yml" "$tmp/alerts-di-s4.yml"
-  cp "$SRC_PROM/prometheus.vps.yml" "$tmp/prometheus.yml"
-  promtool_check_rules_file "$tmp/alerts.yml"
-  promtool_check_rules_file "$tmp/alerts-infra.yml"
-  promtool_check_rules_file "$tmp/alerts-di-s4.yml"
+  local tmp="" rc=0
+  local required=(
+    "$SRC_PROM/alerts.yml"
+    "$SRC_PROM/alerts-infra.yml"
+    "$SRC_PROM/alerts-di-s4.yml"
+    "$SRC_PROM/prometheus.vps.yml"
+  )
+  local src
+
+  for src in "${required[@]}"; do
+    if [[ ! -f "$src" ]]; then
+      echo "ERROR: Prometheus candidate source missing: $src" >&2
+      return 1
+    fi
+  done
+
+  tmp="$(mktemp -d)" || return 1
+
+  if ! cp "$SRC_PROM/alerts.yml" "$tmp/alerts.yml"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  if ! cp "$SRC_PROM/alerts-infra.yml" "$tmp/alerts-infra.yml"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  if ! cp "$SRC_PROM/alerts-di-s4.yml" "$tmp/alerts-di-s4.yml"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  if ! cp "$SRC_PROM/prometheus.vps.yml" "$tmp/prometheus.yml"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+
+  if ! promtool_check_rules_file "$tmp/alerts.yml"; then
+    rc=1
+  fi
+  if ! promtool_check_rules_file "$tmp/alerts-infra.yml"; then
+    rc=1
+  fi
+  if ! promtool_check_rules_file "$tmp/alerts-di-s4.yml"; then
+    rc=1
+  fi
+
   rm -rf "$tmp"
+  return "$rc"
 }
 
 snapshot_prometheus_dir() {
@@ -121,14 +160,16 @@ refresh_prometheus() {
     return 0
   fi
 
-  mkdir -p "$PROM_DIR/secrets"
-  printf '%s' "$token" > "$PROM_DIR/secrets/metrics_bearer_token"
-  chmod 644 "$PROM_DIR/secrets/metrics_bearer_token"
-
   if ! validate_prometheus_bundle; then
     echo "ERROR: Prometheus candidate validation failed — leaving $PROM_DIR unchanged" >&2
     return 1
   fi
+
+  mkdir -p "$PROM_DIR/secrets"
+  printf '%s' "$token" > "$PROM_DIR/secrets/metrics_bearer_token"
+  # NOTE: world-readable (644) so host-side tooling can read the file; verify this matches
+  # synqdrive-prometheus container UID/GID and scrape-auth expectations before tightening.
+  chmod 644 "$PROM_DIR/secrets/metrics_bearer_token"
 
   local pre_snapshot
   pre_snapshot="$(snapshot_prometheus_dir)"
@@ -292,9 +333,15 @@ refresh_grafana() {
   echo "Grafana: configs synced to $GRAFANA_DIR (container not running; set MONITORING_AUTO_BOOTSTRAP=1 to install)"
 }
 
-echo "==> SynqDrive monitoring refresh (release: $SYNQDRIVE_ROOT)"
-refresh_prometheus
-refresh_alertmanager
-refresh_exporters
-refresh_grafana
-echo "==> Monitoring refresh complete"
+vps_refresh_monitoring_main() {
+  echo "==> SynqDrive monitoring refresh (release: $SYNQDRIVE_ROOT)"
+  refresh_prometheus
+  refresh_alertmanager
+  refresh_exporters
+  refresh_grafana
+  echo "==> Monitoring refresh complete"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  vps_refresh_monitoring_main "$@"
+fi

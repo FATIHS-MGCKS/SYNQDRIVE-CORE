@@ -161,6 +161,14 @@ jobs:
         working-directory: backend
       - run: npm run test:legal-documents
         working-directory: backend
+      - name: VPS monitoring promtool contract (EXP021 S4P2)
+        working-directory: backend
+        env:
+          PROMTOOL_VERSION: '2.54.1'
+        run: |
+          set -euo pipefail
+          docker pull prom/prometheus:v2.54.1
+          npm run test:di:s4p2:vps-monitoring-contract
 
   backend-integration:
     name: Backend integration tests
