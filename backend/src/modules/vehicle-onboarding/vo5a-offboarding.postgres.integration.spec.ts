@@ -2,8 +2,8 @@
  * VO-5A registry offboarding foundation (PostgreSQL).
  */
 import { BusinessType, PrismaClient, ProductSlug, VehicleProviderConsentStatus } from '@prisma/client';
-import { DimoVehicleDataSourceLinkService } from '@modules/dimo/dimo-vehicle-data-source-link.service';
 import { randomUUID } from 'node:crypto';
+import { createDimoVehicleDataSourceLinkServiceForTests } from './testing/vehicle-onboarding-test.harness';
 import { createVehicleOffboardingServiceForTests } from './testing/vehicle-offboarding-test.harness';
 import { VehicleOnboardingProviderCandidateService } from './services/vehicle-onboarding-provider-candidate.service';
 import { VehicleOnboardingSourceAdoptionAuthority } from './source-adoption/vehicle-onboarding-source-adoption.authority';
@@ -339,7 +339,7 @@ async function createActiveVehicle(prisma: PrismaClient, orgId: string, dimoId?:
       actorUserId: null,
       idempotencyKey: randomUUID(),
     });
-    const linkService = new DimoVehicleDataSourceLinkService(prisma as any);
+    const linkService = createDimoVehicleDataSourceLinkServiceForTests(prisma);
     const result = await linkService.ensureDimoVehicleDataSourceLink({
       vehicleId,
       organizationId: orgId,

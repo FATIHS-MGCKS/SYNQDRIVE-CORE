@@ -46,6 +46,9 @@ export const BusinessAuditAction = {
   EVALUATIONS_PERSON_ANALYTICS_DENIED: 'EVALUATIONS_PERSON_ANALYTICS_DENIED',
   /** VO5C D5 — durable Master Admin offboard note + actor evidence (not billing outbox). */
   VEHICLE_REGISTRY_OFFBOARDED: 'VEHICLE_REGISTRY_OFFBOARDED',
+  /** FSD P5B — audited operator DIMO source-link deactivation (link-only, not registry offboard). */
+  DIMO_SOURCE_LINK_DEACTIVATED: 'DIMO_SOURCE_LINK_DEACTIVATED',
+  DIMO_SOURCE_LINK_FSD_RECOVERY_INVALIDATION: 'DIMO_SOURCE_LINK_FSD_RECOVERY_INVALIDATION',
 } as const;
 
 export type BusinessAuditActionCode =

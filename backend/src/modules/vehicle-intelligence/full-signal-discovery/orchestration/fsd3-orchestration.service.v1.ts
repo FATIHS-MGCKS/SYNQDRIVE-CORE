@@ -302,6 +302,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       runId: acquired.runId,
       writeAuth,
       runVersionRef,
+      leaseExpiresAt: input.leaseExpiresAt,
       budget,
       catalogFingerprint,
       catalogSignals,
@@ -628,6 +629,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       runId: acquired.runId,
       writeAuth,
       runVersionRef,
+      leaseExpiresAt: input.leaseExpiresAt,
       budget,
       catalogFingerprint,
       catalogSignals,
@@ -645,6 +647,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
     runId: string;
     writeAuth: () => FsdDiscoveryWriteAuthorizationV1;
     runVersionRef: { value: number };
+    leaseExpiresAt: Date;
     budget: FsdBudgetConfigV1;
     catalogFingerprint: string;
     catalogSignals: readonly string[];
@@ -774,7 +777,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
     }
 
     let observedSignalCount = (
-      await this.persistence.summarizeRunEvidenceForOrchestration(input.runId)
+      await this.persistence.summarizeRunEvidenceForOrchestration(input.scope, input.runId)
     ).observedSignalCount;
     let unknownOutcome = false;
 
@@ -839,6 +842,19 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       }
 
       await this.testHooks?.afterSnapshotRequestSlotReserved?.(index);
+      const renewed = await this.persistence.renewRunLease({
+        scope: input.scope,
+        runId: input.runId,
+        expectedVersion: input.runVersionRef.value,
+        leaseOwner: input.writeAuth().leaseOwner,
+      });
+      if (!renewed.renewed) {
+        return buildTerminalFailureResult({
+          runId: input.runId,
+          reason: 'LEASE_RENEWAL_FAILED',
+        });
+      }
+      input.runVersionRef.value = renewed.version;
       this.assertProviderDispatchAllowed();
 
       let providerResponse;
@@ -869,6 +885,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
             reason: 'SNAPSHOT_LEDGER_FINALIZE_CAS_FAILED',
           });
         }
+        await this.failRun(input.scope, input.runId, input.runVersionRef, input.writeAuth, 'SNAPSHOT_PROVIDER_FAILED');
         return buildTerminalFailureResult({
           runId: input.runId,
           reason: err instanceof Error ? err.message : 'SNAPSHOT_PROVIDER_FAILED',
@@ -879,6 +896,27 @@ export class Fsd3CatalogSnapshotOrchestratorService {
         providerResponse.documentFingerprint !== document.fingerprint ||
         providerResponse.fieldNamesInDocument.join('|') !== document.fieldNames.join('|')
       ) {
+        const mismatchFin = await this.finalizeSnapshotLedgerAttempt(
+          input.writeAuth,
+          catalogPlanFingerprint,
+          input.catalogStageVersionRef,
+          input.budget.maxRequestsPerRun,
+          document.fingerprint,
+          'UNKNOWN',
+        );
+        if (!mismatchFin) {
+          return buildTerminalFailureResult({
+            runId: input.runId,
+            reason: 'SNAPSHOT_LEDGER_FINALIZE_CAS_FAILED',
+          });
+        }
+        await this.failRun(
+          input.scope,
+          input.runId,
+          input.runVersionRef,
+          input.writeAuth,
+          'SNAPSHOT_RESPONSE_FINGERPRINT_MISMATCH',
+        );
         return buildTerminalFailureResult({
           runId: input.runId,
           reason: 'SNAPSHOT_RESPONSE_FINGERPRINT_MISMATCH',
@@ -1165,6 +1203,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       fromStatus: 'IN_PROGRESS',
       toStatus: runTarget,
       failureClass: input.unknownOutcome ? 'UNKNOWN' : input.hasRejections ? 'UNKNOWN' : undefined,
+      leaseFence: { leaseOwner: input.writeAuth().leaseOwner },
     });
     if (!applied.applied) {
       return buildTerminalFailureResult({
@@ -1226,7 +1265,7 @@ export class Fsd3CatalogSnapshotOrchestratorService {
       return buildTerminalFailureResult({ runId, reason: 'RUN_NOT_TERMINAL' });
     }
 
-    const summary = await this.persistence.summarizeRunEvidenceForOrchestration(runId);
+    const summary = await this.persistence.summarizeRunEvidenceForOrchestration(scope, runId);
     const snapshotStage = findStageInBundle(bundle, 'SNAPSHOT');
     const progress = parseFsd3SnapshotStageCheckpoint(snapshotStage?.checkpointJson);
     const unknownOutcomeStage = snapshotStage?.status === 'UNKNOWN_OUTCOME';
@@ -1378,12 +1417,17 @@ export class Fsd3CatalogSnapshotOrchestratorService {
     writeAuth: () => FsdDiscoveryWriteAuthorizationV1,
     _reason: string,
   ): Promise<void> {
-    await this.persistence.transitionRunStatus({
+    const auth = writeAuth();
+    const result = await this.persistence.transitionRunStatus({
       scope,
       runId,
       expectedVersion: runVersionRef.value,
       fromStatus: 'IN_PROGRESS',
       toStatus: 'FAILED',
+      leaseFence: { leaseOwner: auth.leaseOwner },
     });
+    if (result.applied) {
+      runVersionRef.value = result.version;
+    }
   }
 }

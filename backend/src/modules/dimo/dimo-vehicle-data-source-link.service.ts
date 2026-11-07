@@ -1,13 +1,20 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
   Optional,
+  forwardRef,
 } from '@nestjs/common';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
+import { FSD_SOURCE_LINK_INVALIDATION_REASON_REACTIVATED } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-source-link-lifecycle-invalidation.v1';
+import { lockDimoSourceLinkRowForLifecycleMutation } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-dimo-source-link-row-lock.v1';
+import { FsdSourceLinkLifecycleService } from '@modules/vehicle-intelligence/fsd-integration/fsd-source-link-lifecycle.service';
+import { lockVehicleRowForLifecycleMutation } from '@modules/vehicle-onboarding/offboarding/vehicle-lifecycle-row-lock';
 import { VsiProfileLifecycleEnqueueService } from '@modules/vehicle-intelligence/vehicle-signal-intelligence/vsi-profile-lifecycle-enqueue.service';
 import { ConnectivityObservabilityService } from './connectivity/connectivity-observability.service';
 import {
@@ -38,6 +45,8 @@ export class DimoVehicleDataSourceLinkService {
 
   constructor(
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => FsdSourceLinkLifecycleService))
+    private readonly fsdSourceLinkLifecycle: FsdSourceLinkLifecycleService,
     @Optional()
     private readonly connectivityObservability?: ConnectivityObservabilityService,
     @Optional()
@@ -233,6 +242,7 @@ export class DimoVehicleDataSourceLinkService {
         {
           deactivatedAt: inactiveMatch.deactivatedAt,
           metadata: inactiveMatch.metadata,
+          deactivationReason: inactiveMatch.deactivationReason,
         },
         input.provenance ?? 'manual',
       );
@@ -254,39 +264,18 @@ export class DimoVehicleDataSourceLinkService {
         input.consentId !== undefined
           ? input.consentId
           : inactiveMatch.consentId;
-      const updated = await client.vehicleDataSourceLink.update({
-        where: { id: inactiveMatch.id },
-        data: {
-          isActive: true,
-          deactivatedAt: null,
-          activatedAt: now,
-          lastVerifiedAt: now,
-          consentId,
-          linkedByUserId: input.linkedByUserId ?? inactiveMatch.linkedByUserId,
-          metadata: this.buildMetadata(dimoVehicle.externalId, input),
+      return this.reactivateInactiveDimoLinkInTransaction({
+        input,
+        client,
+        inactiveLinkId: inactiveMatch.id,
+        inactiveConsentId: consentId,
+        inactiveLinkedByUserId: inactiveMatch.linkedByUserId,
+        dimoVehicle,
+        dimoVehicleId,
+        lockedEpisode: {
+          deactivatedAt: inactiveMatch.deactivatedAt,
         },
       });
-      this.observeBinding('reactivated', input.provenance);
-      this.logger.log(
-        `DIMO link reactivated vehicle=${input.vehicleId} link=${updated.id} provenance=${input.provenance ?? 'unknown'}`,
-      );
-      await this.vsiProfileLifecycleEnqueue?.enqueueSourceLinkActivated(
-        {
-          organizationId: input.organizationId,
-          vehicleId: input.vehicleId,
-          providerSourceLinkId: updated.id,
-          occurredAt: now,
-          reason: input.provenance ?? 'dimo_link_reactivated',
-        },
-        client,
-      );
-      return {
-        action: 'REACTIVATE',
-        linkId: updated.id,
-        reason: 'reactivated_inactive_link',
-        dimoVehicleId,
-        consentId: updated.consentId,
-      };
     }
 
     const inactiveConflict = links.find(
@@ -740,6 +729,192 @@ export class DimoVehicleDataSourceLinkService {
       applied,
       vehicles: reports,
     };
+  }
+
+  private assertFsdLifecycleInvalidationAvailable(): void {
+    if (!this.fsdSourceLinkLifecycle) {
+      throw new InternalServerErrorException({
+        code: 'FSD_SOURCE_LINK_INVALIDATION_UNAVAILABLE',
+        message: 'FSD source-link invalidation is required for DIMO link reactivation',
+      });
+    }
+  }
+
+  private async reactivateInactiveDimoLinkInTransaction(params: {
+    input: EnsureDimoVehicleDataSourceLinkInput;
+    client: DbClient;
+    inactiveLinkId: string;
+    inactiveConsentId: string | null;
+    inactiveLinkedByUserId: string | null;
+    dimoVehicle: { externalId: string };
+    dimoVehicleId: string;
+    lockedEpisode: { deactivatedAt: Date | null };
+  }): Promise<EnsureDimoVehicleDataSourceLinkResult> {
+    this.assertFsdLifecycleInvalidationAvailable();
+
+    const run = async (tx: DbClient): Promise<EnsureDimoVehicleDataSourceLinkResult> => {
+      const txClient = tx as Prisma.TransactionClient;
+      const registryLifecycle = await lockVehicleRowForLifecycleMutation(txClient, {
+        organizationId: params.input.organizationId,
+        vehicleId: params.input.vehicleId,
+      });
+      if (registryLifecycle !== 'ACTIVE') {
+        return {
+          action: 'CONFLICT',
+          linkId: params.inactiveLinkId,
+          reason: 'vehicle_registry_not_operational',
+          dimoVehicleId: params.dimoVehicleId,
+          consentId: params.inactiveConsentId,
+        };
+      }
+
+      const vehicleRow = await txClient.vehicle.findFirst({
+        where: { id: params.input.vehicleId, organizationId: params.input.organizationId },
+        select: { dimoVehicleId: true },
+      });
+      if (!vehicleRow || vehicleRow.dimoVehicleId !== params.input.dimoVehicleId) {
+        return {
+          action: 'CONFLICT',
+          linkId: params.inactiveLinkId,
+          reason: 'vehicle_dimo_binding_mismatch',
+          dimoVehicleId: params.dimoVehicleId,
+          consentId: params.inactiveConsentId,
+        };
+      }
+
+      await lockDimoSourceLinkRowForLifecycleMutation(txClient, {
+        organizationId: params.input.organizationId,
+        vehicleId: params.input.vehicleId,
+        providerSourceLinkId: params.inactiveLinkId,
+      });
+
+      const now = new Date();
+
+      const linkRow = await txClient.vehicleDataSourceLink.findFirst({
+        where: {
+          id: params.inactiveLinkId,
+          vehicleId: params.input.vehicleId,
+          provider: DIMO_DATA_SOURCE_PROVIDER,
+          sourceType: DIMO_DATA_SOURCE_TYPE,
+          sourceSubtype: DIMO_DATA_SOURCE_SUBTYPE,
+        },
+        select: {
+          id: true,
+          isActive: true,
+          dimoVehicleId: true,
+          consentId: true,
+          linkedByUserId: true,
+          deactivatedAt: true,
+          deactivationReason: true,
+          metadata: true,
+        },
+      });
+      if (!linkRow || linkRow.dimoVehicleId !== params.dimoVehicleId) {
+        return {
+          action: 'CONFLICT',
+          linkId: params.inactiveLinkId,
+          reason: 'inactive_link_dimo_vehicle_mismatch',
+          dimoVehicleId: params.dimoVehicleId,
+          consentId: params.inactiveConsentId,
+        };
+      }
+      if (linkRow.isActive) {
+        return {
+          action: 'CONFLICT',
+          linkId: params.inactiveLinkId,
+          reason: 'link_already_active_reactivation_episode',
+          dimoVehicleId: params.dimoVehicleId,
+          consentId: linkRow.consentId,
+        };
+      }
+
+      const expectedDeactivatedAtMs = params.lockedEpisode.deactivatedAt?.getTime() ?? null;
+      const actualDeactivatedAtMs = linkRow.deactivatedAt?.getTime() ?? null;
+      if (expectedDeactivatedAtMs !== actualDeactivatedAtMs) {
+        return {
+          action: 'CONFLICT',
+          linkId: params.inactiveLinkId,
+          reason: 'inactive_episode_superseded',
+          dimoVehicleId: params.dimoVehicleId,
+          consentId: params.inactiveConsentId,
+        };
+      }
+
+      const reactivation = assessInactiveLinkReactivation(
+        {
+          deactivatedAt: linkRow.deactivatedAt,
+          metadata: linkRow.metadata,
+          deactivationReason: linkRow.deactivationReason,
+        },
+        params.input.provenance ?? 'manual',
+      );
+      if (!reactivation.eligible) {
+        return {
+          action: 'CONFLICT',
+          linkId: params.inactiveLinkId,
+          reason:
+            reactivation.reason === 'backfill_reconciliation_never_reactivates'
+              ? 'inactive_link_requires_manual_review'
+              : reactivation.reason,
+          dimoVehicleId: params.dimoVehicleId,
+          consentId: params.inactiveConsentId,
+        };
+      }
+
+      const consentId =
+        params.input.consentId !== undefined ? params.input.consentId : linkRow.consentId;
+      const updated = await tx.vehicleDataSourceLink.update({
+        where: { id: params.inactiveLinkId },
+        data: {
+          isActive: true,
+          deactivatedAt: null,
+          activatedAt: now,
+          lastVerifiedAt: now,
+          consentId,
+          linkedByUserId: params.input.linkedByUserId ?? linkRow.linkedByUserId,
+          metadata: this.buildMetadata(params.dimoVehicle.externalId, params.input),
+        },
+      });
+
+      await this.fsdSourceLinkLifecycle.invalidateSingleDimoSourceLinkForLifecycle(
+        tx as Prisma.TransactionClient,
+        {
+          organizationId: params.input.organizationId,
+          vehicleId: params.input.vehicleId,
+          providerSourceLinkId: updated.id,
+          invalidationReason: FSD_SOURCE_LINK_INVALIDATION_REASON_REACTIVATED,
+        },
+      );
+
+      await this.vsiProfileLifecycleEnqueue?.enqueueSourceLinkActivated(
+        {
+          organizationId: params.input.organizationId,
+          vehicleId: params.input.vehicleId,
+          providerSourceLinkId: updated.id,
+          occurredAt: now,
+          reason: params.input.provenance ?? 'dimo_link_reactivated',
+        },
+        tx,
+      );
+
+      this.observeBinding('reactivated', params.input.provenance);
+      this.logger.log(
+        `DIMO link reactivated vehicle=${params.input.vehicleId} link=${updated.id} provenance=${params.input.provenance ?? 'unknown'}`,
+      );
+
+      return {
+        action: 'REACTIVATE',
+        linkId: updated.id,
+        reason: 'reactivated_inactive_link',
+        dimoVehicleId: params.dimoVehicleId,
+        consentId: updated.consentId,
+      };
+    };
+
+    if (params.client === this.prisma) {
+      return this.prisma.$transaction(async (tx) => run(tx));
+    }
+    return run(params.client);
   }
 
   private buildMetadata(

@@ -49,6 +49,7 @@ import { DimoProviderBudgetModule } from './provider-budget/dimo-provider-budget
 import { SnapshotWakeModule } from '@workers/snapshot-wake/snapshot-wake.module';
 import { DeviceConnectionPhysicalStateModule } from './device-connection-physical-state/device-connection-physical-state.module';
 import { VsiReadonlySignalComposerModule } from '../vehicle-intelligence/vehicle-signal-intelligence/vsi-readonly-composer.module';
+import { FsdDiscoveryIntegrationModule } from '../vehicle-intelligence/fsd-integration/fsd-integration.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { VsiReadonlySignalComposerModule } from '../vehicle-intelligence/vehicle
     SharedGuardsModule,
     forwardRef(() => NotificationsModule),
     forwardRef(() => VehicleIntelligenceModule),
+    forwardRef(() => FsdDiscoveryIntegrationModule),
   ],
   controllers: [DimoController, DimoWebhookController, DeviceConnectionWebhookInboxController],
   providers: [

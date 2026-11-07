@@ -8,6 +8,7 @@ import { BusinessAuditAction } from './business-audit.constants';
 import {
   hashBusinessAuditValue,
   sanitizeBusinessAuditValue,
+  summarizeBusinessAuditValue,
   scanBusinessAuditPayloadForSecrets,
 } from './business-audit-sanitize.util';
 import { buildBusinessAuditIdempotencyKey } from './business-audit-idempotency.util';
@@ -51,11 +52,66 @@ describe('business audit outbox', () => {
   });
 
   describe('BusinessAuditOutboxRepository', () => {
-    it('stores hashed summaries instead of raw secrets', async () => {
-      const create = jest.fn().mockResolvedValue({ id: 'outbox-1' });
-      const tx = { businessAuditOutbox: { create } };
-      const repo = new BusinessAuditOutboxRepository({} as never);
+    function rawSqlBindValues(queryRaw: jest.Mock): unknown[] {
+      return queryRaw.mock.calls[0]?.slice(1) ?? [];
+    }
 
+    const buildTx = (overrides?: {
+      inserted?: boolean;
+      existing?: Record<string, unknown>;
+    }) => {
+      const queryRaw = jest.fn().mockResolvedValue(
+        overrides?.inserted === false ? [] : [{ id: 'outbox-1' }],
+      );
+      const findUniqueOrThrow = jest.fn().mockResolvedValue({
+        id: 'outbox-1',
+        organizationId: 'org-a',
+        action: BusinessAuditAction.MANUAL_APPROVAL_REQUESTED,
+        entityType: 'BOOKING_ELIGIBILITY_APPROVAL',
+        entityId: 'approval-1',
+        actorUserId: null,
+        correlationId: null,
+        changeReason: null,
+        outcome: null,
+        beforeHash: null,
+        afterHash: null,
+        ...(overrides?.existing ?? {}),
+      });
+      const findUnique = jest.fn().mockResolvedValue(
+        overrides?.inserted === false
+          ? {
+              id: 'outbox-existing',
+              organizationId: 'org-a',
+              action: BusinessAuditAction.MANUAL_APPROVAL_REQUESTED,
+              entityType: 'BOOKING_ELIGIBILITY_APPROVAL',
+              entityId: 'approval-1',
+              actorUserId: null,
+              correlationId: null,
+              changeReason: null,
+              outcome: null,
+              beforeHash: null,
+              afterHash: null,
+              ...(overrides?.existing ?? {}),
+            }
+          : null,
+      );
+      return { $queryRaw: queryRaw, businessAuditOutbox: { findUniqueOrThrow, findUnique } };
+    };
+
+    it('stores hashed summaries via raw SQL insert path', async () => {
+      const beforePayload = {
+        document: { extractedJson: { licenseNumber: 'PLAIN-123' } },
+        token: 'super-secret-token',
+        status: 'PENDING',
+      };
+      const afterPayload = { status: 'DRAFT' };
+      const expectedBeforeSummary = summarizeBusinessAuditValue(beforePayload);
+      const expectedAfterSummary = summarizeBusinessAuditValue(afterPayload);
+      const expectedBeforeHash = hashBusinessAuditValue(beforePayload);
+      const expectedAfterHash = hashBusinessAuditValue(afterPayload);
+
+      const tx = buildTx({ inserted: true });
+      const repo = new BusinessAuditOutboxRepository({} as never);
       await repo.enqueueInTransaction(tx as never, {
         organizationId: 'org-a',
         idempotencyKey: 'key-1',
@@ -63,27 +119,34 @@ describe('business audit outbox', () => {
         entityType: 'RENTAL_RULE_REVISION',
         entityId: 'rev-1',
         description: 'draft created',
-        before: { document: { extractedJson: { secret: 'value' } } },
-        after: { status: 'DRAFT' },
+        before: beforePayload,
+        after: afterPayload,
       });
 
-      const data = create.mock.calls[0][0].data;
-      expect(data.beforeSummary).not.toContain('value');
-      expect(data.beforeHash).toBe(
-        hashBusinessAuditValue({ document: '[REDACTED]' }),
-      );
-      expect(data.afterSummary).toContain('DRAFT');
+      const bindValues = rawSqlBindValues(tx.$queryRaw as jest.Mock);
+      expect(bindValues).toEqual(expect.arrayContaining([expectedBeforeSummary, expectedAfterSummary]));
+      expect(bindValues).toEqual(expect.arrayContaining([expectedBeforeHash, expectedAfterHash]));
+      expect(JSON.stringify(bindValues)).not.toContain('super-secret-token');
+      expect(JSON.stringify(bindValues)).not.toContain('PLAIN-123');
+      expect(String(expectedBeforeSummary)).toContain('[REDACTED]');
+      expect(String(expectedAfterSummary)).toContain('DRAFT');
     });
 
-    it('returns existing row on duplicate idempotency key', async () => {
-      const existing = { id: 'outbox-existing' };
-      const create = jest
-        .fn()
-        .mockRejectedValue({ code: 'P2002', clientVersion: 'test' });
-      const findUnique = jest.fn().mockResolvedValue(existing);
-      const tx = { businessAuditOutbox: { create, findUnique } };
-      const repo = new BusinessAuditOutboxRepository({} as never);
+    it('fails redaction assertions when sanitization is bypassed (guard)', () => {
+      const beforePayload = {
+        document: { extractedJson: { licenseNumber: 'PLAIN-123' } },
+        token: 'super-secret-token',
+      };
+      const unsanitizedSummary = JSON.stringify(beforePayload);
+      const bindValues = [unsanitizedSummary];
+      expect(() => {
+        expect(JSON.stringify(bindValues)).not.toContain('super-secret-token');
+      }).toThrow();
+    });
 
+    it('returns existing row on duplicate idempotency key when semantics match', async () => {
+      const tx = buildTx({ inserted: false });
+      const repo = new BusinessAuditOutboxRepository({} as never);
       const result = await repo.enqueueInTransaction(tx as never, {
         organizationId: 'org-a',
         idempotencyKey: 'key-dup',
@@ -92,8 +155,25 @@ describe('business audit outbox', () => {
         entityId: 'approval-1',
         description: 'requested',
       });
+      expect(result.id).toBe('outbox-existing');
+    });
 
-      expect(result).toBe(existing);
+    it('rejects duplicate key with different entity semantics', async () => {
+      const tx = buildTx({
+        inserted: false,
+        existing: { entityId: 'approval-other' },
+      });
+      const repo = new BusinessAuditOutboxRepository({} as never);
+      await expect(
+        repo.enqueueInTransaction(tx as never, {
+          organizationId: 'org-a',
+          idempotencyKey: 'key-dup',
+          action: BusinessAuditAction.MANUAL_APPROVAL_REQUESTED,
+          entityType: 'BOOKING_ELIGIBILITY_APPROVAL',
+          entityId: 'approval-1',
+          description: 'requested',
+        }),
+      ).rejects.toMatchObject({ code: 'BUSINESS_AUDIT_IDEMPOTENCY_CONFLICT' });
     });
   });
 

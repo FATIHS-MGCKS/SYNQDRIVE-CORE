@@ -14,6 +14,8 @@ export type InactiveLinkReactivationAssessment =
 export interface InactiveDimoLinkProvenanceRow {
   deactivatedAt: Date | null;
   metadata: unknown;
+  /** Column value from audited deactivation — must align with metadata policy checks. */
+  deactivationReason?: string | null;
 }
 
 function readMetadata(metadata: unknown): Record<string, unknown> {
@@ -36,6 +38,11 @@ export function assessInactiveLinkReactivation(
       eligible: false,
       reason: 'backfill_reconciliation_never_reactivates',
     };
+  }
+
+  const columnReason = link.deactivationReason?.trim() ?? '';
+  if (columnReason) {
+    return { eligible: false, reason: 'deactivation_reason_recorded' };
   }
 
   const metadata = readMetadata(link.metadata);

@@ -15,6 +15,8 @@ import { VehicleOnboardingSourceAdoptionController } from './controllers/vehicle
 import { VehicleOnboardingProviderCandidateController } from './controllers/vehicle-onboarding-provider-candidate.controller';
 import { VehicleOnboardingProviderCandidateService } from './services/vehicle-onboarding-provider-candidate.service';
 import { VehicleOffboardingService } from './services/vehicle-offboarding.service';
+import { DimoSourceLinkAuditedDeactivationService } from './services/dimo-source-link-audited-deactivation.service';
+import { DimoSourceLinkOperatorAuthorizationService } from './services/dimo-source-link-operator-authorization.service';
 import { VehicleOnboardingOffboardService } from './services/vehicle-onboarding-offboard.service';
 import { VehicleOnboardingOffboardController } from './controllers/vehicle-onboarding-offboard.controller';
 import { MasterVehicleOffboardAdmissionGuard } from './guards/master-vehicle-offboard-admission.guard';
@@ -28,11 +30,13 @@ import { VsiReadonlySignalComposerModule } from '@modules/vehicle-intelligence/v
 import { VehicleIdentityReviewController } from './vehicle-identity-review/vehicle-identity-review.controller';
 import { VehicleIdentityP3Service } from './vehicle-identity-review/vehicle-identity-p3.service';
 import { VehicleIdentityReviewService } from './vehicle-identity-review/vehicle-identity-review.service';
+import { FsdDiscoveryIntegrationModule } from '@modules/vehicle-intelligence/fsd-integration/fsd-integration.module';
 
 @Module({
   imports: [
     AuthModule,
     forwardRef(() => DimoModule),
+    forwardRef(() => FsdDiscoveryIntegrationModule),
     ActivityLogModule,
     VsiReadonlySignalComposerModule,
     forwardRef(() => AiModule),
@@ -59,6 +63,8 @@ import { VehicleIdentityReviewService } from './vehicle-identity-review/vehicle-
     VehicleOnboardingSourceAdoptionService,
     VehicleOnboardingProviderCandidateService,
     VehicleOffboardingService,
+    DimoSourceLinkAuditedDeactivationService,
+    DimoSourceLinkOperatorAuthorizationService,
     VehicleOffboardPreflightService,
     VehicleOnboardingOffboardService,
     MasterVehicleOffboardAdmissionGuard,
@@ -73,6 +79,8 @@ import { VehicleIdentityReviewService } from './vehicle-identity-review/vehicle-
     VehicleOnboardingReadinessService,
     VehicleOnboardingCaptureService,
     VehicleOffboardingService,
+    DimoSourceLinkAuditedDeactivationService,
+    DimoSourceLinkOperatorAuthorizationService,
     VehicleOnboardingOffboardService,
     MasterDimoCanonicalRegistrationService,
   ],

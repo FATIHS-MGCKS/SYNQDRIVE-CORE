@@ -4,7 +4,11 @@ import { VehicleOnboardingError } from '../errors/vehicle-onboarding.errors';
 describe('VehicleOffboardingService', () => {
   it('rejects organization transfer attempts fail-closed', async () => {
     const prisma = { $transaction: jest.fn() };
-    const service = new VehicleOffboardingService(prisma as any, { enqueueInTransaction: jest.fn() } as any);
+    const service = new VehicleOffboardingService(
+      prisma as any,
+      { enqueueInTransaction: jest.fn() } as any,
+      { invalidateDimoSourceLinksForVehicleLifecycle: jest.fn() } as any,
+    );
     await expect(
       service.offboardVehicle({
         organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',

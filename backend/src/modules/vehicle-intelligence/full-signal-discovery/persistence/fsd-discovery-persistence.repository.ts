@@ -21,12 +21,19 @@ import {
   assertFsdDiscoveryStageTransition,
   buildFsdDimoConnectionIdentityFingerprint,
   FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES,
+  FSD_DISCOVERY_RUN_LEASE_RENEWAL_TTL_MS_V1,
   FsdDiscoveryPersistenceError,
   isFsdDiscoveryStageTerminal,
   type FsdDiscoveryRunIdentityV1,
   type FsdDiscoveryRunScopeV1,
   type FsdDiscoveryWriteAuthorizationV1,
 } from './fsd-discovery-persistence.contract.v1';
+import {
+  buildFsdDiscoverySourceLinkLockKey,
+  invalidateExecutableFsdRunsForDimoSourceLinkInTransaction,
+  type FsdSourceLinkLifecycleInvalidationReasonV1,
+  type InvalidateExecutableFsdRunsForDimoSourceLinkResultV1,
+} from './fsd-source-link-lifecycle-invalidation.v1';
 import {
   catalogCheckpointToJson,
   createEmptyFsd3RequestLedger,
@@ -73,7 +80,19 @@ export class FsdDiscoveryPersistenceRepository {
   private readonly streamFsd4: FsdDiscoveryStream = 'FSD4_HISTORICAL';
 
   private lockKey(scope: FsdDiscoveryRunScopeV1): string {
-    return `fsd-discovery:${scope.organizationId}:${scope.vehicleId}:${scope.providerSourceLinkId}`;
+    return buildFsdDiscoverySourceLinkLockKey(scope);
+  }
+
+  /**
+   * P5B lifecycle invalidation — caller must supply an open transaction (no nested $transaction).
+   */
+  async invalidateExecutableRunsForDimoSourceLinkInTransaction(
+    tx: Tx,
+    input: FsdDiscoveryRunScopeV1 & {
+      invalidationReason: FsdSourceLinkLifecycleInvalidationReasonV1;
+    },
+  ): Promise<InvalidateExecutableFsdRunsForDimoSourceLinkResultV1> {
+    return invalidateExecutableFsdRunsForDimoSourceLinkInTransaction(tx, input);
   }
 
   private async withSourceLinkLock<T>(
@@ -256,6 +275,8 @@ export class FsdDiscoveryPersistenceRepository {
           status: 'INVALIDATED',
           invalidatedAt: new Date(),
           invalidationReason: 'SOURCE_LINK_SUPERSESSION',
+          leaseOwner: null,
+          leaseExpiresAt: null,
           version: { increment: 1 },
         },
       });
@@ -413,6 +434,8 @@ export class FsdDiscoveryPersistenceRepository {
     toStatus: FsdDiscoveryRunStatus;
     failureClass?: FsdDiscoveryFailureClass | null;
     failureReasonRedacted?: string | null;
+    /** When set, terminal transitions require a live lease held by this owner. */
+    leaseFence?: { leaseOwner: string };
   }): Promise<TransitionFsdDiscoveryRunResultV1> {
     try {
       assertFsdDiscoveryRunTransition(input.fromStatus, input.toStatus);
@@ -420,6 +443,9 @@ export class FsdDiscoveryPersistenceRepository {
       return { applied: false, reason: 'INVALID_STATE_TRANSITION' };
     }
     return this.withSourceLinkLock(input.scope, async (tx) => {
+      const now = new Date();
+      const terminal =
+        input.toStatus === 'COMPLETED' || input.toStatus === 'FAILED' || input.toStatus === 'INVALIDATED';
       const result = await tx.fsdDiscoveryRun.updateMany({
         where: {
           id: input.runId,
@@ -429,6 +455,12 @@ export class FsdDiscoveryPersistenceRepository {
           version: input.expectedVersion,
           status: input.fromStatus,
           invalidatedAt: null,
+          ...(input.leaseFence && terminal
+            ? {
+                leaseOwner: input.leaseFence.leaseOwner,
+                leaseExpiresAt: { gt: now },
+              }
+            : {}),
         },
         data: {
           status: input.toStatus,
@@ -810,6 +842,54 @@ export class FsdDiscoveryPersistenceRepository {
     });
   }
 
+  async renewRunLease(input: {
+    scope: FsdDiscoveryRunScopeV1;
+    runId: string;
+    expectedVersion: number;
+    leaseOwner: string;
+  }): Promise<{ renewed: boolean; version: number }> {
+    return this.withSourceLinkLock(input.scope, async (tx) => {
+      const now = new Date();
+      const minNextLeaseExpiresAt = new Date(
+        now.getTime() + FSD_DISCOVERY_RUN_LEASE_RENEWAL_TTL_MS_V1,
+      );
+      const current = await tx.fsdDiscoveryRun.findFirst({
+        where: {
+          id: input.runId,
+          organizationId: input.scope.organizationId,
+          vehicleId: input.scope.vehicleId,
+          providerSourceLinkId: input.scope.providerSourceLinkId,
+        },
+        select: { leaseExpiresAt: true },
+      });
+      const nextLeaseExpiresAt =
+        current?.leaseExpiresAt && current.leaseExpiresAt > minNextLeaseExpiresAt
+          ? current.leaseExpiresAt
+          : minNextLeaseExpiresAt;
+      const result = await tx.fsdDiscoveryRun.updateMany({
+        where: {
+          id: input.runId,
+          organizationId: input.scope.organizationId,
+          vehicleId: input.scope.vehicleId,
+          providerSourceLinkId: input.scope.providerSourceLinkId,
+          version: input.expectedVersion,
+          invalidatedAt: null,
+          status: { in: [...FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES] },
+          leaseOwner: input.leaseOwner,
+          leaseExpiresAt: { gt: now },
+        },
+        data: {
+          leaseExpiresAt: nextLeaseExpiresAt,
+          version: { increment: 1 },
+        },
+      });
+      if (result.count !== 1) {
+        return { renewed: false, version: input.expectedVersion };
+      }
+      return { renewed: true, version: input.expectedVersion + 1 };
+    });
+  }
+
   async assertActiveSourceLinkForDispatch(scope: FsdDiscoveryRunScopeV1): Promise<void> {
     await this.withSourceLinkLock(scope, async (tx) => {
       const link = await tx.vehicleDataSourceLink.findFirst({
@@ -879,12 +959,22 @@ export class FsdDiscoveryPersistenceRepository {
   }
 
   /** Catalog-stage signal names from persisted evidence (excludes synthetic fingerprint rows). */
-  async listCatalogSignalNamesForRun(runId: string, catalogStageId: string): Promise<string[]> {
+  async listCatalogSignalNamesForRun(
+    scope: FsdDiscoveryRunScopeV1,
+    runId: string,
+    catalogStageId: string,
+  ): Promise<string[]> {
     const rows = await this.prisma.fsdDiscoverySignalEvidence.findMany({
       where: {
         runId,
         stageId: catalogStageId,
         stageType: 'CATALOG',
+        run: {
+          id: runId,
+          organizationId: scope.organizationId,
+          vehicleId: scope.vehicleId,
+          providerSourceLinkId: scope.providerSourceLinkId,
+        },
         signalName: { notIn: [FSD3_CATALOG_FINGERPRINT_EVIDENCE_SIGNAL_V1, FSD4_CATALOG_FINGERPRINT_EVIDENCE_SIGNAL_V1] },
       },
       select: { signalName: true },
@@ -894,26 +984,37 @@ export class FsdDiscoveryPersistenceRepository {
     return names;
   }
 
-  async summarizeRunEvidenceForOrchestration(runId: string): Promise<{
+  async summarizeRunEvidenceForOrchestration(
+    scope: FsdDiscoveryRunScopeV1,
+    runId: string,
+  ): Promise<{
     catalogSignalCount: number;
     observedSignalCount: number;
     deferredSignalCount: number;
     rejectedDocumentEvidenceCount: number;
     historicalCoverageSignalCount: number;
   }> {
+    const runScope = {
+      id: runId,
+      organizationId: scope.organizationId,
+      vehicleId: scope.vehicleId,
+      providerSourceLinkId: scope.providerSourceLinkId,
+    };
     const catalogSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
       where: {
         runId,
+        run: runScope,
         stageType: 'CATALOG',
         signalName: { not: { startsWith: '__' } },
       },
     });
     const observedSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
-      where: { runId, stageType: 'SNAPSHOT', observedValue: true },
+      where: { runId, run: runScope, stageType: 'SNAPSHOT', observedValue: true },
     });
     const deferredSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
       where: {
         runId,
+        run: runScope,
         OR: [
           { stageType: 'SNAPSHOT', evidenceState: 'DEFERRED' },
           { stageType: 'HISTORICAL', evidenceState: 'DEFERRED' },
@@ -923,6 +1024,7 @@ export class FsdDiscoveryPersistenceRepository {
     const rejectedDocumentEvidenceCount = await this.prisma.fsdDiscoverySignalEvidence.count({
       where: {
         runId,
+        run: runScope,
         OR: [
           { stageType: 'SNAPSHOT', signalName: { startsWith: '__fsd3_rejected_document__:' } },
           { stageType: 'HISTORICAL', signalName: { startsWith: '__fsd4_rejected_historical__:' } },
@@ -932,6 +1034,7 @@ export class FsdDiscoveryPersistenceRepository {
     const historicalCoverageSignalCount = await this.prisma.fsdDiscoverySignalEvidence.count({
       where: {
         runId,
+        run: runScope,
         stageType: 'HISTORICAL',
         observedValue: true,
         signalName: { not: { startsWith: '__' } },

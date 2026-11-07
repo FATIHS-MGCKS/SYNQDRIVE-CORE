@@ -38,6 +38,8 @@ import {
 } from './policy/master-vehicle-offboard-admission.errors';
 import { VehicleOffboardingService } from './services/vehicle-offboarding.service';
 import { VehicleOnboardingOffboardService } from './services/vehicle-onboarding-offboard.service';
+import { FsdDiscoveryPersistenceRepository } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.repository';
+import { FsdSourceLinkLifecycleService } from '@modules/vehicle-intelligence/fsd-integration/fsd-source-link-lifecycle.service';
 import { ensureOrganizationProductEntitlement } from './testing/org-product-test.harness';
 
 const run = process.env.VO5C_P4A_OFFBOARD_HTTP_PG === '1';
@@ -197,6 +199,8 @@ function applyAdmittedOffboardEnvWithoutMfaRollout() {
         VehicleOnboardingOffboardService,
         VehicleOffboardingService,
         VehicleOffboardPreflightService,
+        FsdDiscoveryPersistenceRepository,
+        FsdSourceLinkLifecycleService,
         {
           provide: BusinessAuditOutboxRepository,
           useFactory: () => new BusinessAuditOutboxRepository(prisma as never),

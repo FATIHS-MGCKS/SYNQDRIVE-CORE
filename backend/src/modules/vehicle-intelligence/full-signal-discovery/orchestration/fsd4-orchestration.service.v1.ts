@@ -341,6 +341,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       runId: acquired.runId,
       writeAuth,
       runVersionRef,
+      leaseExpiresAt: input.leaseExpiresAt,
       budget,
       catalogFingerprint,
       catalogSignals,
@@ -801,6 +802,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       runId: acquired.runId,
       writeAuth,
       runVersionRef,
+      leaseExpiresAt: input.leaseExpiresAt,
       budget,
       catalogFingerprint,
       catalogSignals,
@@ -847,7 +849,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     if (!hasPersistedFsdCatalogFetchV1(cp?.catalogFetch)) {
       return null;
     }
-    const persistedNames = await this.persistence.listCatalogSignalNamesForRun(fsd3RunId, cat.id);
+    const persistedNames = await this.persistence.listCatalogSignalNamesForRun(scope, fsd3RunId, cat.id);
     const recomputed = buildFsd3DeclaredCatalogFingerprintV1(persistedNames);
     const storedFingerprint = cp.catalogFetch.declaredCatalogFingerprint ?? '';
     if (recomputed !== storedFingerprint) {
@@ -869,6 +871,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     runId: string;
     writeAuth: () => FsdDiscoveryWriteAuthorizationV1;
     runVersionRef: { value: number };
+    leaseExpiresAt: Date;
     budget: FsdBudgetConfigV1;
     catalogFingerprint: string;
     catalogSignals: readonly string[];
@@ -906,7 +909,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
         input.existingHistoricalStage.status === 'SUCCEEDED' ||
         input.existingHistoricalStage.status === 'SKIPPED'
       ) {
-        const summary = await this.persistence.summarizeRunEvidenceForOrchestration(input.runId);
+        const summary = await this.persistence.summarizeRunEvidenceForOrchestration(input.scope, input.runId);
         return this.finalizeHistoricalRun({
           scope: input.scope,
           runId: input.runId,
@@ -1061,6 +1064,19 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       }
 
       await this.testHooks?.afterHistoricalRequestSlotReserved?.(index);
+      const renewed = await this.persistence.renewRunLease({
+        scope: input.scope,
+        runId: input.runId,
+        expectedVersion: input.runVersionRef.value,
+        leaseOwner: input.writeAuth().leaseOwner,
+      });
+      if (!renewed.renewed) {
+        return buildTerminalFailureResult({
+          runId: input.runId,
+          reason: 'LEASE_RENEWAL_FAILED',
+        });
+      }
+      input.runVersionRef.value = renewed.version;
       this.assertProviderDispatchAllowed();
 
       let providerResponse;
@@ -1091,6 +1107,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
             reason: 'HISTORICAL_LEDGER_FINALIZE_CAS_FAILED',
           });
         }
+        await this.failRun(input.scope, input.runId, input.runVersionRef, input.writeAuth);
         return buildTerminalFailureResult({
           runId: input.runId,
           reason: err instanceof Error ? err.message : 'HISTORICAL_PROVIDER_FAILED',
@@ -1101,6 +1118,21 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
         providerResponse.documentFingerprint !== doc.fingerprint ||
         providerResponse.fieldNamesInDocument.join('|') !== doc.fieldNames.join('|')
       ) {
+        const mismatchFin = await this.finalizeHistoricalLedgerAttempt(
+          input.writeAuth,
+          input.catalogPlanFingerprint,
+          input.catalogStageVersionRef,
+          input.budget.maxRequestsPerRun,
+          doc.fingerprint,
+          'UNKNOWN',
+        );
+        if (!mismatchFin) {
+          return buildTerminalFailureResult({
+            runId: input.runId,
+            reason: 'HISTORICAL_LEDGER_FINALIZE_CAS_FAILED',
+          });
+        }
+        await this.failRun(input.scope, input.runId, input.runVersionRef, input.writeAuth);
         return buildTerminalFailureResult({
           runId: input.runId,
           reason: 'HISTORICAL_RESPONSE_FINGERPRINT_MISMATCH',
@@ -1351,7 +1383,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       }
     }
 
-    const summary = await this.persistence.summarizeRunEvidenceForOrchestration(input.runId);
+    const summary = await this.persistence.summarizeRunEvidenceForOrchestration(input.scope, input.runId);
 
     return this.finalizeHistoricalRun({
       scope: input.scope,
@@ -1406,6 +1438,7 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
       fromStatus: 'IN_PROGRESS',
       toStatus: runTarget,
       failureClass: input.unknownOutcome ? 'UNKNOWN' : input.hasRejections ? 'UNKNOWN' : undefined,
+      leaseFence: { leaseOwner: input.writeAuth().leaseOwner },
     });
     if (!applied.applied) {
       return buildTerminalFailureResult({
@@ -1446,13 +1479,13 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     const catalogCp = readCatalogCheckpointFromBundle(bundle);
     const declaredCatalogCount = catalogCp?.catalogFetch?.availableSignalNames?.length ?? 0;
 
-    const summary = await this.persistence.summarizeRunEvidenceForOrchestration(runId);
+    const summary = await this.persistence.summarizeRunEvidenceForOrchestration(scope, runId);
     const hist = findFsd4StageInBundle(bundle, 'HISTORICAL');
     const unknownOutcomeStage = hist?.status === 'UNKNOWN_OUTCOME';
     const progress = parseHistoricalProgressFromBundle(bundle);
     const hasRejections = progress.rejectedQueryFingerprints.length > 0;
     const deferred =
-      (await this.persistence.summarizeRunEvidenceForOrchestration(runId)).deferredSignalCount > 0;
+      (await this.persistence.summarizeRunEvidenceForOrchestration(scope, runId)).deferredSignalCount > 0;
 
     let status: 'COMPLETED' | 'PARTIAL';
     if (unknownOutcomeStage || hasRejections || deferred) {
@@ -1593,12 +1626,17 @@ export class Fsd4HistoricalDiscoveryOrchestratorService {
     runVersionRef: { value: number },
     writeAuth: () => FsdDiscoveryWriteAuthorizationV1,
   ): Promise<void> {
-    await this.persistence.transitionRunStatus({
+    const auth = writeAuth();
+    const result = await this.persistence.transitionRunStatus({
       scope,
       runId,
       expectedVersion: runVersionRef.value,
       fromStatus: 'IN_PROGRESS',
       toStatus: 'FAILED',
+      leaseFence: { leaseOwner: auth.leaseOwner },
     });
+    if (result.applied) {
+      runVersionRef.value = result.version;
+    }
   }
 }
