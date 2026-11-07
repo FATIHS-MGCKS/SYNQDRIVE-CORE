@@ -343,6 +343,8 @@ assert_legacy_docker_false_green_baseline() {
   tmp="$(mktemp -d)"
   rules="$tmp/alerts.yml"
   cp "$CANONICAL_PROM/alerts.yml" "$rules"
+  chmod a+rx "$tmp"
+  chmod a+r "$rules"
   dir="$(cd "$(dirname "$rules")" && pwd)"
   base="$(basename "$rules")"
   legacy_out="$(docker run --rm -v "${dir}:/rules:ro" prom/prometheus:v2.54.1 \
