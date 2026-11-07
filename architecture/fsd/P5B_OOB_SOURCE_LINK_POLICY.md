@@ -21,7 +21,7 @@ npx tsx scripts/ops/fsd-lifecycle-deactivate-dimo-source-link.ts \
 `DimoSourceLinkAuditedDeactivationService` enforces:
 
 1. Re-validated org/vehicle/link scope inside the transaction.
-2. Lock order: vehicle `FOR NO KEY UPDATE` → link row `FOR UPDATE` → FSD advisory invalidation → link deactivate.
+2. Lock order: vehicle `FOR NO KEY UPDATE` → link row `FOR NO KEY UPDATE` → FSD advisory invalidation → link deactivate (avoids FK `KEY SHARE` vs `FOR UPDATE` deadlock with concurrent run inserts).
 3. VSI `SOURCE_LINK_DEACTIVATED` outbox (reason = operator `deactivationReason`, not `VEHICLE_OFFBOARDED`).
 4. **No** vehicle provider consent mutation (explicit boundary — use offboarding to revoke consent).
 5. Durable `business_audit_outbox` row (`DIMO_SOURCE_LINK_DEACTIVATED`); console output is not audit.

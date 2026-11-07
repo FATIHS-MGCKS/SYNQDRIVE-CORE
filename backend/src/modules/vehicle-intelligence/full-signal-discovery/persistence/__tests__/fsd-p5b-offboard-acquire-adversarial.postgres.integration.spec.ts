@@ -21,6 +21,8 @@ import {
   assertFsd2PersistencePostgresCiEnv,
   ensureFsd2DisposableDatabaseOnce,
 } from '../fsd-discovery-persistence.postgres-harness';
+import { lockDimoSourceLinkRowForLifecycleMutation } from '../fsd-dimo-source-link-row-lock.v1';
+import { lockVehicleRowForLifecycleMutation } from '@modules/vehicle-onboarding/offboarding/vehicle-lifecycle-row-lock';
 import { createFsd3MockDiscoveryProvider } from '../../orchestration/fsd3-mock-provider.v1';
 import { Fsd3CatalogSnapshotOrchestratorService } from '../../orchestration/fsd3-orchestration.service.v1';
 import { createDefaultFsd3OrchestrationConfigV1 } from '../../orchestration/fsd3-orchestration.config.v1';
@@ -228,13 +230,146 @@ async function seedDimo(prisma: PrismaClient) {
     await prismaB.$disconnect();
   });
 
-  it('H3: delayed mock catalog during offboard — run invalidated, no fresh catalog evidence', async () => {
+  it('H4: source link FOR UPDATE + FSD run FK insert reproduces 40P01', async () => {
+    const seed = await seedDimo(prisma);
+    const prismaB = new PrismaClient();
+    const scope = {
+      organizationId: seed.organizationId,
+      vehicleId: seed.vehicleId,
+      providerSourceLinkId: seed.linkId,
+    };
+    const lockKey = buildFsdDiscoverySourceLinkLockKey(scope);
+    const aHoldsLink = defer();
+    const bHoldsAdvisory = defer();
+
+    const legacyLinkForUpdate = () =>
+      prisma.$transaction(
+        async (tx) => {
+          await lockVehicleRowForLifecycleMutation(tx, {
+            organizationId: seed.organizationId,
+            vehicleId: seed.vehicleId,
+          });
+          await tx.$queryRaw`
+            SELECT l.id FROM vehicle_data_source_links l
+            INNER JOIN vehicles v ON v.id = l.vehicle_id
+            WHERE l.id = ${seed.linkId} AND v.organization_id = ${seed.organizationId}
+            FOR UPDATE OF l
+          `;
+          aHoldsLink.resolve();
+          await bHoldsAdvisory.promise;
+          await acquirePgAdvisoryXactLock64(tx, lockKey);
+        },
+        { timeout: 8_000 },
+      );
+
+    const insertWhileLinkLocked = prismaB.$transaction(
+      async (tx) => {
+        await acquirePgAdvisoryXactLock64(tx, lockKey);
+        bHoldsAdvisory.resolve();
+        await aHoldsLink.promise;
+        await tx.fsdDiscoveryRun.create({
+          data: {
+            organizationId: seed.organizationId,
+            vehicleId: seed.vehicleId,
+            providerSourceLinkId: seed.linkId,
+            runKey: randomUUID(),
+            runRevision: 1,
+            discoveryStream: 'FSD3_CATALOG_SNAPSHOT',
+            dimoTokenId: seed.tokenId,
+            connectionIdentityFingerprint: seed.fingerprint,
+            status: 'PENDING',
+          },
+        });
+      },
+      { timeout: 8_000 },
+    );
+
+    const outcome = await Promise.allSettled([legacyLinkForUpdate(), insertWhileLinkLocked]);
+    await prismaB.$disconnect();
+    expect(
+      outcome.some(
+        (r) =>
+          r.status === 'rejected' &&
+          String((r.reason as Error)?.message ?? '').includes('deadlock detected'),
+      ),
+    ).toBe(true);
+  });
+
+  it('H4: source link FOR NO KEY UPDATE path completes without 40P01', async () => {
+    const seed = await seedDimo(prisma);
+    const prismaB = new PrismaClient();
+    const scope = {
+      organizationId: seed.organizationId,
+      vehicleId: seed.vehicleId,
+      providerSourceLinkId: seed.linkId,
+    };
+    const lockKey = buildFsdDiscoverySourceLinkLockKey(scope);
+    const aHoldsLink = defer();
+    const bHoldsAdvisory = defer();
+
+    const correctedPath = () =>
+      prisma.$transaction(
+        async (tx) => {
+          await lockVehicleRowForLifecycleMutation(tx, {
+            organizationId: seed.organizationId,
+            vehicleId: seed.vehicleId,
+          });
+          await lockDimoSourceLinkRowForLifecycleMutation(tx, {
+            organizationId: seed.organizationId,
+            vehicleId: seed.vehicleId,
+            providerSourceLinkId: seed.linkId,
+          });
+          aHoldsLink.resolve();
+          await bHoldsAdvisory.promise;
+          await acquirePgAdvisoryXactLock64(tx, lockKey);
+        },
+        { timeout: 25_000 },
+      );
+
+    const insertWhileLinkLocked = prismaB.$transaction(
+      async (tx) => {
+        await acquirePgAdvisoryXactLock64(tx, lockKey);
+        bHoldsAdvisory.resolve();
+        await aHoldsLink.promise;
+        await tx.fsdDiscoveryRun.create({
+          data: {
+            organizationId: seed.organizationId,
+            vehicleId: seed.vehicleId,
+            providerSourceLinkId: seed.linkId,
+            runKey: randomUUID(),
+            runRevision: 1,
+            discoveryStream: 'FSD3_CATALOG_SNAPSHOT',
+            dimoTokenId: seed.tokenId,
+            connectionIdentityFingerprint: seed.fingerprint,
+            status: 'PENDING',
+          },
+        });
+      },
+      { timeout: 25_000 },
+    );
+
+    await expect(Promise.all([correctedPath(), insertWhileLinkLocked])).resolves.toBeDefined();
+    await prismaB.$disconnect();
+  });
+
+  it('H6: catalog gate — offboard during blocked mock provider, no second HTTP, no stale evidence', async () => {
     const seed = await seedDimo(prisma);
     const repo = new FsdDiscoveryPersistenceRepository(prisma as never);
+    let releaseCatalog: () => void = () => undefined;
+    const blockUntilReleased = new Promise<void>((resolve) => {
+      releaseCatalog = resolve;
+    });
+    const entered = defer();
     const provider = createFsd3MockDiscoveryProvider({
       mode: 'TESLA_REFERENCE_26',
-      catalogDelayMs: 600,
+      catalogGate: {
+        onCatalogEntered: () => entered.resolve(),
+        blockUntilReleased,
+      },
     });
+    const typedProvider = provider as ReturnType<typeof createFsd3MockDiscoveryProvider> & {
+      getCatalogCallCount(): number;
+    };
     const config = {
       ...createDefaultFsd3OrchestrationConfigV1(),
       enabled: true,
@@ -251,11 +386,11 @@ async function seedDimo(prisma: PrismaClient) {
       dimoVehicleId: seed.dimoVehicleId,
       dimoTokenId: seed.tokenId,
       discoveryRequestKey: randomUUID(),
-      leaseOwner: 'adv-mock-worker',
+      leaseOwner: 'gate-mock-worker',
       leaseExpiresAt: new Date(Date.now() + 120_000),
     });
 
-    await new Promise((r) => setTimeout(r, 80));
+    await entered.promise;
     await offboarding.offboardVehicle({
       organizationId: seed.organizationId,
       vehicleId: seed.vehicleId,
@@ -263,23 +398,19 @@ async function seedDimo(prisma: PrismaClient) {
       actorUserId: null,
       idempotencyKey: randomUUID(),
     });
+    releaseCatalog();
 
     const result = await discovery;
+    expect(typedProvider.getCatalogCallCount()).toBe(1);
     const run = await prisma.fsdDiscoveryRun.findFirst({
       where: { providerSourceLinkId: seed.linkId },
       orderBy: { createdAt: 'desc' },
     });
     expect(run?.status).toBe('INVALIDATED');
-    if (result.status !== 'SKIPPED') {
-      expect(['FAILED', 'PARTIAL', 'COMPLETED']).toContain(result.status);
-    }
-    const evidenceAfterInvalidation = await prisma.fsdDiscoverySignalEvidence.count({
-      where: {
-        runId: run!.id,
-        stageType: 'CATALOG',
-        createdAt: { gt: run!.invalidatedAt! },
-      },
+    expect(result.status).not.toBe('COMPLETED');
+    const catalogEvidence = await prisma.fsdDiscoverySignalEvidence.count({
+      where: { runId: run!.id, stageType: 'CATALOG' },
     });
-    expect(evidenceAfterInvalidation).toBe(0);
+    expect(catalogEvidence).toBe(0);
   });
 });

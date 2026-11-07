@@ -44,11 +44,19 @@ export function buildFsd3TeslaMockSnapshotValues(): Record<
   return values;
 }
 
+export type Fsd3MockCatalogRequestGateV1 = {
+  /** Called when fetchAvailableSignals enters (before optional block). */
+  onCatalogEntered?: () => void;
+  /** When set, catalog fetch awaits this promise before returning (deterministic tests). */
+  blockUntilReleased?: Promise<void>;
+};
+
 export function createFsd3MockDiscoveryProvider(input: {
   mode: Fsd3MockProviderModeV1;
   catalogSignals?: readonly string[];
   catalogDelayMs?: number;
   snapshotDelayMs?: number;
+  catalogGate?: Fsd3MockCatalogRequestGateV1;
 }): Fsd3DiscoveryProviderPortV1 {
   const catalog =
     input.mode === 'LARGE_CATALOG_300'
@@ -67,7 +75,10 @@ export function createFsd3MockDiscoveryProvider(input: {
       dispatchContext?: FsdDiscoveryRunIdentityV1;
     }): Promise<Fsd3ProviderCatalogResultV1> {
       catalogCallCount += 1;
-      if (input.catalogDelayMs && input.catalogDelayMs > 0) {
+      input.catalogGate?.onCatalogEntered?.();
+      if (input.catalogGate?.blockUntilReleased) {
+        await input.catalogGate.blockUntilReleased;
+      } else if (input.catalogDelayMs && input.catalogDelayMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, input.catalogDelayMs));
       }
       if (input.mode === 'CATALOG_HTTP_500') {

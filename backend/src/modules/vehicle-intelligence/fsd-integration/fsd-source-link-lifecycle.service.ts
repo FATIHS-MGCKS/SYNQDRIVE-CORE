@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { lockDimoSourceLinkRowForLifecycleMutation } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-dimo-source-link-row-lock.v1';
 import { FsdDiscoveryPersistenceRepository } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.repository';
 import {
   FSD_SOURCE_LINK_INVALIDATION_REASON_DEACTIVATED,
@@ -53,10 +54,11 @@ export class FsdSourceLinkLifecycleService {
 
     const perLink: InvalidateVehicleDimoSourceLinksLifecycleResultV1['perLink'] = [];
     for (const link of links) {
-      await tx.$queryRaw`
-        SELECT id FROM vehicle_data_source_links WHERE id = ${link.id} AND vehicle_id = ${input.vehicleId}
-        FOR UPDATE
-      `;
+      await lockDimoSourceLinkRowForLifecycleMutation(tx, {
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        providerSourceLinkId: link.id,
+      });
       const invalidated = await this.persistence.invalidateExecutableRunsForDimoSourceLinkInTransaction(
         tx,
         {
