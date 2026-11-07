@@ -23,6 +23,10 @@ import {
   buildExpectedOffboardAuditSemantics,
   ensureOffboardAuditRecord,
 } from '../offboarding/offboard-registry-audit';
+import {
+  FSD_LIFECYCLE_REASON_OFFBOARD,
+  FsdSourceLinkLifecycleService,
+} from '@modules/vehicle-intelligence/fsd-integration/fsd-source-link-lifecycle.service';
 
 export type OffboardVehicleInput = {
   organizationId: string;
@@ -54,6 +58,7 @@ export class VehicleOffboardingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly businessAuditOutbox: BusinessAuditOutboxRepository,
+    private readonly fsdSourceLinkLifecycle: FsdSourceLinkLifecycleService,
     @Optional()
     private readonly vsiProfileLifecycleEnqueue?: VsiProfileLifecycleEnqueueService,
     @Optional()
@@ -216,6 +221,15 @@ export class VehicleOffboardingService {
       const activeLinks = await tx.vehicleDataSourceLink.findMany({
         where: { vehicleId: input.vehicleId, isActive: true },
         select: { id: true },
+        orderBy: { id: 'asc' },
+      });
+
+      // Lock order: vehicles FOR UPDATE (above) → per-link FSD advisory locks (sorted link ids)
+      // → deactivate links. FSD orchestration never takes the vehicle row lock.
+      await this.fsdSourceLinkLifecycle.invalidateDimoSourceLinksForVehicleLifecycle(tx, {
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        invalidationReason: FSD_LIFECYCLE_REASON_OFFBOARD,
       });
 
       await tx.vehicleDataSourceLink.updateMany({

@@ -28,6 +28,12 @@ import {
   type FsdDiscoveryWriteAuthorizationV1,
 } from './fsd-discovery-persistence.contract.v1';
 import {
+  buildFsdDiscoverySourceLinkLockKey,
+  invalidateExecutableFsdRunsForDimoSourceLinkInTransaction,
+  type FsdSourceLinkLifecycleInvalidationReasonV1,
+  type InvalidateExecutableFsdRunsForDimoSourceLinkResultV1,
+} from './fsd-source-link-lifecycle-invalidation.v1';
+import {
   catalogCheckpointToJson,
   createEmptyFsd3RequestLedger,
   parseFsd3CatalogStageCheckpoint,
@@ -73,7 +79,19 @@ export class FsdDiscoveryPersistenceRepository {
   private readonly streamFsd4: FsdDiscoveryStream = 'FSD4_HISTORICAL';
 
   private lockKey(scope: FsdDiscoveryRunScopeV1): string {
-    return `fsd-discovery:${scope.organizationId}:${scope.vehicleId}:${scope.providerSourceLinkId}`;
+    return buildFsdDiscoverySourceLinkLockKey(scope);
+  }
+
+  /**
+   * P5B lifecycle invalidation — caller must supply an open transaction (no nested $transaction).
+   */
+  async invalidateExecutableRunsForDimoSourceLinkInTransaction(
+    tx: Tx,
+    input: FsdDiscoveryRunScopeV1 & {
+      invalidationReason: FsdSourceLinkLifecycleInvalidationReasonV1;
+    },
+  ): Promise<InvalidateExecutableFsdRunsForDimoSourceLinkResultV1> {
+    return invalidateExecutableFsdRunsForDimoSourceLinkInTransaction(tx, input);
   }
 
   private async withSourceLinkLock<T>(
@@ -256,6 +274,8 @@ export class FsdDiscoveryPersistenceRepository {
           status: 'INVALIDATED',
           invalidatedAt: new Date(),
           invalidationReason: 'SOURCE_LINK_SUPERSESSION',
+          leaseOwner: null,
+          leaseExpiresAt: null,
           version: { increment: 1 },
         },
       });

@@ -28,11 +28,13 @@ import { VsiReadonlySignalComposerModule } from '@modules/vehicle-intelligence/v
 import { VehicleIdentityReviewController } from './vehicle-identity-review/vehicle-identity-review.controller';
 import { VehicleIdentityP3Service } from './vehicle-identity-review/vehicle-identity-p3.service';
 import { VehicleIdentityReviewService } from './vehicle-identity-review/vehicle-identity-review.service';
+import { FsdDiscoveryIntegrationModule } from '@modules/vehicle-intelligence/fsd-integration/fsd-integration.module';
 
 @Module({
   imports: [
     AuthModule,
     forwardRef(() => DimoModule),
+    forwardRef(() => FsdDiscoveryIntegrationModule),
     ActivityLogModule,
     VsiReadonlySignalComposerModule,
     forwardRef(() => AiModule),

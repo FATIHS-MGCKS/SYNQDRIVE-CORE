@@ -1,17 +1,23 @@
-# FSD P5B — Source-link deactivation policy (remaining gate)
+# FSD P5B — Source-link deactivation (implemented)
 
-**Status:** documented gate for production activation after P5A adapter wiring.
+**Status:** synchronous lifecycle invalidation shipped behind dormant FSD execution flags.
 
-## Current behavior (P5A)
+## Behavior
 
-- Live DIMO dispatch validates the **active DIMO source link**, **organization scope**, **token id**, and **connection identity fingerprint** via `FsdDiscoveryPersistenceRepository.assertDimoDispatchBinding` before each outbound catalog/snapshot/historical GraphQL call.
-- Durable run **lease** and **request ledger** reservations remain authoritative; orchestration does not add automatic provider retries beyond the single HTTP attempt reserved in FSD (`DimoRequestExecutor.maxRetries: 0` on the FSD GraphQL path).
+- `invalidateExecutableFsdRunsForDimoSourceLinkInTransaction` runs inside the caller’s Prisma transaction (offboarding, audited ops script, future supersession writers).
+- Uses the standard FSD source-link advisory lock (`fsd-discovery:{org}:{vehicle}:{linkId}`).
+- Invalidates **both** FSD-3 and FSD-4 executable runs (`PENDING` / `IN_PROGRESS`, `invalidatedAt` null), clears leases, increments run version.
+- Preserves stages, evidence, and request ledgers (no cascade delete).
+- Offboarding: **vehicle `FOR UPDATE` → sorted per-link FSD invalidation → link deactivation** in one transaction.
+- Post-commit DIMO HTTP may still complete; persistence remains fail-closed (`STALE_SOURCE_LINK`) and runs are not resumable as executable after invalidation.
+- Token-only drift: unchanged — existing write/dispatch fences; see `P5B_TOKEN_IDENTITY_DRIFT_POLICY.md`.
 
-## P5B requirement (not implemented in this PR)
+## Ops / OOB
 
-When a `VehicleDataSourceLink` is **deactivated** or **superseded** while a discovery run is **IN_PROGRESS**, production must choose one of:
+- Normal production: **no direct SQL** on `vehicle_data_source_links` for deactivation.
+- Audited path: `backend/scripts/ops/fsd-lifecycle-deactivate-dimo-source-link.ts` (transactional deactivate + FSD invalidation).
 
-1. **Synchronous invalidation:** transition affected runs to `INVALIDATED` / `FAILED` and release leases at deactivation time, **or**
-2. **Explicit acceptance** of **STALE_SOURCE_LINK** on the next fenced write only (current persistence path can throw `STALE_SOURCE_LINK` when writes observe an inactive link).
+## Live activation
 
-Until (1) or a documented operator procedure for (2) is implemented, treat **out-of-band link deactivation** as a **P5B activation blocker** alongside the existing `LIVE_ACTIVATION_BLOCKER` notes on FSD-3/FSD-4 config.
+- FSD orchestration flags remain **default OFF**; live activation is a separate owner-authorized gate.
+- Rollout: `P5B_DIRECT_PRODUCTION_ROLLOUT.md`.

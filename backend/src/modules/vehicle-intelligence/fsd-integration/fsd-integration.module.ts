@@ -6,6 +6,7 @@ import { resolveFsd3OrchestrationConfigFromEnv } from '@modules/vehicle-intellig
 import { resolveFsd4OrchestrationConfigFromEnv } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd4-orchestration.config.v1';
 import { FsdDiscoveryOrchestratorFactoryService } from './fsd-orchestrator-factory.service';
 import { FsdDimoAdapterFactoryService } from './fsd-dimo-adapter-factory.service';
+import { FsdSourceLinkLifecycleService } from './fsd-source-link-lifecycle.service';
 import { FSD3_ORCHESTRATION_CONFIG, FSD4_ORCHESTRATION_CONFIG } from './fsd-integration.tokens';
 
 /**
@@ -16,6 +17,7 @@ import { FSD3_ORCHESTRATION_CONFIG, FSD4_ORCHESTRATION_CONFIG } from './fsd-inte
   imports: [PrismaModule, forwardRef(() => DimoModule)],
   providers: [
     FsdDiscoveryPersistenceRepository,
+    FsdSourceLinkLifecycleService,
     FsdDimoAdapterFactoryService,
     FsdDiscoveryOrchestratorFactoryService,
     {
@@ -29,6 +31,7 @@ import { FSD3_ORCHESTRATION_CONFIG, FSD4_ORCHESTRATION_CONFIG } from './fsd-inte
   ],
   exports: [
     FsdDiscoveryPersistenceRepository,
+    FsdSourceLinkLifecycleService,
     FsdDimoAdapterFactoryService,
     FsdDiscoveryOrchestratorFactoryService,
     FSD3_ORCHESTRATION_CONFIG,

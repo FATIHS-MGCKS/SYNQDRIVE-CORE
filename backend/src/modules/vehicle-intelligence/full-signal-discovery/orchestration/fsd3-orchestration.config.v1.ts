@@ -1,11 +1,8 @@
 /**
  * FSD-3 orchestration gates — default OFF (fail-closed).
  *
- * LIVE_ACTIVATION_BLOCKER: external VehicleDataSourceLink deactivation is re-checked
- * inside each FSD-2 fenced write, but there is no DB trigger to invalidate in-flight runs
- * when a link is deactivated outside FSD acquire. Production activation requires either
- * synchronous run invalidation on link deactivation or accepting STALE_SOURCE_LINK on
- * next fenced write (documented in fsd3-orchestration.service.v1.ts).
+ * P5B: offboarding and ops lifecycle entrypoints synchronously invalidate executable FSD runs
+ * on DIMO source-link deactivation; fenced writes still fail-closed on STALE_SOURCE_LINK.
  */
 export type Fsd3OrchestrationConfigV1 = {
   enabled: boolean;
@@ -15,9 +12,7 @@ export type Fsd3OrchestrationConfigV1 = {
   providerExecutionEnabled: boolean;
 };
 
-export const FSD3_LIVE_ACTIVATION_BLOCKERS_V1 = [
-  'SOURCE_LINK_DEACTIVATION_RUN_INVALIDATION_NOT_SYNCHRONIZED',
-] as const;
+export const FSD3_LIVE_ACTIVATION_BLOCKERS_V1 = [] as const;
 
 export function createDefaultFsd3OrchestrationConfigV1(): Fsd3OrchestrationConfigV1 {
   return {
