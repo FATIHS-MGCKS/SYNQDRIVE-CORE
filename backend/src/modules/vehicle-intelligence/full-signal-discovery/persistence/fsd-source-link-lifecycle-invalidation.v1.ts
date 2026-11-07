@@ -8,10 +8,12 @@ import {
 
 export const FSD_SOURCE_LINK_INVALIDATION_REASON_DEACTIVATED = 'SOURCE_LINK_DEACTIVATED' as const;
 export const FSD_SOURCE_LINK_INVALIDATION_REASON_SUPERSEDED = 'SOURCE_LINK_SUPERSEDED' as const;
+export const FSD_SOURCE_LINK_INVALIDATION_REASON_REACTIVATED = 'SOURCE_LINK_REACTIVATED' as const;
 
 export type FsdSourceLinkLifecycleInvalidationReasonV1 =
   | typeof FSD_SOURCE_LINK_INVALIDATION_REASON_DEACTIVATED
-  | typeof FSD_SOURCE_LINK_INVALIDATION_REASON_SUPERSEDED;
+  | typeof FSD_SOURCE_LINK_INVALIDATION_REASON_SUPERSEDED
+  | typeof FSD_SOURCE_LINK_INVALIDATION_REASON_REACTIVATED;
 
 export function buildFsdDiscoverySourceLinkLockKey(scope: FsdDiscoveryRunScopeV1): string {
   return `fsd-discovery:${scope.organizationId}:${scope.vehicleId}:${scope.providerSourceLinkId}`;

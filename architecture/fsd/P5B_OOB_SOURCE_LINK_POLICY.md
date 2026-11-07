@@ -30,4 +30,17 @@ Requires explicit owner authorization for production `DATABASE_URL`.
 
 ## Incident response
 
-If a link was deactivated OOB, run the ops script in **invalidation-only** mode if supported, or restore link state only under architect-approved procedure; do not assume in-flight FSD runs self-heal.
+If a link was deactivated OOB, run the ops script with `--recover-invalidate-only` (does **not** reactivate the link or dispatch DIMO). Example:
+
+```bash
+npx tsx scripts/ops/fsd-lifecycle-deactivate-dimo-source-link.ts \
+  --recover-invalidate-only \
+  --organization-id=... --vehicle-id=... --link-id=... \
+  --actor-user-id=<MASTER_ADMIN_USER_ID> --idempotency-key=...
+```
+
+Link **reactivation** via `DimoVehicleDataSourceLinkService` invalidates executable FSD runs for that link id (`SOURCE_LINK_REACTIVATED`) so pre-reactivation runs cannot resume.
+
+## In-flight HTTP (L3)
+
+After `assertDimoDispatchBinding` commits, vehicle JWT acquisition and HTTP may still complete once per in-flight attempt; write fences (`STALE_SOURCE_LINK`, lease/version) prevent evidence persistence and run completion. No blocking DB transaction wraps network I/O.

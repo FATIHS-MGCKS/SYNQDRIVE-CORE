@@ -16,6 +16,7 @@ import { VehicleOnboardingProviderCandidateController } from './controllers/vehi
 import { VehicleOnboardingProviderCandidateService } from './services/vehicle-onboarding-provider-candidate.service';
 import { VehicleOffboardingService } from './services/vehicle-offboarding.service';
 import { DimoSourceLinkAuditedDeactivationService } from './services/dimo-source-link-audited-deactivation.service';
+import { DimoSourceLinkOperatorAuthorizationService } from './services/dimo-source-link-operator-authorization.service';
 import { VehicleOnboardingOffboardService } from './services/vehicle-onboarding-offboard.service';
 import { VehicleOnboardingOffboardController } from './controllers/vehicle-onboarding-offboard.controller';
 import { MasterVehicleOffboardAdmissionGuard } from './guards/master-vehicle-offboard-admission.guard';
@@ -63,6 +64,7 @@ import { FsdDiscoveryIntegrationModule } from '@modules/vehicle-intelligence/fsd
     VehicleOnboardingProviderCandidateService,
     VehicleOffboardingService,
     DimoSourceLinkAuditedDeactivationService,
+    DimoSourceLinkOperatorAuthorizationService,
     VehicleOffboardPreflightService,
     VehicleOnboardingOffboardService,
     MasterVehicleOffboardAdmissionGuard,
@@ -78,6 +80,7 @@ import { FsdDiscoveryIntegrationModule } from '@modules/vehicle-intelligence/fsd
     VehicleOnboardingCaptureService,
     VehicleOffboardingService,
     DimoSourceLinkAuditedDeactivationService,
+    DimoSourceLinkOperatorAuthorizationService,
     VehicleOnboardingOffboardService,
     MasterDimoCanonicalRegistrationService,
   ],

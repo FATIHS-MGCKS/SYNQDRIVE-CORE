@@ -1,13 +1,17 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   Optional,
+  forwardRef,
 } from '@nestjs/common';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
+import { FSD_SOURCE_LINK_INVALIDATION_REASON_REACTIVATED } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-source-link-lifecycle-invalidation.v1';
+import { FsdSourceLinkLifecycleService } from '@modules/vehicle-intelligence/fsd-integration/fsd-source-link-lifecycle.service';
 import { VsiProfileLifecycleEnqueueService } from '@modules/vehicle-intelligence/vehicle-signal-intelligence/vsi-profile-lifecycle-enqueue.service';
 import { ConnectivityObservabilityService } from './connectivity/connectivity-observability.service';
 import {
@@ -42,6 +46,9 @@ export class DimoVehicleDataSourceLinkService {
     private readonly connectivityObservability?: ConnectivityObservabilityService,
     @Optional()
     private readonly vsiProfileLifecycleEnqueue?: VsiProfileLifecycleEnqueueService,
+    @Optional()
+    @Inject(forwardRef(() => FsdSourceLinkLifecycleService))
+    private readonly fsdSourceLinkLifecycle?: FsdSourceLinkLifecycleService,
   ) {}
 
   /**
@@ -266,6 +273,14 @@ export class DimoVehicleDataSourceLinkService {
           metadata: this.buildMetadata(dimoVehicle.externalId, input),
         },
       });
+      if (this.fsdSourceLinkLifecycle && client !== this.prisma) {
+        await this.fsdSourceLinkLifecycle.invalidateSingleDimoSourceLinkForLifecycle(client, {
+          organizationId: input.organizationId,
+          vehicleId: input.vehicleId,
+          providerSourceLinkId: updated.id,
+          invalidationReason: FSD_SOURCE_LINK_INVALIDATION_REASON_REACTIVATED,
+        });
+      }
       this.observeBinding('reactivated', input.provenance);
       this.logger.log(
         `DIMO link reactivated vehicle=${input.vehicleId} link=${updated.id} provenance=${input.provenance ?? 'unknown'}`,

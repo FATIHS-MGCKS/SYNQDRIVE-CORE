@@ -25,6 +25,16 @@
 | `FSD4_PROVIDER_EXECUTION_ENABLED` ≠ `1` | No live DIMO HTTP for FSD-4 |
 | Empty vehicle allowlists | Fail-closed per vehicle |
 
+**Note (L1):** FSD orchestration config is resolved at process boot (`FsdDiscoveryIntegrationModule` env factory). Changing the variables above does **not** affect already-running PM2 replicas until both processes reload environment and restart:
+
+```bash
+# On production VPS as synqdrive-admin — set flags OFF in backend env, then:
+pm2 reload synqdrive-backend-3001 --update-env
+pm2 reload synqdrive-backend-3002 --update-env
+```
+
+Verify both replicas show `FSD3_*` / `FSD4_*` execution disabled in logs or env attestation before declaring dispatch stopped.
+
 ## Rollback
 
 1. Set all FSD execution flags OFF (immediate stop of provider dispatch).
@@ -33,4 +43,14 @@
 
 ## Live activation (separate gate)
 
-Requires explicit owner authorization, verified orchestration entrypoint, budget configuration, and removal of remaining live activation blockers documented in FSD config — **not** part of this rollout.
+Requires explicit owner authorization, verified orchestration entrypoint, budget configuration, and a **documented live-activation sign-off** (L2). `FSD3_LIVE_ACTIVATION_BLOCKERS_V1` is an empty static list and is **not** enforced at runtime — do not treat an empty array as “no blockers.”
+
+Minimum activation prerequisites (owner sign-off, not automatic):
+
+1. Production caller wired for `FsdDiscoveryOrchestratorFactoryService` (today: **none**).
+2. Lease renewal / ownership policy validated under multi-replica PM2.
+3. DIMO provider budget + admission configuration attested.
+4. Monitoring for stranded `IN_PROGRESS` runs and unsettled ledger attempts.
+5. P5B lifecycle + audit paths deployed (this rollout).
+
+**Not** part of dormant P5B deploy.

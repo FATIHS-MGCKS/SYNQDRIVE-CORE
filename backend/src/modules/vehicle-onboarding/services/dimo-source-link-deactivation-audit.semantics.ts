@@ -24,8 +24,18 @@ type ParsedAuditMetadata = {
   actorUserId: string;
   deactivationReason: string;
   deactivatedAt: string;
+  sourceLinkActivatedAt?: string;
+  sourceLinkDeactivatedAt?: string;
   note?: string;
 };
+
+export function buildDimoSourceLinkDeactivationIdempotencyAdvisoryLockKey(auditKey: string): string {
+  return `dimo-source-link:deactivate-audit:v1:${auditKey}`;
+}
+
+export function resolveDimoSourceLinkRecoveryAuditIdempotencyKey(idempotencyKey: string): string {
+  return `dimo-source-link:RECOVERY:audit:v1:${idempotencyKey}`;
+}
 
 function parseAuditPayload(payload: unknown): ParsedAuditMetadata | null {
   if (!payload || typeof payload !== 'object') return null;
@@ -49,8 +59,47 @@ function parseAuditPayload(payload: unknown): ParsedAuditMetadata | null {
     actorUserId: m.actorUserId,
     deactivationReason: m.deactivationReason,
     deactivatedAt: m.deactivatedAt,
+    ...(typeof m.sourceLinkActivatedAt === 'string'
+      ? { sourceLinkActivatedAt: m.sourceLinkActivatedAt }
+      : {}),
+    ...(typeof m.sourceLinkDeactivatedAt === 'string'
+      ? { sourceLinkDeactivatedAt: m.sourceLinkDeactivatedAt }
+      : {}),
     ...(typeof m.note === 'string' ? { note: m.note } : {}),
   };
+}
+
+export function assertSourceLinkDeactivationEpisodeReplayMatch(
+  link: { activatedAt: Date; deactivatedAt: Date | null },
+  auditMetadata: Record<string, unknown> | null | undefined,
+): void {
+  const episodeDeactivatedAt =
+    typeof auditMetadata?.sourceLinkDeactivatedAt === 'string'
+      ? auditMetadata.sourceLinkDeactivatedAt
+      : typeof auditMetadata?.deactivatedAt === 'string'
+        ? auditMetadata.deactivatedAt
+        : null;
+  const episodeActivatedAt =
+    typeof auditMetadata?.sourceLinkActivatedAt === 'string'
+      ? auditMetadata.sourceLinkActivatedAt
+      : null;
+
+  if (episodeDeactivatedAt && link.deactivatedAt) {
+    const linkIso = link.deactivatedAt.toISOString();
+    if (linkIso !== episodeDeactivatedAt) {
+      throw new VehicleOnboardingError(
+        'OUTBOX_IDEMPOTENCY_CONFLICT',
+        'Source-link deactivation episode no longer matches audit replay',
+      );
+    }
+  }
+
+  if (episodeActivatedAt && link.activatedAt.toISOString() !== episodeActivatedAt) {
+    throw new VehicleOnboardingError(
+      'OUTBOX_IDEMPOTENCY_CONFLICT',
+      'Source link was reactivated since the audited deactivation episode',
+    );
+  }
 }
 
 export function dimoSourceLinkDeactivationAuditSemanticMatch(

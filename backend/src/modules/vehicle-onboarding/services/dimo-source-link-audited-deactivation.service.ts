@@ -10,12 +10,17 @@ import { lockDimoSourceLinkRowForLifecycleMutation } from '@modules/vehicle-inte
 import { FsdSourceLinkLifecycleService } from '@modules/vehicle-intelligence/fsd-integration/fsd-source-link-lifecycle.service';
 import { VsiProfileLifecycleEnqueueService } from '@modules/vehicle-intelligence/vehicle-signal-intelligence/vsi-profile-lifecycle-enqueue.service';
 import { PrismaService } from '@shared/database/prisma.service';
+import { acquirePgAdvisoryXactLock64 } from '@shared/database/pg-advisory-lock.util';
 import { lockVehicleRowForLifecycleMutation } from '../offboarding/vehicle-lifecycle-row-lock';
 import { VehicleOnboardingError } from '../errors/vehicle-onboarding.errors';
+import type { DimoSourceLinkOperatorAuthorizationEvidenceV1 } from './dimo-source-link-operator-authorization.service';
 import {
   assertDimoSourceLinkDeactivationAuditSemanticMatch,
+  assertSourceLinkDeactivationEpisodeReplayMatch,
   buildExpectedDimoSourceLinkDeactivationSemantics,
+  buildDimoSourceLinkDeactivationIdempotencyAdvisoryLockKey,
   resolveDimoSourceLinkDeactivationAuditIdempotencyKey,
+  resolveDimoSourceLinkRecoveryAuditIdempotencyKey,
 } from './dimo-source-link-deactivation-audit.semantics';
 
 export type DimoSourceLinkAuditedDeactivationInput = {
@@ -27,10 +32,27 @@ export type DimoSourceLinkAuditedDeactivationInput = {
   deactivationReason: string;
   idempotencyKey: string;
   note?: string;
+  authorizationEvidence?: DimoSourceLinkOperatorAuthorizationEvidenceV1;
 };
 
 export type DimoSourceLinkAuditedDeactivationResult = {
   deactivatedAt: Date;
+  idempotentReplay: boolean;
+};
+
+export type DimoSourceLinkFsdRecoveryInput = {
+  organizationId: string;
+  vehicleId: string;
+  providerSourceLinkId: string;
+  actorUserId: string;
+  idempotencyKey: string;
+  recoveryReason: string;
+  note?: string;
+  authorizationEvidence?: DimoSourceLinkOperatorAuthorizationEvidenceV1;
+};
+
+export type DimoSourceLinkFsdRecoveryResult = {
+  invalidatedCount: number;
   idempotentReplay: boolean;
 };
 
@@ -57,22 +79,19 @@ export class DimoSourceLinkAuditedDeactivationService {
     const expectedSemantics = buildExpectedDimoSourceLinkDeactivationSemantics(input);
     const auditKey = dimoSourceLinkDeactivationAuditIdempotencyKey(input.idempotencyKey);
 
-    const replay = await this.tryReplayFromAudit(auditKey, expectedSemantics);
-    if (replay) {
-      return replay;
+    const preReplay = await this.tryReplayFromAudit(auditKey, expectedSemantics);
+    if (preReplay) {
+      return preReplay;
     }
 
     const deactivatedAt = new Date();
     let replayOnlyInTransaction = false;
+
     await this.prisma.$transaction(async (tx) => {
-      const existingAudit = await tx.businessAuditOutbox.findUnique({
-        where: { idempotencyKey: auditKey },
-      });
-      if (existingAudit) {
-        assertDimoSourceLinkDeactivationAuditSemanticMatch(existingAudit, expectedSemantics);
-        replayOnlyInTransaction = true;
-        return;
-      }
+      await acquirePgAdvisoryXactLock64(
+        tx,
+        buildDimoSourceLinkDeactivationIdempotencyAdvisoryLockKey(auditKey),
+      );
 
       await lockVehicleRowForLifecycleMutation(tx, {
         organizationId: input.organizationId,
@@ -85,6 +104,15 @@ export class DimoSourceLinkAuditedDeactivationService {
         providerSourceLinkId: input.providerSourceLinkId,
       });
 
+      const existingAudit = await tx.businessAuditOutbox.findUnique({
+        where: { idempotencyKey: auditKey },
+      });
+      if (existingAudit) {
+        assertDimoSourceLinkDeactivationAuditSemanticMatch(existingAudit, expectedSemantics);
+        replayOnlyInTransaction = true;
+        return;
+      }
+
       const link = await tx.vehicleDataSourceLink.findFirst({
         where: {
           id: input.providerSourceLinkId,
@@ -93,7 +121,7 @@ export class DimoSourceLinkAuditedDeactivationService {
           sourceType: 'DIMO',
           vehicle: { organizationId: input.organizationId },
         },
-        select: { id: true, isActive: true },
+        select: { id: true, isActive: true, activatedAt: true, deactivatedAt: true },
       });
       if (!link) {
         throw new VehicleOnboardingError('CASE_NOT_FOUND', 'DIMO source link not found for scope');
@@ -101,9 +129,11 @@ export class DimoSourceLinkAuditedDeactivationService {
       if (!link.isActive) {
         throw new VehicleOnboardingError(
           'VEHICLE_REGISTRY_INVALID_TRANSITION',
-          'Link already inactive; idempotent replay requires a matching audit record',
+          'Link already inactive; use recovery invalidation for OOB-deactivated links without audit',
         );
       }
+
+      const sourceLinkActivatedAt = link.activatedAt;
 
       await this.fsdSourceLinkLifecycle.invalidateSingleDimoSourceLinkForLifecycle(tx, {
         organizationId: input.organizationId,
@@ -132,11 +162,40 @@ export class DimoSourceLinkAuditedDeactivationService {
         tx,
       );
 
-      await this.insertAuditRecord(tx, {
-        ...input,
-        deactivatedAt,
-        auditKey,
+      const auditResult = await this.businessAuditOutbox.enqueueInTransactionIdempotent(tx, {
+        organizationId: input.organizationId,
+        idempotencyKey: auditKey,
+        action: BusinessAuditAction.DIMO_SOURCE_LINK_DEACTIVATED,
+        actorUserId: input.actorUserId,
+        entityType: BUSINESS_AUDIT_ENTITY_TYPE.VEHICLE,
+        entityId: input.vehicleId,
+        changeReason: input.deactivationReason,
+        outcome: 'SUCCESS',
+        description: 'DIMO vehicle data source link manually deactivated',
+        before: { providerSourceLinkId: input.providerSourceLinkId, isActive: true },
+        after: { providerSourceLinkId: input.providerSourceLinkId, isActive: false },
+        metadata: {
+          vehicleId: input.vehicleId,
+          organizationId: input.organizationId,
+          providerSourceLinkId: input.providerSourceLinkId,
+          deactivationReason: input.deactivationReason,
+          actorUserId: input.actorUserId,
+          deactivatedAt: deactivatedAt.toISOString(),
+          sourceLinkActivatedAt: sourceLinkActivatedAt.toISOString(),
+          sourceLinkDeactivatedAt: deactivatedAt.toISOString(),
+          consentScope: 'UNCHANGED',
+          authorizationReference: input.authorizationEvidence?.authorizationReference ?? null,
+          ...(input.note ? { note: input.note } : {}),
+        },
+        occurredAt: deactivatedAt,
       });
+      if (auditResult.kind === 'EXISTING') {
+        assertDimoSourceLinkDeactivationAuditSemanticMatch(auditResult.record, expectedSemantics);
+        throw new VehicleOnboardingError(
+          'ONBOARDING_CONCURRENCY_CONFLICT',
+          'Audit idempotency race after locks',
+        );
+      }
     });
 
     if (replayOnlyInTransaction) {
@@ -153,6 +212,94 @@ export class DimoSourceLinkAuditedDeactivationService {
     return { deactivatedAt, idempotentReplay: false };
   }
 
+  /**
+   * Audited FSD invalidation for an already-inactive DIMO link (OOB recovery). Does not toggle isActive.
+   */
+  async recoverFsdRunsForInactiveLinkAudited(
+    input: DimoSourceLinkFsdRecoveryInput,
+  ): Promise<DimoSourceLinkFsdRecoveryResult> {
+    const auditKey = resolveDimoSourceLinkRecoveryAuditIdempotencyKey(input.idempotencyKey);
+    const existing = await this.prisma.businessAuditOutbox.findUnique({
+      where: { idempotencyKey: auditKey },
+    });
+    if (existing) {
+      const parsed = existing.payload as { metadata?: { invalidatedCount?: number } };
+      const invalidatedCount = parsed?.metadata?.invalidatedCount ?? 0;
+      return { invalidatedCount, idempotentReplay: true };
+    }
+
+    let invalidatedCount = 0;
+    await this.prisma.$transaction(async (tx) => {
+      await acquirePgAdvisoryXactLock64(tx, buildDimoSourceLinkDeactivationIdempotencyAdvisoryLockKey(auditKey));
+
+      await lockVehicleRowForLifecycleMutation(tx, {
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+      });
+
+      await lockDimoSourceLinkRowForLifecycleMutation(tx, {
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        providerSourceLinkId: input.providerSourceLinkId,
+      });
+
+      const link = await tx.vehicleDataSourceLink.findFirst({
+        where: {
+          id: input.providerSourceLinkId,
+          vehicleId: input.vehicleId,
+          provider: 'DIMO',
+          sourceType: 'DIMO',
+          vehicle: { organizationId: input.organizationId },
+        },
+        select: { id: true, isActive: true },
+      });
+      if (!link) {
+        throw new VehicleOnboardingError('CASE_NOT_FOUND', 'DIMO source link not found for scope');
+      }
+      if (link.isActive) {
+        throw new VehicleOnboardingError(
+          'VEHICLE_REGISTRY_INVALID_TRANSITION',
+          'Recovery invalidation requires an inactive source link',
+        );
+      }
+
+      const invalidated = await this.fsdSourceLinkLifecycle.invalidateSingleDimoSourceLinkForLifecycle(tx, {
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        providerSourceLinkId: input.providerSourceLinkId,
+        invalidationReason: FSD_SOURCE_LINK_INVALIDATION_REASON_DEACTIVATED,
+      });
+      invalidatedCount = invalidated.invalidatedCount;
+
+      const occurredAt = new Date();
+      await this.businessAuditOutbox.enqueueInTransactionIdempotent(tx, {
+        organizationId: input.organizationId,
+        idempotencyKey: auditKey,
+        action: BusinessAuditAction.DIMO_SOURCE_LINK_FSD_RECOVERY_INVALIDATION,
+        actorUserId: input.actorUserId,
+        entityType: BUSINESS_AUDIT_ENTITY_TYPE.VEHICLE,
+        entityId: input.vehicleId,
+        changeReason: input.recoveryReason,
+        outcome: 'SUCCESS',
+        description: 'FSD executable run invalidation for inactive DIMO source link (recovery)',
+        metadata: {
+          vehicleId: input.vehicleId,
+          organizationId: input.organizationId,
+          providerSourceLinkId: input.providerSourceLinkId,
+          recoveryReason: input.recoveryReason,
+          actorUserId: input.actorUserId,
+          invalidatedCount,
+          occurredAt: occurredAt.toISOString(),
+          authorizationReference: input.authorizationEvidence?.authorizationReference ?? null,
+          ...(input.note ? { note: input.note } : {}),
+        },
+        occurredAt,
+      });
+    });
+
+    return { invalidatedCount, idempotentReplay: false };
+  }
+
   private async tryReplayFromAudit(
     auditKey: string,
     expected: ReturnType<typeof buildExpectedDimoSourceLinkDeactivationSemantics>,
@@ -164,9 +311,9 @@ export class DimoSourceLinkAuditedDeactivationService {
       return null;
     }
     assertDimoSourceLinkDeactivationAuditSemanticMatch(existing, expected);
-    const meta = (existing.payload as { metadata?: { deactivatedAt?: string } })?.metadata;
+    const meta = (existing.payload as { metadata?: Record<string, unknown> })?.metadata;
     const deactivatedAt = meta?.deactivatedAt
-      ? new Date(meta.deactivatedAt)
+      ? new Date(String(meta.deactivatedAt))
       : existing.occurredAt;
     const link = await this.prisma.vehicleDataSourceLink.findFirst({
       where: {
@@ -174,61 +321,18 @@ export class DimoSourceLinkAuditedDeactivationService {
         vehicleId: expected.vehicleId,
         vehicle: { organizationId: expected.organizationId },
       },
-      select: { isActive: true },
+      select: { isActive: true, activatedAt: true, deactivatedAt: true },
     });
-    if (link?.isActive) {
+    if (!link) {
+      throw new VehicleOnboardingError('CASE_NOT_FOUND', 'Source link missing during audit replay');
+    }
+    if (link.isActive) {
       throw new VehicleOnboardingError(
         'ONBOARDING_CONCURRENCY_CONFLICT',
         'Audit replay exists but source link is still active',
       );
     }
+    assertSourceLinkDeactivationEpisodeReplayMatch(link, meta);
     return { deactivatedAt, idempotentReplay: true };
-  }
-
-  private async insertAuditRecord(
-    tx: Prisma.TransactionClient,
-    input: DimoSourceLinkAuditedDeactivationInput & { deactivatedAt: Date; auditKey: string },
-  ): Promise<void> {
-    try {
-      await this.businessAuditOutbox.enqueueInTransaction(tx, {
-        organizationId: input.organizationId,
-        idempotencyKey: input.auditKey,
-        action: BusinessAuditAction.DIMO_SOURCE_LINK_DEACTIVATED,
-        actorUserId: input.actorUserId,
-        entityType: BUSINESS_AUDIT_ENTITY_TYPE.VEHICLE,
-        entityId: input.vehicleId,
-        changeReason: input.deactivationReason,
-        outcome: 'SUCCESS',
-        description: 'DIMO vehicle data source link manually deactivated',
-        before: { providerSourceLinkId: input.providerSourceLinkId, isActive: true },
-        after: { providerSourceLinkId: input.providerSourceLinkId, isActive: false },
-        metadata: {
-          vehicleId: input.vehicleId,
-          organizationId: input.organizationId,
-          providerSourceLinkId: input.providerSourceLinkId,
-          deactivationReason: input.deactivationReason,
-          actorUserId: input.actorUserId,
-          deactivatedAt: input.deactivatedAt.toISOString(),
-          consentScope: 'UNCHANGED',
-          ...(input.note ? { note: input.note } : {}),
-        },
-        occurredAt: input.deactivatedAt,
-      });
-    } catch (error) {
-      const code = (error as { code?: string })?.code;
-      if (code === 'P2002') {
-        const raced = await tx.businessAuditOutbox.findUnique({
-          where: { idempotencyKey: input.auditKey },
-        });
-        if (raced) {
-          assertDimoSourceLinkDeactivationAuditSemanticMatch(
-            raced,
-            buildExpectedDimoSourceLinkDeactivationSemantics(input),
-          );
-          return;
-        }
-      }
-      throw error;
-    }
   }
 }

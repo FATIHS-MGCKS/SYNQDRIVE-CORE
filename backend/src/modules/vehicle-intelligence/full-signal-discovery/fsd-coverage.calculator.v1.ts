@@ -9,12 +9,23 @@ import type { FsdHistoricalFrequencyClassV1, FsdValueObservationKindV1 } from '.
  * applies the half-open contract above only to coverage math and bucket slot assignment —
  * not to GraphQL document construction (see fsd-query-document.builder.v1.ts).
  */
+const STRICT_UTC_ISO8601 =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+
 export function parseUtcIsoToEpochMs(iso: string): number {
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) {
     throw new Error(`Invalid ISO timestamp: ${iso}`);
   }
   return ms;
+}
+
+/** Planning-only: reject loose Date.parse inputs (e.g. locale dates). */
+export function parseStrictUtcIsoToEpochMs(iso: string): number {
+  if (!STRICT_UTC_ISO8601.test(iso)) {
+    throw new Error(`Invalid strict UTC ISO-8601 timestamp: ${iso}`);
+  }
+  return parseUtcIsoToEpochMs(iso);
 }
 
 export function computeHistoricalWindowSecondsFromIso(window: FsdHistoricalWindowV1): number {

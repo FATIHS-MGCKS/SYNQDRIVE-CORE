@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { BusinessAuditOutboxStatus, Prisma } from '@prisma/client';
+import { BusinessAuditOutboxStatus, Prisma, type BusinessAuditOutbox } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '@shared/database/prisma.service';
 import {
   BUSINESS_AUDIT_OUTBOX,
@@ -10,6 +11,10 @@ import {
   hashBusinessAuditValue,
   summarizeBusinessAuditValue,
 } from './business-audit-sanitize.util';
+
+export type BusinessAuditEnqueueInTransactionResultV1 =
+  | { kind: 'CREATED'; record: BusinessAuditOutbox }
+  | { kind: 'EXISTING'; record: BusinessAuditOutbox };
 
 export interface EnqueueBusinessAuditOutboxInput {
   organizationId: string;
@@ -34,7 +39,21 @@ export interface EnqueueBusinessAuditOutboxInput {
 export class BusinessAuditOutboxRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async enqueueInTransaction(tx: Prisma.TransactionClient, input: EnqueueBusinessAuditOutboxInput) {
+  async enqueueInTransaction(
+    tx: Prisma.TransactionClient,
+    input: EnqueueBusinessAuditOutboxInput,
+  ): Promise<BusinessAuditOutbox> {
+    const result = await this.enqueueInTransactionIdempotent(tx, input);
+    return result.record;
+  }
+
+  /**
+   * INSERT with ON CONFLICT DO NOTHING — never queries inside an aborted transaction after P2002.
+   */
+  async enqueueInTransactionIdempotent(
+    tx: Prisma.TransactionClient,
+    input: EnqueueBusinessAuditOutboxInput,
+  ): Promise<BusinessAuditEnqueueInTransactionResultV1> {
     const sanitizedBefore =
       input.before !== undefined ? summarizeBusinessAuditValue(input.before) : null;
     const sanitizedAfter =
@@ -42,43 +61,86 @@ export class BusinessAuditOutboxRepository {
     const sanitizedDiff =
       input.diff !== undefined ? summarizeBusinessAuditValue(input.diff) : null;
 
-    const data = {
-      organizationId: input.organizationId,
-      idempotencyKey: input.idempotencyKey,
-      actorUserId: input.actorUserId ?? null,
-      action: input.action,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      correlationId: input.correlationId ?? null,
-      occurredAt: input.occurredAt ?? new Date(),
-      payloadVersion: input.payloadVersion ?? BUSINESS_AUDIT_OUTBOX.payloadVersion,
-      beforeHash: hashBusinessAuditValue(input.before),
-      beforeSummary: sanitizedBefore,
-      afterHash: hashBusinessAuditValue(input.after),
-      afterSummary: sanitizedAfter,
-      changeReason: input.changeReason?.trim() || null,
-      outcome: input.outcome ?? null,
-      diffRef: sanitizedDiff,
-      payload: {
-        description: input.description,
-        metadata: input.metadata ?? null,
-      } as Prisma.InputJsonValue,
-      status: BusinessAuditOutboxStatus.PENDING,
-      nextRetryAt: new Date(),
+    const id = randomUUID();
+    const eventId = randomUUID();
+    const occurredAt = input.occurredAt ?? new Date();
+    const payloadVersion = input.payloadVersion ?? BUSINESS_AUDIT_OUTBOX.payloadVersion;
+    const payloadJson = {
+      description: input.description,
+      metadata: input.metadata ?? null,
     };
+    const nextRetryAt = new Date();
+    const status = BusinessAuditOutboxStatus.PENDING;
 
-    try {
-      return await tx.businessAuditOutbox.create({ data });
-    } catch (error) {
-      const code = (error as { code?: string })?.code;
-      if (code === 'P2002' && input.idempotencyKey) {
-        const existing = await tx.businessAuditOutbox.findUnique({
-          where: { idempotencyKey: input.idempotencyKey },
-        });
-        if (existing) return existing;
-      }
-      throw error;
+    const inserted = await tx.$queryRaw<Array<{ id: string }>>`
+      INSERT INTO business_audit_outbox (
+        id,
+        event_id,
+        organization_id,
+        idempotency_key,
+        actor_user_id,
+        action,
+        entity_type,
+        entity_id,
+        correlation_id,
+        occurred_at,
+        payload_version,
+        before_hash,
+        before_summary,
+        after_hash,
+        after_summary,
+        change_reason,
+        outcome,
+        diff_ref,
+        payload,
+        processing_status,
+        attempts,
+        next_retry_at,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${id},
+        ${eventId},
+        ${input.organizationId},
+        ${input.idempotencyKey},
+        ${input.actorUserId ?? null},
+        ${input.action},
+        ${input.entityType},
+        ${input.entityId},
+        ${input.correlationId ?? null},
+        ${occurredAt},
+        ${payloadVersion},
+        ${hashBusinessAuditValue(input.before)},
+        ${sanitizedBefore},
+        ${hashBusinessAuditValue(input.after)},
+        ${sanitizedAfter},
+        ${input.changeReason?.trim() || null},
+        ${input.outcome ?? null},
+        ${sanitizedDiff},
+        ${JSON.stringify(payloadJson)}::jsonb,
+        ${BusinessAuditOutboxStatus.PENDING}::"BusinessAuditOutboxStatus",
+        0,
+        ${nextRetryAt},
+        NOW(),
+        NOW()
+      )
+      ON CONFLICT (idempotency_key) DO NOTHING
+      RETURNING id
+    `;
+
+    if (inserted.length > 0) {
+      const record = await tx.businessAuditOutbox.findUniqueOrThrow({ where: { id: inserted[0]!.id } });
+      return { kind: 'CREATED', record };
     }
+
+    const existing = await tx.businessAuditOutbox.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+    });
+    if (!existing) {
+      throw new Error('BUSINESS_AUDIT_IDEMPOTENCY_RACE_WITHOUT_ROW');
+    }
+    return { kind: 'EXISTING', record: existing };
   }
 
   async enqueue(input: EnqueueBusinessAuditOutboxInput) {

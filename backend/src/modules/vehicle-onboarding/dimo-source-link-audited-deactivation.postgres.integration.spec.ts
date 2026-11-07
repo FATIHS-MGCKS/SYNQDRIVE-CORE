@@ -67,7 +67,16 @@ async function seed(prisma: PrismaClient) {
       isActive: true,
     },
   });
-  return { organizationId, vehicleId, linkId, actorUserId: randomUUID() };
+  const actorUserId = randomUUID();
+  return { organizationId, vehicleId, linkId, actorUserId };
+}
+
+function defer(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
 }
 
 (run ? describe : describe.skip)('DimoSourceLinkAuditedDeactivation (PostgreSQL)', () => {
@@ -212,6 +221,101 @@ async function seed(prisma: PrismaClient) {
         idempotencyKey,
       }),
     ).rejects.toMatchObject({ code: 'OUTBOX_IDEMPOTENCY_CONFLICT' });
+  });
+
+  it('concurrent identical idempotency: one mutation, one replay, one audit, one VSI', async () => {
+    const seedA = await seed(prisma);
+    const idempotencyKey = randomUUID();
+    const barrier = defer();
+    const input = {
+      organizationId: seedA.organizationId,
+      vehicleId: seedA.vehicleId,
+      providerSourceLinkId: seedA.linkId,
+      actorUserId: seedA.actorUserId,
+      deactivationReason: 'OPS_TEST',
+      idempotencyKey,
+    };
+    const first = svc().deactivateAudited(input);
+    barrier.resolve();
+    const second = (async () => {
+      await barrier.promise;
+      return svc().deactivateAudited(input);
+    })();
+    const [r1, r2] = await Promise.all([first, second]);
+    const replays = [r1.idempotentReplay, r2.idempotentReplay].sort();
+    expect(replays).toEqual([false, true]);
+    expect(r1.deactivatedAt.toISOString()).toBe(r2.deactivatedAt.toISOString());
+    const audits = await prisma.businessAuditOutbox.count({
+      where: { idempotencyKey: `dimo-source-link:DEACTIVATED:audit:v1:${idempotencyKey}` },
+    });
+    expect(audits).toBe(1);
+    const vsi = await prisma.vsiProfileLifecycleOutbox.count({
+      where: {
+        vehicleId: seedA.vehicleId,
+        eventType: 'SOURCE_LINK_DEACTIVATED',
+        providerSourceLinkId: seedA.linkId,
+      },
+    });
+    expect(vsi).toBe(1);
+  });
+
+  it('concurrent same idempotency key on different vehicles yields conflict without second mutation', async () => {
+    const seedA = await seed(prisma);
+    const seedB = await seed(prisma);
+    const idempotencyKey = randomUUID();
+    await svc().deactivateAudited({
+      organizationId: seedA.organizationId,
+      vehicleId: seedA.vehicleId,
+      providerSourceLinkId: seedA.linkId,
+      actorUserId: seedA.actorUserId,
+      deactivationReason: 'OPS_TEST',
+      idempotencyKey,
+    });
+    await expect(
+      svc().deactivateAudited({
+        organizationId: seedB.organizationId,
+        vehicleId: seedB.vehicleId,
+        providerSourceLinkId: seedB.linkId,
+        actorUserId: seedB.actorUserId,
+        deactivationReason: 'OPS_TEST',
+        idempotencyKey,
+      }),
+    ).rejects.toMatchObject({ code: 'OUTBOX_IDEMPOTENCY_CONFLICT' });
+    const linkB = await prisma.vehicleDataSourceLink.findUnique({ where: { id: seedB.linkId } });
+    expect(linkB?.isActive).toBe(true);
+  });
+
+  it('recovery invalidates executable runs on already-inactive link without toggling active', async () => {
+    const { organizationId, vehicleId, linkId, actorUserId } = await seed(prisma);
+    await prisma.vehicleDataSourceLink.update({
+      where: { id: linkId },
+      data: { isActive: false, deactivatedAt: new Date() },
+    });
+    await prisma.fsdDiscoveryRun.create({
+      data: {
+        organizationId,
+        vehicleId,
+        providerSourceLinkId: linkId,
+        runKey: randomUUID(),
+        runRevision: 1,
+        discoveryStream: 'FSD3_CATALOG_SNAPSHOT',
+        status: 'IN_PROGRESS',
+      },
+    });
+    const result = await svc().recoverFsdRunsForInactiveLinkAudited({
+      organizationId,
+      vehicleId,
+      providerSourceLinkId: linkId,
+      actorUserId,
+      idempotencyKey: randomUUID(),
+      recoveryReason: 'OOB_RECOVERY',
+    });
+    expect(result.invalidatedCount).toBeGreaterThanOrEqual(1);
+    const run = await prisma.fsdDiscoveryRun.findFirst({ where: { providerSourceLinkId: linkId } });
+    expect(run?.status).toBe('INVALIDATED');
+    expect(
+      await prisma.vehicleDataSourceLink.findUnique({ where: { id: linkId } }),
+    ).toMatchObject({ isActive: false });
   });
 
   it('already inactive link without audit record fails closed', async () => {

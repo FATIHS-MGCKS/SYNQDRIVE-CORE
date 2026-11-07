@@ -48,6 +48,7 @@ export const BusinessAuditAction = {
   VEHICLE_REGISTRY_OFFBOARDED: 'VEHICLE_REGISTRY_OFFBOARDED',
   /** FSD P5B — audited operator DIMO source-link deactivation (link-only, not registry offboard). */
   DIMO_SOURCE_LINK_DEACTIVATED: 'DIMO_SOURCE_LINK_DEACTIVATED',
+  DIMO_SOURCE_LINK_FSD_RECOVERY_INVALIDATION: 'DIMO_SOURCE_LINK_FSD_RECOVERY_INVALIDATION',
 } as const;
 
 export type BusinessAuditActionCode =

@@ -256,6 +256,20 @@ export function planFsdHistoricalQueries(input: {
 
   const budgetValidation = validatePlannedRequestCount(allowedChunks.length, budget);
 
+  if (deferredSignals.length > 0) {
+    const deferredNames = new Set(deferredSignals.map((d) => d.fieldName));
+    for (const row of catalogSignals) {
+      if (deferredNames.has(row.fieldName)) {
+        row.evidence = createPlannerStageEvidenceDimensions({
+          declared: row.evidence.declared,
+          schemaCompatible: row.evidence.schemaCompatible,
+          queryPlanned: false,
+          notEvaluable: true,
+        });
+      }
+    }
+  }
+
   const expectedBucketPositions = Math.ceil(windowSeconds);
 
   return {

@@ -1,4 +1,4 @@
-import { parseUtcIsoToEpochMs } from './fsd-coverage.calculator.v1';
+import { parseStrictUtcIsoToEpochMs } from './fsd-coverage.calculator.v1';
 import type { FsdHistoricalWindowV1 } from './fsd-query-document.builder.v1';
 
 export const FSD_BUDGET_DEFAULTS_V1 = {
@@ -120,8 +120,8 @@ export function validateHistoricalWindowForPlanning(
   let fromMs: number;
   let toMs: number;
   try {
-    fromMs = parseUtcIsoToEpochMs(window.fromUtc);
-    toMs = parseUtcIsoToEpochMs(window.toUtc);
+    fromMs = parseStrictUtcIsoToEpochMs(window.fromUtc);
+    toMs = parseStrictUtcIsoToEpochMs(window.toUtc);
   } catch {
     return {
       ok: false,

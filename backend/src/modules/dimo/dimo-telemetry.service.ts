@@ -552,13 +552,20 @@ export class DimoTelemetryService {
         diagnostic: 'axios_max_content_length',
       };
     }
-    if (isAxiosTimeout(err) || (isAxiosError(err) && err.code === 'ECONNRESET')) {
+    if (
+      isAxiosTimeout(err) ||
+      (isAxiosError(err) &&
+        err.code &&
+        ['ECONNRESET', 'EPIPE', 'ECONNABORTED', 'ETIMEDOUT'].includes(err.code))
+    ) {
       return {
         kind: 'TIMEOUT_OR_NETWORK_UNKNOWN',
         httpStatus: null,
         data: null,
         errors: [],
-        diagnostic: isAxiosTimeout(err) ? 'axios_timeout' : 'network_reset',
+        diagnostic: isAxiosTimeout(err)
+          ? 'axios_timeout'
+          : `network_${isAxiosError(err) ? err.code ?? 'unknown' : 'unknown'}`,
       };
     }
     return {
