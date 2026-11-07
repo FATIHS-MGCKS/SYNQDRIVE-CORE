@@ -12,7 +12,7 @@ import {
 import { ProductionFailClosedReadinessAuthority } from './readiness/vehicle-onboarding-readiness-authority';
 import { VehicleOnboardingReadinessService } from './services/vehicle-onboarding-readiness.service';
 import { VehicleOnboardingActivationService } from './services/vehicle-onboarding-activation.service';
-import { DimoVehicleDataSourceLinkService } from '@modules/dimo/dimo-vehicle-data-source-link.service';
+import { createDimoVehicleDataSourceLinkServiceForTests } from './testing/vehicle-onboarding-test.harness';
 import { activationOutboxIdempotencyKey } from './services/vehicle-onboarding-activation.service';
 import type { Vo3ActivationFaultStage } from './services/vehicle-onboarding-activation.service';
 import { DEFAULT_TENANT_SOURCE_ADOPTION } from './source-adoption/source-adoption.context';
@@ -662,7 +662,7 @@ async function sealHmCaseReady(
     const readinessService = new VehicleOnboardingReadinessService(prisma as any);
     const prodActivation = new VehicleOnboardingActivationService(
       prisma as any,
-      new DimoVehicleDataSourceLinkService(prisma as any),
+      createDimoVehicleDataSourceLinkServiceForTests(prisma),
       new ProductionFailClosedReadinessAuthority(readinessService),
     );
     await expect(

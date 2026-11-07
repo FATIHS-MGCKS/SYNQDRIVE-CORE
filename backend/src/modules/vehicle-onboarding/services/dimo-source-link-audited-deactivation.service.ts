@@ -18,7 +18,9 @@ import {
   assertDimoSourceLinkDeactivationAuditSemanticMatch,
   assertSourceLinkDeactivationEpisodeReplayMatch,
   buildExpectedDimoSourceLinkDeactivationSemantics,
+  buildExpectedDimoSourceLinkRecoverySemantics,
   buildDimoSourceLinkDeactivationIdempotencyAdvisoryLockKey,
+  assertDimoSourceLinkRecoveryAuditSemanticMatch,
   resolveDimoSourceLinkDeactivationAuditIdempotencyKey,
   resolveDimoSourceLinkRecoveryAuditIdempotencyKey,
 } from './dimo-source-link-deactivation-audit.semantics';
@@ -218,17 +220,17 @@ export class DimoSourceLinkAuditedDeactivationService {
   async recoverFsdRunsForInactiveLinkAudited(
     input: DimoSourceLinkFsdRecoveryInput,
   ): Promise<DimoSourceLinkFsdRecoveryResult> {
+    const expectedSemantics = buildExpectedDimoSourceLinkRecoverySemantics(input);
     const auditKey = resolveDimoSourceLinkRecoveryAuditIdempotencyKey(input.idempotencyKey);
-    const existing = await this.prisma.businessAuditOutbox.findUnique({
-      where: { idempotencyKey: auditKey },
-    });
-    if (existing) {
-      const parsed = existing.payload as { metadata?: { invalidatedCount?: number } };
-      const invalidatedCount = parsed?.metadata?.invalidatedCount ?? 0;
-      return { invalidatedCount, idempotentReplay: true };
+
+    const preReplay = await this.tryReplayFromRecoveryAudit(auditKey, expectedSemantics);
+    if (preReplay) {
+      return preReplay;
     }
 
     let invalidatedCount = 0;
+    let replayOnlyInTransaction = false;
+
     await this.prisma.$transaction(async (tx) => {
       await acquirePgAdvisoryXactLock64(tx, buildDimoSourceLinkDeactivationIdempotencyAdvisoryLockKey(auditKey));
 
@@ -242,6 +244,17 @@ export class DimoSourceLinkAuditedDeactivationService {
         vehicleId: input.vehicleId,
         providerSourceLinkId: input.providerSourceLinkId,
       });
+
+      const existingAudit = await tx.businessAuditOutbox.findUnique({
+        where: { idempotencyKey: auditKey },
+      });
+      if (existingAudit) {
+        assertDimoSourceLinkRecoveryAuditSemanticMatch(existingAudit, expectedSemantics);
+        const meta = (existingAudit.payload as { metadata?: { invalidatedCount?: number } })?.metadata;
+        invalidatedCount = meta?.invalidatedCount ?? 0;
+        replayOnlyInTransaction = true;
+        return;
+      }
 
       const link = await tx.vehicleDataSourceLink.findFirst({
         where: {
@@ -272,7 +285,7 @@ export class DimoSourceLinkAuditedDeactivationService {
       invalidatedCount = invalidated.invalidatedCount;
 
       const occurredAt = new Date();
-      await this.businessAuditOutbox.enqueueInTransactionIdempotent(tx, {
+      const auditResult = await this.businessAuditOutbox.enqueueInTransactionIdempotent(tx, {
         organizationId: input.organizationId,
         idempotencyKey: auditKey,
         action: BusinessAuditAction.DIMO_SOURCE_LINK_FSD_RECOVERY_INVALIDATION,
@@ -295,9 +308,45 @@ export class DimoSourceLinkAuditedDeactivationService {
         },
         occurredAt,
       });
+      if (auditResult.kind === 'EXISTING') {
+        assertDimoSourceLinkRecoveryAuditSemanticMatch(auditResult.record, expectedSemantics);
+        const meta = (auditResult.record.payload as { metadata?: { invalidatedCount?: number } })?.metadata;
+        invalidatedCount = meta?.invalidatedCount ?? invalidatedCount;
+        throw new VehicleOnboardingError(
+          'ONBOARDING_CONCURRENCY_CONFLICT',
+          'Recovery audit idempotency race after locks',
+        );
+      }
     });
 
+    if (replayOnlyInTransaction) {
+      const replay = await this.tryReplayFromRecoveryAudit(auditKey, expectedSemantics);
+      if (!replay) {
+        throw new VehicleOnboardingError(
+          'ONBOARDING_CONCURRENCY_CONFLICT',
+          'Expected idempotent recovery replay audit after transactional short-circuit',
+        );
+      }
+      return replay;
+    }
+
     return { invalidatedCount, idempotentReplay: false };
+  }
+
+  private async tryReplayFromRecoveryAudit(
+    auditKey: string,
+    expected: ReturnType<typeof buildExpectedDimoSourceLinkRecoverySemantics>,
+  ): Promise<DimoSourceLinkFsdRecoveryResult | null> {
+    const existing = await this.prisma.businessAuditOutbox.findUnique({
+      where: { idempotencyKey: auditKey },
+    });
+    if (!existing) {
+      return null;
+    }
+    assertDimoSourceLinkRecoveryAuditSemanticMatch(existing, expected);
+    const parsed = (existing.payload as { metadata?: { invalidatedCount?: number } })?.metadata;
+    const invalidatedCount = parsed?.invalidatedCount ?? 0;
+    return { invalidatedCount, idempotentReplay: true };
   }
 
   private async tryReplayFromAudit(

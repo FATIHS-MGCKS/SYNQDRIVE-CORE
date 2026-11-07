@@ -847,11 +847,14 @@ export class Fsd3CatalogSnapshotOrchestratorService {
         runId: input.runId,
         expectedVersion: input.runVersionRef.value,
         leaseOwner: input.writeAuth().leaseOwner,
-        leaseExpiresAt: input.leaseExpiresAt,
       });
-      if (renewed.renewed) {
-        input.runVersionRef.value = renewed.version;
+      if (!renewed.renewed) {
+        return buildTerminalFailureResult({
+          runId: input.runId,
+          reason: 'LEASE_RENEWAL_FAILED',
+        });
       }
+      input.runVersionRef.value = renewed.version;
       this.assertProviderDispatchAllowed();
 
       let providerResponse;

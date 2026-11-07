@@ -318,6 +318,88 @@ function defer(): { promise: Promise<void>; resolve: () => void } {
     ).toMatchObject({ isActive: false });
   });
 
+  it('recovery idempotency replay with identical semantics', async () => {
+    const { organizationId, vehicleId, linkId, actorUserId } = await seed(prisma);
+    await prisma.vehicleDataSourceLink.update({
+      where: { id: linkId },
+      data: { isActive: false, deactivatedAt: new Date() },
+    });
+    const idempotencyKey = randomUUID();
+    const input = {
+      organizationId,
+      vehicleId,
+      providerSourceLinkId: linkId,
+      actorUserId,
+      idempotencyKey,
+      recoveryReason: 'OOB_RECOVERY',
+    };
+    const first = await svc().recoverFsdRunsForInactiveLinkAudited(input);
+    const second = await svc().recoverFsdRunsForInactiveLinkAudited(input);
+    expect(first.idempotentReplay).toBe(false);
+    expect(second.idempotentReplay).toBe(true);
+    expect(first.invalidatedCount).toBe(second.invalidatedCount);
+    expect(
+      await prisma.businessAuditOutbox.count({
+        where: { idempotencyKey: `dimo-source-link:RECOVERY:audit:v1:${idempotencyKey}` },
+      }),
+    ).toBe(1);
+  });
+
+  it('recovery rejects idempotency key reused for different vehicle', async () => {
+    const seedA = await seed(prisma);
+    const seedB = await seed(prisma);
+    const idempotencyKey = randomUUID();
+    await prisma.vehicleDataSourceLink.updateMany({
+      where: { id: { in: [seedA.linkId, seedB.linkId] } },
+      data: { isActive: false, deactivatedAt: new Date() },
+    });
+    await svc().recoverFsdRunsForInactiveLinkAudited({
+      organizationId: seedA.organizationId,
+      vehicleId: seedA.vehicleId,
+      providerSourceLinkId: seedA.linkId,
+      actorUserId: seedA.actorUserId,
+      idempotencyKey,
+      recoveryReason: 'OOB_RECOVERY',
+    });
+    await expect(
+      svc().recoverFsdRunsForInactiveLinkAudited({
+        organizationId: seedB.organizationId,
+        vehicleId: seedB.vehicleId,
+        providerSourceLinkId: seedB.linkId,
+        actorUserId: seedB.actorUserId,
+        idempotencyKey,
+        recoveryReason: 'OOB_RECOVERY',
+      }),
+    ).rejects.toMatchObject({ code: 'OUTBOX_IDEMPOTENCY_CONFLICT' });
+  });
+
+  it('recovery rejects different actor on same idempotency key', async () => {
+    const { organizationId, vehicleId, linkId, actorUserId } = await seed(prisma);
+    await prisma.vehicleDataSourceLink.update({
+      where: { id: linkId },
+      data: { isActive: false, deactivatedAt: new Date() },
+    });
+    const idempotencyKey = randomUUID();
+    await svc().recoverFsdRunsForInactiveLinkAudited({
+      organizationId,
+      vehicleId,
+      providerSourceLinkId: linkId,
+      actorUserId,
+      idempotencyKey,
+      recoveryReason: 'OOB_RECOVERY',
+    });
+    await expect(
+      svc().recoverFsdRunsForInactiveLinkAudited({
+        organizationId,
+        vehicleId,
+        providerSourceLinkId: linkId,
+        actorUserId: randomUUID(),
+        idempotencyKey,
+        recoveryReason: 'OOB_RECOVERY',
+      }),
+    ).rejects.toMatchObject({ code: 'OUTBOX_IDEMPOTENCY_CONFLICT' });
+  });
+
   it('already inactive link without audit record fails closed', async () => {
     const { organizationId, vehicleId, linkId, actorUserId } = await seed(prisma);
     await prisma.vehicleDataSourceLink.update({

@@ -3,6 +3,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
   Optional,
@@ -42,13 +43,12 @@ export class DimoVehicleDataSourceLinkService {
 
   constructor(
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => FsdSourceLinkLifecycleService))
+    private readonly fsdSourceLinkLifecycle: FsdSourceLinkLifecycleService,
     @Optional()
     private readonly connectivityObservability?: ConnectivityObservabilityService,
     @Optional()
     private readonly vsiProfileLifecycleEnqueue?: VsiProfileLifecycleEnqueueService,
-    @Optional()
-    @Inject(forwardRef(() => FsdSourceLinkLifecycleService))
-    private readonly fsdSourceLinkLifecycle?: FsdSourceLinkLifecycleService,
   ) {}
 
   /**
@@ -261,47 +261,16 @@ export class DimoVehicleDataSourceLinkService {
         input.consentId !== undefined
           ? input.consentId
           : inactiveMatch.consentId;
-      const updated = await client.vehicleDataSourceLink.update({
-        where: { id: inactiveMatch.id },
-        data: {
-          isActive: true,
-          deactivatedAt: null,
-          activatedAt: now,
-          lastVerifiedAt: now,
-          consentId,
-          linkedByUserId: input.linkedByUserId ?? inactiveMatch.linkedByUserId,
-          metadata: this.buildMetadata(dimoVehicle.externalId, input),
-        },
-      });
-      if (this.fsdSourceLinkLifecycle && client !== this.prisma) {
-        await this.fsdSourceLinkLifecycle.invalidateSingleDimoSourceLinkForLifecycle(client, {
-          organizationId: input.organizationId,
-          vehicleId: input.vehicleId,
-          providerSourceLinkId: updated.id,
-          invalidationReason: FSD_SOURCE_LINK_INVALIDATION_REASON_REACTIVATED,
-        });
-      }
-      this.observeBinding('reactivated', input.provenance);
-      this.logger.log(
-        `DIMO link reactivated vehicle=${input.vehicleId} link=${updated.id} provenance=${input.provenance ?? 'unknown'}`,
-      );
-      await this.vsiProfileLifecycleEnqueue?.enqueueSourceLinkActivated(
-        {
-          organizationId: input.organizationId,
-          vehicleId: input.vehicleId,
-          providerSourceLinkId: updated.id,
-          occurredAt: now,
-          reason: input.provenance ?? 'dimo_link_reactivated',
-        },
+      return this.reactivateInactiveDimoLinkInTransaction({
+        input,
         client,
-      );
-      return {
-        action: 'REACTIVATE',
-        linkId: updated.id,
-        reason: 'reactivated_inactive_link',
+        inactiveLinkId: inactiveMatch.id,
+        inactiveConsentId: consentId,
+        inactiveLinkedByUserId: inactiveMatch.linkedByUserId,
+        dimoVehicle,
         dimoVehicleId,
-        consentId: updated.consentId,
-      };
+        now,
+      });
     }
 
     const inactiveConflict = links.find(
@@ -755,6 +724,83 @@ export class DimoVehicleDataSourceLinkService {
       applied,
       vehicles: reports,
     };
+  }
+
+  private assertFsdLifecycleInvalidationAvailable(): void {
+    if (!this.fsdSourceLinkLifecycle) {
+      throw new InternalServerErrorException({
+        code: 'FSD_SOURCE_LINK_INVALIDATION_UNAVAILABLE',
+        message: 'FSD source-link invalidation is required for DIMO link reactivation',
+      });
+    }
+  }
+
+  private async reactivateInactiveDimoLinkInTransaction(params: {
+    input: EnsureDimoVehicleDataSourceLinkInput;
+    client: DbClient;
+    inactiveLinkId: string;
+    inactiveConsentId: string | null;
+    inactiveLinkedByUserId: string | null;
+    dimoVehicle: { externalId: string };
+    dimoVehicleId: string;
+    now: Date;
+  }): Promise<EnsureDimoVehicleDataSourceLinkResult> {
+    this.assertFsdLifecycleInvalidationAvailable();
+
+    const run = async (tx: DbClient): Promise<EnsureDimoVehicleDataSourceLinkResult> => {
+      const consentId = params.inactiveConsentId;
+      const updated = await tx.vehicleDataSourceLink.update({
+        where: { id: params.inactiveLinkId },
+        data: {
+          isActive: true,
+          deactivatedAt: null,
+          activatedAt: params.now,
+          lastVerifiedAt: params.now,
+          consentId,
+          linkedByUserId: params.input.linkedByUserId ?? params.inactiveLinkedByUserId,
+          metadata: this.buildMetadata(params.dimoVehicle.externalId, params.input),
+        },
+      });
+
+      await this.fsdSourceLinkLifecycle.invalidateSingleDimoSourceLinkForLifecycle(
+        tx as Prisma.TransactionClient,
+        {
+          organizationId: params.input.organizationId,
+          vehicleId: params.input.vehicleId,
+          providerSourceLinkId: updated.id,
+          invalidationReason: FSD_SOURCE_LINK_INVALIDATION_REASON_REACTIVATED,
+        },
+      );
+
+      await this.vsiProfileLifecycleEnqueue?.enqueueSourceLinkActivated(
+        {
+          organizationId: params.input.organizationId,
+          vehicleId: params.input.vehicleId,
+          providerSourceLinkId: updated.id,
+          occurredAt: params.now,
+          reason: params.input.provenance ?? 'dimo_link_reactivated',
+        },
+        tx,
+      );
+
+      this.observeBinding('reactivated', params.input.provenance);
+      this.logger.log(
+        `DIMO link reactivated vehicle=${params.input.vehicleId} link=${updated.id} provenance=${params.input.provenance ?? 'unknown'}`,
+      );
+
+      return {
+        action: 'REACTIVATE',
+        linkId: updated.id,
+        reason: 'reactivated_inactive_link',
+        dimoVehicleId: params.dimoVehicleId,
+        consentId: updated.consentId,
+      };
+    };
+
+    if (params.client === this.prisma) {
+      return this.prisma.$transaction(async (tx) => run(tx));
+    }
+    return run(params.client);
   }
 
   private buildMetadata(

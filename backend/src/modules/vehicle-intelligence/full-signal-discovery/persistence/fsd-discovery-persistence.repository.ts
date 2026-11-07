@@ -21,6 +21,7 @@ import {
   assertFsdDiscoveryStageTransition,
   buildFsdDimoConnectionIdentityFingerprint,
   FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES,
+  FSD_DISCOVERY_RUN_LEASE_RENEWAL_TTL_MS_V1,
   FsdDiscoveryPersistenceError,
   isFsdDiscoveryStageTerminal,
   type FsdDiscoveryRunIdentityV1,
@@ -846,12 +847,9 @@ export class FsdDiscoveryPersistenceRepository {
     runId: string;
     expectedVersion: number;
     leaseOwner: string;
-    leaseExpiresAt: Date;
   }): Promise<{ renewed: boolean; version: number }> {
     const now = new Date();
-    if (input.leaseExpiresAt.getTime() <= now.getTime()) {
-      return { renewed: false, version: input.expectedVersion };
-    }
+    const nextLeaseExpiresAt = new Date(now.getTime() + FSD_DISCOVERY_RUN_LEASE_RENEWAL_TTL_MS_V1);
     return this.withSourceLinkLock(input.scope, async (tx) => {
       const result = await tx.fsdDiscoveryRun.updateMany({
         where: {
@@ -863,9 +861,10 @@ export class FsdDiscoveryPersistenceRepository {
           invalidatedAt: null,
           status: { in: [...FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES] },
           leaseOwner: input.leaseOwner,
+          leaseExpiresAt: { gt: now },
         },
         data: {
-          leaseExpiresAt: input.leaseExpiresAt,
+          leaseExpiresAt: nextLeaseExpiresAt,
           version: { increment: 1 },
         },
       });

@@ -72,6 +72,9 @@ export function buildFsdDimoConnectionIdentityFingerprint(input: {
 
 export const FSD_DISCOVERY_RUN_EXECUTABLE_STATUSES = ['PENDING', 'IN_PROGRESS'] as const;
 
+/** Bounded lease extension on each successful renewal while the DB lease is still active. */
+export const FSD_DISCOVERY_RUN_LEASE_RENEWAL_TTL_MS_V1 = 120_000;
+
 export const FSD_DISCOVERY_RUN_ALLOWED_TRANSITIONS: Record<string, readonly string[]> = {
   PENDING: ['IN_PROGRESS', 'INVALIDATED', 'FAILED'],
   IN_PROGRESS: ['COMPLETED', 'FAILED', 'INVALIDATED'],

@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import type { FsdSourceLinkLifecycleService } from '@modules/vehicle-intelligence/fsd-integration/fsd-source-link-lifecycle.service';
 import { DimoVehicleDataSourceLinkService } from './dimo-vehicle-data-source-link.service';
 import {
   DIMO_DATA_SOURCE_PROVIDER,
@@ -80,6 +81,24 @@ function hmLink(overrides: Partial<MockLink> & Pick<MockLink, 'vehicleId'>): Moc
     metadata: null,
     ...overrides,
   };
+}
+
+function stubFsdLifecycle(): FsdSourceLinkLifecycleService {
+  return {
+    invalidateSingleDimoSourceLinkForLifecycle: jest.fn().mockResolvedValue({ invalidatedCount: 0 }),
+  } as unknown as FsdSourceLinkLifecycleService;
+}
+
+function withMockTransaction<T extends Record<string, unknown>>(prisma: T): T {
+  const p = prisma as T & { $transaction?: (fn: (tx: T) => unknown) => Promise<unknown> };
+  if (!p.$transaction) {
+    p.$transaction = jest.fn(async (fn: (tx: T) => unknown) => fn(prisma));
+  }
+  return p;
+}
+
+function linkService(mock: ReturnType<typeof createMockPrisma>, fsd = stubFsdLifecycle()) {
+  return new DimoVehicleDataSourceLinkService(withMockTransaction(mock) as never, fsd);
 }
 
 function createMockPrisma(store: MockStore) {
@@ -254,7 +273,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
   it('rejects link ensure when vehicle registry is not ACTIVE', async () => {
     const store = baseStore();
     store.vehicles[0].registryLifecycle = 'OFFBOARDED';
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     const result = await service.ensureDimoVehicleDataSourceLink(baseInput);
     expect(result.action).toBe('CONFLICT');
     expect(result.reason).toBe('vehicle_registry_not_operational');
@@ -263,7 +282,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
 
   it('L1 / D1 — missing DIMO link + valid relation → CREATE with dimoVehicleId', async () => {
     const store = baseStore();
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     const result = await service.ensureDimoVehicleDataSourceLink(baseInput);
     expect(result.action).toBe('CREATE');
     expect(store.links).toHaveLength(1);
@@ -274,7 +293,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
 
   it('D2 — DIMO create does NOT set sourceReferenceId to DimoVehicle.id', async () => {
     const store = baseStore();
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     await service.ensureDimoVehicleDataSourceLink(baseInput);
     expect(store.links[0].sourceReferenceId).toBeNull();
     expect(store.links[0].dimoVehicleId).toBe('dimo-1');
@@ -290,7 +309,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
         activatedAt: new Date('2026-01-01'),
       }),
     );
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     const result = await service.ensureDimoVehicleDataSourceLink(baseInput);
     expect(result.action).toBe('NOOP');
     expect(store.links).toHaveLength(1);
@@ -298,7 +317,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
 
   it('L3 — retry same registration → no duplicate', async () => {
     const store = baseStore();
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     const first = await service.ensureDimoVehicleDataSourceLink(baseInput);
     const second = await service.ensureDimoVehicleDataSourceLink(baseInput);
     expect(first.action).toBe('CREATE');
@@ -309,7 +328,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
   it('L4 / D5 — cross-tenant DimoVehicle binding mismatch → reject', async () => {
     const store = baseStore();
     store.vehicles[0].dimoVehicleId = 'dimo-other';
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     const result = await service.ensureDimoVehicleDataSourceLink(baseInput);
     expect(result.action).toBe('CONFLICT');
     expect(result.reason).toBe('vehicle_dimo_binding_mismatch');
@@ -324,7 +343,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
         dimoVehicleId: 'dimo-other',
       }),
     );
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     const result = await service.ensureDimoVehicleDataSourceLink(baseInput);
     expect(result.action).toBe('CONFLICT');
     expect(result.reason).toBe('conflicting_active_dimo_vehicle');
@@ -342,7 +361,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
         grantedAt: new Date('2026-01-01'),
       },
     ];
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     const provenance = await service.resolveConsentProvenance('veh-1', 'org-1');
     expect(provenance.selection).toBe('latest_inactive');
     expect(provenance.consentStatus).toBe('REVOKED');
@@ -360,7 +379,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
         dimoVehicleId: 'dimo-other',
       }),
     );
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     await expect(
       service.ensureDimoVehicleDataSourceLinkOrThrow(baseInput, createMockPrisma(store) as any),
     ).rejects.toBeInstanceOf(ConflictException);
@@ -369,7 +388,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
   it('L8 / H1 — High Mobility path unaffected (no DIMO rows touched)', async () => {
     const store = baseStore();
     store.links.push(hmLink({ id: 'hm-link', vehicleId: 'veh-1' }));
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     const result = await service.ensureDimoVehicleDataSourceLink(baseInput);
     expect(result.action).toBe('CREATE');
     expect(store.links.filter((l) => l.provider === 'HIGH_MOBILITY')).toHaveLength(1);
@@ -397,7 +416,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
         metadata: { reactivationEligible: true },
       }),
     );
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     const result = await service.ensureDimoVehicleDataSourceLink(baseInput);
     expect(result.action).toBe('REACTIVATE');
     expect(store.links[0].isActive).toBe(true);
@@ -416,7 +435,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
         metadata: { intentionalDeactivation: true },
       }),
     );
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     const result = await service.ensureDimoVehicleDataSourceLink(baseInput);
     expect(result.action).toBe('CONFLICT');
     expect(result.reason).toBe('intentional_deactivation');
@@ -426,7 +445,7 @@ describe('DimoVehicleDataSourceLinkService', () => {
   it('D10 — legacy HM FK column not used for DIMO identity on create', async () => {
     const store = baseStore();
     const prisma = createMockPrisma(store) as any;
-    const service = new DimoVehicleDataSourceLinkService(prisma);
+    const service = linkService(prisma);
     await service.ensureDimoVehicleDataSourceLink(baseInput);
     const createCall = prisma.vehicleDataSourceLink.create.mock.calls[0][0];
     expect(createCall.data.dimoVehicleId).toBe('dimo-1');
@@ -441,7 +460,7 @@ describe('DimoVehicleDataSourceLinkService backfill planning', () => {
     prisma.vehicle.findMany = jest.fn(async ({ where }: any) =>
       vehicleRowsFromStore(store, where.organizationId),
     );
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const summary = await service.runBackfill({ organizationId: 'org-1', apply: false });
     expect(summary.mode).toBe('dry-run');
     expect(summary.plannedCreate).toBe(1);
@@ -454,7 +473,7 @@ describe('DimoVehicleDataSourceLinkService backfill planning', () => {
     store.links.push(dimoLink({ id: 'link-1', vehicleId: 'veh-1', consentId: 'consent-active' }));
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const summary = await service.runBackfill({ organizationId: 'org-1', apply: false });
     expect(summary.plannedNoop).toBe(1);
   });
@@ -463,7 +482,7 @@ describe('DimoVehicleDataSourceLinkService backfill planning', () => {
     const store = baseStore();
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const first = await service.runBackfill({ organizationId: 'org-1', apply: true });
     const second = await service.runBackfill({ organizationId: 'org-1', apply: true });
     expect(first.applied).toBe(1);
@@ -475,7 +494,7 @@ describe('DimoVehicleDataSourceLinkService backfill planning', () => {
     const store = baseStore();
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const summary = await service.runBackfill({ organizationId: 'org-1', apply: true });
     expect(summary.applied).toBe(1);
     expect(store.links).toHaveLength(1);
@@ -490,7 +509,7 @@ describe('DimoVehicleDataSourceLinkService backfill planning', () => {
       licensePlate: 'OTHER',
     });
     store.links.push(dimoLink({ id: 'link-org2', vehicleId: 'veh-2' }));
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     const result = await service.ensureDimoVehicleDataSourceLink({
       organizationId: 'org-1',
       vehicleId: 'veh-1',
@@ -516,7 +535,7 @@ describe('DimoVehicleDataSourceLinkService backfill planning', () => {
     );
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const summary = await service.runBackfill({ organizationId: 'org-1', apply: true });
     expect(summary.plannedConflict).toBe(1);
     expect(summary.plannedReactivate).toBe(0);
@@ -538,7 +557,7 @@ describe('DimoVehicleDataSourceLinkService backfill planning', () => {
     ];
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const summary = await service.runBackfill({ organizationId: 'org-1', apply: false });
     expect(summary.plannedCreate).toBe(1);
     const provenance = await service.resolveConsentProvenance('veh-1', 'org-1');
@@ -550,7 +569,7 @@ describe('DimoVehicleDataSourceLinkService backfill planning', () => {
     const store = baseStore();
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const summary = await service.runBackfill({ organizationId: 'org-1', apply: false });
     expect(summary.vehicles[0].candidateDimoVehicleId).toBe('dimo-1');
     expect(summary.vehicles[0].plannedAction).toBe('CREATE');
@@ -560,7 +579,7 @@ describe('DimoVehicleDataSourceLinkService backfill planning', () => {
     const store = baseStore();
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     await service.runBackfill({ organizationId: 'org-1', apply: true });
     expect(store.links[0].dimoVehicleId).toBe('dimo-1');
     expect(store.links[0].sourceReferenceId).toBeNull();
@@ -573,7 +592,7 @@ describe('DimoVehicleDataSourceLinkService backfill planning', () => {
     );
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const summary = await service.runBackfill({ organizationId: 'org-1', apply: false });
     expect(summary.plannedConflict).toBe(1);
     expect(summary.vehicles[0].reason).toBe('conflicting_active_dimo_vehicle');
@@ -585,7 +604,7 @@ describe('DimoVehicleDataSourceLinkService reconciliation', () => {
     const store = baseStore();
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const drift = await service.auditProviderLinkDrift({ organizationId: 'org-1' });
     expect(drift.missingLink).toBe(1);
   });
@@ -595,7 +614,7 @@ describe('DimoVehicleDataSourceLinkService reconciliation', () => {
     store.links.push(dimoLink({ id: 'link-1', vehicleId: 'veh-1' }));
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const drift = await service.auditProviderLinkDrift({ organizationId: 'org-1' });
     expect(drift.healthy).toBe(1);
     expect(drift.missingLink).toBe(0);
@@ -609,7 +628,7 @@ describe('DimoVehicleDataSourceLinkService reconciliation', () => {
     );
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const drift = await service.auditProviderLinkDrift({ organizationId: 'org-1' });
     expect(drift.ambiguous).toBe(1);
     const result = await service.reconcileSafeDrift({
@@ -632,7 +651,7 @@ describe('DimoVehicleDataSourceLinkService reconciliation', () => {
     prisma.vehicle.findMany = jest.fn(async ({ where }: any) =>
       vehicleRowsFromStore(store, where.organizationId),
     );
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const result = await service.reconcileSafeDrift({
       organizationId: 'org-1',
       apply: true,
@@ -645,7 +664,7 @@ describe('DimoVehicleDataSourceLinkService reconciliation', () => {
     const store = baseStore();
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const first = await service.reconcileSafeDrift({
       organizationId: 'org-1',
       apply: true,
@@ -667,7 +686,7 @@ describe('DimoVehicleDataSourceLinkService reconciliation', () => {
     store.links.push(hmLink({ id: 'hm-only', vehicleId: 'veh-1' }));
     const prisma = createMockPrisma(store) as any;
     prisma.vehicle.findMany = jest.fn(async () => vehicleRowsFromStore(store));
-    const service = new DimoVehicleDataSourceLinkService(prisma as any);
+    const service = linkService(prisma);
     const drift = await service.auditProviderLinkDrift({ organizationId: 'org-1' });
     expect(drift.missingLink).toBe(1);
     expect(drift.healthy).toBe(0);
@@ -685,7 +704,7 @@ describe('DimoVehicleDataSourceLinkService validation', () => {
   it('throws when vehicle is missing', async () => {
     const store = baseStore();
     store.vehicles = [];
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     await expect(service.ensureDimoVehicleDataSourceLink(baseInput)).rejects.toBeInstanceOf(
       NotFoundException,
     );
@@ -694,7 +713,7 @@ describe('DimoVehicleDataSourceLinkService validation', () => {
   it('D4 — nonexistent DimoVehicle → NotFoundException', async () => {
     const store = baseStore();
     store.dimoVehicles = [];
-    const service = new DimoVehicleDataSourceLinkService(createMockPrisma(store) as any);
+    const service = linkService(createMockPrisma(store));
     await expect(service.ensureDimoVehicleDataSourceLink(baseInput)).rejects.toBeInstanceOf(
       NotFoundException,
     );
@@ -705,7 +724,7 @@ describe('registerFromDimo DIMO link materialization (D9)', () => {
   it('transactional ensure creates Vehicle + link with dimoVehicleId only', async () => {
     const store = baseStore();
     const prisma = createMockPrisma(store) as any;
-    const service = new DimoVehicleDataSourceLinkService(prisma);
+    const service = linkService(prisma);
 
     const result = await service.ensureDimoVehicleDataSourceLinkOrThrow(
       {

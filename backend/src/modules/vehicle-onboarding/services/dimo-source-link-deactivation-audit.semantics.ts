@@ -141,3 +141,90 @@ export function assertDimoSourceLinkDeactivationAuditSemanticMatch(
 export function resolveDimoSourceLinkDeactivationAuditIdempotencyKey(idempotencyKey: string): string {
   return `dimo-source-link:DEACTIVATED:audit:v1:${idempotencyKey}`;
 }
+
+export type ExpectedDimoSourceLinkRecoverySemanticsV1 = {
+  organizationId: string;
+  vehicleId: string;
+  providerSourceLinkId: string;
+  actorUserId: string;
+  recoveryReason: string;
+  note?: string;
+};
+
+export function buildExpectedDimoSourceLinkRecoverySemantics(
+  input: ExpectedDimoSourceLinkRecoverySemanticsV1,
+): ExpectedDimoSourceLinkRecoverySemanticsV1 {
+  return { ...input };
+}
+
+type ParsedRecoveryAuditMetadata = {
+  vehicleId: string;
+  organizationId: string;
+  providerSourceLinkId: string;
+  actorUserId: string;
+  recoveryReason: string;
+  invalidatedCount: number;
+  note?: string;
+};
+
+function parseRecoveryAuditPayload(payload: unknown): ParsedRecoveryAuditMetadata | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const meta = (payload as { metadata?: unknown }).metadata;
+  if (!meta || typeof meta !== 'object') return null;
+  const m = meta as Record<string, unknown>;
+  if (
+    typeof m.vehicleId !== 'string' ||
+    typeof m.organizationId !== 'string' ||
+    typeof m.providerSourceLinkId !== 'string' ||
+    typeof m.actorUserId !== 'string' ||
+    typeof m.recoveryReason !== 'string' ||
+    typeof m.invalidatedCount !== 'number'
+  ) {
+    return null;
+  }
+  return {
+    vehicleId: m.vehicleId,
+    organizationId: m.organizationId,
+    providerSourceLinkId: m.providerSourceLinkId,
+    actorUserId: m.actorUserId,
+    recoveryReason: m.recoveryReason,
+    invalidatedCount: m.invalidatedCount,
+    ...(typeof m.note === 'string' ? { note: m.note } : {}),
+  };
+}
+
+export function dimoSourceLinkRecoveryAuditSemanticMatch(
+  existing: Pick<BusinessAuditOutbox, 'entityId' | 'organizationId' | 'action' | 'payload'>,
+  expected: ExpectedDimoSourceLinkRecoverySemanticsV1,
+): boolean {
+  if (
+    existing.action !== BusinessAuditAction.DIMO_SOURCE_LINK_FSD_RECOVERY_INVALIDATION ||
+    existing.entityId !== expected.vehicleId ||
+    existing.organizationId !== expected.organizationId
+  ) {
+    return false;
+  }
+  const parsed = parseRecoveryAuditPayload(existing.payload);
+  if (!parsed) return false;
+  const noteMatches = (parsed.note ?? undefined) === (expected.note ?? undefined);
+  return (
+    parsed.vehicleId === expected.vehicleId &&
+    parsed.organizationId === expected.organizationId &&
+    parsed.providerSourceLinkId === expected.providerSourceLinkId &&
+    parsed.actorUserId === expected.actorUserId &&
+    parsed.recoveryReason === expected.recoveryReason &&
+    noteMatches
+  );
+}
+
+export function assertDimoSourceLinkRecoveryAuditSemanticMatch(
+  existing: Pick<BusinessAuditOutbox, 'entityId' | 'organizationId' | 'action' | 'payload'>,
+  expected: ExpectedDimoSourceLinkRecoverySemanticsV1,
+): void {
+  if (!dimoSourceLinkRecoveryAuditSemanticMatch(existing, expected)) {
+    throw new VehicleOnboardingError(
+      'OUTBOX_IDEMPOTENCY_CONFLICT',
+      'Dimo source-link recovery idempotency key belongs to a different operation',
+    );
+  }
+}
