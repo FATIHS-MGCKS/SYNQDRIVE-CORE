@@ -2913,3 +2913,13 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | WHY | Per-trip MC too expensive; short horizon gate semantics |
 | VALIDATION | W0 regression |
 
+### 2026-11-07 — DBI D8 V2 research sidecar (descriptive + Greenwood)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `ds4-dbi-d8-v2-event-intelligence.research.v1.ts`, Jest suite, optional `research:ds4-dbi-d8-v2-replay` CLI, `DBI_D8_V2_RESEARCH.md` |
+| WHY | Fable two-layer D8: descriptive event intelligence + bin-free Greenwood burstiness candidate; frozen D8 V1 unchanged |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (122); Tesla artifact replay when present |
+| NON_EFFECTS | No W1C/D8 V1 threshold/API/UI/production changes; inference withheld below nMin=10 |
+| REMAINING | Architect review; no F04 trust promotion |
+
