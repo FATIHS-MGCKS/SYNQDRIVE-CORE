@@ -26,7 +26,7 @@ describe('fsd-provider-outcome.util.v1 (ledger classification)', () => {
   const interpretedOk = okInterpreted(fields);
 
   describe('classifyFsd3CatalogProviderLedgerOutcomeV1', () => {
-    it('succeeds for empty catalog list', () => {
+    it('succeeds for HTTP_200_OK + empty catalog list', () => {
       expect(
         classifyFsd3CatalogProviderLedgerOutcomeV1({
           availableSignals: [],
@@ -37,18 +37,40 @@ describe('fsd-provider-outcome.util.v1 (ledger classification)', () => {
       ).toEqual({ ledgerOutcome: 'SUCCEEDED' });
     });
 
-    it('unknown on HTTP_429', () => {
+    it('unknown on HTTP_429 even when catalogFetchSucceeded contradicts', () => {
       expect(
         classifyFsd3CatalogProviderLedgerOutcomeV1({
-          availableSignals: [],
+          availableSignals: ['speed'],
           httpStatus: 429,
-          catalogFetchSucceeded: false,
+          catalogFetchSucceeded: true,
           providerOutcomeKind: 'HTTP_429',
         }),
       ).toEqual({ ledgerOutcome: 'UNKNOWN', stageOutcome: 'UNKNOWN_OUTCOME' });
     });
 
-    it('failed on malformed catalog', () => {
+    it('unknown on HTTP_5XX even when catalogFetchSucceeded contradicts', () => {
+      expect(
+        classifyFsd3CatalogProviderLedgerOutcomeV1({
+          availableSignals: ['speed'],
+          httpStatus: 503,
+          catalogFetchSucceeded: true,
+          providerOutcomeKind: 'HTTP_5XX',
+        }),
+      ).toEqual({ ledgerOutcome: 'UNKNOWN', stageOutcome: 'UNKNOWN_OUTCOME' });
+    });
+
+    it('failed on HTTP_200_OK + catalogFetchSucceeded false', () => {
+      expect(
+        classifyFsd3CatalogProviderLedgerOutcomeV1({
+          availableSignals: [],
+          httpStatus: 200,
+          catalogFetchSucceeded: false,
+          providerOutcomeKind: 'HTTP_200_OK',
+        }),
+      ).toEqual({ ledgerOutcome: 'FAILED' });
+    });
+
+    it('failed on malformed catalog classified outcome', () => {
       expect(
         classifyFsd3CatalogProviderLedgerOutcomeV1({
           availableSignals: [],
@@ -57,6 +79,15 @@ describe('fsd-provider-outcome.util.v1 (ledger classification)', () => {
           providerOutcomeKind: 'MALFORMED_RESPONSE',
         }),
       ).toEqual({ ledgerOutcome: 'FAILED' });
+    });
+
+    it('legacy mock succeeds without providerOutcomeKind', () => {
+      expect(
+        classifyFsd3CatalogProviderLedgerOutcomeV1({
+          availableSignals: ['speed'],
+          httpStatus: 200,
+        }),
+      ).toEqual({ ledgerOutcome: 'SUCCEEDED' });
     });
   });
 

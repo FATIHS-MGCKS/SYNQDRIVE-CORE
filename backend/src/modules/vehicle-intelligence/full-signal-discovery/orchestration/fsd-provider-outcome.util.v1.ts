@@ -35,53 +35,78 @@ function legacyHistoricalDispatchSucceededV1(
   return true;
 }
 
-function catalogFetchSucceededV1(
-  response: Fsd3ProviderCatalogResultV1 | Fsd4ProviderCatalogResultV1,
-): boolean {
-  if (response.catalogFetchSucceeded === true && Array.isArray(response.availableSignals)) {
-    return true;
+type FsdCatalogProviderResponseV1 = Fsd3ProviderCatalogResultV1 | Fsd4ProviderCatalogResultV1;
+
+/** SUCCEEDED requires HTTP 200, array catalog, non-false success flag, and no contradictory classified outcome. */
+function catalogProviderSuccessInvariantV1(response: FsdCatalogProviderResponseV1): boolean {
+  if (response.httpStatus !== 200) {
+    return false;
   }
-  if (
-    response.catalogFetchSucceeded === undefined &&
-    response.httpStatus === 200 &&
-    Array.isArray(response.availableSignals)
-  ) {
-    return true;
+  if (!Array.isArray(response.availableSignals)) {
+    return false;
   }
-  return false;
+  if (response.catalogFetchSucceeded === false) {
+    return false;
+  }
+  const kind = response.providerOutcomeKind;
+  if (kind != null && kind !== 'HTTP_200_OK') {
+    return false;
+  }
+  return true;
 }
 
-/** Catalog attempt: SUCCEEDED only when provider attests a valid catalog shape (including empty list). */
+function classifyCatalogByProviderOutcomeKindV1(
+  kind: FsdDimoGraphqlOutcomeKindV1,
+): FsdCatalogProviderLedgerOutcomeV1 {
+  if (
+    kind === 'HTTP_429' ||
+    kind === 'HTTP_5XX' ||
+    kind === 'TIMEOUT_OR_NETWORK_UNKNOWN' ||
+    kind === 'OVERSIZED_RESPONSE'
+  ) {
+    return { ledgerOutcome: 'UNKNOWN', stageOutcome: 'UNKNOWN_OUTCOME' };
+  }
+  if (
+    kind === 'HTTP_401' ||
+    kind === 'HTTP_403' ||
+    kind === 'HTTP_400' ||
+    kind === 'HTTP_422' ||
+    kind === 'QUERY_FINGERPRINT_MISMATCH'
+  ) {
+    return { ledgerOutcome: 'FAILED' };
+  }
+  if (
+    kind === 'GRAPHQL_ERRORS_NO_DATA' ||
+    kind === 'MALFORMED_RESPONSE' ||
+    kind === 'HTTP_200_PARTIAL_GRAPHQL_ERRORS'
+  ) {
+    return { ledgerOutcome: 'FAILED' };
+  }
+  return { ledgerOutcome: 'UNKNOWN', stageOutcome: 'UNKNOWN_OUTCOME' };
+}
+
+/**
+ * Catalog attempt: classified outcomes win over contradictory success flags;
+ * legacy mock compatibility applies only when providerOutcomeKind is absent.
+ */
 export function classifyFsd3CatalogProviderLedgerOutcomeV1(
   response: Fsd3ProviderCatalogResultV1,
 ): FsdCatalogProviderLedgerOutcomeV1 {
-  if (catalogFetchSucceededV1(response)) {
-    return { ledgerOutcome: 'SUCCEEDED' };
-  }
   const kind = response.providerOutcomeKind;
   if (kind != null) {
-    if (
-      kind === 'HTTP_429' ||
-      kind === 'HTTP_5XX' ||
-      kind === 'TIMEOUT_OR_NETWORK_UNKNOWN' ||
-      kind === 'OVERSIZED_RESPONSE'
-    ) {
-      return { ledgerOutcome: 'UNKNOWN', stageOutcome: 'UNKNOWN_OUTCOME' };
+    if (kind !== 'HTTP_200_OK') {
+      return classifyCatalogByProviderOutcomeKindV1(kind);
     }
-    if (
-      kind === 'HTTP_401' ||
-      kind === 'HTTP_403' ||
-      kind === 'HTTP_400' ||
-      kind === 'HTTP_422' ||
-      kind === 'QUERY_FINGERPRINT_MISMATCH'
-    ) {
-      return { ledgerOutcome: 'FAILED' };
+    if (catalogProviderSuccessInvariantV1(response)) {
+      return { ledgerOutcome: 'SUCCEEDED' };
     }
-    if (kind === 'GRAPHQL_ERRORS_NO_DATA' || kind === 'MALFORMED_RESPONSE') {
-      return { ledgerOutcome: 'FAILED' };
-    }
-    return { ledgerOutcome: 'UNKNOWN', stageOutcome: 'UNKNOWN_OUTCOME' };
+    return { ledgerOutcome: 'FAILED' };
   }
+
+  if (catalogProviderSuccessInvariantV1(response)) {
+    return { ledgerOutcome: 'SUCCEEDED' };
+  }
+
   const http = response.httpStatus;
   if (http === 401 || http === 403 || http === 400 || http === 422) {
     return { ledgerOutcome: 'FAILED' };

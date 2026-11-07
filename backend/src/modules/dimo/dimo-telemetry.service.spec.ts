@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { DimoTelemetryService } from './dimo-telemetry.service';
 import { DimoProviderGateway } from './provider/dimo-provider-gateway.service';
@@ -311,6 +311,12 @@ describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
     let fsdReleasePermit: jest.Mock;
 
     beforeEach(() => {
+      mockedAxios.isAxiosError.mockImplementation(
+        (candidate): candidate is AxiosError =>
+          typeof candidate === 'object' &&
+          candidate !== null &&
+          (candidate as AxiosError).isAxiosError === true,
+      );
       const { gateway, limiterSetCooldown: gwCooldown } = createOffGateway();
       fsdLimiterCooldown = gwCooldown;
       fsdGatewaySpy = jest.spyOn(gateway, 'execute');
@@ -475,6 +481,59 @@ describe('DimoTelemetryService (P1.3 gateway + global budget parity)', () => {
 
       expect(result.kind).toBe('QUERY_FINGERPRINT_MISMATCH');
       expect(postMock).not.toHaveBeenCalled();
+    });
+
+    it('passes maxContentLength on FSD query path only', async () => {
+      postMock.mockResolvedValue({ status: 200, data: { data: { availableSignals: ['speed'] } } });
+      const q = 'query X { availableSignals(tokenId: 1) }';
+      const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
+      await fsdService.queryFsdGraphql({
+        vehicleJwt,
+        query: q,
+        expectedQueryFingerprint: fp,
+      });
+      expect(postMock.mock.calls[0][2].maxContentLength).toBeGreaterThan(0);
+      expect(postMock.mock.calls[0][2].maxBodyLength).toBeGreaterThan(0);
+
+      postMock.mockClear();
+      postMock.mockResolvedValue({ data: { data: { x: 1 } } });
+      await service.queryGraphQL(vehicleJwt, 'query { x }');
+      expect(postMock.mock.calls[0][2].maxContentLength).toBeUndefined();
+      expect(postMock.mock.calls[0][2].maxBodyLength).toBeUndefined();
+    });
+
+    it('classifies axios maxContentLength transport errors as OVERSIZED_RESPONSE', async () => {
+      postMock.mockRejectedValue({
+        isAxiosError: true,
+        message: 'maxContentLength size of 65536 exceeded',
+        code: 'ERR_BAD_RESPONSE',
+        name: 'AxiosError',
+      });
+      const q = 'query L { x }';
+      const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
+      const result = await fsdService.queryFsdGraphql({
+        vehicleJwt,
+        query: q,
+        expectedQueryFingerprint: fp,
+      });
+      expect(result.kind).toBe('OVERSIZED_RESPONSE');
+    });
+
+    it('does not classify unrelated ERR_BAD_RESPONSE as OVERSIZED_RESPONSE', async () => {
+      postMock.mockRejectedValue({
+        isAxiosError: true,
+        message: 'Request failed with status code 502',
+        code: 'ERR_BAD_RESPONSE',
+        name: 'AxiosError',
+      });
+      const q = 'query B { x }';
+      const fp = computeFsdQueryFingerprintV1(normalizeFsdQueryTextForFingerprintV1(q));
+      const result = await fsdService.queryFsdGraphql({
+        vehicleJwt,
+        query: q,
+        expectedQueryFingerprint: fp,
+      });
+      expect(result.kind).not.toBe('OVERSIZED_RESPONSE');
     });
 
     it('classifies oversize response at FSD ingress byte limit', async () => {

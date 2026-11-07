@@ -23,7 +23,10 @@ import type {
   FsdDimoGraphqlExecutionResultV1,
   FsdDimoGraphqlOutcomeKindV1,
 } from './fsd-dimo-graphql-result';
-import { parseDimoFsdGraphqlMaxResponseBytesEnv } from './fsd-dimo-graphql-response-limit.v1';
+import {
+  isAxiosFsdResponseByteLimitErrorV1,
+  parseDimoFsdGraphqlMaxResponseBytesEnv,
+} from './fsd-dimo-graphql-response-limit.v1';
 
 export type { DimoProviderRequestContext };
 
@@ -540,11 +543,7 @@ export class DimoTelemetryService {
     if (status != null) {
       return this.mapHttpStatusToFsdOutcome(status, null, []);
     }
-    if (
-      isAxiosError(err) &&
-      (err.code === 'ERR_BAD_RESPONSE' ||
-        (typeof err.message === 'string' && err.message.includes('maxContentLength')))
-    ) {
+    if (isAxiosError(err) && isAxiosFsdResponseByteLimitErrorV1(err)) {
       return {
         kind: 'OVERSIZED_RESPONSE',
         httpStatus: null,
