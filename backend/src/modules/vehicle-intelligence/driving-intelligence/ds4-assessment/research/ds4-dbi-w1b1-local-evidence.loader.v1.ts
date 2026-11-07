@@ -3,7 +3,6 @@
  * Computes all digests from bytes; never accepts caller-supplied inspection proofs.
  */
 
-import { readFileSync } from 'fs';
 import type { DiV0MotionCoreShadowPayloadV1 } from '../../motion-core-shadow-worker/di-v0-motion-core-shadow.types';
 import { deriveDs4DrivingExposureV1 } from '../ds4-assessment-driving-exposure.v1';
 import { resolveW0SpeedAuthorityPartitionV1 } from './ds4-dbi-w0-moving-exposure-clock.v1';
@@ -26,9 +25,9 @@ import {
   type Ds4DbiW1b1FixtureRecordV1,
 } from './ds4-dbi-w1b1-fixture-registry.v1';
 import {
-  assertFileSizeBoundedV1,
   DS4_DBI_W1B1_MAX_MANIFEST_BYTES,
   DS4_DBI_W1B1_MAX_PAYLOAD_BYTES,
+  readBoundedFileBytesV1,
   resolveRepoRelativePathV1,
 } from './ds4-dbi-w1b1-path-security.v1';
 
@@ -43,10 +42,12 @@ export type Ds4DbiW1b1LoadFailureCodeV1 =
   | 'FIXTURE_NOT_REGISTERED'
   | 'SOURCE_FILE_MISSING'
   | 'MANIFEST_FILE_MISSING'
+  | 'PATH_ABSOLUTE_REJECTED'
   | 'PATH_TRAVERSAL_REJECTED'
   | 'PATH_OUTSIDE_ALLOWLIST'
   | 'SYMLINK_ESCAPE_REJECTED'
   | 'FILE_TOO_LARGE'
+  | 'FILE_READ_INCOMPLETE'
   | 'PAYLOAD_JSON_PARSE'
   | 'MANIFEST_JSON_PARSE'
   | 'RAW_FILE_SHA_MISMATCH'
@@ -139,6 +140,35 @@ function emptyReport(
   };
 }
 
+function applyHistoricalManifestSafetyFlagsV1(
+  record: Ds4DbiW1b1FixtureRecordV1,
+  manifest: Ds4DbiW1TrustedEvidenceManifestV1,
+  report: Ds4DbiW1b1VerificationReportV1,
+): void {
+  if (record.classification !== 'HISTORICAL_RECORDING') {
+    return;
+  }
+  report.checksPerformed.push('HISTORICAL_MANIFEST_DECLARATIVE_ONLY');
+  report.limitations.push('HISTORICAL_MANIFEST_NOT_AUTHENTICATION_EVIDENCE');
+  if (manifest.vehicleId.toLowerCase().includes('hist00000001')) {
+    report.unavailableEvidence.push('PLACEHOLDER_VEHICLE_ID');
+  }
+  if (manifest.pinnedS4EvidenceIdentity.includes('NOT_AUTHENTICATED')) {
+    report.unavailableEvidence.push('PINNED_S4_DECLARED_NOT_AUTHENTICATED');
+  }
+  if (/^(.)\1{63}$/i.test(manifest.declaredIndependentTrustAnchorSha256)) {
+    report.unavailableEvidence.push('PLACEHOLDER_TRUST_ANCHOR_NOT_VERIFIED');
+  }
+  report.unavailableEvidence.push('ARTIFICIAL_TRIP_UTC_NOT_AUTHENTICATION_PROOF');
+}
+
+function mapReadFailureToLoadCode(code: string, kind: 'payload' | 'manifest'): Ds4DbiW1b1LoadFailureCodeV1 {
+  if (code === 'SOURCE_FILE_MISSING') {
+    return kind === 'payload' ? 'SOURCE_FILE_MISSING' : 'MANIFEST_FILE_MISSING';
+  }
+  return code as Ds4DbiW1b1LoadFailureCodeV1;
+}
+
 function fail(
   fixtureId: Ds4DbiW1b1FixtureIdV1,
   record: Ds4DbiW1b1FixtureRecordV1 | null,
@@ -212,26 +242,26 @@ export function loadDs4DbiW1b1LocalEvidenceV1(input: {
     return fail(input.fixtureId, record, [manifestPath.code], { ...report, checksPerformed: [...report.checksPerformed, 'PATH_RESOLVE_MANIFEST'] });
   }
 
-  let payloadBytes: Buffer;
-  let manifestBytes: Buffer;
-  try {
-    payloadBytes = readFileSync(payloadPath.absPath);
-    manifestBytes = readFileSync(manifestPath.absPath);
-  } catch {
-    const code = record.payloadRelPath ? 'SOURCE_FILE_MISSING' : 'MANIFEST_FILE_MISSING';
-    return fail(input.fixtureId, record, [code], report);
+  const payloadRead = readBoundedFileBytesV1(payloadPath.absPath, DS4_DBI_W1B1_MAX_PAYLOAD_BYTES);
+  if (!payloadRead.ok) {
+    return fail(input.fixtureId, record, [mapReadFailureToLoadCode(payloadRead.code, 'payload')], {
+      ...report,
+      checksPerformed: [...report.checksPerformed, 'PAYLOAD_SIZE_PRECHECK'],
+    });
   }
 
-  const payloadSizeCode = assertFileSizeBoundedV1(payloadBytes.length, DS4_DBI_W1B1_MAX_PAYLOAD_BYTES);
-  if (payloadSizeCode) {
-    return fail(input.fixtureId, record, [payloadSizeCode], report);
-  }
-  const manifestSizeCode = assertFileSizeBoundedV1(manifestBytes.length, DS4_DBI_W1B1_MAX_MANIFEST_BYTES);
-  if (manifestSizeCode) {
-    return fail(input.fixtureId, record, [manifestSizeCode], report);
+  const manifestRead = readBoundedFileBytesV1(manifestPath.absPath, DS4_DBI_W1B1_MAX_MANIFEST_BYTES);
+  if (!manifestRead.ok) {
+    return fail(input.fixtureId, record, [mapReadFailureToLoadCode(manifestRead.code, 'manifest')], {
+      ...report,
+      checksPerformed: [...report.checksPerformed, 'MANIFEST_SIZE_PRECHECK'],
+    });
   }
 
-  report.checksPerformed.push('READ_PAYLOAD_BYTES', 'READ_MANIFEST_BYTES');
+  const payloadBytes = payloadRead.bytes;
+  const manifestBytes = manifestRead.bytes;
+
+  report.checksPerformed.push('PAYLOAD_SIZE_PRECHECK', 'MANIFEST_SIZE_PRECHECK', 'READ_PAYLOAD_BYTES', 'READ_MANIFEST_BYTES');
 
   const rawSha = computeRawFileSha256V1(payloadBytes);
   report.hashes.rawFileSha256 = rawSha;
@@ -258,6 +288,8 @@ export function loadDs4DbiW1b1LocalEvidenceV1(input: {
   if (!manifest) {
     return fail(input.fixtureId, record, ['MANIFEST_JSON_PARSE'], report);
   }
+
+  applyHistoricalManifestSafetyFlagsV1(record, manifest, report);
 
   const computedManifestDigest = computeDetachedManifestDigestV1(manifest);
   report.hashes.detachedManifestDigestSha256 = computedManifestDigest;

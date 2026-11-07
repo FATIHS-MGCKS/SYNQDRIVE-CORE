@@ -1,11 +1,18 @@
 import { createHash } from 'crypto';
-import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { DS4_DBI_W0_TRUSTED_SEALED_REAL_LOADER_ACTIVE_V1 } from '../ds4-dbi-w0-sealed-real-attestation.v1';
 import { validateDs4DbiW1TrustedEvidenceManifestV1 } from '../ds4-dbi-w1a-trusted-evidence.contract.v1';
 import { computeDetachedManifestDigestV1 } from '../ds4-dbi-w1b1-digest-semantics.v1';
-import { resolveRepoRelativePathV1 } from '../ds4-dbi-w1b1-path-security.v1';
+import {
+  DS4_DBI_W1B1_MAX_PAYLOAD_BYTES,
+  resolveRepoRelativePathV1,
+  validateRepoRelativePathInputV1,
+} from '../ds4-dbi-w1b1-path-security.v1';
+import { loadDs4DbiW0HistoricalMotionFixtureV1 } from '../ds4-dbi-w0-historical-replay.loader.v1';
+import { projectDs4DbiW1cTripAssessmentFromW0KernelV1 } from '../ds4-dbi-w1c-trip-assessment-projector.v1';
+import { computeDs4DbiW0MbfFromPayloadV1 } from '../ds4-dbi-w0-mbf-kernel.v1';
 import { loadDs4DbiW1b1LocalEvidenceV1 } from '../ds4-dbi-w1b1-local-evidence.loader.v1';
 import { runDs4DbiW1b1OfflineReplayV1 } from '../ds4-dbi-w1b1-offline-replay.v1';
 
@@ -141,7 +148,12 @@ describe('ds4-dbi-w1b1-local-evidence.loader.v1', () => {
     }
   });
 
-  it('rejects path traversal', () => {
+  it('rejects path traversal before normalization', () => {
+    const pre = validateRepoRelativePathInputV1('../../../etc/passwd');
+    expect(pre.ok).toBe(false);
+    if (!pre.ok) {
+      expect(pre.code).toBe('PATH_TRAVERSAL_REJECTED');
+    }
     const r = resolveRepoRelativePathV1({
       repositoryRoot: repoRoot,
       relPath: '../../../etc/passwd',
@@ -150,26 +162,111 @@ describe('ds4-dbi-w1b1-local-evidence.loader.v1', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('rejects symlink escape', () => {
-    const external = mkdtempSync(join(tmpdir(), 'w1b1-ext-'));
-    writeFileSync(join(external, 'secret.txt'), 'x');
+  it('rejects absolute paths', () => {
+    const pre = validateRepoRelativePathInputV1('/etc/passwd');
+    expect(pre.ok).toBe(false);
+    if (!pre.ok) {
+      expect(pre.code).toBe('PATH_ABSOLUTE_REJECTED');
+    }
+  });
+
+  function replaceSymlink(target: string, linkPath: string): void {
+    if (existsSync(linkPath)) {
+      unlinkSync(linkPath);
+    }
+    symlinkSync(target, linkPath);
+  }
+
+  it('rejects symlink escape and in-allowlist symlinks', () => {
     const sandboxAbs = join(repoRoot, fixtureRoot, 'w1b1-adversarial-sandbox', 'symlink');
     mkdirSync(sandboxAbs, { recursive: true });
-    const linkTarget = join(sandboxAbs, 'payload.json');
-    try {
-      symlinkSync(join(external, 'secret.txt'), linkTarget);
-      const r = resolveRepoRelativePathV1({
-        repositoryRoot: repoRoot,
-        relPath: `${fixtureRoot}/w1b1-adversarial-sandbox/symlink/payload.json`,
-        allowedRootsRel: [fixtureRoot],
-      });
-      expect(r.ok).toBe(false);
-      if (!r.ok) {
-        expect(r.code).toBe('SYMLINK_ESCAPE_REJECTED');
-      }
-    } catch {
-      // platform may disallow symlink; skip hard assertion
-      expect(true).toBe(true);
+    const realPayload = join(sandboxAbs, 'real-payload.json');
+    writeFileSync(realPayload, '{"x":1}');
+
+    const escapedExternal = mkdtempSync(join(tmpdir(), 'w1b1-ext-'));
+    const externalFile = join(escapedExternal, 'secret.txt');
+    writeFileSync(externalFile, 'leak');
+    const escapeLink = join(sandboxAbs, 'escape-payload.json');
+    replaceSymlink(externalFile, escapeLink);
+    const escapeRes = resolveRepoRelativePathV1({
+      repositoryRoot: repoRoot,
+      relPath: `${fixtureRoot}/w1b1-adversarial-sandbox/symlink/escape-payload.json`,
+      allowedRootsRel: [fixtureRoot],
+    });
+    expect(escapeRes.ok).toBe(false);
+    if (!escapeRes.ok) {
+      expect(escapeRes.code).toBe('SYMLINK_ESCAPE_REJECTED');
+    }
+
+    const inAllowlistLink = join(sandboxAbs, 'in-allowlist-link.json');
+    replaceSymlink(realPayload, inAllowlistLink);
+    const inRes = resolveRepoRelativePathV1({
+      repositoryRoot: repoRoot,
+      relPath: `${fixtureRoot}/w1b1-adversarial-sandbox/symlink/in-allowlist-link.json`,
+      allowedRootsRel: [fixtureRoot],
+    });
+    expect(inRes.ok).toBe(false);
+    if (!inRes.ok) {
+      expect(inRes.code).toBe('SYMLINK_ESCAPE_REJECTED');
+    }
+  });
+
+  it('historical manifests carry non-authentication safety flags', () => {
+    const r = loadDs4DbiW1b1LocalEvidenceV1({ fixtureId: 'TIG22', repositoryRoot: repoRoot });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.verification.unavailableEvidence).toContain('PLACEHOLDER_VEHICLE_ID');
+      expect(r.verification.unavailableEvidence).toContain('PINNED_S4_DECLARED_NOT_AUTHENTICATED');
+      expect(r.verification.unavailableEvidence).toContain('PLACEHOLDER_TRUST_ANCHOR_NOT_VERIFIED');
+      expect(r.verification.sourceAuthenticationStatus).toBe('NOT_AUTHENTICATED');
+    }
+  });
+
+  it('TIG22 partial assessment parity via lower-trust historical replay', () => {
+    const loaded = loadDs4DbiW0HistoricalMotionFixtureV1({
+      fixtureId: 'TIG22',
+      bindingTier: 'RELAXED',
+      repositoryRoot: repoRoot,
+    });
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) {
+      return;
+    }
+    const kernel = computeDs4DbiW0MbfFromPayloadV1({
+      payload: loaded.payload,
+      tripMeta: loaded.tripMeta,
+      qualityTier: 'STRICT',
+      expectedContentFingerprint: loaded.payloadFileSha256,
+      expectedShadowBundleVersion: loaded.tripMeta.shadowBundleVersion,
+      evidenceOrigin: 'HISTORICAL_RESEARCH_RECORDING',
+    });
+    const projected = projectDs4DbiW1cTripAssessmentFromW0KernelV1(kernel);
+    expect(projected.ok).toBe(true);
+    if (projected.ok) {
+      expect(projected.summary.tripOutcome).toBe('PARTIAL');
+    }
+  });
+
+  it('rejects oversized payload before unbounded read', () => {
+    const sandboxRel = `${fixtureRoot}/w1b1-adversarial-sandbox/oversized`;
+    const sandboxAbs = join(repoRoot, sandboxRel);
+    mkdirSync(sandboxAbs, { recursive: true });
+    const bigPath = join(sandboxAbs, 'payload.json');
+    writeFileSync(bigPath, Buffer.alloc(DS4_DBI_W1B1_MAX_PAYLOAD_BYTES + 1, 0x61));
+    const manifest = readFileSync(join(repoRoot, syntheticRel, 'evidence_manifest.json'));
+    writeFileSync(join(sandboxAbs, 'evidence_manifest.json'), manifest);
+    const r = loadDs4DbiW1b1LocalEvidenceV1({
+      fixtureId: 'W1B1_SYNTHETIC_POSITIVE',
+      repositoryRoot: repoRoot,
+      approvedPathOverride: {
+        payloadRelPath: `${sandboxRel}/payload.json`,
+        evidenceManifestRelPath: `${sandboxRel}/evidence_manifest.json`,
+      },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.verification.failureCodes).toContain('FILE_TOO_LARGE');
+      expect(r.verification.checksPerformed).toContain('PAYLOAD_SIZE_PRECHECK');
     }
   });
 

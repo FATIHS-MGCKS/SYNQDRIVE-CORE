@@ -2,6 +2,12 @@
 
 **Phase:** DBI Phase 1 W1B1 (offline, research only)
 
+## Path and size rules
+
+- Repo-relative paths only: reject absolute paths and any `..` segment **before** normalization.
+- `lstat` on the requested path entry rejects symlinks before `realpath`.
+- Payload/manifest reads use size precheck + bounded `readSync` (no unbounded `readFileSync`).
+
 ## Maximum trust level
 
 W1B1 may achieve **`STRUCTURALLY_BOUND`** when:

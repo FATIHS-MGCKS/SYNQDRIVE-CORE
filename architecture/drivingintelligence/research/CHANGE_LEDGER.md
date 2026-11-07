@@ -2859,6 +2859,13 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** F04 trust gate change; **no** W1 loader; **no** production/DB/provider access; **no** scientific validation claims; TES16 deferred (`NO_MOTION_PAYLOAD_BYTES`) |
 | REMAINING | Trusted speed-authority attestation on payload; D8 observation window compatibility on sparse historic bundles; TES16 motion payload export |
 
+### 2026-11-07 — DBI W1B1 final hardening closeout
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Stricter path validation; bounded file reads; historical manifest safety flags; symlink tests |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (108) |
+
 ### 2026-11-07 — DBI W1B1 local byte verification loader
 
 | Field | Detail |
