@@ -1,50 +1,93 @@
 {
   "contractId": "DS4_DBI_W0_F01_B3_MOVING_EXPOSURE_CLOCK_CONTRACT_V1",
-  "version": 1,
+  "version": 2,
+  "errata": "DS4_DBI_W0_F01_CONTRACT_ERRATA_AND_U1_U6_CLOSEOUT",
+  "architectVerdict": {
+    "b3B2Architecture": "APPROVED",
+    "testVectorSet": "CORRECTED_V2",
+    "u1U6": "RESOLVED"
+  },
+  "frozenGates": {
+    "burstWindowSeconds": 60,
+    "minEventsD8": 10,
+    "minNonEmptyWindowsD8": 10,
+    "kFormula": "ceil(E_star / 60)"
+  },
   "vectors": [
     {
       "id": "TV-F01",
-      "name": "continuous_driving_baseline",
+      "name": "d8_known_continuous_exposure_plus_d4d5_baseline",
       "inputs": {
-        "movingSeconds": 200,
-        "pattern": "all_MOVING_DIRECT",
-        "eventCountOk": 12,
-        "eventSpacingExposureSeconds": 55
+        "d8Arm": {
+          "labelCountMovingDirect": 720,
+          "t0Utc": "2026-01-01T10:00:00Z",
+          "eventsOk": 12,
+          "eventTauSeconds": [0, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600, 660]
+        },
+        "d4d5BaselineArm": {
+          "labelCountMovingDirect": 200,
+          "note": "Independent trip; D4/D5 only"
+        }
       },
       "expected": {
-        "movingExposureSeconds": 199,
-        "qualifyingIntervalCountMin": 199,
-        "d8Status": "KNOWN",
-        "d4d5Status": "UNCHANGED_KNOWN",
-        "windowCountK": 4,
-        "admittedEventCount": 12
+        "d8Arm": {
+          "movingExposureSeconds": 719,
+          "qualifyingIntervalCount": 719,
+          "windowCountK": 12,
+          "nonEmptyWindowSlotsMin": 10,
+          "admittedEventCount": 12,
+          "d8Status": "KNOWN",
+          "gateCheck": "K=12>=10 nonEmpty; n_adm=12>=10"
+        },
+        "d4d5BaselineArm": {
+          "movingExposureSeconds": 199,
+          "d4d5Status": "KNOWN_UNCHANGED_BASELINE"
+        },
+        "utcToTauExamples": [
+          {
+            "utc": "2026-01-01T10:00:00Z",
+            "tauSeconds": 0
+          },
+          {
+            "utc": "2026-01-01T10:11:00Z",
+            "tauSeconds": 660
+          }
+        ]
       }
     },
     {
       "id": "TV-F02",
       "name": "stop_separated_moving_intervals",
       "inputs": {
-        "segmentsWallSeconds": [60, 30, 60],
-        "segmentFsm": ["MOVING", "STATIONARY", "MOVING"],
-        "events": [{ "quality": "OK", "startWallOffsetSeconds": 75 }]
+        "segmentsWallLabelCounts": [60, 30, 60],
+        "segmentFsm": ["MOVING_DIRECT", "STATIONARY_DIRECT", "MOVING_DIRECT"],
+        "events": [
+          {
+            "quality": "OK",
+            "startWallOffsetSecondsFromT0": 75
+          }
+        ]
       },
       "expected": {
-        "movingExposureSeconds": 120,
-        "elapsedWallClockSecondsApprox": 149,
-        "excludedEventCountMin": 1,
+        "movingExposureSeconds": 118,
+        "qualifyingIntervalCount": 118,
+        "elapsedWallClockSecondsLabelSpan": 149,
+        "excludedEventCount": 1,
         "eventMappingReasonCodesContains": [
           "MBF_W0_EVENT_START_OUTSIDE_MOVING_DIRECT_SUPPORT"
-        ]
+        ],
+        "utcToTauNote": "Wall offset 75 falls in stationary block; no tau assignment"
       }
     },
     {
       "id": "TV-F03",
       "name": "missing_speed_gap_dt_gt_1",
       "inputs": {
-        "description": "Labels 0-59 then gap at +60s then 61-120"
+        "description": "M labels indices 0-59, no label at +60s wall, M labels resume 61-120"
       },
       "expected": {
         "movingExposureSeconds": 118,
+        "qualifyingIntervalCount": 118,
         "excludedGapCountMin": 1
       }
     },
@@ -52,90 +95,145 @@
       "id": "TV-F04",
       "name": "nonmoving_event_start",
       "inputs": {
-        "wallMovingSeconds": 120,
-        "stationaryInjectSeconds": [50, 55],
+        "wallMovingLabelSeconds": 120,
+        "stationaryInjectWallSpan": [50, 55],
         "eventStartWallOffsetSeconds": 52
       },
       "expected": {
         "admittedEventCount": 0,
-        "excludedEventCount": 1
+        "excludedEventCount": 1,
+        "reason": "MBF_W0_EVENT_START_OUTSIDE_MOVING_DIRECT_SUPPORT"
       }
     },
     {
       "id": "TV-F05",
-      "name": "exact_interval_upper_boundary",
-      "inputs": {
-        "eventStartEqualsIntervalUpperBound": true
-      },
-      "expected": {
-        "admittedEventCount": 0,
-        "eventMappingReasonCodesContains": [
-          "MBF_W0_EVENT_START_ON_INTERVAL_UPPER_BOUNDARY"
-        ]
-      }
+      "name": "interval_boundary_admission",
+      "cases": [
+        {
+          "caseId": "F05-A",
+          "description": "Shared boundary between two adjacent eligible half-open intervals",
+          "eventUtcEquals": "t_boundary_shared",
+          "expected": {
+            "admitted": true,
+            "admittedVia": "second_interval_lower_bound",
+            "tauMapped": "tau_at_boundary"
+          },
+          "utcToTauExample": {
+            "utc": "2026-01-01T10:05:00.000Z",
+            "eligibleIntervals": [
+              "[10:04:59, 10:05:00)",
+              "[10:05:00, 10:05:01)"
+            ],
+            "tauSeconds": 300
+          }
+        },
+        {
+          "caseId": "F05-B",
+          "description": "Upper bound of last eligible interval with no qualifying successor",
+          "eventUtcEquals": "t_upper_no_successor",
+          "expected": {
+            "admitted": false,
+            "reason": "MBF_W0_EVENT_START_ON_INTERVAL_UPPER_BOUNDARY"
+          }
+        }
+      ]
     },
     {
       "id": "TV-F06",
       "name": "duplicate_event_starts",
       "inputs": {
-        "duplicateStartLabel": true
+        "duplicateStartLabelUtc": "2026-01-01T10:01:00Z"
       },
       "expected": {
         "tripIntegrityFailClosed": true,
-        "reason": "MBF_W0_FAIL_CLOSED_DUPLICATE_EVENT_START_TIME"
+        "reason": "MBF_W0_FAIL_CLOSED_DUPLICATE_EVENT_START_TIME",
+        "d4ThroughD8Stripped": true
       }
     },
     {
       "id": "TV-F07",
-      "name": "exposure_metadata_mismatch",
+      "name": "exposure_metadata_mismatch_u3",
       "inputs": {
-        "recomputedMovingExposureSeconds": 120,
-        "suppliedExposureSecondsEs": 518
+        "movingExposureSecondsRecomputed": 719,
+        "suppliedExposureSecondsEs": 518,
+        "epsilonSeconds": 0.001
       },
       "expected": {
-        "movingExposureSecondsRecomputed": 120,
-        "diagnosticContains": "MBF_W0_MOVING_EXPOSURE_METADATA_MISMATCH",
-        "d8UsesHorizonSeconds": 120,
-        "abstainOnMismatch": "UNRESOLVED_U3"
+        "diagnostic": "MBF_W0_MOVING_EXPOSURE_METADATA_MISMATCH",
+        "d8Status": "ABSTAIN",
+        "d8ReasonIncludes": "MBF_W0_MOVING_EXPOSURE_METADATA_MISMATCH",
+        "d4d5d6Status": "NOT_AUTO_FAIL_CLOSED",
+        "note": "Significant mismatch abstains D8 only"
       }
     },
     {
       "id": "TV-F08",
-      "name": "insufficient_moving_exposure",
+      "name": "insufficient_moving_exposure_horizon",
       "inputs": {
+        "movingLabelCount": 45,
         "movingExposureSeconds": 44,
         "eventCountOk": 12
       },
       "expected": {
         "d8Status": "ABSTAIN",
-        "d8Reason": "MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW"
+        "d8Reason": "MBF_W0_NOT_EVALUABLE_D8_OBSERVATION_WINDOW",
+        "gateCheck": "E_star=44 < W=60"
       }
     },
     {
       "id": "TV-F09",
-      "name": "partial_final_sixty_second_bin",
+      "name": "insufficient_non_empty_exposure_bins",
       "inputs": {
         "movingExposureSeconds": 90,
         "admittedEvents": 10
       },
       "expected": {
         "windowCountK": 2,
+        "maxNonEmptyWindows": 2,
         "finalBinWidthExposureSeconds": 30,
-        "d8StatusIfNonEmptyWindowsMet": "KNOWN"
+        "d8Status": "ABSTAIN",
+        "d8Reason": "MBF_W0_INSUFFICIENT_WINDOWS_FOR_BURSTINESS",
+        "gateCheck": "K=2 < minNonEmptyWindowsD8=10"
       }
     },
     {
       "id": "TV-F10",
-      "name": "event_crossing_movement_boundary",
+      "name": "event_crossing_movement_boundary_duration",
       "inputs": {
-        "startInMoving": true,
-        "endInStationary": true
+        "eventStartInMovingDirect": true,
+        "eventEndInStationary": true
       },
       "expected": {
         "admittedOnset": true,
-        "durationDoesNotVeto": true
+        "durationDoesNotVeto": true,
+        "tauMappedFromStartUtc": true
+      }
+    },
+    {
+      "id": "TV-F11",
+      "name": "partial_final_bin_d8_known",
+      "inputs": {
+        "movingExposureSeconds": 665,
+        "eventsOk": 12,
+        "eventTauSecondsOnePerBinFirst10PlusSpread": true
+      },
+      "expected": {
+        "windowCountK": 12,
+        "finalBinWidthExposureSeconds": 5,
+        "finalBinTauRange": "[660, 665)",
+        "nonEmptyWindowSlotsMin": 10,
+        "admittedEventCount": 12,
+        "d8Status": "KNOWN",
+        "gateCheck": "K=ceil(665/60)=12>=10; n_adm=12>=10"
       }
     }
   ],
-  "unresolved": ["U1", "U2", "U3", "U4", "U5", "U6"]
+  "resolvedArchitectDecisions": {
+    "U1": "No artificial uncertainty widening; exclude ambiguous starts when eligible-interval membership cannot be established",
+    "U2": "shareNext 30s domain is moving exposure tau",
+    "U3": "Significant Es metadata mismatch => D8 ABSTAIN with diagnostic; unrelated metrics not auto fail-closed",
+    "U4": "Wall fields from accepted speed-label span; DIMO trip bounds separate provenance",
+    "U5": "Tau-native D8 core + UTC-to-tau adapter; E9 null draws in tau",
+    "U6": "Mapper uses deriveDs4DrivingExposureV1 rules; RELAXED D4/D5 tier cannot expand moving exposure"
+  }
 }

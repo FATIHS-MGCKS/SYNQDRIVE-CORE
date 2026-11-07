@@ -2779,3 +2779,13 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** kernel/CLI D8 implementation; **no** F03 threshold changes; **no** F04 reopening; **no** motion/FSM/trip/RPM/DB/deploy/merge |
 | REMAINING | Kernel implementation tranche + architect resolution U1–U6; executable pinned fixtures for TV-F01..F10 |
 
+### 2026-11-07 — DS4 DBI W0 F01 contract errata and U1–U6 closeout
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | **Contract v1.1 errata:** corrected TV-F01 (720-label D8 KNOWN + 200-label D4/D5 baseline), TV-F02 (`E*=118`), TV-F05 (shared boundary admit / terminal upper exclude), TV-F09 (ABSTAIN windows), TV-F11 (`E*=665` partial 5s bin KNOWN); locked U1–U6; E9 unequal-width bin null reference science; gate validation table; JSON vectors **v2** |
+| WHY | Architect verdict: B3+B2 approved; prior test vector set not approved; mathematical consistency with frozen `K=ceil(E*/60)`, `minEventsD8=10`, `minNonEmptyWindowsD8=10` |
+| VALIDATION | Documentation audit of KNOWN/ABSTAIN outcomes; `validate-module-registry.sh` |
+| NON_EFFECTS | **No** kernel implementation; **no** F03/F04 changes; **no** deploy/merge |
+| REMAINING | Executable kernel fixtures for TV-F01..F11 |
+
