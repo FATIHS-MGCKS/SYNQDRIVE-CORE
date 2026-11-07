@@ -2809,3 +2809,13 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | **No** D8 threshold edits; **no** production motion/FSM/trip/RPM; **no** F04 reopening; **no** W1 loader/deploy/merge; 200k wall-clock audit remains `b3Comparable: false` |
 | REMAINING | Full F03 calibration workstream; W1 blocked; CI prod DB guard flake may need workflow retry only |
 
+### 2026-11-07 — DS4 DBI W0 F01 P3 CI and reporting closeout
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | Typed `runSyntheticControlsV1` E9 report contract (`movingExposureSeconds`, `exposureBinWidthsSeconds`, `b3TauNativeReporting`); corrected offline `scientificNote`; regen `production-database-guard-bundle.manifest.sha256` after `test:di:ds4-dbi-w0-mbf` script pin |
+| WHY | CI TS2353 on offline CLI; prod DB guard hash drift on `package.json` (distinct from prior Postgres startup race) |
+| VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (45); `research:ds4-dbi-w0-mbf-offline --json`; manifest regen; full `tsc` — no new DS4 CLI errors |
+| NON_EFFECTS | No B3/B2 model, D8 thresholds, F04, motion/FSM, deploy |
+| REMAINING | GitHub required checks on PR; unrelated repo `tsc` debt (FSD/service-compliance) |
+

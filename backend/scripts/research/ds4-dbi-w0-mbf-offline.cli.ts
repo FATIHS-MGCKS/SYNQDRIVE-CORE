@@ -101,6 +101,42 @@ type E9NullMonteCarloDrawRecordV1 = {
   indexOfDispersion: number | null;
 };
 
+type E9NullDistributionSelectionFieldsV1 = ReturnType<typeof buildE9NullDistributionSelectionBlockV1>;
+
+type E9B3TauNativeReportingV1 = {
+  movingExposureSeconds: number;
+  exposureBinWidthsSeconds: number[];
+  evaluationPath: 'TAU_NATIVE_D8_FROM_SAMPLED_ONSETS';
+  fixedSeedReference: ReturnType<typeof buildE9B3ReferenceSnapshotV1>;
+  acceptedOnlyIodLabel: string;
+};
+
+type E9OccupancyConditionedNullReportV1 = {
+  movingExposureSeconds: number;
+  exposureBinWidthsSeconds: number[];
+  model: 'OCCUPANCY_CONDITIONED_NULL';
+  selectionLimitation: string;
+  draws: number;
+  seedStrideStart: number;
+  iodValuesAcceptedOnly: number[];
+  meanIodAcceptedOnly: number | null;
+  drawRecords: E9NullMonteCarloDrawRecordV1[];
+} & E9NullDistributionSelectionFieldsV1;
+
+type E9UnrestrictedUniformNullReportV1 = {
+  movingExposureSeconds: number;
+  exposureBinWidthsSeconds: number[];
+  empiricalEligibilityRateThisBatch: number;
+  model: 'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE';
+  selectionLimitation: string;
+  draws: number;
+  seedStrideStart: number;
+  historicalWallClockEligibilityAudit: typeof DS4_DBI_W0_E9_EXTERNAL_ELIGIBILITY_AUDIT_200K_V1;
+  iodValuesAcceptedOnly: number[];
+  meanIodAcceptedOnly: number | null;
+  drawRecords: E9NullMonteCarloDrawRecordV1[];
+} & E9NullDistributionSelectionFieldsV1;
+
 function runE9NullMonteCarloV1(input: {
   draws: number;
   seedStrideStart: number;
@@ -186,6 +222,7 @@ function reconstructedTripRowsV1() {
 function runSyntheticControlsV1(): {
   e7: { scenario: string; d5Rough: number | null; reasonSample: string[] }[];
   e9: {
+    b3TauNativeReporting: E9B3TauNativeReportingV1;
     observationWindow: {
       movingExposureSeconds: number;
       clockDomain: 'MOVING_EXPOSURE_PRIMARY';
@@ -208,54 +245,15 @@ function runSyntheticControlsV1(): {
       d8SupportGate: string;
     };
     nullDistributions: {
-      occupancyConditionedNull: {
-        model: 'OCCUPANCY_CONDITIONED_NULL';
-        selectionLimitation: string;
-        draws: number;
-        totalDraws: number;
-        seedStrideStart: number;
-        acceptedCount: number;
-        abstainedCount: number;
-        empiricalEligibilityRate: number;
-        abstentionReasonCounts: Record<string, number>;
-        selectionHazard: ReturnType<typeof buildE9NullDistributionSelectionBlockV1>['selectionHazard'];
-        interpretationLimitation: string;
-        constructionSemantics: string;
-        iodValuesAcceptedOnly: number[];
-        meanIodAcceptedOnly: number | null;
-        drawRecords: E9NullMonteCarloDrawRecordV1[];
-      };
-      unrestrictedUniformNull: {
-        model: 'UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE';
-        selectionLimitation: string;
-        draws: number;
-        totalDraws: number;
-        seedStrideStart: number;
-        acceptedCount: number;
-        abstainedCount: number;
-        empiricalEligibilityRate: number;
-        abstentionReasonCounts: Record<string, number>;
-        selectionHazard: ReturnType<typeof buildE9NullDistributionSelectionBlockV1>['selectionHazard'];
-        interpretationLimitation: string;
-        constructionSemantics: string;
-        externalEligibilityScaleEvidence?: {
-          source: string;
-          totalTrials: number;
-          estimatedEligibilityRateApprox: number;
-          methodologyNote: string;
-        };
-        historicalWallClockEligibilityAudit?: typeof DS4_DBI_W0_E9_EXTERNAL_ELIGIBILITY_AUDIT_200K_V1;
-        iodValuesAcceptedOnly: number[];
-        meanIodAcceptedOnly: number | null;
-        drawRecords: E9NullMonteCarloDrawRecordV1[];
-      };
+      occupancyConditionedNull: E9OccupancyConditionedNullReportV1;
+      unrestrictedUniformNull: E9UnrestrictedUniformNullReportV1;
     };
   };
   e10: { scenario: string; d4Status: string; reasons: string[]; observedFingerprintPrefix: string }[];
 } {
   const baseTime = '2026-01-01T12:00:00Z';
   const mkPayload = (overrides: Partial<DiV0MotionCoreShadowPayloadV1>): DiV0MotionCoreShadowPayloadV1 => {
-    /** 720s of 1Hz labels ≥ trip exposure (660s) used for D8 window anchoring. */
+    /** 720s of 1Hz labels so derived moving exposure E* exceeds control meta (719s τ horizon). */
     const labelSeconds = 720;
     const speeds: DiV0MotionCoreShadowPayloadV1['speeds'] = [];
     const fsm: DiV0MotionCoreShadowPayloadV1['fsmLabels'] = [];
@@ -752,8 +750,16 @@ async function main(): Promise<void> {
     inputFeasibilityMatrix: matrix,
     tripResultsStrict: results,
     syntheticControls: controls,
-    scientificNote:
-      'evidenceOrigin=SYNTHETIC_P2_ENRICHMENT: 1Hz speeds/FSM/stops are synthetic from sealed P2 timing (not raw sealed C4 gzip). P2 index-placeholder events (1970-01-01) are stripped from payload.events before kernel evaluation. sealedReferenceContentFingerprintSha256 is CSV attestation metadata only — never compared to JSON.stringify(payload) digest unless explicit verified SEALED_REAL_C4 attestation exists. independentScientificValidationStatus is always NOT_EVALUATED until a verified sealed-real loader exists. sealedRealC4StatisticalEligibility is always false in W0 — any caller SEALED_REAL_C4 label or userland attestation object fails closed; trusted loader deferred to W1. D8 uses fixed trip exposureSecondsEs as observation horizon from min(first speed, first event start). E9 syntheticControls distinguishes OCCUPANCY_CONDITIONED_NULL from UNRESTRICTED_UNIFORM_ON_EXPOSURE; OCCUPANCY_CONDITIONED_NULL is an occupancy-enforcing construction (not an exact conditional IID-uniform reference). E9 nullDistributions report empiricalEligibilityRate from the batch and abstentionReasonCounts; unrestricted reference distributions are censored by the D8 support gate — use externalEligibilityScaleEvidence for a separate large-trial scale estimate, not a substitute for empirical batch rates. Monte Carlo records every draw including D8 ABSTAIN — finite accepted IOD summaries are not validation. D4–D8 thresholds are preregistered candidates.',
+    scientificNote: [
+      'SYNTHETIC_ONLY: evidenceOrigin SYNTHETIC_P2_ENRICHMENT / SYNTHETIC_CONTROL — 1Hz speeds, FSM, and stops are methodological fixtures from sealed P2 timing columns, not raw sealed C4 gzip.',
+      'F01 B3 clock: moving exposure E* is the primary D8 horizon; canonical UTC→τ maps admitted OK event onsets through eligible half-open intervals; dualTimeDomain diagnostics report wall clock vs E*, gaps, and admission/exclusion reason codes.',
+      'D8: τ-native binning with K=ceil(E*/60), unequal final exposure-bin width, fixed preregistered support gates (min events, min nonempty windows); burst metrics computed on admitted τ only — trip results may ABSTAIN when supplied Es metadata mismatches recomputed E* (U3).',
+      'E9: OCCUPANCY_CONDITIONED_NULL is an occupancy-enforcing τ construction (not an exact conditional IID-uniform law); UNRESTRICTED_UNIFORM_ON_MOVING_EXPOSURE draws τ IID Uniform on [0,E*) with τ-native Monte Carlo evaluation (no UTC second quantization on null draws).',
+      'Selection reporting: empiricalEligibilityRate, abstentionReasonCounts, accepted-only IOD (meanIodAcceptedOnly) — censored by the same D8 gate; not scientific validation.',
+      'historicalWallClockEligibilityAudit (~200k, b3Comparable=false) is retained for provenance only — wall-clock Es horizon superseded for B3 interpretation.',
+      'sealedRealC4StatisticalEligibility=false; independentScientificValidationStatus=NOT_EVALUATED; verified SEALED_REAL_C4 loader deferred to W1.',
+      'P2 placeholder events (1970-01-01) stripped before kernel; sealedReferenceContentFingerprintSha256 is CSV attestation metadata, not JSON.stringify(payload) digest.',
+    ].join(' '),
     realVsSyntheticBoundary:
       'SYNTHETIC_CONTROL / SYNTHETIC_P2_ENRICHMENT: speed-based metrics are methodological only. SEALED_REAL_C4 reserved for future unmodified shadow exports.',
   };
