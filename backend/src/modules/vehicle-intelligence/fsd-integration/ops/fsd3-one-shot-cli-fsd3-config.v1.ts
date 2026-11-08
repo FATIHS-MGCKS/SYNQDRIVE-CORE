@@ -13,7 +13,16 @@ export function buildFsd3OneShotCliOrchestrationConfigV1(allowedVehicleId: strin
   };
 }
 
-/** FSD4 remains disabled for the one-shot CLI process regardless of replica env. */
+/** FSD4 remains disabled for the P6B one-shot CLI process regardless of replica env. */
 export function buildFsd3OneShotCliFsd4DisabledConfigV1(): Fsd4OrchestrationConfigV1 {
   return createDefaultFsd4OrchestrationConfigV1();
+}
+
+/** Process-scoped FSD4 gates for the P6C fleet one-shot CLI — does not read PM2 replica env flags. */
+export function buildFsd4OneShotCliOrchestrationConfigV1(allowedVehicleId: string): Fsd4OrchestrationConfigV1 {
+  return {
+    enabled: true,
+    allowedVehicleIds: new Set([allowedVehicleId]),
+    providerExecutionEnabled: true,
+  };
 }

@@ -36,6 +36,23 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'fsd-p6c-fleet-discovery-prep-2026-11-08',
+    version: '4.9.5032',
+    title: 'FSD P6C — four-vehicle full fleet discovery preparation',
+    summary: [
+      'Fleet one-shot CLI plans FSD3+FSD4 per vehicle with planner-derived budgets, provider budget guard, and GO/NO_GO (STOP=AWAIT_CHATGPT_REVIEW); FSD4 reuses verified FSD3 catalog.',
+      'Process-scoped FSD4 ops execution service; P6B one-shot budget unchanged. PM2 FSD flags untouched.',
+      'Runbook: architecture/fsd/P6C_FLEET_FOUR_VEHICLE_RUNBOOK.md; live fleet execute not enabled in tooling.',
+    ],
+    reason: 'Prepare production full signal discovery for Tesla Model 3, VW Tiguan, Audi A4, VW Arteon without live DIMO in this PR.',
+    previousBehavior: 'P6B CLI supported FSD3 only with fixed 2-request budget; P6C docs still referenced removed L2 signing.',
+    details:
+      'backend/scripts/ops/fsd-fleet-full-discovery-one-shot.ts, fsd-integration/ops/p6c/*, fsd4-one-shot-execution.service.ts; architecture/fsd/P6C_*.md.',
+    affectsArchitecture: true,
+    module: 'Vehicle Intelligence',
+    createdAt: '2026-11-08T21:30:00.000Z',
+  },
+  {
     id: 'fsd-p6b-simplify-direct-production-2026-11-08',
     version: '4.9.5031',
     title: 'FSD P6B — simplified one-shot CLI for direct production live test',
