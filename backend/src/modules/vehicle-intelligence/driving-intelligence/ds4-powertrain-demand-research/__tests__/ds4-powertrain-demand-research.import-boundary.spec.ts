@@ -16,6 +16,11 @@ const SOURCE_FILES = [
   'ds4-powertrain-demand-sustained-load-gap-aware.v1.ts',
   'ds4-powertrain-demand-sustained-load-reference.v1.ts',
   'ds4-powertrain-demand-sustained-load-powertrain.v1.ts',
+  'ds4-powertrain-demand-revving-idle.kernel.v1.ts',
+  'ds4-powertrain-demand-revving-idle.input-binding.v1.ts',
+  'ds4-powertrain-demand-revving-idle-dual-facet.v1.ts',
+  'ds4-powertrain-demand-revving-idle-reference.v1.ts',
+  'ds4-powertrain-demand-revving-idle-powertrain.v1.ts',
   'ds4-powertrain-demand-multichannel-canonicalize.v1.ts',
 ];
 
@@ -27,6 +32,8 @@ const FORBIDDEN = [
   'event-context-classifier',
   'detectKickdownLikeClusters',
   'detectSustainedHighLoadClusters',
+  'detectHighRpmStationaryClusters',
+  'detectExcessiveIdlingFromHf',
 ];
 
 describe('ds4-powertrain-demand-research import boundary', () => {
