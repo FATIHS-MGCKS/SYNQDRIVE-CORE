@@ -30,6 +30,7 @@ import {
   assertFsd3TerminalAllowsFsd4ReuseV1,
   assertFsd4TerminalAllowsFleetContinueV1,
   assertInspectorNoUnknownOutcomeStopV1,
+  classifyFsdP6cVehicleDiscoveryOutcomeV1,
 } from './p6c/fsd-p6c-fsd3-fsd4-chain-guard.v1';
 
 export type FsdP6cFleetVehicleExecutionRecordV1 = {
@@ -41,6 +42,7 @@ export type FsdP6cFleetVehicleExecutionRecordV1 = {
   fsd4TerminalStatus: string;
   fsd3Inspector: unknown;
   fsd4Inspector: unknown;
+  discoveryOutcome: ReturnType<typeof classifyFsdP6cVehicleDiscoveryOutcomeV1>;
   fleetStopped: boolean;
   stopReason?: string;
 };
@@ -277,6 +279,7 @@ export class FsdP6cFleetDiscoveryService {
           fsd4TerminalStatus: 'BLOCKED',
           fsd3Inspector: null,
           fsd4Inspector: null,
+          discoveryOutcome: 'INCOMPLETE_DISCOVERY',
           fleetStopped: true,
           stopReason,
         });
@@ -336,11 +339,20 @@ export class FsdP6cFleetDiscoveryService {
           fsd4TerminalStatus: fsd4.terminalStatus,
           fsd3Inspector,
           fsd4Inspector,
+          discoveryOutcome: classifyFsdP6cVehicleDiscoveryOutcomeV1({
+            fsd3TerminalStatus: fsd3.terminalStatus,
+            fsd4TerminalStatus: fsd4.terminalStatus,
+          }),
           fleetStopped: true,
           stopReason,
         });
         break;
       }
+
+      const discoveryOutcome = classifyFsdP6cVehicleDiscoveryOutcomeV1({
+        fsd3TerminalStatus: fsd3.terminalStatus,
+        fsd4TerminalStatus: fsd4.terminalStatus,
+      });
 
       records.push({
         label: vehicle.label,
@@ -351,6 +363,7 @@ export class FsdP6cFleetDiscoveryService {
         fsd4TerminalStatus: fsd4.terminalStatus,
         fsd3Inspector,
         fsd4Inspector,
+        discoveryOutcome,
         fleetStopped: false,
       });
     }

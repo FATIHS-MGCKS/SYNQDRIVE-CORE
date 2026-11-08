@@ -14,9 +14,21 @@ export function assertFsd3TerminalAllowsFsd4ReuseV1(fsd3: Fsd3OneShotExecutionRe
 }
 
 export function assertFsd4TerminalAllowsFleetContinueV1(fsd4: Fsd4OneShotExecutionResultV1): void {
-  if (fsd4.terminalStatus === 'FAILED' || fsd4.terminalStatus === 'SKIPPED') {
+  if (fsd4.terminalStatus !== 'COMPLETED') {
     throw new Error(`FSD_P6C_FLEET_STOPPED_FSD4_${fsd4.terminalStatus}`);
   }
+}
+
+export type FsdP6cVehicleDiscoveryOutcomeV1 = 'FULL_DISCOVERY_SUCCESS' | 'INCOMPLETE_DISCOVERY';
+
+export function classifyFsdP6cVehicleDiscoveryOutcomeV1(input: {
+  fsd3TerminalStatus: string;
+  fsd4TerminalStatus: string;
+}): FsdP6cVehicleDiscoveryOutcomeV1 {
+  if (input.fsd3TerminalStatus === 'COMPLETED' && input.fsd4TerminalStatus === 'COMPLETED') {
+    return 'FULL_DISCOVERY_SUCCESS';
+  }
+  return 'INCOMPLETE_DISCOVERY';
 }
 
 export function assertInspectorNoUnknownOutcomeStopV1(

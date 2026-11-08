@@ -91,7 +91,8 @@ export function evaluateFsdP6cProviderBudgetGuardV1(
   const notes = [
     'Fleet runs vehicles sequentially; global PM2 FSD flags remain unchanged.',
     `Fleet cumulative planned provider requests (sequential): ${cumulative} — not a binding production commitment when planBinding=OFFLINE_REFERENCE.`,
-    `Peak in-flight provider requests (single vehicle): ${peakInFlight} (must stay within per-run budget ${planReport.budget.maxRequestsPerRun}).`,
+    `Peak parallel in-flight provider requests (configured): ${peakInFlight} (must stay within per-run budget ${planReport.budget.maxRequestsPerRun}).`,
+    `Max planned provider requests per vehicle (sequential phases): ${planReport.maxPlannedProviderRequestsPerVehicle}.`,
     `DIMO documented Core rate reference: ${FSD_P6C_DIMO_DOCUMENTED_RATE_PER_SECOND_V1} req/s — operator admission limiter may still throttle.`,
   ];
   if (offlineReferenceOnly) {

@@ -34,7 +34,8 @@ Do **not** copy the CI offline fixture (`fsd-p6c-offline-fleet-manifest.v1.json`
       "providerSourceLinkId": "REPLACE_LINK_UUID",
       "discoveryRequestKey": "REPLACE_DISCOVERY_KEY",
       "historicalRequestKey": "REPLACE_HISTORICAL_KEY",
-      "declaredFieldNames": ["REPLACE_FROM_LIVE_CATALOG"]
+      "catalogProvenance": "VERIFIED_LIVE_CATALOG",
+      "declaredFieldNames": ["REPLACE_FROM_VERIFIED_LIVE_CATALOG_EVIDENCE"]
     }
   ]
 }

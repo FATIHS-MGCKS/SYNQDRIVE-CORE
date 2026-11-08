@@ -9,6 +9,10 @@ import type {
   FsdP6cFleetVehicleManifestEntryV1,
 } from './fsd-p6c-fleet-manifest.v1';
 import { assertP6cHistoricalWindowAdmissibleV1, resolveP6cCliBudgetFromManifest } from './fsd-p6c-cli-budget.v1';
+import {
+  computeMaxPlannedProviderRequestsPerVehicleV1,
+  resolveFsdP6cPlannedMaxParallelProviderRequestsV1,
+} from './fsd-p6c-request-concurrency.v1';
 
 export type FsdP6cCatalogPlanModeV1 = 'DECLARED_FIELDS' | 'CATALOG_PENDING';
 
@@ -28,6 +32,7 @@ export type FsdP6cVehicleDiscoveryPlanV1 = {
   fullPlan: FsdFullDiscoveryPlanV1 | null;
   fsd3PlannedProviderRequests: number;
   fsd4PlannedProviderRequests: number;
+  maxPlannedProviderRequestsPerVehicle: number;
   catalogReuseEligible: boolean;
 };
 
@@ -41,7 +46,9 @@ export type FsdP6cFleetDiscoveryPlanReportV1 = {
   fleetCumulativePlannedProviderRequests: number;
   /** @deprecated use fleetCumulativePlannedProviderRequests */
   fleetSequentialPlannedProviderRequests: number;
+  /** Configured max parallel provider slots during sequential fleet execution (default 1). */
   peakInFlightProviderRequests: number;
+  maxPlannedProviderRequestsPerVehicle: number;
   allExecutable: boolean;
   anyCatalogPending: boolean;
   planCompleteness: FsdP6cPlanCompletenessV1;
@@ -126,6 +133,7 @@ export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
         fullPlan: buildCatalogPendingFullPlan(),
         fsd3PlannedProviderRequests: 0,
         fsd4PlannedProviderRequests: 0,
+        maxPlannedProviderRequestsPerVehicle: 0,
         catalogReuseEligible: false,
       });
       continue;
@@ -155,6 +163,10 @@ export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
       fullPlan,
       fsd3PlannedProviderRequests: fsd3Planned,
       fsd4PlannedProviderRequests: fsd4Planned,
+      maxPlannedProviderRequestsPerVehicle: computeMaxPlannedProviderRequestsPerVehicleV1({
+        fsd3PlannedProviderRequests: fsd3Planned,
+        fsd4PlannedProviderRequests: fsd4Planned,
+      }),
       catalogReuseEligible: true,
     });
   }
@@ -166,13 +178,12 @@ export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
     throw new Error('FSD_P6C_FLEET_DISCLOSURE_CAP_EXCEEDED');
   }
 
-  const perVehiclePeaks = vehicles.map((v) =>
-    Math.max(
-      v.fsd3PlannedProviderRequests,
-      v.fsd4PlannedProviderRequests + (v.catalogReuseEligible ? 0 : FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1),
-    ),
-  );
-  const peakInFlightProviderRequests = perVehiclePeaks.length ? Math.max(...perVehiclePeaks) : 0;
+  const peakInFlightProviderRequests = resolveFsdP6cPlannedMaxParallelProviderRequestsV1({
+    budget,
+  });
+  const maxPlannedProviderRequestsPerVehicle = vehicles.length
+    ? Math.max(...vehicles.map((v) => v.maxPlannedProviderRequestsPerVehicle))
+    : 0;
 
   const allExecutable =
     !anyCatalogPending && vehicles.every((v) => v.fullPlan?.executable === true);
@@ -193,6 +204,7 @@ export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
     fleetCumulativePlannedProviderRequests,
     fleetSequentialPlannedProviderRequests: fleetCumulativePlannedProviderRequests,
     peakInFlightProviderRequests,
+    maxPlannedProviderRequestsPerVehicle,
     allExecutable,
     anyCatalogPending,
     planCompleteness,

@@ -1,12 +1,10 @@
 import { assertFsd2PersistencePostgresCiEnv } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.postgres-harness';
 
 /**
- * EXECUTE_MOCK may only run against verified disposable CI/test databases — fail-closed on production URLs.
+ * EXECUTE_MOCK may only run against verified disposable CI/test databases — fail-closed.
+ * No env bypass: production-like hosts/names always reject.
  */
 export function assertFsdP6cMockExecuteDatabaseAllowedV1(env: NodeJS.ProcessEnv = process.env): void {
-  if (env.FSD_P6C_MOCK_EXECUTE_FORCE_ALLOWED === '1') {
-    return;
-  }
   try {
     assertFsd2PersistencePostgresCiEnv();
   } catch (err) {

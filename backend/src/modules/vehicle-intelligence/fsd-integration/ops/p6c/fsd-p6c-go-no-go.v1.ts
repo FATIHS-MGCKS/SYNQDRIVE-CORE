@@ -41,6 +41,20 @@ export function resolveFsdP6cArchitectureReviewClearedV1(env: NodeJS.ProcessEnv 
   return env[SYNQDRIVE_FSD_P6C_ARCHITECTURE_REVIEW_CLEARED] === '1';
 }
 
+export function isFsdP6cLiveGoEligibleV1(gates: FsdP6cLiveTestGoNoGoV1['gates']): boolean {
+  return (
+    gates.allPlansExecutable &&
+    gates.providerBudgetGuardOk &&
+    gates.ownerAuthorizationSatisfied &&
+    gates.architectureReviewCleared &&
+    gates.productionManifestValid &&
+    gates.noCatalogPending &&
+    gates.liveExecuteContext &&
+    !gates.offlineReferenceOnly &&
+    gates.notOfflineReferencePlan
+  );
+}
+
 /**
  * GO only when every gate is satisfied on a live execute path.
  * Owner env alone never produces GO. Offline planner output is always NO_GO.
@@ -100,8 +114,7 @@ export function buildFsdP6cLiveTestGoNoGoV1(input: {
     notOfflineReferencePlan: input.planReport.planBinding !== 'OFFLINE_REFERENCE',
   };
 
-  const decision: 'GO' | 'NO_GO' =
-    Object.values(gates).every(Boolean) ? 'GO' : 'NO_GO';
+  const decision: 'GO' | 'NO_GO' = isFsdP6cLiveGoEligibleV1(gates) ? 'GO' : 'NO_GO';
 
   return {
     decision,

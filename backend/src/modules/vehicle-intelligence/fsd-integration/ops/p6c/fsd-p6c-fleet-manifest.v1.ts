@@ -16,6 +16,8 @@ export const FSD_P6C_FLEET_VEHICLE_LABELS_V1 = [
 
 export type FsdP6cFleetVehicleLabelV1 = (typeof FSD_P6C_FLEET_VEHICLE_LABELS_V1)[number];
 
+export type FsdP6cCatalogProvenanceV1 = 'VERIFIED_LIVE_CATALOG';
+
 export type FsdP6cFleetVehicleManifestEntryV1 = {
   label: FsdP6cFleetVehicleLabelV1;
   vehicleId: string;
@@ -23,6 +25,8 @@ export type FsdP6cFleetVehicleManifestEntryV1 = {
   declaredFieldNames: readonly string[];
   discoveryRequestKey: string;
   historicalRequestKey: string;
+  /** Production manifests require VERIFIED_LIVE_CATALOG — non-empty fields alone are insufficient. */
+  catalogProvenance?: FsdP6cCatalogProvenanceV1;
 };
 
 export type FsdP6cFleetManifestV1 = {
@@ -108,6 +112,9 @@ function parseVehicleEntry(raw: unknown, index: number): FsdP6cFleetVehicleManif
     throw new Error(`FSD_P6C_MANIFEST_INVALID_VEHICLE_SCOPE_${index}`);
   }
 
+  const catalogProvenance =
+    raw.catalogProvenance === 'VERIFIED_LIVE_CATALOG' ? 'VERIFIED_LIVE_CATALOG' : undefined;
+
   return {
     label: parseVehicleLabel(raw.label),
     vehicleId: vehicleId.trim(),
@@ -115,6 +122,7 @@ function parseVehicleEntry(raw: unknown, index: number): FsdP6cFleetVehicleManif
     declaredFieldNames: fields,
     discoveryRequestKey: discoveryRequestKey.trim(),
     historicalRequestKey: historicalRequestKey.trim(),
+    catalogProvenance,
   };
 }
 

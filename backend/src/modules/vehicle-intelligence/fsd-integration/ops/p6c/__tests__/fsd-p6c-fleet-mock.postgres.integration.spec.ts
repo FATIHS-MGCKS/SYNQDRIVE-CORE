@@ -175,7 +175,7 @@ async function seedDimoBinding(prisma: PrismaClient) {
       verifiedFsd3CatalogRunId: fsd3Res.runId,
       releaseSha: 'pg-p6c',
     });
-    expect(fsd4Res.terminalStatus).toMatch(/COMPLETED|PARTIAL/);
+    expect(fsd4Res.terminalStatus).toBe('COMPLETED');
 
     const fsd3Inspector = await inspector.inspectTenantScoped({
       actorUserId,

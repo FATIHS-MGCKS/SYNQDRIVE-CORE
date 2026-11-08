@@ -35,6 +35,7 @@ npx jest \
   src/modules/vehicle-intelligence/full-signal-discovery/orchestration/__tests__/fsd4-orchestration.postgres.integration.spec.ts \
   src/modules/vehicle-intelligence/fsd-integration/ops/__tests__/fsd3-one-shot.postgres.integration.spec.ts \
   src/modules/vehicle-intelligence/fsd-integration/ops/p6c/__tests__/fsd-p6c-fleet-mock.postgres.integration.spec.ts \
+  src/modules/vehicle-intelligence/fsd-integration/ops/p6c/__tests__/fsd-p6c-fleet-four-vehicle.postgres.integration.spec.ts \
   --runInBand \
   --forceExit \
   --verbose

@@ -14,7 +14,10 @@ import {
   FSD_P6C_OFFLINE_FIXTURE_HYDRATION_ENV,
 } from '../fsd-p6c-offline-manifest-hydrate.v1';
 import { parseFsdP6cFleetManifestV1 } from '../fsd-p6c-fleet-manifest.v1';
-import { assertFsd3TerminalAllowsFsd4ReuseV1 } from '../fsd-p6c-fsd3-fsd4-chain-guard.v1';
+import {
+  assertFsd3TerminalAllowsFsd4ReuseV1,
+  assertFsd4TerminalAllowsFleetContinueV1,
+} from '../fsd-p6c-fsd3-fsd4-chain-guard.v1';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -94,6 +97,19 @@ describe('FSD P6C adversarial guards', () => {
       },
     );
     expect(() => assertProductionFleetManifestV1(manifest)).toThrow();
+  });
+
+  it('stops fleet on FSD4 PARTIAL', () => {
+    expect(() =>
+      assertFsd4TerminalAllowsFleetContinueV1({
+        mode: 'EXECUTE',
+        historicalRequestKey: 'h',
+        runId: 'run',
+        terminalStatus: 'PARTIAL',
+        operatorAuthorizationReference: 'ref',
+        releaseSha: 'sha',
+      }),
+    ).toThrow(/FSD_P6C_FLEET_STOPPED_FSD4_PARTIAL/);
   });
 
   it('blocks FSD4 when FSD3 is not COMPLETED', () => {

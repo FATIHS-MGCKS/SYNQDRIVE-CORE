@@ -33,8 +33,11 @@ describe('FSD P6C fleet planner-derived budgets', () => {
     expect(report.fleetSequentialPlannedProviderRequests).toBeGreaterThan(0);
 
     const tesla = report.vehicles.find((v) => v.label === 'tesla_model_3')!;
+    expect(report.peakInFlightProviderRequests).toBe(1);
+    expect(report.maxPlannedProviderRequestsPerVehicle).toBeGreaterThanOrEqual(7);
     expect(tesla.fsd3PlannedProviderRequests).toBe(2);
     expect(tesla.fsd4PlannedProviderRequests).toBe(5);
+    expect(tesla.maxPlannedProviderRequestsPerVehicle).toBe(7);
 
     const vag = report.vehicles.find((v) => v.label === 'vw_tiguan')!;
     expect(vag.fsd3PlannedProviderRequests).toBeGreaterThanOrEqual(2);
