@@ -25,6 +25,7 @@ import {
   formValuesFromSnapshot,
   snapshotFromVehicle,
   type IntervalFormField,
+  type IntervalFormValues,
   type VehicleIntervalSnapshot,
 } from './service-intervals-dialog.util';
 
@@ -330,7 +331,7 @@ const INTERVAL_FIELDS: Array<{
 export function ServiceIntervalsDialog({ open, onOpenChange, orgId, vehicleId, onSaved }: ServiceIntervalsDialogProps) {
   const { t } = useLanguage();
   const loadedRef = useRef<VehicleIntervalSnapshot | null>(null);
-  const [values, setValues] = useState<Record<string, string>>({
+  const [values, setValues] = useState<IntervalFormValues>({
     serviceIntervalKm: '',
     serviceIntervalMonths: '',
     oilChangeIntervalKm: '',

@@ -491,7 +491,7 @@ export function HealthVehicleDetailPanel({
           optionalContextType: 'VEHICLE',
           optionalContextId: vehicle.id,
           contextVehicleId: vehicle.id,
-          sourceSurface: 'health_vehicle_detail',
+          sourceSurface: 'health_page',
           returnView: 'health-errors',
           returnEntityId: vehicle.id,
           documentTab: 'upload',
