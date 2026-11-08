@@ -18,21 +18,35 @@ import { validateDs4PowertrainDemandSustainedLoadInputBinding } from './ds4-powe
 
 const SYNTHETIC_PROVENANCE_LIMITATION = 'SYNTHETIC_FIXTURE_NOT_SOURCE_ATTESTED';
 
+type Ds4SustainedLoadAbstainCoverageV1 = {
+  gridBucketCount: number;
+  loadPresentBucketCount: number;
+  loadMissingBucketCount: number;
+  distinctMsLabelsInTrip: number;
+  identicalDuplicateCollapsedCount: number;
+};
+
+const UNTRUSTED_ABSTAIN_COVERAGE: Ds4SustainedLoadAbstainCoverageV1 = {
+  gridBucketCount: 0,
+  loadPresentBucketCount: 0,
+  loadMissingBucketCount: 0,
+  distinctMsLabelsInTrip: 0,
+  identicalDuplicateCollapsedCount: 0,
+};
+
+/** Insufficient load min is the only binding failure — integrity gates otherwise passed. */
+export function isSoleInsufficientLoadLabelBindingFailure(
+  reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[],
+): boolean {
+  const unique = [...new Set(reasonCodes)];
+  return unique.length === 1 && unique[0] === 'INSUFFICIENT_LOAD_LABEL_OBSERVATIONS';
+}
+
 function tripEvidenceForAbstain(
   reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[],
-  loadPresentBucketCount: number,
 ): Ds4PowertrainDemandSustainedLoadResultV1['sustainedLoad']['tripEvidenceClassification'] {
-  if (reasonCodes.includes('LOAD_CHANNEL_UNAVAILABLE')) {
-    return 'NOT_ASSESSABLE';
-  }
-  if (
-    reasonCodes.includes('INSUFFICIENT_LOAD_LABEL_OBSERVATIONS') &&
-    loadPresentBucketCount > 0
-  ) {
+  if (isSoleInsufficientLoadLabelBindingFailure(reasonCodes)) {
     return 'INSUFFICIENT_OBSERVATIONS';
-  }
-  if (reasonCodes.includes('POWERTRAIN_NOT_APPLICABLE')) {
-    return 'NOT_ASSESSABLE';
   }
   return 'NOT_ASSESSABLE';
 }
@@ -41,13 +55,7 @@ function buildAbstained(
   input: Ds4SustainedLoadResearchInputV1,
   reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[],
   familyPreview: ReturnType<typeof resolveTelemetrySourceFamily>,
-  coverage: {
-    loadPresentBucketCount: number;
-    loadMissingBucketCount: number;
-    gridBucketCount: number;
-    distinctMsLabelsInTrip: number;
-    identicalDuplicateCollapsedCount: number;
-  },
+  coverage: Ds4SustainedLoadAbstainCoverageV1,
 ): Ds4PowertrainDemandSustainedLoadResultV1 {
   return {
     contractVersion: DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION,
@@ -81,7 +89,7 @@ function buildAbstained(
       entryLabelCount: 0,
       deduplicatedCandidateCount: 0,
       candidates: [],
-      tripEvidenceClassification: tripEvidenceForAbstain(reasonCodes, coverage.loadPresentBucketCount),
+      tripEvidenceClassification: tripEvidenceForAbstain(reasonCodes),
       coverageEvidence: {
         loadPresentBucketCount: coverage.loadPresentBucketCount,
         loadMissingBucketCount: coverage.loadMissingBucketCount,
@@ -101,15 +109,19 @@ export function computeDs4PowertrainDemandSustainedLoadResearchV1(
   const familyPreview = resolveTelemetrySourceFamily(input.dimoVehicleRawJson);
   const binding = validateDs4PowertrainDemandSustainedLoadInputBinding(input);
   if (!binding.ok) {
-    const canonAbstain = canonicalizeMultichannelObservations(input.multichannelObservations);
-    const loadPresentAbstain = canonAbstain.buckets.filter((b) => b.loadPct != null).length;
-  const out = buildAbstained(input, binding.reasonCodes, familyPreview, {
-      gridBucketCount: canonAbstain.buckets.length,
-      loadPresentBucketCount: loadPresentAbstain,
-      loadMissingBucketCount: canonAbstain.buckets.length - loadPresentAbstain,
-      distinctMsLabelsInTrip: new Set(canonAbstain.buckets.map((b) => b.recordedAtMs)).size,
-      identicalDuplicateCollapsedCount: canonAbstain.identicalDuplicateCollapsedCount,
-    });
+    let coverageForAbstain = { ...UNTRUSTED_ABSTAIN_COVERAGE };
+    if (isSoleInsufficientLoadLabelBindingFailure(binding.reasonCodes)) {
+      const canonAbstain = canonicalizeMultichannelObservations(input.multichannelObservations);
+      const loadPresentAbstain = canonAbstain.buckets.filter((b) => b.loadPct != null).length;
+      coverageForAbstain = {
+        gridBucketCount: 0,
+        loadMissingBucketCount: 0,
+        distinctMsLabelsInTrip: 0,
+        identicalDuplicateCollapsedCount: 0,
+        loadPresentBucketCount: loadPresentAbstain,
+      };
+    }
+    const out = buildAbstained(input, binding.reasonCodes, familyPreview, coverageForAbstain);
     if (input.evidenceOrigin === 'SYNTHETIC_FIXTURE') {
       return {
         ...out,

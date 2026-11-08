@@ -520,9 +520,11 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
         buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
       );
       expect(out.status).toBe('ABSTAINED');
-      expect(out.abstainReasons).toContain('INSUFFICIENT_LOAD_LABEL_OBSERVATIONS');
+      expect(out.abstainReasons).toEqual(['INSUFFICIENT_LOAD_LABEL_OBSERVATIONS']);
       expect(out.sustainedLoad.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
       expect(out.sustainedLoad.coverageEvidence.loadPresentBucketCount).toBe(4);
+      expect(out.sustainedLoad.coverageEvidence.gridBucketCount).toBe(0);
+      expect(out.sustainedLoad.canonicalRowsFullKey).toBe(0);
     });
 
     it('genuine zero-RPM CH EMPTY with v1b null and throttle entry admits candidate', () => {
@@ -550,6 +552,91 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
       expect(out.status).toBe('COMPUTED');
       expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(1);
       expect(out.sustainedLoad.candidates[0]?.entryBranch).toBe('THROTTLE');
+    });
+  });
+
+  describe('abstain evidence integrity', () => {
+    function gridWithLoadLabels(n: number) {
+      return buildObservationSeries('2026-01-01T10:00:01.000Z', 12, 1, (i) => ({
+        rpm: 2000,
+        throttlePct: 40,
+        loadPct: i < n ? 80 : null,
+      }));
+    }
+
+    it('3 load labels sole failure: INSUFFICIENT_OBSERVATIONS with trusted load count only', () => {
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: gridWithLoadLabels(3), tripId: TRIP }),
+      );
+      expect(out.status).toBe('ABSTAINED');
+      expect(out.abstainReasons).toEqual(['INSUFFICIENT_LOAD_LABEL_OBSERVATIONS']);
+      expect(out.sustainedLoad.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
+      expect(out.sustainedLoad.coverageEvidence.loadPresentBucketCount).toBe(3);
+      expect(out.sustainedLoad.coverageEvidence.gridBucketCount).toBe(0);
+      expect(out.sustainedLoad.canonicalRowsFullKey).toBe(0);
+    });
+
+    it('3 load labels + TENANT_SCOPE_VIOLATION: NOT_ASSESSABLE without trusted counts', () => {
+      const input = buildBoundPowertrainInput({
+        multichannelObservations: gridWithLoadLabels(3),
+        tripId: TRIP,
+      });
+      input.tripInput.clickHouseRead = {
+        ...input.tripInput.clickHouseRead,
+        status: 'TENANT_SCOPE_VIOLATION',
+        tenantScopeViolation: true,
+      };
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(input);
+      expect(out.status).toBe('ABSTAINED');
+      expect(out.abstainReasons).toContain('TENANT_SCOPE_VIOLATION');
+      expect(out.sustainedLoad.tripEvidenceClassification).toBe('NOT_ASSESSABLE');
+      expect(out.sustainedLoad.coverageEvidence.loadPresentBucketCount).toBe(0);
+      expect(out.sustainedLoad.canonicalRowsFullKey).toBe(0);
+    });
+
+    it('3 load labels + fingerprint mismatch: NOT_ASSESSABLE', () => {
+      const input = buildBoundPowertrainInput({
+        multichannelObservations: gridWithLoadLabels(3),
+        tripId: TRIP,
+      });
+      input.multichannelFingerprint = 'forged-fingerprint';
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(input);
+      expect(out.status).toBe('ABSTAINED');
+      expect(out.abstainReasons).toContain('MULTICHANNEL_FINGERPRINT_MISMATCH');
+      expect(out.sustainedLoad.tripEvidenceClassification).toBe('NOT_ASSESSABLE');
+      expect(out.sustainedLoad.coverageEvidence.loadPresentBucketCount).toBe(0);
+    });
+
+    it('3 load labels + provider source link mismatch: NOT_ASSESSABLE', () => {
+      const input = buildBoundPowertrainInput({
+        multichannelObservations: gridWithLoadLabels(3),
+        tripId: TRIP,
+      });
+      input.providerSourceLinkId = 'link-wrong';
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(input);
+      expect(out.status).toBe('ABSTAINED');
+      expect(out.abstainReasons).toContain('PROVIDER_SOURCE_LINK_MISMATCH');
+      expect(out.sustainedLoad.tripEvidenceClassification).toBe('NOT_ASSESSABLE');
+      expect(out.sustainedLoad.coverageEvidence.loadPresentBucketCount).toBe(0);
+    });
+
+    it('OFFLINE_SEALED_BUNDLE without attestation: NOT_ASSESSABLE and zero coverage', () => {
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
+        buildBoundPowertrainInput({
+          multichannelObservations: buildContiguousHighLoadRun({
+            pointCount: 5,
+            stepMs: 5000,
+            map: () => ({ loadPct: 80, rpm: 2000 }),
+          }),
+          evidenceOrigin: 'OFFLINE_SEALED_BUNDLE',
+          multichannelManifest: null,
+        }),
+      );
+      expect(out.status).toBe('ABSTAINED');
+      expect(out.abstainReasons).toContain('OFFLINE_SOURCE_ATTESTATION_NOT_VERIFIED');
+      expect(out.sustainedLoad.tripEvidenceClassification).toBe('NOT_ASSESSABLE');
+      expect(out.sustainedLoad.coverageEvidence.loadPresentBucketCount).toBe(0);
+      expect(out.provenance.sourceProvenanceVerified).toBe(false);
     });
   });
 });
