@@ -290,6 +290,7 @@ export function validateDs4PowertrainDemandResearchInputBinding(
   }
 
   const canon = canonicalizeMultichannelObservations(input.multichannelObservations);
+  if (canon.invalidTimestampOrValueCount > 0) reasonCodes.push('INVALID_TIMESTAMP_OR_VALUE');
   if (canon.r1ForbiddenFieldCount > 0) reasonCodes.push('R1_FORBIDDEN_CHANNEL_POPULATED');
   if (canon.hasConflictingDuplicates) reasonCodes.push('CONFLICTING_DUPLICATE_BUCKETS');
   if (canon.invalidSignalDomainCount > 0) reasonCodes.push('INVALID_SIGNAL_DOMAIN');

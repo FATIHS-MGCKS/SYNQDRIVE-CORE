@@ -282,6 +282,65 @@ describe('ds4-powertrain-demand adversarial binding', () => {
     if (!binding.ok) expect(binding.reasonCodes).toContain('MULTICHANNEL_OUT_OF_TRIP_WINDOW');
   });
 
+  it('malformed timestamp row fails closed and cannot yield COMPUTED', () => {
+    const input = buildBoundPowertrainInput({ multichannelObservations: positiveKickdownGrid() });
+    const grid = [
+      ...input.multichannelObservations,
+      {
+        recordedAtIso: 'not-a-valid-iso',
+        throttlePct: 40,
+        rpm: 2500,
+        speedKmh: 60,
+        loadPct: 70,
+      },
+    ];
+    input.multichannelObservations = grid;
+    const family = resolveTelemetrySourceFamily(input.dimoVehicleRawJson) ?? 'UNKNOWN';
+    input.multichannelFingerprint = computeMultichannelContentFingerprint({
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      tripId: input.tripId,
+      providerSourceLinkId: input.providerSourceLinkId,
+      telemetrySourceFamily: family,
+      observations: grid,
+    });
+    const binding = validateDs4PowertrainDemandResearchInputBinding(input);
+    expect(binding.ok).toBe(false);
+    if (!binding.ok) expect(binding.reasonCodes).toContain('INVALID_TIMESTAMP_OR_VALUE');
+    const out = computeDs4PowertrainDemandResearchV1(input);
+    expect(out.status).not.toBe('COMPUTED');
+  });
+
+  it('invalid RPM observation fails closed and cannot yield COMPUTED despite valid grid', () => {
+    const input = buildBoundPowertrainInput({ multichannelObservations: positiveKickdownGrid() });
+    const grid = [
+      ...input.multichannelObservations,
+      {
+        recordedAtIso: '2026-01-01T10:00:20.000Z',
+        throttlePct: 40,
+        rpm: Number.NaN,
+        speedKmh: 60,
+        loadPct: 70,
+      },
+    ];
+    input.multichannelObservations = grid;
+    const family = resolveTelemetrySourceFamily(input.dimoVehicleRawJson) ?? 'UNKNOWN';
+    input.multichannelFingerprint = computeMultichannelContentFingerprint({
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      tripId: input.tripId,
+      providerSourceLinkId: input.providerSourceLinkId,
+      telemetrySourceFamily: family,
+      observations: grid,
+    });
+    const binding = validateDs4PowertrainDemandResearchInputBinding(input);
+    expect(binding.ok).toBe(false);
+    if (!binding.ok) expect(binding.reasonCodes).toContain('INVALID_TIMESTAMP_OR_VALUE');
+    const out = computeDs4PowertrainDemandResearchV1(input);
+    expect(out.status).not.toBe('COMPUTED');
+    expect(out.kickdown.deduplicatedCandidateCount).toBe(0);
+  });
+
   it('correct R1 manifest snapshot constant is accepted only with offline attestation gap', () => {
     expect(DI_V0_R1_OBD_EVIDENCE_SNAPSHOT_V0_3).toContain('DI_V0');
     const input = bound({ evidenceOrigin: 'OFFLINE_SEALED_BUNDLE', dimoVehicleRawJson: R1_DIMO });
