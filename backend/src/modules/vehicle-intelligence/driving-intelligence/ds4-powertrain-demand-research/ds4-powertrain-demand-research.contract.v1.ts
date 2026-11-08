@@ -8,6 +8,8 @@ export const DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION =
 export const DS4_KICKDOWN_BUCKET_GRID_RESEARCH_POLICY_VERSION =
   'kickdown-bucket-grid-research-v1' as const;
 
+export const DS4_MULTICHANNEL_MANIFEST_VERSION = 'ds4-multichannel-manifest-v1' as const;
+
 export type Ds4PowertrainDemandTimeAuthority = 'BUCKET_LABEL_UNVERIFIED';
 export type Ds4PowertrainDemandTemporalMode = 'MODE_A';
 
@@ -26,6 +28,9 @@ export type Ds4R1MultichannelChannelId = (typeof DS4_R1_MULTICHANNEL_CHANNEL_IDS
 /** Raw provider bucket row before canonical merge. */
 export type Ds4MultichannelBucketObservationV1 = {
   recordedAtIso: string;
+  /** When set, must match the bound trip input identity or the row is rejected. */
+  providerSourceLinkId?: string | null;
+  tripId?: string | null;
   speedKmh?: number | null;
   rpm?: number | null;
   throttlePct?: number | null;
@@ -55,7 +60,10 @@ export type Ds4MultichannelSourceManifestV1 = {
   r1SnapshotVersion: string | null;
   channels: readonly Ds4MultichannelChannelProvenanceV1[];
   expectedMultichannelFingerprint: string;
-  /** True only when independently attested — never for synthetic. */
+  /**
+   * Caller-declared only — never treated as verified attestation without
+   * a separate trust anchor (not implemented in P2-B1).
+   */
   independentFieldValidation: boolean;
 };
 
@@ -102,7 +110,22 @@ export type Ds4PowertrainDemandBindingAbstainReason =
   | 'ICE_OPERATION_NOT_CONFIRMED'
   | 'ICE_CONFIRMATION_CALLER_ONLY'
   | 'CONFLICTING_DUPLICATE_BUCKETS'
-  | 'DECLARED_PHEV_WITHOUT_FUEL_CONTEXT';
+  | 'DECLARED_PHEV_WITHOUT_FUEL_CONTEXT'
+  | 'RPM_V1A_UNMATCHED_LABEL'
+  | 'RPM_V1A_EXTRA_MULTICHANNEL_LABEL'
+  | 'RPM_V1A_VALUE_MISMATCH'
+  | 'V1A_RPM_DUPLICATE_CONFLICT'
+  | 'MULTICHANNEL_OUT_OF_TRIP_WINDOW'
+  | 'MIXED_SOURCE_OBSERVATION'
+  | 'INVALID_SIGNAL_DOMAIN'
+  | 'MANIFEST_SOURCE_FAMILY_MISMATCH'
+  | 'MANIFEST_R1_SNAPSHOT_MISMATCH'
+  | 'MANIFEST_CHANNEL_MISMATCH'
+  | 'MANIFEST_VERSION_INVALID'
+  | 'FORGED_INDEPENDENT_ATTESTATION'
+  | 'OFFLINE_SOURCE_ATTESTATION_NOT_VERIFIED'
+  | 'INSUFFICIENT_LOCAL_CANDIDATE_WINDOW'
+  | 'PHEV_ICE_NOT_CONFIRMED_IN_WINDOW';
 
 export type Ds4PowertrainDemandResearchInputV1 = {
   contractVersion: typeof DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION;
@@ -179,8 +202,11 @@ export type Ds4PowertrainDemandKickdownResultV1 = {
     deduplicatedCandidateCount: number;
     candidates: Ds4KickdownLikeCandidateV1[];
     coverageEvidence: {
-      requiredChannelCoverage: number | null;
-      rpmCoverageEcho: number | null;
+      /** V1B RPM trip window coverage — not multichannel completeness. */
+      rpmTripCoverage: number | null;
+      /** Share of observed grid buckets with all required channels present. */
+      multichannelObservedGridCoverage: number | null;
+      requiredChannelCompleteness: number | null;
       eligibleObservationCount: number;
     };
   };

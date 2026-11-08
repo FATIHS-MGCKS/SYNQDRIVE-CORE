@@ -102,6 +102,8 @@ describe('ds4-powertrain-demand-research kernel', () => {
     );
     expect(out.status).toBe('ABSTAINED');
     expect(out.abstainReasons).toContain('MULTICHANNEL_MANIFEST_MISSING');
+    expect(out.abstainReasons).toContain('OFFLINE_SOURCE_ATTESTATION_NOT_VERIFIED');
+    expect(out.provenance.sourceProvenanceVerified).toBe(false);
   });
 
   it('forbidden R1 channel populated abstains', () => {
@@ -130,7 +132,7 @@ describe('ds4-powertrain-demand-research kernel', () => {
     expect(out.abstainReasons).toContain('CONFLICTING_DUPLICATE_BUCKETS');
   });
 
-  it('PHEV without bound ICE signals abstains', () => {
+  it('PHEV without bound ICE signals in candidate window yields no proxy', () => {
     const grid = buildObservationSeries('2026-01-01T10:00:01.000Z', 12, 1, () => ({
       throttlePct: 30,
       rpm: 100,
@@ -143,7 +145,18 @@ describe('ds4-powertrain-demand-research kernel', () => {
         fuelType: 'PHEV',
       }),
     );
-    expect(out.abstainReasons).toContain('ICE_OPERATION_NOT_CONFIRMED');
+    expect(out.kickdown.deduplicatedCandidateCount).toBe(0);
+    expect(out.provenance.independentFieldValidation).toBe(false);
+  });
+
+  it('synthetic success never claims source attestation', () => {
+    const out = computeDs4PowertrainDemandResearchV1(
+      buildBoundPowertrainInput({ multichannelObservations: positiveKickdownGrid() }),
+    );
+    expect(out.provenance.sourceProvenanceVerified).toBe(false);
+    expect(out.provenance.independentFieldValidation).toBe(false);
+    expect(out.kickdown.coverageEvidence.rpmTripCoverage).not.toBeNull();
+    expect(out.kickdown.coverageEvidence.multichannelObservedGridCoverage).not.toBeNull();
   });
 
   it('shuffled input ordering is deterministic', () => {

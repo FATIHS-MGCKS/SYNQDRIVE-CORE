@@ -1,9 +1,4 @@
 import { hasUncertainHistoricalObdRecordTime, resolveTelemetrySourceFamily } from '../../telemetry-source-family';
-import {
-  confirmIceOperation,
-  isPhevFuelType,
-} from '../../shadow-detector/detectors/cold-engine-shadow.policy';
-import type { ShadowDetectorHfSample } from '../../shadow-detector/shadow-detector.types';
 import { DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS } from '../ds4-rpm-real-data-replay/ds4-rpm-real-data-scientific-claims.v1';
 import { detectKickdownBucketGridCandidates } from './ds4-powertrain-demand-kickdown-bucket-grid.v1';
 import { validateDs4PowertrainDemandResearchInputBinding } from './ds4-powertrain-demand-research.input-binding.v1';
@@ -21,15 +16,13 @@ import {
 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
 
 const R1_OBD_RECORD_TIME_UNCERTAIN = 'R1_HISTORICAL_OBD_RECORD_TIME_UNCERTAIN';
+const SYNTHETIC_PROVENANCE_LIMITATION = 'SYNTHETIC_FIXTURE_NOT_SOURCE_ATTESTED';
 
 function buildAbstained(
   input: Ds4PowertrainDemandResearchInputV1,
   reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[],
   familyPreview: ReturnType<typeof resolveTelemetrySourceFamily>,
 ): Ds4PowertrainDemandKickdownResultV1 {
-  const independent =
-    input.evidenceOrigin === 'OFFLINE_SEALED_BUNDLE' &&
-    input.multichannelManifest?.independentFieldValidation === true;
   return {
     contractVersion: DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION,
     policyVersion: DS4_KICKDOWN_BUCKET_GRID_RESEARCH_POLICY_VERSION,
@@ -42,8 +35,8 @@ function buildAbstained(
     abstainReasons: [...reasonCodes],
     provenance: {
       contentConsistencyVerified: false,
-      sourceProvenanceVerified: input.evidenceOrigin === 'OFFLINE_SEALED_BUNDLE',
-      independentFieldValidation: independent,
+      sourceProvenanceVerified: false,
+      independentFieldValidation: false,
     },
     bindings: {
       organizationId: input.organizationId,
@@ -60,39 +53,17 @@ function buildAbstained(
       deduplicatedCandidateCount: 0,
       candidates: [],
       coverageEvidence: {
-        requiredChannelCoverage: null,
-        rpmCoverageEcho: null,
+        rpmTripCoverage: null,
+        multichannelObservedGridCoverage: null,
+        requiredChannelCompleteness: null,
         eligibleObservationCount: 0,
       },
     },
     unsupportedScientificClaims: [...DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS],
     r1HistoricalObdRecordTimeUncertain:
       familyPreview != null && hasUncertainHistoricalObdRecordTime(familyPreview),
-    realDataValidation: input.evidenceOrigin === 'SYNTHETIC_FIXTURE' ? 'SYNTHETIC_ONLY' : 'NOT_EVALUATED',
+    realDataValidation: 'NOT_EVALUATED',
   };
-}
-
-function bucketsToIceSamples(
-  buckets: ReturnType<typeof canonicalizeMultichannelObservations>['buckets'],
-): ShadowDetectorHfSample[] {
-  return buckets.map((b) => ({
-    timestamp: b.recordedAtIso,
-    speedKmh: b.speedKmh,
-    coolantC: b.coolantC,
-    rpm: b.rpm,
-    throttlePct: b.throttlePct,
-    loadPct: b.loadPct,
-    engineRuntimeSec: null,
-    torqueNm: null,
-    torquePct: null,
-    exteriorTempC: null,
-    tractionBatteryPowerKw: null,
-    socPct: null,
-    tractionBatteryTemperatureC: null,
-    altitudeM: null,
-    gear: null,
-    ignitionOn: null,
-  }));
 }
 
 export function computeDs4PowertrainDemandResearchV1(
@@ -105,20 +76,12 @@ export function computeDs4PowertrainDemandResearchV1(
     const out = buildAbstained(input, binding.reasonCodes, familyPreview);
     if (input.evidenceOrigin === 'SYNTHETIC_FIXTURE') {
       out.unsupportedScientificClaims.push('SYNTHETIC_FIXTURE_SUCCESS_NOT_FIELD_VALIDATION');
+      out.unsupportedScientificClaims.push(SYNTHETIC_PROVENANCE_LIMITATION);
     }
     return out;
   }
 
   const canon = canonicalizeMultichannelObservations(input.multichannelObservations);
-  if (isPhevFuelType(input.fuelType)) {
-    const ice = confirmIceOperation(bucketsToIceSamples(canon.buckets));
-    if (!ice.confirmed) {
-      const out = buildAbstained(input, ['ICE_OPERATION_NOT_CONFIRMED'], familyPreview);
-      out.status = 'ABSTAINED';
-      return out;
-    }
-  }
-
   const cadence = binding.cadenceProfile!;
   const nominalMs = (cadence.nominalCadenceSeconds ?? 1) * 1000;
   const detect = detectKickdownBucketGridCandidates({
@@ -127,8 +90,10 @@ export function computeDs4PowertrainDemandResearchV1(
     canon,
     sequenceMaxGapSeconds: cadence.sequenceMaxGapSeconds,
     nominalCadenceMs: nominalMs,
-    requiredChannelCoverage: binding.requiredChannelCoverage,
+    multichannelObservedGridCoverage: binding.multichannelObservedGridCoverage,
     r1HistoricalObdRecordTimeUncertain: hasUncertainHistoricalObdRecordTime(binding.telemetrySourceFamily),
+    fuelType: input.fuelType,
+    rpmTripCoverage: binding.rpmTripCoverage,
   });
 
   const kickdownCandidates = detect.candidates.filter(
@@ -141,17 +106,15 @@ export function computeDs4PowertrainDemandResearchV1(
     'KICKDOWN_LIKE_PROXY_ONLY',
     'BUCKET_LABEL_UNVERIFIED',
     'BUCKET_CO_OBSERVED_NOT_SYNCHRONIZED',
+    'SOURCE_ATTESTATION_NOT_INDEPENDENTLY_VERIFIED',
   ];
   if (input.evidenceOrigin === 'SYNTHETIC_FIXTURE') {
     claims.push('SYNTHETIC_FIXTURE_SUCCESS_NOT_FIELD_VALIDATION');
+    claims.push(SYNTHETIC_PROVENANCE_LIMITATION);
   }
   if (hasUncertainHistoricalObdRecordTime(binding.telemetrySourceFamily)) {
     claims.push(R1_OBD_RECORD_TIME_UNCERTAIN);
   }
-
-  const independent =
-    input.evidenceOrigin === 'OFFLINE_SEALED_BUNDLE' &&
-    input.multichannelManifest?.independentFieldValidation === true;
 
   return {
     contractVersion: DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION,
@@ -165,9 +128,8 @@ export function computeDs4PowertrainDemandResearchV1(
     abstainReasons: [],
     provenance: {
       contentConsistencyVerified: true,
-      sourceProvenanceVerified:
-        input.evidenceOrigin === 'SYNTHETIC_FIXTURE' || input.multichannelManifest != null,
-      independentFieldValidation: independent,
+      sourceProvenanceVerified: false,
+      independentFieldValidation: false,
     },
     bindings: {
       organizationId: input.organizationId,
@@ -184,13 +146,15 @@ export function computeDs4PowertrainDemandResearchV1(
       deduplicatedCandidateCount: kickdownCandidates.length,
       candidates: kickdownCandidates,
       coverageEvidence: {
-        requiredChannelCoverage: binding.requiredChannelCoverage,
-        rpmCoverageEcho: binding.rpmCoverage,
+        rpmTripCoverage: binding.rpmTripCoverage,
+        multichannelObservedGridCoverage: binding.multichannelObservedGridCoverage,
+        requiredChannelCompleteness: binding.multichannelObservedGridCoverage,
         eligibleObservationCount: canon.buckets.length,
       },
     },
     unsupportedScientificClaims: claims,
     r1HistoricalObdRecordTimeUncertain: hasUncertainHistoricalObdRecordTime(binding.telemetrySourceFamily),
-    realDataValidation: input.evidenceOrigin === 'SYNTHETIC_FIXTURE' ? 'SYNTHETIC_ONLY' : 'NOT_EVALUATED',
+    realDataValidation:
+      input.evidenceOrigin === 'SYNTHETIC_FIXTURE' ? 'SYNTHETIC_ONLY' : 'NOT_EVALUATED',
   };
 }

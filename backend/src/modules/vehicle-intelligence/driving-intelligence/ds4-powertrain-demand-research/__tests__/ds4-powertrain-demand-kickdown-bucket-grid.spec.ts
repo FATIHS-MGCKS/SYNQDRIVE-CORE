@@ -26,8 +26,10 @@ describe('kickdown bucket grid', () => {
       canon,
       sequenceMaxGapSeconds: 3,
       nominalCadenceMs: 1000,
-      requiredChannelCoverage: 1,
+      multichannelObservedGridCoverage: 1,
+      rpmTripCoverage: 1,
       r1HistoricalObdRecordTimeUncertain: false,
+      fuelType: 'GASOLINE',
     });
     expect(detect.candidates.every((c) => c.classification !== 'KICKDOWN_LIKE_PROXY_CANDIDATE')).toBe(true);
   });
@@ -57,8 +59,10 @@ describe('kickdown bucket grid', () => {
       canon,
       sequenceMaxGapSeconds: 5,
       nominalCadenceMs: 1000,
-      requiredChannelCoverage: 1,
+      multichannelObservedGridCoverage: 1,
+      rpmTripCoverage: 1,
       r1HistoricalObdRecordTimeUncertain: false,
+      fuelType: 'GASOLINE',
     });
     expect(detect.rawWindowCount).toBeGreaterThanOrEqual(detect.candidates.length);
   });

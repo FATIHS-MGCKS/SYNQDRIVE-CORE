@@ -1,5 +1,8 @@
 import { parseHfRpmValueFloat } from '@modules/clickhouse/hf-rpm-value-parse.util';
-import type { Ds4MultichannelBucketObservationV1 } from './ds4-powertrain-demand-research.contract.v1';
+import type {
+  Ds4PowertrainDemandBindingAbstainReason,
+  Ds4MultichannelBucketObservationV1,
+} from './ds4-powertrain-demand-research.contract.v1';
 
 export type Ds4CanonicalMultichannelBucketV1 = {
   recordedAtMs: number;
@@ -18,25 +21,42 @@ export type Ds4MultichannelCanonicalizeResultV1 = {
   conflictingDuplicateBucketCount: number;
   hasConflictingDuplicates: boolean;
   invalidTimestampOrValueCount: number;
+  invalidSignalDomainCount: number;
   r1ForbiddenFieldCount: number;
 };
 
 const R1_FORBIDDEN_KEYS = ['gear', 'torquePct', 'ignitionOn', 'altitudeM'] as const;
 
-function parsePct(v: unknown): number | null {
-  if (typeof v !== 'number' || !Number.isFinite(v)) return null;
-  return v;
+/** OBD throttle / engine load — percent 0..100 inclusive. */
+function parsePct0To100(v: unknown): { value: number | null; domainReject: boolean } {
+  if (v == null) return { value: null, domainReject: false };
+  if (typeof v !== 'number' || !Number.isFinite(v)) return { value: null, domainReject: true };
+  if (v < 0 || v > 100) return { value: null, domainReject: true };
+  return { value: v, domainReject: false };
 }
 
-function parseSpeed(v: unknown): number | null {
-  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return null;
-  return v;
+function parseSpeed(v: unknown): { value: number | null; domainReject: boolean } {
+  if (v == null) return { value: null, domainReject: false };
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return { value: null, domainReject: true };
+  return { value: v, domainReject: false };
+}
+
+/** ECT documented plausible bound for research admission (not OEM legal limit). */
+const ECT_MIN_C = -50;
+const ECT_MAX_C = 200;
+
+function parseEct(v: unknown): { value: number | null; domainReject: boolean } {
+  if (v == null) return { value: null, domainReject: false };
+  if (typeof v !== 'number' || !Number.isFinite(v)) return { value: null, domainReject: true };
+  if (v < ECT_MIN_C || v > ECT_MAX_C) return { value: null, domainReject: true };
+  return { value: v, domainReject: false };
 }
 
 export function canonicalizeMultichannelObservations(
   rows: readonly Ds4MultichannelBucketObservationV1[],
 ): Ds4MultichannelCanonicalizeResultV1 {
   let invalidTimestampOrValueCount = 0;
+  let invalidSignalDomainCount = 0;
   let r1ForbiddenFieldCount = 0;
   const valid: Array<{
     recordedAtMs: number;
@@ -60,23 +80,37 @@ export function canonicalizeMultichannelObservations(
       invalidTimestampOrValueCount += 1;
       continue;
     }
-    const rpm = row.rpm == null ? null : parseHfRpmValueFloat(row.rpm);
+    let domainReject = false;
+    const rpm =
+      row.rpm == null
+        ? null
+        : (() => {
+            const parsed = parseHfRpmValueFloat(row.rpm);
+            if (row.rpm != null && parsed == null) {
+              invalidTimestampOrValueCount += 1;
+            }
+            return parsed;
+          })();
     if (row.rpm != null && rpm == null) {
-      invalidTimestampOrValueCount += 1;
       continue;
     }
-    const throttle = parsePct(row.throttlePct);
-    const load = parsePct(row.loadPct);
+
+    const throttle = parsePct0To100(row.throttlePct);
+    const load = parsePct0To100(row.loadPct);
     const speed = parseSpeed(row.speedKmh);
-    const coolant = parsePct(row.coolantC);
-  valid.push({
+    const coolant = parseEct(row.coolantC);
+    domainReject =
+      throttle.domainReject || load.domainReject || speed.domainReject || coolant.domainReject;
+    if (domainReject) invalidSignalDomainCount += 1;
+
+    valid.push({
       recordedAtMs: ms,
       recordedAtIso: new Date(ms).toISOString(),
-      speedKmh: speed,
+      speedKmh: speed.value,
       rpm,
-      throttlePct: throttle,
-      loadPct: load,
-      coolantC: coolant,
+      throttlePct: throttle.value,
+      loadPct: load.value,
+      coolantC: coolant.value,
     });
   }
 
@@ -155,6 +189,7 @@ export function canonicalizeMultichannelObservations(
     conflictingDuplicateBucketCount,
     hasConflictingDuplicates,
     invalidTimestampOrValueCount,
+    invalidSignalDomainCount,
     r1ForbiddenFieldCount,
   };
 }
@@ -180,10 +215,24 @@ export function splitMultichannelSequences(
   return sequences;
 }
 
+export type Ds4MultichannelRpmParityVerdictV1 =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: Extract<
+        Ds4PowertrainDemandBindingAbstainReason,
+        | 'V1A_RPM_DUPLICATE_CONFLICT'
+        | 'RPM_V1A_UNMATCHED_LABEL'
+        | 'RPM_V1A_EXTRA_MULTICHANNEL_LABEL'
+        | 'RPM_V1A_VALUE_MISMATCH'
+      >;
+      mismatchCount: number;
+    };
+
 export function verifyMultichannelRpmParityWithV1a(input: {
   buckets: readonly Ds4CanonicalMultichannelBucketV1[];
   rpmPoints: ReadonlyArray<{ recordedAtIso: string; valueRpm: number }>;
-}): { ok: boolean; mismatchCount: number } {
+}): Ds4MultichannelRpmParityVerdictV1 {
   const rpmByEpoch = new Map<number, number>();
   for (const p of input.rpmPoints) {
     const ms = Date.parse(p.recordedAtIso);
@@ -191,15 +240,25 @@ export function verifyMultichannelRpmParityWithV1a(input: {
     const rpm = parseHfRpmValueFloat(p.valueRpm);
     if (rpm == null) continue;
     const prev = rpmByEpoch.get(ms);
-    if (prev != null && prev !== rpm) return { ok: false, mismatchCount: 999 };
+    if (prev != null && Math.abs(prev - rpm) > 0.01) {
+      return { ok: false, reason: 'V1A_RPM_DUPLICATE_CONFLICT', mismatchCount: 1 };
+    }
     rpmByEpoch.set(ms, rpm);
   }
+
   let mismatchCount = 0;
   for (const b of input.buckets) {
     if (b.rpm == null) continue;
     const expected = rpmByEpoch.get(b.recordedAtMs);
-    if (expected == null) continue;
-    if (Math.abs(expected - b.rpm) > 0.01) mismatchCount += 1;
+    if (expected == null) {
+      return { ok: false, reason: 'RPM_V1A_EXTRA_MULTICHANNEL_LABEL', mismatchCount: 1 };
+    }
+    if (Math.abs(expected - b.rpm) > 0.01) {
+      mismatchCount += 1;
+    }
   }
-  return { ok: mismatchCount === 0, mismatchCount };
+  if (mismatchCount > 0) {
+    return { ok: false, reason: 'RPM_V1A_VALUE_MISMATCH', mismatchCount };
+  }
+  return { ok: true };
 }

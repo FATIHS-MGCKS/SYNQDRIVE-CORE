@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { resolveTelemetrySourceFamily } from '../../telemetry-source-family';
+import { DI_V0_R1_OBD_EVIDENCE_SNAPSHOT_V0_3 } from '../r1-obd-acquisition/di-v0-r1-obd-acquisition.versions';
 import {
   computeDs4RpmHfV1bInputFingerprint,
   computeDs4RpmHfV1bTierAwareInputFingerprint,
@@ -8,12 +9,15 @@ import { DS4_RPM_HF_V1B_ENGINE_VERSION_TIER_AWARE } from '../rpm-hf-v1b/ds4-rpm-
 import { computeDs4RpmHfV1bTemporalAnalysis } from '../rpm-hf-v1b/ds4-rpm-hf-v1b-temporal.engine';
 import type {
   Ds4MultichannelBucketObservationV1,
+  Ds4MultichannelSourceManifestV1,
   Ds4PowertrainDemandBindingAbstainReason,
   Ds4PowertrainDemandResearchInputV1,
 } from './ds4-powertrain-demand-research.contract.v1';
 import {
   DS4_KICKDOWN_BUCKET_GRID_RESEARCH_POLICY_VERSION,
+  DS4_MULTICHANNEL_MANIFEST_VERSION,
   DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION,
+  DS4_R1_MULTICHANNEL_CHANNEL_IDS,
 } from './ds4-powertrain-demand-research.contract.v1';
 import {
   canonicalizeMultichannelObservations,
@@ -31,8 +35,8 @@ export type Ds4PowertrainDemandBindingResultV1 =
       >['temporalCadenceProfile'];
       recomputedV1bFingerprint: string;
       recomputedMultichannelFingerprint: string;
-      rpmCoverage: number;
-      requiredChannelCoverage: number;
+      rpmTripCoverage: number;
+      multichannelObservedGridCoverage: number;
     }
   | { ok: false; reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[] };
 
@@ -72,7 +76,7 @@ export function computeMultichannelContentFingerprint(input: {
     tripId: input.tripId,
     providerSourceLinkId: input.providerSourceLinkId,
     telemetrySourceFamily: input.telemetrySourceFamily,
-    channelNames: ['speed', 'powertrainCombustionEngineSpeed', 'obdThrottlePosition', 'obdEngineLoad', 'powertrainCombustionEngineECT'],
+    channelNames: [...DS4_R1_MULTICHANNEL_CHANNEL_IDS],
     channelPresence,
     buckets: canon.buckets.map((b) => ({
       ms: b.recordedAtMs,
@@ -102,6 +106,93 @@ function requiredChannelCoverage(
     }
   }
   return complete / buckets.length;
+}
+
+function buildManifestChannelExpectations(
+  canon: ReturnType<typeof canonicalizeMultichannelObservations>,
+): Ds4MultichannelSourceManifestV1['channels'] {
+  const n = canon.buckets.length;
+  const count = (pred: (b: (typeof canon.buckets)[0]) => boolean) =>
+    canon.buckets.filter(pred).length;
+  const mk = (
+    channelId: (typeof DS4_R1_MULTICHANNEL_CHANNEL_IDS)[number],
+    pred: (b: (typeof canon.buckets)[0]) => boolean,
+  ) => {
+    const observed = count(pred);
+    return {
+      channelId,
+      present: observed > 0,
+      observedBucketCount: observed,
+      completenessRatio: n > 0 ? observed / n : null,
+    };
+  };
+  return [
+    mk('speed', (b) => b.speedKmh != null),
+    mk('powertrainCombustionEngineSpeed', (b) => b.rpm != null),
+    mk('obdThrottlePosition', (b) => b.throttlePct != null),
+    mk('obdEngineLoad', (b) => b.loadPct != null),
+    mk('powertrainCombustionEngineECT', (b) => b.coolantC != null),
+  ];
+}
+
+function validateMultichannelManifest(input: {
+  manifest: Ds4MultichannelSourceManifestV1;
+  input: Ds4PowertrainDemandResearchInputV1;
+  family: ReturnType<typeof resolveTelemetrySourceFamily>;
+  expectedMcFp: string;
+  canon: ReturnType<typeof canonicalizeMultichannelObservations>;
+  reasonCodes: Ds4PowertrainDemandBindingAbstainReason[];
+}): void {
+  const { manifest: m, reasonCodes } = input;
+  if (m.manifestVersion !== DS4_MULTICHANNEL_MANIFEST_VERSION) {
+    reasonCodes.push('MANIFEST_VERSION_INVALID');
+  }
+  if (
+    m.organizationId !== input.input.organizationId ||
+    m.vehicleId !== input.input.vehicleId ||
+    m.tripId !== input.input.tripId ||
+    m.providerSourceLinkId !== input.input.providerSourceLinkId
+  ) {
+    reasonCodes.push('MULTICHANNEL_MANIFEST_MISMATCH');
+  }
+  if (m.telemetrySourceFamily !== input.family) {
+    reasonCodes.push('MANIFEST_SOURCE_FAMILY_MISMATCH');
+  }
+  if (m.expectedMultichannelFingerprint !== input.expectedMcFp) {
+    reasonCodes.push('MULTICHANNEL_MANIFEST_TAMPERED');
+  }
+  if (m.independentFieldValidation === true) {
+    reasonCodes.push('FORGED_INDEPENDENT_ATTESTATION');
+  }
+  if (input.family === 'RUPTELA_R1' && m.r1SnapshotVersion !== DI_V0_R1_OBD_EVIDENCE_SNAPSHOT_V0_3) {
+    reasonCodes.push('MANIFEST_R1_SNAPSHOT_MISMATCH');
+  }
+
+  const allowed = new Set<string>(DS4_R1_MULTICHANNEL_CHANNEL_IDS);
+  for (const ch of m.channels) {
+    if (!allowed.has(ch.channelId)) {
+      reasonCodes.push('MANIFEST_CHANNEL_MISMATCH');
+      break;
+    }
+  }
+
+  const expectedChannels = buildManifestChannelExpectations(input.canon);
+  if (m.channels.length !== expectedChannels.length) {
+    reasonCodes.push('MANIFEST_CHANNEL_MISMATCH');
+  } else {
+    for (let i = 0; i < expectedChannels.length; i += 1) {
+      const exp = expectedChannels[i]!;
+      const act = m.channels[i]!;
+      if (
+        exp.channelId !== act.channelId ||
+        exp.present !== act.present ||
+        exp.observedBucketCount !== act.observedBucketCount
+      ) {
+        reasonCodes.push('MANIFEST_CHANNEL_MISMATCH');
+        break;
+      }
+    }
+  }
 }
 
 export function validateDs4PowertrainDemandResearchInputBinding(
@@ -183,19 +274,51 @@ export function validateDs4PowertrainDemandResearchInputBinding(
   if (!fp.ok) reasonCodes.push('V1B_INPUT_FINGERPRINT_MISMATCH');
 
   const family = resolveTelemetrySourceFamily(input.dimoVehicleRawJson);
-  if (family === 'UNKNOWN' && input.evidenceOrigin === 'OFFLINE_SEALED_BUNDLE') {
+  if (family === 'UNKNOWN') {
     reasonCodes.push('TELEMETRY_SOURCE_FAMILY_UNKNOWN');
+  }
+
+  for (const row of input.multichannelObservations) {
+    if (row.providerSourceLinkId != null && row.providerSourceLinkId !== input.providerSourceLinkId) {
+      reasonCodes.push('MIXED_SOURCE_OBSERVATION');
+      break;
+    }
+    if (row.tripId != null && row.tripId !== input.tripId) {
+      reasonCodes.push('MIXED_SOURCE_OBSERVATION');
+      break;
+    }
   }
 
   const canon = canonicalizeMultichannelObservations(input.multichannelObservations);
   if (canon.r1ForbiddenFieldCount > 0) reasonCodes.push('R1_FORBIDDEN_CHANNEL_POPULATED');
   if (canon.hasConflictingDuplicates) reasonCodes.push('CONFLICTING_DUPLICATE_BUCKETS');
+  if (canon.invalidSignalDomainCount > 0) reasonCodes.push('INVALID_SIGNAL_DOMAIN');
+
+  if (Number.isFinite(tripStartMs) && Number.isFinite(tripEndMs)) {
+    for (const b of canon.buckets) {
+      if (b.recordedAtMs < tripStartMs || b.recordedAtMs > tripEndMs) {
+        reasonCodes.push('MULTICHANNEL_OUT_OF_TRIP_WINDOW');
+        break;
+      }
+    }
+  }
 
   const parity = verifyMultichannelRpmParityWithV1a({
     buckets: canon.buckets,
     rpmPoints: tripInput.rpmPoints,
   });
-  if (!parity.ok) reasonCodes.push('RPM_V1A_GRID_MISMATCH');
+  if (!parity.ok) reasonCodes.push(parity.reason);
+
+  const bucketByEpoch = new Map(canon.buckets.map((b) => [b.recordedAtMs, b]));
+  for (const p of tripInput.rpmPoints) {
+    const ms = Date.parse(p.recordedAtIso);
+    if (!Number.isFinite(ms)) continue;
+    const bucket = bucketByEpoch.get(ms);
+    if (bucket != null && bucket.rpm == null) {
+      reasonCodes.push('RPM_V1A_UNMATCHED_LABEL');
+      break;
+    }
+  }
 
   const familyStr = family ?? 'UNKNOWN';
   const expectedMcFp = computeMultichannelContentFingerprint({
@@ -211,33 +334,31 @@ export function validateDs4PowertrainDemandResearchInputBinding(
   }
 
   if (input.evidenceOrigin === 'OFFLINE_SEALED_BUNDLE') {
+    reasonCodes.push('OFFLINE_SOURCE_ATTESTATION_NOT_VERIFIED');
     const m = input.multichannelManifest;
     if (m == null) {
       reasonCodes.push('MULTICHANNEL_MANIFEST_MISSING');
     } else {
-      if (
-        m.organizationId !== input.organizationId ||
-        m.vehicleId !== input.vehicleId ||
-        m.tripId !== input.tripId ||
-        m.providerSourceLinkId !== input.providerSourceLinkId
-      ) {
-        reasonCodes.push('MULTICHANNEL_MANIFEST_MISMATCH');
-      }
-      if (m.expectedMultichannelFingerprint !== expectedMcFp) {
-        reasonCodes.push('MULTICHANNEL_MANIFEST_TAMPERED');
-      }
+      validateMultichannelManifest({
+        manifest: m,
+        input,
+        family,
+        expectedMcFp,
+        canon,
+        reasonCodes,
+      });
     }
   }
 
   const temporalCoverage = v1bResult.temporalCoverage;
-  const rpmCoverage = temporalCoverage?.observedBucketCoverageRatio ?? null;
-  if (cadenceProfile == null || rpmCoverage == null) {
+  const rpmTripCoverage = temporalCoverage?.observedBucketCoverageRatio ?? null;
+  if (cadenceProfile == null || rpmTripCoverage == null) {
     reasonCodes.push('CADENCE_EVIDENCE_NULL');
     reasonCodes.push('COVERAGE_EVIDENCE_NULL');
   }
 
-  const reqCov = requiredChannelCoverage(canon.buckets);
-  if (reqCov < 0.7) reasonCodes.push('CHANNEL_COVERAGE_BELOW_MINIMUM');
+  const multichannelObservedGridCoverage = requiredChannelCoverage(canon.buckets);
+  if (multichannelObservedGridCoverage < 0.7) reasonCodes.push('CHANNEL_COVERAGE_BELOW_MINIMUM');
   if (canon.buckets.length < 8) reasonCodes.push('INSUFFICIENT_ELIGIBLE_OBSERVATIONS');
 
   if (input.isEvPowertrain) reasonCodes.push('POWERTRAIN_NOT_APPLICABLE');
@@ -274,7 +395,7 @@ export function validateDs4PowertrainDemandResearchInputBinding(
     cadenceProfile: cadenceProfile!,
     recomputedV1bFingerprint: fp.expected,
     recomputedMultichannelFingerprint: expectedMcFp,
-    rpmCoverage: rpmCoverage!,
-    requiredChannelCoverage: reqCov,
+    rpmTripCoverage: rpmTripCoverage!,
+    multichannelObservedGridCoverage,
   };
 }

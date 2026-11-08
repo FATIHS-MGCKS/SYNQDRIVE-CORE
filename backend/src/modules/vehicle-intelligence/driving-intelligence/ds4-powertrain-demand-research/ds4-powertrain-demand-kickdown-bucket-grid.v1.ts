@@ -1,4 +1,9 @@
+import {
+  confirmIceOperation,
+  isPhevFuelType,
+} from '../../shadow-detector/detectors/cold-engine-shadow.policy';
 import { KICKDOWN_LIKE_SHADOW_POLICY } from '../../shadow-detector/detectors/kickdown-like-shadow.policy';
+import type { ShadowDetectorHfSample } from '../../shadow-detector/shadow-detector.types';
 import type {
   Ds4CanonicalMultichannelBucketV1,
   Ds4MultichannelCanonicalizeResultV1,
@@ -58,9 +63,31 @@ function windowBucketsConsecutive(
   return true;
 }
 
+function bucketsToIceSamples(slice: readonly Ds4CanonicalMultichannelBucketV1[]): ShadowDetectorHfSample[] {
+  return slice.map((b) => ({
+    timestamp: b.recordedAtIso,
+    speedKmh: b.speedKmh,
+    coolantC: b.coolantC,
+    rpm: b.rpm,
+    throttlePct: b.throttlePct,
+    loadPct: b.loadPct,
+    engineRuntimeSec: null,
+    torqueNm: null,
+    torquePct: null,
+    exteriorTempC: null,
+    tractionBatteryPowerKw: null,
+    socPct: null,
+    tractionBatteryTemperatureC: null,
+    altitudeM: null,
+    gear: null,
+    ignitionOn: null,
+  }));
+}
+
 function detectRawWindowsInSequence(
   seq: readonly Ds4CanonicalMultichannelBucketV1[],
   nominalIntervalMs: number,
+  fuelType: string | null,
 ): RawWindow[] {
   const out: RawWindow[] = [];
   for (let i = 2; i < seq.length; i += 1) {
@@ -69,6 +96,11 @@ function detectRawWindowsInSequence(
     const prev = seq[i - 2]!;
     const cur = seq[i]!;
     const slice = [seq[i - 2]!, seq[i - 1]!, seq[i]!];
+
+    if (isPhevFuelType(fuelType)) {
+      const ice = confirmIceOperation(bucketsToIceSamples(slice));
+      if (!ice.confirmed) continue;
+    }
 
     const limitations: string[] = [];
     const presence = {
@@ -183,15 +215,19 @@ function dedupeByBucketIndex(raw: RawWindow[]): RawWindow[] {
 
 function supportTier(input: {
   classification: Ds4KickdownCandidateClassification;
-  requiredChannelCoverage: number;
+  multichannelObservedGridCoverage: number;
+  rpmTripCoverage: number;
   r1Historical: boolean;
 }): Ds4KickdownCandidateSupportTier {
   if (input.classification !== 'KICKDOWN_LIKE_PROXY_CANDIDATE') return 'WEAK';
-  if (input.r1Historical) {
-    return input.requiredChannelCoverage >= 0.85 ? 'MODERATE' : 'WEAK';
+  if (input.rpmTripCoverage < 0.5 && input.multichannelObservedGridCoverage >= 0.85) {
+    return 'WEAK';
   }
-  if (input.requiredChannelCoverage >= 0.85) return 'STRONG';
-  if (input.requiredChannelCoverage >= 0.7) return 'MODERATE';
+  if (input.r1Historical) {
+    return input.multichannelObservedGridCoverage >= 0.85 ? 'MODERATE' : 'WEAK';
+  }
+  if (input.multichannelObservedGridCoverage >= 0.85) return 'STRONG';
+  if (input.multichannelObservedGridCoverage >= 0.7) return 'MODERATE';
   return 'WEAK';
 }
 
@@ -201,8 +237,10 @@ export function detectKickdownBucketGridCandidates(input: {
   canon: Ds4MultichannelCanonicalizeResultV1;
   sequenceMaxGapSeconds: number;
   nominalCadenceMs: number;
-  requiredChannelCoverage: number;
+  multichannelObservedGridCoverage: number;
+  rpmTripCoverage: number;
   r1HistoricalObdRecordTimeUncertain: boolean;
+  fuelType: string | null;
 }): {
   rawWindowCount: number;
   candidates: Ds4KickdownLikeCandidateV1[];
@@ -214,7 +252,7 @@ export function detectKickdownBucketGridCandidates(input: {
   const nominalIntervalMs = input.nominalCadenceMs > 0 ? input.nominalCadenceMs : 1000;
   const rawAll: RawWindow[] = [];
   for (const seq of sequences) {
-    rawAll.push(...detectRawWindowsInSequence(seq, nominalIntervalMs));
+    rawAll.push(...detectRawWindowsInSequence(seq, nominalIntervalMs, input.fuelType));
   }
   const deduped = dedupeByBucketIndex(rawAll);
   const bucketByIndex = new Map(input.canon.buckets.map((b) => [b.bucketIndex, b]));
@@ -241,7 +279,8 @@ export function detectKickdownBucketGridCandidates(input: {
       classification: w.classification,
       candidateSupportTier: supportTier({
         classification: w.classification,
-        requiredChannelCoverage: input.requiredChannelCoverage,
+        multichannelObservedGridCoverage: input.multichannelObservedGridCoverage,
+        rpmTripCoverage: input.rpmTripCoverage,
         r1Historical: input.r1HistoricalObdRecordTimeUncertain,
       }),
       providerBucketLabelStartIso: startIso,
