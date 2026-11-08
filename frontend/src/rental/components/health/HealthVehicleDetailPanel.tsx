@@ -42,6 +42,8 @@ import {
 import { buildModuleChips, formatRelativeTime } from '../../lib/fleet-health-control-center';
 import { RENTAL_HEALTH_MODULE_LABELS } from '../../rental-health-ui';
 import { buildBokraftComplianceDisplay, buildNextServiceDisplay, buildTuvComplianceDisplay } from '../../lib/service-info-display';
+import { ServiceMaintenanceForecastPanel } from './ServiceMaintenanceForecastPanel';
+import { useRentalEntityNavigation } from '../../context/RentalEntityNavigationContext';
 import { segmentFromHealthState } from '../../lib/health-segment-display';
 import { buildBatteryLvSummaryVm } from '../../lib/battery-lv-view-model';
 import { BatteryDataQualityBadge } from '../BatteryDataQualityBadge';
@@ -120,9 +122,10 @@ export function HealthVehicleDetailPanel({
   className,
 }: HealthVehicleDetailPanelProps) {
   const { orgId } = useRentalOrg();
-  const { t } = useLanguage();
+  const { t, formattingLocale } = useLanguage();
+  const { openDocumentIntake } = useRentalEntityNavigation();
   const [activeTab, setActiveTab] = useState<HealthDetailTab>(initialTab);
-  const { data, loading, aiLoading, triggerAiAnalysis } = useHealthVehicleDetailData(
+  const { data, loading, aiLoading, triggerAiAnalysis, loadTab } = useHealthVehicleDetailData(
     vehicle.id,
     orgId,
     activeTab,
@@ -480,17 +483,40 @@ export function HealthVehicleDetailPanel({
 
     if (activeTab === 'service') {
       const svc = data.service;
-      const ns = buildNextServiceDisplay(svc);
+      const ns = buildNextServiceDisplay(svc, { t, formattingLocale });
       const tuv = buildTuvComplianceDisplay(svc);
       const bok = buildBokraftComplianceDisplay(svc);
+      const openServiceUpload = () => {
+        openDocumentIntake({
+          optionalContextType: 'VEHICLE',
+          optionalContextId: vehicle.id,
+          contextVehicleId: vehicle.id,
+          sourceSurface: 'health_page',
+          returnView: 'health-errors',
+          returnEntityId: vehicle.id,
+          documentTab: 'upload',
+        });
+      };
       return (
         <div className="space-y-3">
+          <ServiceMaintenanceForecastPanel
+            compact
+            serviceInfo={svc}
+            loading={loading}
+            error={false}
+            vehicleId={vehicle.id}
+            orgId={orgId}
+            onUploadProof={openServiceUpload}
+            onChanged={async () => {
+              await loadTab('service', { force: true });
+            }}
+          />
           <HealthModuleCard
             title="Service & compliance"
             icon={Wrench}
             rentalModule={health?.modules.service_compliance}
             keyValues={[
-              { label: 'Next service (HM/OEM)', value: ns.badge ?? 'No Tracking' },
+              { label: t('health.serviceInfo.v2.title'), value: ns.badge ?? t('health.serviceInfo.v2.badge.noBasis') },
               { label: 'Detail', value: ns.primaryLine },
               { label: 'TÜV', value: tuv.label },
               { label: 'BOKraft', value: bok.label },

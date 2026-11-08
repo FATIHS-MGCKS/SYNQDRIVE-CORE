@@ -1,7 +1,10 @@
 import { ServiceEventOrigin, ServiceEventType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsEnum,
+  IsIn,
   IsISO8601,
   IsInt,
   IsOptional,
@@ -12,6 +15,9 @@ import {
   Min,
 } from 'class-validator';
 
+import { SERVICE_KINDS } from './create-vehicle-service-event.dto';
+import type { ServiceEventServiceKind } from './create-vehicle-service-event.dto';
+
 const SERVICE_EVENT_TYPES = Object.values(ServiceEventType);
 const SERVICE_EVENT_ORIGINS = Object.values(ServiceEventOrigin);
 
@@ -20,6 +26,8 @@ const WORKSHOP_MAX = 200;
 const PROVIDER_MAX = 120;
 const ODO_MAX = 5_000_000;
 const COST_MAX = 100_000_000;
+const PERFORMED_WORK_MAX_ITEMS = 40;
+const PERFORMED_WORK_ITEM_MAX = 300;
 
 export class UpdateVehicleServiceEventDto {
   @IsOptional()
@@ -71,4 +79,17 @@ export class UpdateVehicleServiceEventDto {
     message: `origin must be one of: ${SERVICE_EVENT_ORIGINS.join(', ')}`,
   })
   origin?: ServiceEventOrigin;
+
+  /** Structured, proven work items (e.g. "Engine: oil and filter change."). Never free text notes. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(PERFORMED_WORK_MAX_ITEMS)
+  @IsString({ each: true })
+  @MaxLength(PERFORMED_WORK_ITEM_MAX, { each: true })
+  performedWork?: string[] | null;
+
+  /** Confirmed inspection scope (only meaningful for FULL_SERVICE / GENERAL_INSPECTION). */
+  @IsOptional()
+  @IsIn(SERVICE_KINDS, { message: `serviceKind must be one of: ${SERVICE_KINDS.join(', ')}` })
+  serviceKind?: ServiceEventServiceKind | null;
 }

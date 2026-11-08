@@ -268,3 +268,93 @@ describe('ServiceEventsService.applyComplianceVehicleUpdateFromExtraction', () =
     expect(prisma.vehicle.update).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('ServiceEventsService — Service Info V2 structured payload + duplicate guard', () => {
+  function createHarness(existingDuplicate: Record<string, unknown> | null = null) {
+    const prisma = {
+      vehicle: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'veh-1', organizationId: 'org-1' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      vehicleServiceEvent: {
+        create: jest.fn().mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'evt-new', ...data })),
+        findFirst: jest.fn().mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
+          where.eventDate && typeof where.eventDate === 'object' && 'gte' in (where.eventDate as object)
+            ? existingDuplicate
+            : null,
+        ),
+        findUnique: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
+      },
+    };
+    const svc = new ServiceEventsService(
+      prisma as any,
+      { onServiceHistoryChanged: jest.fn().mockResolvedValue(undefined) } as any,
+      { assertServiceEventMutable: jest.fn().mockResolvedValue(undefined) } as any,
+    );
+    return { svc, prisma };
+  }
+
+  it('stores performedWork + serviceKind under the shared service_actions / service_kind payload keys', async () => {
+    const { svc, prisma } = createHarness();
+    await svc.create('veh-1', {
+      eventType: 'FULL_SERVICE',
+      eventDate: '2026-09-01',
+      odometerKm: 97000,
+      performedWork: [' Engine: oil and filter change. ', 'Brake fluid replaced.', 'Brake fluid replaced.'],
+      serviceKind: 'INSPECTION_LARGE',
+    } as any);
+    expect(prisma.vehicleServiceEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          sourcePayloadJson: {
+            service_actions: ['Engine: oil and filter change.', 'Brake fluid replaced.'],
+            service_kind: 'INSPECTION_LARGE',
+          },
+        }),
+      }),
+    );
+  });
+
+  it('rejects a same-day / same-type / same-odometer manual duplicate with 409 SERVICE_EVENT_DUPLICATE', async () => {
+    const { svc, prisma } = createHarness({
+      id: 'evt-existing',
+      eventDate: new Date('2026-09-01T10:00:00Z'),
+      odometerKm: 97000,
+      origin: 'MANUAL',
+    });
+    await expect(
+      svc.create('veh-1', { eventType: 'FULL_SERVICE', eventDate: '2026-09-01', odometerKm: 97000 } as any),
+    ).rejects.toMatchObject({ response: { code: 'SERVICE_EVENT_DUPLICATE', existingEventId: 'evt-existing' } });
+    expect(prisma.vehicleServiceEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('creates when the user explicitly allows the duplicate', async () => {
+    const { svc, prisma } = createHarness({ id: 'evt-existing', eventDate: new Date('2026-09-01'), odometerKm: 97000, origin: 'MANUAL' });
+    await svc.create('veh-1', {
+      eventType: 'FULL_SERVICE',
+      eventDate: '2026-09-01',
+      odometerKm: 97000,
+      allowDuplicate: true,
+    } as any);
+    expect(prisma.vehicleServiceEvent.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('extraction apply persists performedWork for forecast coverage', async () => {
+    const { svc, prisma } = createHarness();
+    await svc.createFromDocumentExtraction({
+      organizationId: 'org-1',
+      vehicleId: 'veh-1',
+      documentExtractionId: 'ext-1',
+      eventType: 'FULL_SERVICE',
+      eventDate: '2026-05-12',
+      performedWork: ['Spark plugs replaced'],
+      serviceKind: null,
+    });
+    expect(prisma.vehicleServiceEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sourcePayloadJson: { service_actions: ['Spark plugs replaced'] } }),
+      }),
+    );
+  });
+});

@@ -7,6 +7,7 @@ import { dimoWebhookHealthCs } from './dimo-webhook-health.cs';
 import { masterPlatformOpsDiS4Cs } from './master.platformOps.diS4.cs';
 import { batteryV2HvInspectionCS } from './battery-v2-hv-inspection.cs';
 import { tireWearV3Cs } from './tire.wearV3.cs';
+import { serviceIntelligenceCs } from './service-intelligence.cs';
 import { masterPhysicalDeviceInventoryCs } from './master.physicalDeviceInventory.cs';
 import { masterIntelligenceCs } from './master.intelligence.cs';
 import { masterMotionPhysicsCs } from './master.motionPhysics.cs';
@@ -213,4 +214,5 @@ export const cs = {
   ...masterCvOemSpecsCs,
   ...batteryV2HvInspectionCS,
   ...tireWearV3Cs,
+  ...serviceIntelligenceCs,
 } satisfies PartialTranslationDictionary;

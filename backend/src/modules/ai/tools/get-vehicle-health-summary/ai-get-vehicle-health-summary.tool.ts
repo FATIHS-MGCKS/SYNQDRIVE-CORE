@@ -753,7 +753,8 @@ export class AiGetVehicleHealthSummaryTool {
         last_updated_at: next.lastUpdatedAt,
         data_stale: next.trackingStatus === 'STALE',
         source: 'service_compliance',
-        evidence_type: next.source === 'HM_OEM' ? 'provider' : 'manual',
+        evidence_type:
+          next.source === 'HM_OEM' || next.source === 'COMPUTED_ONEAUTO_SCHEDULE' ? 'provider' : 'manual',
       },
       {
         blocker:

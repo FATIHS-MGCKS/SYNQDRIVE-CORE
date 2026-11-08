@@ -32,3 +32,33 @@ describe('document-service-extraction.rules', () => {
     expect(payload?.eventType).toBe('OIL_CHANGE');
   });
 });
+
+describe('readServicePerformedWork / serviceKind (Service Info V2)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const rules = require('./document-service-extraction.rules') as typeof import('./document-service-extraction.rules');
+
+  it('parses JSON arrays, line lists and dedupes; strips bullets', () => {
+    expect(rules.readServicePerformedWork({ performedWork: '["Engine: oil and filter change.", "Brake fluid replaced."]' })).toEqual([
+      'Engine: oil and filter change.',
+      'Brake fluid replaced.',
+    ]);
+    expect(rules.readServicePerformedWork({ performedWork: '- Spark plugs replaced\n• Air filter replaced\nSpark plugs replaced' })).toEqual([
+      'Spark plugs replaced',
+      'Air filter replaced',
+    ]);
+    expect(rules.readServicePerformedWork({ performedWork: ['a', ' b ', ''] })).toEqual(['a', 'b']);
+    expect(rules.readServicePerformedWork({})).toEqual([]);
+  });
+
+  it('maps performedWork + serviceKind into the apply payload (SERVICE only for kind)', () => {
+    const svc = rules.buildServiceApplyPayload('SERVICE', {
+      eventDate: '2026-05-12',
+      performedWork: 'Engine oil replaced',
+      serviceKind: 'inspection_large',
+    });
+    expect(svc).toMatchObject({ eventType: 'FULL_SERVICE', performedWork: ['Engine oil replaced'], serviceKind: 'INSPECTION_LARGE' });
+    const oil = rules.buildServiceApplyPayload('OIL_CHANGE', { eventDate: '2026-05-12', serviceKind: 'INSPECTION_LARGE' });
+    expect(oil).toMatchObject({ eventType: 'OIL_CHANGE', performedWork: [], serviceKind: null });
+    expect(rules.readServiceKind({ serviceKind: 'whatever' })).toBeNull();
+  });
+});

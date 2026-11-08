@@ -26,6 +26,12 @@ import {
   encodeServiceHistoryCursor,
   SERVICE_HISTORY_PAGE_DEFAULT_LIMIT,
 } from './service-history-pagination.util';
+import { MaintenanceForecastService } from './maintenance-forecast/maintenance-forecast.service';
+import type {
+  MaintenanceForecastResult,
+  MaintenanceHmSignal,
+  MaintenancePositionForecast,
+} from './maintenance-forecast/maintenance-forecast.types';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DAYS_PER_MONTH = 30.44;
@@ -50,6 +56,8 @@ export interface VehicleComplianceFields {
 
 export interface ServiceInfoStatusDto {
   nextService: NextServiceComplianceDto;
+  /** Provider-agnostic deterministic forecast per maintenance position (V2). */
+  maintenanceForecast: MaintenanceForecastResult | null;
   hasServiceHistory: boolean;
   serviceRemainingPercent: number | null;
   serviceRemainingKm: number | null;
@@ -139,11 +147,17 @@ export interface RentalServiceModuleHealthInput {
   data_stale: boolean;
 }
 
+export interface NextServiceEvaluationDetailed {
+  nextService: NextServiceComplianceDto;
+  forecast: MaintenanceForecastResult | null;
+}
+
 @Injectable()
 export class ServiceComplianceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly hm: HmSignalUsageService,
+    private readonly maintenanceForecast: MaintenanceForecastService,
   ) {}
 
   isHmServiceFresh(lastUpdatedAt: string | Date | null | undefined, now = Date.now()): boolean {
@@ -153,76 +167,112 @@ export class ServiceComplianceService {
     return now - ts <= HM_OEM_SERVICE_FRESHNESS_MS;
   }
 
-  /** Canonical HM/OEM next-service evaluation — no interval math. */
+  /** Canonical next-service evaluation (HM OEM when fresh, otherwise deterministic computed forecast). */
   async evaluateNextService(vehicleId: string, now = new Date()): Promise<NextServiceComplianceDto> {
-    const noTracking = (message: string): NextServiceComplianceDto => ({
-      trackingStatus: 'NO_TRACKING',
-      source: null,
-      distanceToNextServiceKm: null,
-      timeToNextServiceDays: null,
-      lastUpdatedAt: null,
-      serviceSourceLabel: null,
-      severity: 'INFO',
-      blocksRental: false,
-      title: 'Kein Service-Tracking',
-      description: 'Nächster Service nur über HM/OEM verfügbar.',
-      message,
-      hmDistanceFromOem: false,
-      hmTimeFromOem: false,
-      hmDerivedDueDate: null,
-    });
+    const detailed = await this.evaluateNextServiceDetailed(vehicleId, now);
+    return detailed.nextService;
+  }
 
-    const stale = (
-      lastUpdatedAt: string | null,
-      message: string,
-    ): NextServiceComplianceDto => ({
-      trackingStatus: 'STALE',
-      source: 'HM_OEM',
-      distanceToNextServiceKm: null,
-      timeToNextServiceDays: null,
-      lastUpdatedAt,
-      serviceSourceLabel: 'HM/OEM (veraltet)',
-      severity: 'INFO',
-      blocksRental: false,
-      title: 'Service-Daten veraltet',
-      description: 'HM/OEM-Servicewerte sind älter als 7 Tage und werden nicht als aktive Wahrheit genutzt.',
-      message,
-      hmDistanceFromOem: false,
-      hmTimeFromOem: false,
-      hmDerivedDueDate: null,
-    });
+  /**
+   * Full evaluation incl. the per-position forecast.
+   * Precedence: fresh HM/OEM measured values are the headline; the computed forecast is attached
+   * as comparison (conflicts made visible). Without fresh HM the computed forecast is the headline.
+   */
+  async evaluateNextServiceDetailed(vehicleId: string, now = new Date()): Promise<NextServiceEvaluationDetailed> {
+    const hm = await this.readHmSignal(vehicleId, now);
+    const forecast = await this.maintenanceForecast
+      .computeForVehicle(vehicleId, now, hm.signal)
+      .catch(() => null);
 
+    if (hm.kind === 'TRACKED') {
+      return { nextService: this.decorateHmTracked(hm.dto, forecast), forecast };
+    }
+
+    const computed = forecast?.nextDue ?? null;
+    if (computed) {
+      return { nextService: this.buildComputedNextService(computed, forecast!, now), forecast };
+    }
+
+    if (hm.kind === 'STALE') {
+      return { nextService: this.attachForecastMeta(hm.dto, forecast), forecast };
+    }
+
+    return { nextService: this.attachForecastMeta(this.buildNoBasisNextService(forecast, hm.message), forecast), forecast };
+  }
+
+  private async readHmSignal(
+    vehicleId: string,
+    now: Date,
+  ): Promise<
+    | { kind: 'TRACKED'; dto: NextServiceComplianceDto; signal: MaintenanceHmSignal }
+    | { kind: 'STALE'; dto: NextServiceComplianceDto; signal: MaintenanceHmSignal }
+    | { kind: 'NONE'; message: string; signal: null }
+  > {
     let hmActive = false;
     try {
       hmActive = await this.hm.isHmHealthActive(vehicleId);
     } catch {
-      return noTracking('HM/OEM Health nicht aktiv — kein Next-Service-Tracking.');
+      return { kind: 'NONE', message: 'HM/OEM Health nicht aktiv.', signal: null };
     }
     if (!hmActive) {
-      return noTracking('HM/OEM Health nicht aktiv — kein Next-Service-Tracking.');
+      return { kind: 'NONE', message: 'HM/OEM Health nicht aktiv.', signal: null };
     }
 
     const hmService = await this.hm.getServiceInfoSignals(vehicleId).catch(() => null);
     if (!hmService) {
-      return noTracking('Keine HM/OEM-Service-Signale empfangen.');
+      return { kind: 'NONE', message: 'Keine HM/OEM-Service-Signale empfangen.', signal: null };
     }
 
     const hasKm = hmService.distanceToNextServiceKm != null;
     const hasDays = hmService.timeToNextServiceDays != null;
     if (!hasKm && !hasDays) {
-      return noTracking('OEM liefert aktuell keine Restlaufzeit bis zum nächsten Service.');
+      return {
+        kind: 'NONE',
+        message: 'OEM liefert aktuell keine Restlaufzeit bis zum nächsten Service.',
+        signal: null,
+      };
     }
 
     const lastUpdatedAt = hmService.lastUpdatedAt ?? null;
-    if (!this.isHmServiceFresh(lastUpdatedAt, now.getTime())) {
-      return stale(
-        lastUpdatedAt,
-        'HM/OEM-Servicewerte sind veraltet (>7 Tage) — Next Service nicht als aktiv bewertet.',
-      );
-    }
-
     const distanceKm = hasKm ? Math.round(hmService.distanceToNextServiceKm!) : null;
     const timeDays = hasDays ? Math.round(hmService.timeToNextServiceDays!) : null;
+
+    if (!this.isHmServiceFresh(lastUpdatedAt, now.getTime())) {
+      const signal: MaintenanceHmSignal = {
+        distanceToNextServiceKm: distanceKm,
+        timeToNextServiceDays: timeDays,
+        lastUpdatedAt,
+        fresh: false,
+      };
+      return {
+        kind: 'STALE',
+        signal,
+        dto: {
+          trackingStatus: 'STALE',
+          source: 'HM_OEM',
+          distanceToNextServiceKm: null,
+          timeToNextServiceDays: null,
+          lastUpdatedAt,
+          serviceSourceLabel: 'HM/OEM (veraltet)',
+          severity: 'INFO',
+          blocksRental: false,
+          title: 'Service-Daten veraltet',
+          description: 'HM/OEM-Servicewerte sind älter als 7 Tage und werden nicht als aktive Wahrheit genutzt.',
+          message: 'HM/OEM-Servicewerte sind veraltet (>7 Tage) — Next Service nicht als aktiv bewertet.',
+          hmDistanceFromOem: false,
+          hmTimeFromOem: false,
+          hmDerivedDueDate: null,
+          projectedDueDate: null,
+          positionKind: null,
+          positionId: null,
+          provenance: null,
+          dataQuality: [],
+          conflicts: [],
+          computedComparison: null,
+        },
+      };
+    }
+
     const severity = this.severityFromHmValues(distanceKm, timeDays);
     const overdueByDays = timeDays != null && timeDays < 0;
     const overdueByKm = distanceKm != null && distanceKm < 0;
@@ -235,27 +285,177 @@ export class ServiceComplianceService {
           ? 'Service fällig'
           : 'Service in Ordnung';
 
-    const message = this.buildNextServiceMessage(distanceKm, timeDays, overdue);
+    const message = this.buildNextServiceMessage(distanceKm, timeDays, overdue, 'HM/OEM');
     const hmDerivedDueDate =
-      timeDays != null
-        ? new Date(now.getTime() + timeDays * MS_PER_DAY).toISOString()
-        : null;
+      timeDays != null ? new Date(now.getTime() + timeDays * MS_PER_DAY).toISOString() : null;
 
-    return {
-      trackingStatus: 'TRACKED',
-      source: 'HM_OEM',
+    const signal: MaintenanceHmSignal = {
       distanceToNextServiceKm: distanceKm,
       timeToNextServiceDays: timeDays,
       lastUpdatedAt,
-      serviceSourceLabel: 'HM/OEM',
+      fresh: true,
+    };
+
+    return {
+      kind: 'TRACKED',
+      signal,
+      dto: {
+        trackingStatus: 'TRACKED',
+        source: 'HM_OEM',
+        distanceToNextServiceKm: distanceKm,
+        timeToNextServiceDays: timeDays,
+        lastUpdatedAt,
+        serviceSourceLabel: 'HM/OEM',
+        severity,
+        blocksRental: false,
+        title,
+        description: 'Next Service aus OEM-Telemetrie (HM).',
+        message,
+        hmDistanceFromOem: hasKm,
+        hmTimeFromOem: hasDays,
+        hmDerivedDueDate,
+        projectedDueDate: hmDerivedDueDate,
+        positionKind: 'INSPECTION',
+        positionId: null,
+        provenance: {
+          scheduleSource: 'HM_OEM',
+          eventSource: 'NONE',
+          odometerSource: 'HM_OEM',
+          calculationMethod: 'OEM_REMAINING',
+        },
+        dataQuality: [],
+        conflicts: [],
+        computedComparison: null,
+      },
+    };
+  }
+
+  private decorateHmTracked(
+    dto: NextServiceComplianceDto,
+    forecast: MaintenanceForecastResult | null,
+  ): NextServiceComplianceDto {
+    if (!forecast) return dto;
+    const computed = forecast.nextDue;
+    const conflicts = forecast.conflicts.filter((c) => c.code === 'CONFLICT_HM_VS_COMPUTED');
+    return {
+      ...dto,
+      conflicts,
+      dataQuality: conflicts.length > 0 ? ['CONFLICT_HM_VS_COMPUTED'] : [],
+      computedComparison:
+        computed && computed.provenance.scheduleSource !== 'HM_OEM'
+          ? {
+              source: this.computedSourceFor(computed),
+              positionId: computed.positionId,
+              remainingKm: computed.remainingKm,
+              remainingDays: computed.remainingDays,
+              projectedDueDate: computed.dueAtDate,
+            }
+          : null,
+    };
+  }
+
+  private attachForecastMeta(
+    dto: NextServiceComplianceDto,
+    forecast: MaintenanceForecastResult | null,
+  ): NextServiceComplianceDto {
+    if (!forecast) return dto;
+    return { ...dto, dataQuality: forecast.dataQuality, conflicts: forecast.conflicts };
+  }
+
+  private computedSourceFor(position: MaintenancePositionForecast): 'COMPUTED_ONEAUTO_SCHEDULE' | 'COMPUTED_MANUAL_INTERVAL' {
+    return position.provenance.scheduleSource === 'ONEAUTO_SCHEDULE'
+      ? 'COMPUTED_ONEAUTO_SCHEDULE'
+      : 'COMPUTED_MANUAL_INTERVAL';
+  }
+
+  private buildComputedNextService(
+    position: MaintenancePositionForecast,
+    forecast: MaintenanceForecastResult,
+    now: Date,
+  ): NextServiceComplianceDto {
+    const source = this.computedSourceFor(position);
+    const sourceLabel =
+      source === 'COMPUTED_ONEAUTO_SCHEDULE'
+        ? 'OneAuto API · Berechnet durch SYNQDRIVE'
+        : 'Manuelle Wartungsangaben · Berechnet durch SYNQDRIVE';
+    const severity: ServiceComplianceSeverity = position.severity;
+    const overdue = position.dueState === 'OVERDUE';
+    const title =
+      severity === 'CRITICAL'
+        ? 'Service überfällig'
+        : severity === 'WARNING'
+          ? 'Service fällig'
+          : 'Service in Ordnung';
+    const message = this.buildNextServiceMessage(
+      position.remainingKm,
+      position.remainingDays,
+      overdue,
+      'berechnet',
+    );
+    const lastUpdatedAt =
+      forecast.freshness.odometerObservedAt ??
+      forecast.freshness.latestEventDate ??
+      forecast.freshness.scheduleFetchedAt ??
+      now.toISOString();
+
+    return {
+      trackingStatus: 'TRACKED',
+      source,
+      distanceToNextServiceKm: position.remainingKm,
+      timeToNextServiceDays: position.remainingDays,
+      lastUpdatedAt,
+      serviceSourceLabel: sourceLabel,
       severity,
       blocksRental: false,
       title,
-      description: 'Next Service aus OEM-Telemetrie (HM).',
+      description: 'Deterministisch berechnet aus Wartungsplan und nachgewiesener Historie.',
       message,
-      hmDistanceFromOem: hasKm,
-      hmTimeFromOem: hasDays,
-      hmDerivedDueDate,
+      hmDistanceFromOem: false,
+      hmTimeFromOem: false,
+      hmDerivedDueDate: null,
+      projectedDueDate: position.dueAtDate,
+      positionKind: position.kind,
+      positionId: position.positionId,
+      provenance: position.provenance,
+      dataQuality: position.dataQuality,
+      conflicts: forecast.conflicts.filter((c) => c.positionId === position.positionId),
+      computedComparison: null,
+    };
+  }
+
+  private buildNoBasisNextService(
+    forecast: MaintenanceForecastResult | null,
+    hmMessage: string,
+  ): NextServiceComplianceDto {
+    const hasSchedule = (forecast?.positions.length ?? 0) > 0;
+    const hasHistory = forecast?.lastRelevantMaintenance != null;
+    const message = hasSchedule
+      ? 'Wartungsplan vorhanden, aber kein nachgewiesener letzter Service — Service-Nachweis hinterlegen.'
+      : hasHistory
+        ? 'Service-Historie vorhanden, aber kein Wartungsplan — Intervalle hinterlegen.'
+        : `Keine Berechnungsgrundlage (${hmMessage}) — Wartungsplan und Service-Nachweis hinterlegen.`;
+    return {
+      trackingStatus: 'NO_TRACKING',
+      source: null,
+      distanceToNextServiceKm: null,
+      timeToNextServiceDays: null,
+      lastUpdatedAt: null,
+      serviceSourceLabel: null,
+      severity: 'INFO',
+      blocksRental: false,
+      title: 'Keine Service-Prognose',
+      description: 'Nächster Service wird aus OEM-Werten oder aus Wartungsplan und nachgewiesener Historie bestimmt.',
+      message,
+      hmDistanceFromOem: false,
+      hmTimeFromOem: false,
+      hmDerivedDueDate: null,
+      projectedDueDate: null,
+      positionKind: null,
+      positionId: null,
+      provenance: null,
+      dataQuality: forecast?.dataQuality ?? [],
+      conflicts: [],
+      computedComparison: null,
     };
   }
 
@@ -385,7 +585,7 @@ export class ServiceComplianceService {
     if (!hasComplianceDates && nextService.trackingStatus === 'NO_TRACKING') {
       return {
         state: 'unknown',
-        reason: 'Kein HM/OEM Service-Tracking und keine Compliance-Termine',
+        reason: 'Keine Service-Prognose und keine Compliance-Termine',
         last_updated_at: null,
         data_stale: true,
       };
@@ -437,7 +637,7 @@ export class ServiceComplianceService {
       },
     });
 
-    const [serviceEvents, fullServiceEvents, tuvEvents, bokraftEvents, compliance, historyCount, baselineCount] =
+    const [serviceEvents, fullServiceEvents, tuvEvents, bokraftEvents, detailed, historyCount, baselineCount] =
       await Promise.all([
       this.prisma.vehicleServiceEvent.findMany({
         where: {
@@ -465,12 +665,7 @@ export class ServiceComplianceService {
         orderBy: { eventDate: 'desc' },
         take: 10,
       }),
-      this.evaluateCompliance(vehicleId, {
-        lastTuvDate: vehicle?.lastTuvDate ?? null,
-        nextTuvDate: vehicle?.nextTuvDate ?? null,
-        lastBokraftDate: vehicle?.lastBokraftDate ?? null,
-        nextBokraftDate: vehicle?.nextBokraftDate ?? null,
-      }),
+      this.evaluateNextServiceDetailed(vehicleId),
       this.prisma.vehicleServiceEvent.count({
         where: {
           vehicleId,
@@ -484,6 +679,16 @@ export class ServiceComplianceService {
         },
       }),
     ]);
+
+    const compliance: ServiceComplianceEvaluation = {
+      nextService: detailed.nextService,
+      tuvBokraft: this.evaluateTuvBokraft({
+        lastTuvDate: vehicle?.lastTuvDate ?? null,
+        nextTuvDate: vehicle?.nextTuvDate ?? null,
+        lastBokraftDate: vehicle?.lastBokraftDate ?? null,
+        nextBokraftDate: vehicle?.nextBokraftDate ?? null,
+      }),
+    };
 
     const latestFullServiceEvent = fullServiceEvents[0] ?? null;
     const lastServiceDate =
@@ -559,6 +764,7 @@ export class ServiceComplianceService {
 
     return {
       nextService,
+      maintenanceForecast: detailed.forecast,
       hasServiceHistory,
       hasServiceBaseline,
       serviceRemainingPercent: null,
@@ -756,6 +962,7 @@ export class ServiceComplianceService {
     distanceKm: number | null,
     timeDays: number | null,
     overdue: boolean,
+    sourceSuffix: string,
   ): string {
     if (overdue) {
       const parts: string[] = [];
@@ -766,7 +973,7 @@ export class ServiceComplianceService {
         parts.push(`${Math.abs(distanceKm).toLocaleString('de-DE')} km`);
       }
       const suffix = parts.length > 0 ? ` seit ${parts.join(' / ')}` : '';
-      return `Service überfällig${suffix} (HM/OEM)`;
+      return `Service überfällig${suffix} (${sourceSuffix})`;
     }
     const parts: string[] = [];
     if (timeDays != null && timeDays >= 0) {
@@ -775,7 +982,7 @@ export class ServiceComplianceService {
     if (distanceKm != null && distanceKm >= 0) {
       parts.push(`noch ${distanceKm.toLocaleString('de-DE')} km`);
     }
-    if (parts.length === 0) return 'Service-Tracking aktiv (HM/OEM)';
-    return `Nächster Service: ${parts.join(' / ')} (HM/OEM)`;
+    if (parts.length === 0) return `Service-Tracking aktiv (${sourceSuffix})`;
+    return `Nächster Service: ${parts.join(' / ')} (${sourceSuffix})`;
   }
 }

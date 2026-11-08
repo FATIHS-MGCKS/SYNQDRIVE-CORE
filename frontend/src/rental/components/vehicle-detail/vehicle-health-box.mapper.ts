@@ -20,6 +20,7 @@ import {
   buildBokraftComplianceDisplay,
   buildNextServiceDisplay,
   buildTuvComplianceDisplay,
+  type ServiceDisplayOptions,
 } from '../../lib/service-info-display';
 import {
   dataQualityChipTone,
@@ -415,6 +416,7 @@ export function buildVehicleHealthBoxViewModel(params: {
   healthTabSummary: VehicleHealthTabSummaryDto | null;
   vehicleTiresFallback: number;
   lvBatteryVoltage: number | null;
+  serviceDisplay?: ServiceDisplayOptions;
 }): VehicleHealthBoxViewModel {
   const {
     rentalHealth,
@@ -429,6 +431,7 @@ export function buildVehicleHealthBoxViewModel(params: {
     healthTabSummary,
     vehicleTiresFallback,
     lvBatteryVoltage,
+    serviceDisplay,
   } = params;
 
   const rentalReasons = collectRentalHealthReasons(rentalHealth);
@@ -646,7 +649,7 @@ export function buildVehicleHealthBoxViewModel(params: {
       }));
   })();
 
-  const nsDisplay = buildNextServiceDisplay(service ?? null);
+  const nsDisplay = buildNextServiceDisplay(service ?? null, serviceDisplay);
 
   return {
     overallState: overall.state,

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   Prisma,
   ServiceEventOrigin,
@@ -21,6 +21,38 @@ import {
   OIL_CHANGE_EVENT_TYPE,
   SERVICE_HISTORY_EVENT_TYPES,
 } from './service-events.constants';
+import {
+  SERVICE_ACTIONS_PAYLOAD_KEY,
+  SERVICE_KIND_PAYLOAD_KEY,
+} from '../service-compliance/maintenance-forecast/adapters/service-event-evidence.adapter';
+import type { ServiceEventServiceKind } from './dto/create-vehicle-service-event.dto';
+
+export const SERVICE_EVENT_DUPLICATE_CODE = 'SERVICE_EVENT_DUPLICATE';
+
+/**
+ * Structured source payload for manual / OCR events — same keys the OneAuto history mapper
+ * writes, so history rendering and forecast coverage matching share a single path.
+ */
+export function buildStructuredServicePayload(input: {
+  performedWork?: string[] | null;
+  serviceKind?: ServiceEventServiceKind | null;
+  existing?: unknown;
+}): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+  const base: Record<string, unknown> =
+    input.existing && typeof input.existing === 'object' && !Array.isArray(input.existing)
+      ? { ...(input.existing as Record<string, unknown>) }
+      : {};
+  if (input.performedWork !== undefined) {
+    const items = (input.performedWork ?? []).map((x) => x.trim()).filter(Boolean);
+    if (items.length > 0) base[SERVICE_ACTIONS_PAYLOAD_KEY] = Array.from(new Set(items));
+    else delete base[SERVICE_ACTIONS_PAYLOAD_KEY];
+  }
+  if (input.serviceKind !== undefined) {
+    if (input.serviceKind) base[SERVICE_KIND_PAYLOAD_KEY] = input.serviceKind;
+    else delete base[SERVICE_KIND_PAYLOAD_KEY];
+  }
+  return Object.keys(base).length > 0 ? (base as Prisma.InputJsonValue) : Prisma.JsonNull;
+}
 
 export interface ServiceEventMutationContext {
   userId?: string | null;
@@ -39,6 +71,8 @@ export type CreateServiceEventFromDocumentExtractionInput = {
   notes?: string | null;
   costCents?: number | null;
   documentUrl?: string | null;
+  performedWork?: string[] | null;
+  serviceKind?: ServiceEventServiceKind | null;
 };
 
 export type ApplyComplianceVehicleUpdateInput = {
@@ -138,6 +172,10 @@ export class ServiceEventsService {
           costCents: input.costCents ?? null,
           documentUrl: input.documentUrl ?? null,
           origin: ServiceEventOrigin.AI_UPLOAD,
+          sourcePayloadJson: buildStructuredServicePayload({
+            performedWork: input.performedWork ?? undefined,
+            serviceKind: input.serviceKind ?? undefined,
+          }),
         },
       });
       return created;
@@ -250,6 +288,13 @@ export class ServiceEventsService {
     }
 
     const eventDate = new Date(dto.eventDate);
+    if (Number.isNaN(eventDate.getTime())) {
+      throw new BadRequestException('eventDate is invalid');
+    }
+    if (!dto.allowDuplicate) {
+      await this.assertNoDuplicateManualEvent(vehicleId, dto.eventType, eventDate, dto.odometerKm ?? null);
+    }
+
     const created = await this.prisma.vehicleServiceEvent.create({
       data: {
         vehicleId,
@@ -265,6 +310,10 @@ export class ServiceEventsService {
         origin: ctx.origin ?? dto.origin ?? ServiceEventOrigin.MANUAL,
         createdById: ctx.userId ?? null,
         updatedById: ctx.userId ?? null,
+        sourcePayloadJson: buildStructuredServicePayload({
+          performedWork: dto.performedWork,
+          serviceKind: dto.serviceKind,
+        }),
       },
     });
 
@@ -301,6 +350,13 @@ export class ServiceEventsService {
     if (dto.provider !== undefined) data.provider = dto.provider?.trim() || null;
     if (dto.documentUrl !== undefined) data.documentUrl = dto.documentUrl;
     if (dto.origin !== undefined) data.origin = dto.origin;
+    if (dto.performedWork !== undefined || dto.serviceKind !== undefined) {
+      data.sourcePayloadJson = buildStructuredServicePayload({
+        performedWork: dto.performedWork,
+        serviceKind: dto.serviceKind,
+        existing: existing.sourcePayloadJson,
+      });
+    }
     if (ctx.userId) data.updatedById = ctx.userId;
 
     const updated = await this.prisma.vehicleServiceEvent.update({
@@ -322,6 +378,39 @@ export class ServiceEventsService {
       throw new NotFoundException(`Service event ${id} not found for vehicle ${vehicleId}`);
     }
     await this.refreshVehicleHistoryDenorm(vehicleId);
+  }
+
+  /**
+   * Duplicate guard for manual entries: same vehicle + type + UTC calendar day + odometer.
+   * Upload idempotency is handled separately via documentExtractionId.
+   */
+  private async assertNoDuplicateManualEvent(
+    vehicleId: string,
+    eventType: ServiceEventType,
+    eventDate: Date,
+    odometerKm: number | null,
+  ): Promise<void> {
+    const dayStart = new Date(Date.UTC(eventDate.getUTCFullYear(), eventDate.getUTCMonth(), eventDate.getUTCDate()));
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    const duplicate = await this.prisma.vehicleServiceEvent.findFirst({
+      where: {
+        vehicleId,
+        eventType,
+        eventDate: { gte: dayStart, lt: dayEnd },
+        odometerKm,
+      },
+      select: { id: true, eventDate: true, odometerKm: true, origin: true },
+    });
+    if (duplicate) {
+      throw new ConflictException({
+        code: SERVICE_EVENT_DUPLICATE_CODE,
+        // Code prefix is intentional: the frontend HTTP layer flattens string messages and drops `code`.
+        message: `${SERVICE_EVENT_DUPLICATE_CODE}: a service event of the same type, day and odometer already exists for this vehicle`,
+        existingEventId: duplicate.id,
+        existingEventDate: duplicate.eventDate.toISOString(),
+        existingOrigin: duplicate.origin,
+      });
+    }
   }
 
   /**

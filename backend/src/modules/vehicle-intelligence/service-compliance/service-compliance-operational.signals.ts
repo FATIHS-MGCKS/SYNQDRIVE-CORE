@@ -7,8 +7,10 @@ import {
 } from './service-compliance.config';
 import type {
   ComplianceTaskSignalDto,
+  NextServiceComplianceDto,
   ServiceComplianceEvaluation,
 } from './service-compliance.types';
+import { isComputedServiceSource } from './service-compliance.types';
 import {
   buildServiceOverdueTaskContext,
   buildServiceOverdueTaskDescription,
@@ -28,9 +30,31 @@ export interface ComplianceOperationalVehicle {
   serviceIntervalManufacturerMonths?: number | null;
 }
 
-const NO_TRACKING_INFO_TITLE = 'Kein HM/OEM Service-Tracking verfügbar';
+const NO_TRACKING_INFO_TITLE = 'Keine Service-Prognose verfügbar';
 const NO_TRACKING_INFO_MESSAGE =
-  'Für dieses Fahrzeug liefert HM/OEM aktuell keine Next-Service-Informationen. SynqDrive berechnet den nächsten Service nicht automatisch.';
+  'Für dieses Fahrzeug liegen weder OEM-Servicewerte noch Wartungsplan mit nachgewiesenem Service vor. Wartungsplan oder Service-Nachweis hinterlegen.';
+
+/** Human source attribution for reasons/messages — never mixes OEM and computed values. */
+export function describeServiceSignalSource(nextService: NextServiceComplianceDto): string {
+  switch (nextService.source) {
+    case 'HM_OEM':
+      return 'Quelle: HM/OEM';
+    case 'COMPUTED_ONEAUTO_SCHEDULE':
+      return 'Quelle: OneAuto API · Berechnet durch SYNQDRIVE';
+    case 'COMPUTED_MANUAL_INTERVAL':
+      return 'Quelle: Manuelle Wartungsangaben · Berechnet durch SYNQDRIVE';
+    default:
+      return 'Quelle: unbekannt';
+  }
+}
+
+/**
+ * V1 policy (SEC-DEC-004): only fresh HM/OEM overdue may auto-materialize a task.
+ * Computed forecasts (schedule + history) are suggestions — operators confirm manually.
+ */
+export function isAutoMaterializableServiceSource(nextService: NextServiceComplianceDto): boolean {
+  return nextService.source === 'HM_OEM';
+}
 
 function vehicleLabel(v: ComplianceOperationalVehicle): string {
   return v.licensePlate || `${v.make} ${v.model}`;
@@ -83,9 +107,9 @@ export function buildComplianceTaskSignals(
         message: buildServiceOverdueTaskDescription(serviceCtx),
         actionLabel: 'Service terminieren',
         severity: 'CRITICAL',
-        suggestionOnly: false,
+        suggestionOnly: !isAutoMaterializableServiceSource(nextService),
         blocksRental: false,
-        dueDate: nextService.hmDerivedDueDate,
+        dueDate: nextService.projectedDueDate ?? nextService.hmDerivedDueDate,
         category: 'Maintenance',
         taskType: 'VEHICLE_SERVICE',
         serviceOverdueContext: serviceCtx,
@@ -101,7 +125,7 @@ export function buildComplianceTaskSignals(
         severity: 'WARNING',
         suggestionOnly: true,
         blocksRental: false,
-        dueDate: nextService.hmDerivedDueDate,
+        dueDate: nextService.projectedDueDate ?? nextService.hmDerivedDueDate,
         category: 'Maintenance',
         taskType: 'VEHICLE_SERVICE',
         serviceOverdueContext: serviceCtx,
@@ -246,11 +270,15 @@ export function buildComplianceInsightCandidates(
           reasons.push(`Noch ${remainingKm.toLocaleString('de-DE')} km`);
         }
       }
-      reasons.push('Quelle: HM/OEM');
+      reasons.push(describeServiceSignalSource(nextService));
+      if (isComputedServiceSource(nextService.source)) {
+        reasons.push('Berechnet aus Wartungsplan und nachgewiesener Historie');
+      }
 
       const timeContext: Record<string, string> = {};
       if (nextService.lastUpdatedAt) timeContext.lastHmUpdate = nextService.lastUpdatedAt;
-      if (nextService.hmDerivedDueDate) timeContext.dueDate = nextService.hmDerivedDueDate;
+      const dueDate = nextService.projectedDueDate ?? nextService.hmDerivedDueDate;
+      if (dueDate) timeContext.dueDate = dueDate;
 
       candidates.push({
         type: InsightType.SERVICE_OVERDUE,
@@ -267,7 +295,8 @@ export function buildComplianceInsightCandidates(
           remainingDays: remainingDays ?? 'unknown',
           remainingKm: remainingKm ?? 'unknown',
           trackingStatus: nextService.trackingStatus,
-          suggestionOnly: !overdue,
+          source: nextService.source ?? 'unknown',
+          suggestionOnly: !overdue || !isAutoMaterializableServiceSource(nextService),
           serviceOverdue: buildServiceOverdueTaskContext({
             vehicleLabel: label,
             nextService,
