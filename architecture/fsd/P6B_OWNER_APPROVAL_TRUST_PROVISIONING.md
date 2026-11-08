@@ -3,9 +3,11 @@
 ## Public trust store (root-controlled)
 
 - Provision **Ed25519 public keys only** via VPS/root operator control.
-- Runtime loading:
-  - `FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON` (inline JSON), or
-  - `FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_FILE` (path outside git).
+- Runtime loading (operator / live EXECUTE):
+  - **`FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_FILE`** only — anchored under `/etc/synqdrive` or `/var/lib/synqdrive` (prefix override: `FSD3_LIVE_OWNER_APPROVAL_TRUST_FILE_ROOT_PREFIXES`).
+  - Inline `FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON` is **rejected** for operator contexts (fail-closed anti-replacement).
+  - Trust file must not be group/world-writable; optional `FSD3_ONE_SHOT_TRUST_REQUIRE_ROOT_OWNER=1` enforces uid 0.
+- Isolated CI/tests: `FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE=1` + explicit `TEST_ISOLATED_INLINE` trust context only (never for `dimo_live` EXECUTE).
 - Schema: `FSD3_LIVE_OWNER_APPROVAL_TRUST_SCHEMA_V1`
 - Duplicate `keyId` and invalid `notBeforeIso` / `notAfterIso` windows are rejected fail-closed.
 - Revocation: `revokedKeyIds` list in the same store.

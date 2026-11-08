@@ -69,7 +69,7 @@ describe('Fsd3 one-shot security primitives', () => {
 
   it('rejects capability mint without verified envelope and preflight ticket', () => {
     const signing = createFsd3OneShotTestOwnerSigningMaterialV1();
-    process.env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON = signing.trustStoreJson;
+    process.env.FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE = '1';
     const scope = {
       organizationId: '11111111-1111-4111-8111-111111111111',
       vehicleId: '22222222-2222-4222-8222-222222222222',
@@ -114,7 +114,7 @@ describe('Fsd3 one-shot security primitives', () => {
       assertFsd3LiveOwnerApprovalMatchesScope({
         approval: verifyFsd3LiveOwnerApprovalEnvelopeV1({
           envelope,
-          trustStoreJson: signing.trustStoreJson,
+          trustContext: { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: signing.trustStoreJson },
         }),
         scope: { ...scope, vehicleId: randomUUID() },
         liveProvider: 'mock',

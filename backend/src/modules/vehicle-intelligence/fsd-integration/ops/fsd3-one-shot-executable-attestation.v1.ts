@@ -23,9 +23,7 @@ export function resolveSynqDriveRepoRootFromModuleV1(): string {
 }
 
 function assertGitWorkTreeClean(root: string): void {
-  const porcelain = execFileSync('git', ['-C', root, 'status', '--porcelain', '--untracked-files=no'], {
-    encoding: 'utf8',
-  }).trim();
+  const porcelain = execFileSync('git', ['-C', root, 'status', '--porcelain'], { encoding: 'utf8' }).trim();
   if (porcelain.length > 0) {
     throw new Error('FSD3_EXECUTABLE_TREE_DIRTY');
   }
@@ -38,6 +36,36 @@ function assertGitTopLevelMatchesRoot(root: string): void {
   }
 }
 
+export function assertFsd3ExecutableEntrypointsTrackedAtHeadV1(input: {
+  repoRoot: string;
+  entrypointAbsolutePaths: string[];
+}): void {
+  for (const entry of input.entrypointAbsolutePaths) {
+    const candidate = path.resolve(entry);
+    if (!fs.existsSync(candidate)) {
+      throw new Error('FSD3_EXECUTABLE_ENTRYPOINT_UNTRACKED');
+    }
+    const abs = fs.realpathSync(candidate);
+    const rel = path.relative(input.repoRoot, abs);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      throw new Error('FSD3_EXECUTABLE_ENTRYPOINT_OUTSIDE_REPO');
+    }
+    try {
+      execFileSync('git', ['-C', input.repoRoot, 'ls-files', '--error-unmatch', '--', rel], {
+        stdio: 'pipe',
+      });
+    } catch {
+      throw new Error('FSD3_EXECUTABLE_ENTRYPOINT_UNTRACKED');
+    }
+    const diff = execFileSync('git', ['-C', input.repoRoot, 'diff', '--name-only', 'HEAD', '--', rel], {
+      encoding: 'utf8',
+    }).trim();
+    if (diff.length > 0) {
+      throw new Error('FSD3_EXECUTABLE_ENTRYPOINT_DIRTY');
+    }
+  }
+}
+
 /**
  * Independently resolves HEAD for the checked-out SynqDrive tree.
  * OPERATOR mode: ignores SYNQDRIVE_REPO_ROOT substitution; always uses module-derived root; requires clean tree.
@@ -45,6 +73,7 @@ function assertGitTopLevelMatchesRoot(root: string): void {
 export function resolveFsd3OneShotExecutableReleaseShaV1(input?: {
   mode?: Fsd3ExecutableAttestationModeV1;
   env?: NodeJS.ProcessEnv;
+  entrypointAbsolutePaths?: string[];
 }): string {
   const mode = input?.mode ?? 'OPERATOR';
   const env = input?.env ?? process.env;
@@ -71,6 +100,12 @@ export function resolveFsd3OneShotExecutableReleaseShaV1(input?: {
   try {
     assertGitTopLevelMatchesRoot(root);
     assertGitWorkTreeClean(root);
+    if (input?.entrypointAbsolutePaths?.length) {
+      assertFsd3ExecutableEntrypointsTrackedAtHeadV1({
+        repoRoot: root,
+        entrypointAbsolutePaths: input.entrypointAbsolutePaths,
+      });
+    }
   } catch (err) {
     if (err instanceof Error) {
       throw err;

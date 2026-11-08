@@ -7,9 +7,9 @@ import {
   type FsdBudgetConfigV1,
 } from '@modules/vehicle-intelligence/full-signal-discovery/fsd-budget.contract.v1';
 import {
-  loadFsd3LiveOwnerApprovalTrustStoreFromEnv,
-  parseFsd3LiveOwnerApprovalTrustStoreJson,
-} from './fsd3-one-shot-owner-approval-trust.v1';
+  loadFsd3LiveOwnerApprovalTrustStoreForContextV1,
+  type Fsd3OwnerApprovalTrustLoadContextV1,
+} from './fsd3-one-shot-trust-anchor.v1';
 import { verifyFsd3OwnerApprovalEd25519SignatureV1 } from './fsd3-one-shot-owner-approval.crypto.v1';
 import { resolveFsd3OwnerApprovalTrustPublicKeyV1 } from './fsd3-one-shot-owner-approval-trust.v1';
 import type { Fsd3OneShotLiveProviderV1 } from './fsd3-one-shot-execution-capability.v1';
@@ -170,12 +170,17 @@ export function parseFsd3LiveOwnerApprovalJson(raw: string): Fsd3LiveOwnerApprov
 
 export function verifyFsd3LiveOwnerApprovalEnvelopeV1(input: {
   envelope: Fsd3LiveOwnerApprovalEnvelopeV1;
+  trustContext?: Fsd3OwnerApprovalTrustLoadContextV1;
+  /** @deprecated Use trustContext TEST_ISOLATED_INLINE */
   trustStoreJson?: string;
   now?: Date;
 }): Fsd3LiveOwnerApprovalDocumentV1 {
-  const store = input.trustStoreJson
-    ? parseFsd3LiveOwnerApprovalTrustStoreJson(input.trustStoreJson)
-    : loadFsd3LiveOwnerApprovalTrustStoreFromEnv();
+  const trustContext: Fsd3OwnerApprovalTrustLoadContextV1 = input.trustContext
+    ? input.trustContext
+  : input.trustStoreJson
+    ? { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: input.trustStoreJson }
+    : { mode: 'OPERATOR_FILE_ANCHORED' };
+  const store = loadFsd3LiveOwnerApprovalTrustStoreForContextV1({ context: trustContext });
   const publicKey = resolveFsd3OwnerApprovalTrustPublicKeyV1({
     store,
     keyId: input.envelope.signature.keyId,

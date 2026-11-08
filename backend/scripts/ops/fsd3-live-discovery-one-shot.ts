@@ -21,6 +21,9 @@ import { assertFsd3OneShotHostAttestation } from '../../src/modules/vehicle-inte
 import { FSD3_P6B_CLI_BUDGET_V1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-cli-budget.v1';
 import { resolveFsd3OneShotExecutableReleaseShaV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-executable-attestation.v1';
 import type { Fsd3OneShotLiveProviderV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-execution-capability.v1';
+import {
+  type Fsd3OwnerApprovalTrustLoadContextV1,
+} from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-trust-anchor.v1';
 
 {
   const envPath =
@@ -88,14 +91,32 @@ function buildScope(args: ReturnType<typeof parseArgs>, executableReleaseSha: st
   };
 }
 
+function resolveCliTrustContext(input: {
+  mode: CliMode;
+  liveProvider: Fsd3OneShotLiveProviderV1;
+}): Fsd3OwnerApprovalTrustLoadContextV1 {
+  if (input.mode === 'EXECUTE' && input.liveProvider === 'dimo_live') {
+    if (process.env.FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE === '1') {
+      throw new Error('FSD3_L2_TRUST_LIVE_INLINE_FORBIDDEN');
+    }
+    return { mode: 'OPERATOR_FILE_ANCHORED' };
+  }
+  const inline = process.env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON?.trim();
+  if (process.env.FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE === '1' && inline) {
+    return { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: inline };
+  }
+  return { mode: 'OPERATOR_FILE_ANCHORED' };
+}
+
 function loadVerifiedOwnerApprovalEnvelope(
   filePath: string,
   scope: Fsd3OneShotCliScopeV1,
   liveProvider: Fsd3OneShotLiveProviderV1,
+  trustContext: Fsd3OwnerApprovalTrustLoadContextV1,
 ): Fsd3LiveOwnerApprovalEnvelopeV1 {
   const raw = fs.readFileSync(filePath, 'utf8');
   const envelope = parseFsd3LiveOwnerApprovalEnvelopeJson(raw);
-  const approval = verifyFsd3LiveOwnerApprovalEnvelopeV1({ envelope });
+  const approval = verifyFsd3LiveOwnerApprovalEnvelopeV1({ envelope, trustContext });
   assertFsd3LiveOwnerApprovalMatchesScope({ approval, scope, liveProvider });
   return envelope;
 }
@@ -104,8 +125,9 @@ function offlinePlan(
   args: ReturnType<typeof parseArgs>,
   scope: Fsd3OneShotCliScopeV1,
   liveProvider: Fsd3OneShotLiveProviderV1,
+  trustContext: Fsd3OwnerApprovalTrustLoadContextV1,
 ) {
-  const envelope = loadVerifiedOwnerApprovalEnvelope(args.l2ApprovalFile!, scope, liveProvider);
+  const envelope = loadVerifiedOwnerApprovalEnvelope(args.l2ApprovalFile!, scope, liveProvider, trustContext);
   console.log(
     JSON.stringify(
       {
@@ -125,8 +147,20 @@ function offlinePlan(
 
 async function main(): Promise<void> {
   const args = parseArgs();
-  const attestedSha = resolveFsd3OneShotExecutableReleaseShaV1();
+  const attestedSha = resolveFsd3OneShotExecutableReleaseShaV1({
+    entrypointAbsolutePaths: [
+      __filename,
+      path.resolve(
+        __dirname,
+        '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-executable-attestation.v1.ts',
+      ),
+    ],
+  });
   const scope = buildScope(args, attestedSha);
+  const trustContext = resolveCliTrustContext({
+    mode: args.mode,
+    liveProvider: args.liveProvider ?? 'mock',
+  });
 
   if (args.mode !== 'OFFLINE_PLAN' && !args.liveProvider) {
     throw new Error('MISSING_EXPLICIT_PROVIDER');
@@ -135,7 +169,7 @@ async function main(): Promise<void> {
     args.liveProvider ?? (args.mode === 'OFFLINE_PLAN' ? 'mock' : 'mock');
 
   if (args.mode === 'OFFLINE_PLAN') {
-    offlinePlan(args, scope, liveProvider);
+    offlinePlan(args, scope, liveProvider, trustContext);
     return;
   }
 
@@ -145,7 +179,12 @@ async function main(): Promise<void> {
   }
 
   assertFsd3OneShotHostAttestation();
-  const ownerApprovalEnvelope = loadVerifiedOwnerApprovalEnvelope(args.l2ApprovalFile!, scope, liveProvider);
+  const ownerApprovalEnvelope = loadVerifiedOwnerApprovalEnvelope(
+    args.l2ApprovalFile!,
+    scope,
+    liveProvider,
+    trustContext,
+  );
 
   if (!process.env.DATABASE_URL) {
     console.error('DATABASE_URL is required for PREFLIGHT/EXECUTE');
@@ -190,7 +229,6 @@ async function main(): Promise<void> {
 
     const preflightTicket = preflightSvc.mintAuthorizedPreflightTicket({
       scope,
-      preflight,
       actorUserId: args.actorUserId,
     });
     const executionCapability = preflightSvc.issueExecutionCapability({
@@ -199,6 +237,7 @@ async function main(): Promise<void> {
       preflightTicket,
       actorUserId: args.actorUserId,
       liveProvider,
+      trustContext,
     });
 
     const executionSvc = app.get(Fsd3OneShotExecutionService);

@@ -84,14 +84,15 @@ export function parseFsd3LiveOwnerApprovalTrustStoreJson(raw: string): Fsd3LiveO
   return { schemaVersion: FSD3_LIVE_OWNER_APPROVAL_TRUST_SCHEMA_V1, keys, revokedKeyIds };
 }
 
+/** @deprecated Prefer loadFsd3LiveOwnerApprovalTrustStoreForContextV1 */
 export function loadFsd3LiveOwnerApprovalTrustStoreFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): Fsd3LiveOwnerApprovalTrustStoreV1 {
   const inline = env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON?.trim();
-  const file = env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_FILE?.trim();
   if (inline) {
-    return parseFsd3LiveOwnerApprovalTrustStoreJson(inline);
+    throw new Error('FSD3_L2_TRUST_INLINE_OPERATOR_REPLACEMENT_REJECTED');
   }
+  const file = env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_FILE?.trim();
   if (file) {
     return parseFsd3LiveOwnerApprovalTrustStoreJson(readFileSync(file, 'utf8'));
   }

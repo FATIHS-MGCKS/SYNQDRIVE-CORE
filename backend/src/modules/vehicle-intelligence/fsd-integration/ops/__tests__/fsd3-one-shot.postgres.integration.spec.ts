@@ -128,7 +128,7 @@ async function seedDimoBinding(prisma: PrismaClient) {
     if (REQUIRED) {
       await ensureFsd2DisposableDatabaseOnce();
     }
-    process.env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON = signing.trustStoreJson;
+    process.env.FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE = '1';
     process.env.FSD3_ONE_SHOT_CAPABILITY_HMAC_SECRET = 'p6b-postgres-capability-secret';
     process.env.FSD3_ONE_SHOT_PREFLIGHT_TICKET_HMAC_SECRET = 'p6b-postgres-preflight-ticket-secret';
     cachedAttestedSha = resolveFsd3OneShotExecutableReleaseShaV1();
@@ -249,14 +249,14 @@ async function seedDimoBinding(prisma: PrismaClient) {
       keyId: signing.keyId,
       payload: approvalFor(scope),
     });
-    const ticket = preflight.mintAuthorizedPreflightTicket({ scope, preflight: pre, actorUserId });
+    const ticket = preflight.mintAuthorizedPreflightTicket({ scope, actorUserId });
     const capability = preflight.issueExecutionCapability({
       scope,
       verifiedOwnerApprovalEnvelope: envelope,
       preflightTicket: ticket,
       actorUserId,
       liveProvider: 'mock',
-      trustStoreJson: signing.trustStoreJson,
+      trustContext: { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: signing.trustStoreJson },
     });
     const provider = createFsd3MockDiscoveryProvider({ mode: 'TESLA_REFERENCE_26' });
     const result = await execution.executeAuthorizedOneShot({
@@ -317,10 +317,10 @@ async function seedDimoBinding(prisma: PrismaClient) {
     const cap1 = preflight.issueExecutionCapability({
       scope,
       verifiedOwnerApprovalEnvelope: envelope,
-      preflightTicket: preflight.mintAuthorizedPreflightTicket({ scope, preflight: pre, actorUserId }),
+      preflightTicket: preflight.mintAuthorizedPreflightTicket({ scope, actorUserId }),
       actorUserId,
       liveProvider: 'mock',
-      trustStoreJson: signing.trustStoreJson,
+      trustContext: { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: signing.trustStoreJson },
     });
     const first = await execution.executeAuthorizedOneShot({
       executionCapability: cap1,
@@ -330,10 +330,10 @@ async function seedDimoBinding(prisma: PrismaClient) {
     const cap2 = preflight.issueExecutionCapability({
       scope,
       verifiedOwnerApprovalEnvelope: envelope,
-      preflightTicket: preflight.mintAuthorizedPreflightTicket({ scope, preflight: pre, actorUserId }),
+      preflightTicket: preflight.mintAuthorizedPreflightTicket({ scope, actorUserId }),
       actorUserId,
       liveProvider: 'mock',
-      trustStoreJson: signing.trustStoreJson,
+      trustContext: { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: signing.trustStoreJson },
     });
     const second = await execution.executeAuthorizedOneShot({
       executionCapability: cap2,

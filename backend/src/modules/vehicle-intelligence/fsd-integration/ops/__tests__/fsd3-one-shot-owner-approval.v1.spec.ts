@@ -20,7 +20,7 @@ const scope = {
 
 function signedEnvelope(overrides: Record<string, unknown> = {}) {
   const signing = createFsd3OneShotTestOwnerSigningMaterialV1();
-  process.env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON = signing.trustStoreJson;
+  process.env.FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE = '1';
   const payload = {
     schemaVersion: FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1,
     approvalReference: 'owner-l2-signoff-ref-2026-11-08',
@@ -47,10 +47,10 @@ function signedEnvelope(overrides: Record<string, unknown> = {}) {
 
 describe('Fsd3LiveOwnerApproval V1 (signed)', () => {
   it('accepts a valid signed approval', () => {
-    const { envelope } = signedEnvelope();
+    const { envelope, signing } = signedEnvelope();
     const verified = verifyFsd3LiveOwnerApprovalEnvelopeV1({
       envelope,
-      trustStoreJson: process.env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON,
+      trustContext: { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: signing.trustStoreJson },
     });
     expect(() =>
       assertFsd3LiveOwnerApprovalMatchesScope({ approval: verified, scope, liveProvider: 'mock' }),
@@ -58,12 +58,12 @@ describe('Fsd3LiveOwnerApproval V1 (signed)', () => {
   });
 
   it('rejects tampered payload after signing', () => {
-    const { envelope } = signedEnvelope();
+    const { envelope, signing } = signedEnvelope();
     envelope.payload.approvalReference = 'tampered-reference-value';
     expect(() =>
       verifyFsd3LiveOwnerApprovalEnvelopeV1({
         envelope,
-        trustStoreJson: process.env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON,
+        trustContext: { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: signing.trustStoreJson },
       }),
     ).toThrow('FSD3_L2_APPROVAL_SIGNATURE_INVALID');
   });
@@ -75,10 +75,10 @@ describe('Fsd3LiveOwnerApproval V1 (signed)', () => {
   });
 
   it('rejects budget above P6B cap', () => {
-    const { envelope } = signedEnvelope();
+    const { envelope, signing } = signedEnvelope();
     const verified = verifyFsd3LiveOwnerApprovalEnvelopeV1({
       envelope,
-      trustStoreJson: process.env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON,
+      trustContext: { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: signing.trustStoreJson },
     });
     verified.budget.maxRequestsPerRun = 12;
     expect(() =>
@@ -87,10 +87,10 @@ describe('Fsd3LiveOwnerApproval V1 (signed)', () => {
   });
 
   it('rejects executable SHA mismatch vs attested scope', () => {
-    const { envelope } = signedEnvelope();
+    const { envelope, signing } = signedEnvelope();
     const verified = verifyFsd3LiveOwnerApprovalEnvelopeV1({
       envelope,
-      trustStoreJson: process.env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON,
+      trustContext: { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: signing.trustStoreJson },
     });
     expect(() =>
       assertFsd3LiveOwnerApprovalMatchesScope({
