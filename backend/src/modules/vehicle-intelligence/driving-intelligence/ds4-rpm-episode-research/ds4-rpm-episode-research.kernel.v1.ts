@@ -478,33 +478,6 @@ function mergeCensoredCountRange(admitted: EpisodeRun[], sequences: CanonPoint[]
   return { min: Math.max(0, max - merges), max };
 }
 
-function buildNotApplicableResult(
-  input: Ds4RpmEpisodeResearchInputV1,
-  binding: Extract<
-    ReturnType<typeof validateDs4RpmEpisodeResearchInputBinding>,
-    { ok: true }
-  >,
-): Ds4RpmEpisodeResearchResultV1 {
-  const v1b = input.v1bResult!;
-  return {
-    ...buildAbstainedResult(input, ['ICE_RPM_NOT_APPLICABLE'], binding.telemetrySourceFamily),
-    status: 'NOT_APPLICABLE',
-    abstainReasons: ['ICE_RPM_NOT_APPLICABLE'],
-    bindings: {
-      organizationId: input.organizationId,
-      vehicleId: input.vehicleId,
-      tripId: input.tripId,
-      providerSourceLinkId: input.providerSourceLinkId,
-      v1bInputFingerprint: binding.recomputedFingerprint,
-      v1bEngineVersion: v1b.engineVersion,
-      sourceBundleId: input.sourceBundleId,
-      telemetrySourceFamily: binding.telemetrySourceFamily,
-      cadenceTier: v1b.tierEvidence?.tier ?? null,
-      analysisMode: v1b.tierEvidence?.analysisMode ?? null,
-    },
-  };
-}
-
 export function projectDs4RpmEpisodeResearchInputFromB2Bundle(
   bundle: Ds4RpmRealDataOfflineInputBundleV1,
   reference: Ds4RpmEpisodeResearchInputV1['reference'],
@@ -532,10 +505,6 @@ export function computeDs4RpmEpisodeResearchV1(
   const binding = validateDs4RpmEpisodeResearchInputBinding(input);
   if (!binding.ok) {
     return buildAbstainedResult(input, binding.reasonCodes, familyPreview);
-  }
-
-  if (input.reference.iceRpmApplicability === 'NOT_APPLICABLE') {
-    return buildNotApplicableResult(input, binding);
   }
 
   const { telemetrySourceFamily, cadenceProfile, recomputedFingerprint } = binding;

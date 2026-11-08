@@ -17,16 +17,15 @@ import {
 } from './ds4-rpm-episode-research.test-helpers';
 
 describe('ds4-rpm-episode-research Opus remediation', () => {
-  it('P1-1 valid BEV is NOT_APPLICABLE after binding', () => {
+  it('P1-1 BEV non-APPLICABLE abstains on ICE_APPLICABILITY_NOT_ADMITTED', () => {
     const out = computeDs4RpmEpisodeResearchV1(
       buildBoundResearchInput({
         rpmPoints: buildRpmPointsEverySeconds('2026-01-01T10:00:01.000Z', 5, 1),
         iceRpmApplicability: 'NOT_APPLICABLE',
       }),
     );
-    expect(out.status).toBe('NOT_APPLICABLE');
-    expect(out.abstainReasons).toEqual(['ICE_RPM_NOT_APPLICABLE']);
-    expect(out.bindings.v1bInputFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(out.status).toBe('ABSTAINED');
+    expect(out.abstainReasons).toContain('ICE_APPLICABILITY_NOT_ADMITTED');
   });
 
   it.each([

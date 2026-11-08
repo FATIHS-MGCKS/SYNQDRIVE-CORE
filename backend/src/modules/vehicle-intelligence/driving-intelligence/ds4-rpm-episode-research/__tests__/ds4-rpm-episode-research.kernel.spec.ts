@@ -222,14 +222,15 @@ describe('ds4-rpm-episode-research kernel', () => {
     expect(out.highEpisodes.status).toBe('NOT_ASSESSABLE');
   });
 
-  it('BEV NOT_APPLICABLE', () => {
+  it('BEV ICE admission abstains fail-closed', () => {
     const out = computeDs4RpmEpisodeResearchV1(
       buildBoundResearchInput({
         rpmPoints: denseAtU(0.7, 5),
         iceRpmApplicability: 'NOT_APPLICABLE',
       }),
     );
-    expect(out.status).toBe('NOT_APPLICABLE');
+    expect(out.status).toBe('ABSTAINED');
+    expect(out.abstainReasons).toContain('ICE_APPLICABILITY_NOT_ADMITTED');
   });
 
   it('R1 family marker without physical duration fields', () => {

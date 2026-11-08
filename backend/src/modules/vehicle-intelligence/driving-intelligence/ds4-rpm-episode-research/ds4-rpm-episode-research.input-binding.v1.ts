@@ -85,8 +85,24 @@ export function validateDs4RpmEpisodeResearchInputBinding(
   if (v1bResult.processingOutcome !== 'SUCCEEDED') {
     reasonCodes.push('V1B_PROCESSING_NOT_SUCCEEDED');
   }
+  if (!tripInput.admission.processingAllowed) {
+    reasonCodes.push('TRIP_ADMISSION_NOT_ALLOWED');
+  }
   if (!v1bResult.admission.processingAllowed) {
     reasonCodes.push('V1B_ADMISSION_NOT_ALLOWED');
+  }
+
+  const tripIce = tripInput.admission.iceRpmApplicability;
+  const v1bIce = v1bResult.admission.iceRpmApplicability;
+  const refIce = input.reference.iceRpmApplicability;
+  if (tripIce !== 'APPLICABLE') {
+    reasonCodes.push('ICE_APPLICABILITY_NOT_ADMITTED');
+  }
+  if (v1bIce !== tripIce) {
+    reasonCodes.push('ICE_APPLICABILITY_V1B_MISMATCH');
+  }
+  if (refIce !== tripIce) {
+    reasonCodes.push('ICE_APPLICABILITY_REFERENCE_CONFLICT');
   }
   if (v1bResult.engineVersion !== DS4_RPM_HF_V1B_ENGINE_VERSION_TIER_AWARE) {
     reasonCodes.push('V1B_NOT_TIER_AWARE');
