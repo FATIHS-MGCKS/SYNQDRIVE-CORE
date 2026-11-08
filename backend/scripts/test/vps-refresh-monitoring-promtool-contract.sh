@@ -17,6 +17,7 @@ REPORT_DESTINATION_UNCHANGED=SKIP
 REPORT_NO_RELOAD=SKIP
 REPORT_VALID_REFRESH=SKIP
 REPORT_DOCKER_RUNTIME=SKIP
+REPORT_DOCKER_MKTEMP_PERMS=SKIP
 
 cleanup() {
   [[ -n "${TMP_PROM:-}" && -d "$TMP_PROM" ]] && rm -rf "$TMP_PROM"
@@ -334,6 +335,47 @@ assert_valid_refresh_promotes_rules() {
   REPORT_VALID_REFRESH=PASS
 }
 
+assert_docker_reads_mktemp_bundle_rules() {
+  if ! docker_daemon_ready; then
+    REPORT_DOCKER_MKTEMP_PERMS=SKIP
+    return 0
+  fi
+  local tmp rules invalid rc
+  tmp="$(mktemp -d)"
+  rules="$tmp/alerts.yml"
+  cp "$CANONICAL_PROM/alerts.yml" "$rules"
+  # Deliberately leave mktemp dir at default 0700 — fix must chmod before docker mount.
+  set +e
+  PATH="/usr/bin:/bin" PROMTOOL_BIN="" bash -c '
+    # shellcheck disable=SC1090
+    source "$1"
+    promtool_check_rules_file "$2"
+    exit $?
+  ' _ "$OPS_SCRIPT" "$rules"
+  rc=$?
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    echo "docker promtool should read valid rules under mktemp 0700 (rc=$rc)" >&2
+    return 1
+  fi
+  invalid="$tmp/invalid.yml"
+  printf '%s\n' 'groups: [{bad yaml' >"$invalid"
+  set +e
+  PATH="/usr/bin:/bin" PROMTOOL_BIN="" bash -c '
+    # shellcheck disable=SC1090
+    source "$1"
+    promtool_check_rules_file "$2"
+    exit $?
+  ' _ "$OPS_SCRIPT" "$invalid"
+  rc=$?
+  set -e
+  if [[ "$rc" -eq 0 ]]; then
+    echo "docker promtool should reject invalid rules under mktemp 0700" >&2
+    return 1
+  fi
+  REPORT_DOCKER_MKTEMP_PERMS=PASS
+}
+
 assert_legacy_docker_false_green_baseline() {
   if ! docker_daemon_ready; then
     REPORT_DOCKER_RUNTIME=SKIP
@@ -401,6 +443,7 @@ assert_docker_failure_propagates_bundle
 assert_conditional_validate_fail_closed
 assert_destination_unchanged_and_no_reload_on_failure
 assert_valid_refresh_promotes_rules
+assert_docker_reads_mktemp_bundle_rules
 assert_legacy_docker_false_green_baseline
 rollback_snapshot_contract
 
@@ -415,3 +458,4 @@ echo "DESTINATION_UNCHANGED_ON_FAILURE=$REPORT_DESTINATION_UNCHANGED"
 echo "NO_RELOAD_ON_FAILURE=$REPORT_NO_RELOAD"
 echo "VALID_REFRESH_REGRESSION=$REPORT_VALID_REFRESH"
 echo "DOCKER_RUNTIME_TESTS=$REPORT_DOCKER_RUNTIME"
+echo "DOCKER_MKTEMP_PERMISSION_FIX=$REPORT_DOCKER_MKTEMP_PERMS"
