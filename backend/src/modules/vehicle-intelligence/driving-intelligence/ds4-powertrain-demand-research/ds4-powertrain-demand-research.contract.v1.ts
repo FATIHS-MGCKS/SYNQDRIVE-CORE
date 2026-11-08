@@ -1,5 +1,6 @@
 import type { Ds4RpmHfV1aTripInputV1 } from '../rpm-hf-v1a/ds4-rpm-hf-v1a.contract';
 import type { Ds4RpmHfV1bShadowResultV1 } from '../rpm-hf-v1b/ds4-rpm-hf-v1b.contract';
+import type { Ds4RpmReferenceSpecProvenanceClass } from '../rpm-reference-intelligence-v1/ds4-rpm-reference-intelligence-v1.contract';
 import type { TelemetrySourceFamily } from '../../telemetry-source-family';
 
 export const DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION =
@@ -7,6 +8,9 @@ export const DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION =
 
 export const DS4_KICKDOWN_BUCKET_GRID_RESEARCH_POLICY_VERSION =
   'kickdown-bucket-grid-research-v1' as const;
+
+export const DS4_COLD_ENGINE_BUCKET_GRID_RESEARCH_POLICY_VERSION =
+  'cold-engine-bucket-grid-research-v1' as const;
 
 export const DS4_MULTICHANNEL_MANIFEST_VERSION = 'ds4-multichannel-manifest-v1' as const;
 
@@ -127,7 +131,9 @@ export type Ds4PowertrainDemandBindingAbstainReason =
   | 'OFFLINE_SOURCE_ATTESTATION_NOT_VERIFIED'
   | 'INSUFFICIENT_LOCAL_CANDIDATE_WINDOW'
   | 'PHEV_ICE_NOT_CONFIRMED_IN_WINDOW'
-  | 'NO_MOVING_OPPORTUNITY_EVIDENCE';
+  | 'NO_MOVING_OPPORTUNITY_EVIDENCE'
+  | 'INSUFFICIENT_ECT_OBSERVATIONS'
+  | 'COOLANT_CHANNEL_UNAVAILABLE';
 
 export type Ds4PowertrainDemandResearchInputV1 = {
   contractVersion: typeof DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION;
@@ -218,6 +224,84 @@ export type Ds4PowertrainDemandKickdownResultV1 = {
       unknownSpeedBucketCount: number;
       eligibleObservationCount: number;
       eligibleMovingObservationCount: number;
+    };
+  };
+  unsupportedScientificClaims: string[];
+  r1HistoricalObdRecordTimeUncertain: boolean;
+  realDataValidation: 'NOT_EVALUATED' | 'SYNTHETIC_ONLY';
+};
+
+export type Ds4PowertrainDemandColdEngineResearchInputV1 = Ds4PowertrainDemandResearchInputV1 & {
+  referenceMaxRpm: number | null;
+  referenceMaxRpmProvenance: Ds4RpmReferenceSpecProvenanceClass | null;
+};
+
+export type Ds4ColdEngineProxyKindV1 =
+  | 'COLD_ENGINE_HIGH_LOAD'
+  | 'COLD_ENGINE_HIGH_RPM'
+  | 'COLD_ENGINE_FULL_THROTTLE';
+
+export type Ds4ColdEngineSubtypeAssessabilityV1 = {
+  status: 'ASSESSABLE' | 'NOT_ASSESSABLE';
+  reasonCodes: string[];
+};
+
+export type Ds4ColdEngineProxyCandidateV1 = {
+  episodeKey: string;
+  proxyKind: Ds4ColdEngineProxyKindV1;
+  classification:
+    | 'COLD_ENGINE_HIGH_LOAD_PROXY_CANDIDATE'
+    | 'COLD_ENGINE_HIGH_RPM_PROXY_CANDIDATE'
+    | 'COLD_ENGINE_FULL_THROTTLE_PROXY_CANDIDATE'
+    | 'NOT_ASSESSABLE';
+  providerBucketLabelStartIso: string;
+  providerBucketLabelEndIso: string;
+  startBucketIndex: number;
+  endBucketIndex: number;
+  observedBucketSpanCount: number;
+  peakValue: number;
+  peakUnit: string;
+  limitationCodes: string[];
+  requiredChannelPresence: Record<string, boolean>;
+};
+
+export type Ds4PowertrainDemandColdEngineResultV1 = {
+  contractVersion: typeof DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION;
+  policyVersion: typeof DS4_COLD_ENGINE_BUCKET_GRID_RESEARCH_POLICY_VERSION;
+  researchOnly: true;
+  timeAuthority: Ds4PowertrainDemandTimeAuthority;
+  temporalMode: Ds4PowertrainDemandTemporalMode;
+  misuseEligibility: 'NOT_EVALUATED_BY_DESIGN';
+  evidenceOrigin: Ds4PowertrainDemandEvidenceOrigin;
+  status: Ds4PowertrainDemandTripStatus;
+  abstainReasons: readonly Ds4PowertrainDemandBindingAbstainReason[];
+  provenance: Ds4PowertrainDemandProvenanceVerdictV1;
+  bindings: {
+    organizationId: string;
+    vehicleId: string;
+    tripId: string;
+    providerSourceLinkId: string;
+    v1bInputFingerprint: string | null;
+    multichannelFingerprint: string | null;
+    telemetrySourceFamily: TelemetrySourceFamily | null;
+    sourceBundleId: string | null;
+    referenceMaxRpm: number | null;
+    referenceMaxRpmProvenance: Ds4RpmReferenceSpecProvenanceClass | null;
+  };
+  coldEngine: {
+    rawWindowCount: number;
+    deduplicatedCandidateCount: number;
+    candidates: Ds4ColdEngineProxyCandidateV1[];
+    subtypeAssessability: Record<Ds4ColdEngineProxyKindV1, Ds4ColdEngineSubtypeAssessabilityV1>;
+    coverageEvidence: {
+      rpmTripCoverage: number | null;
+      localCoverageScope: 'ECT_LABELLED_BUCKETS_ONLY' | null;
+      fullTripColdStateCoverageVerdict: 'UNKNOWN' | null;
+      ectPresentBucketCount: number;
+      ectMissingBucketCount: number;
+      ectColdObservedBucketCount: number;
+      ectWarmObservedBucketCount: number;
+      gridBucketCount: number;
     };
   };
   unsupportedScientificClaims: string[];
