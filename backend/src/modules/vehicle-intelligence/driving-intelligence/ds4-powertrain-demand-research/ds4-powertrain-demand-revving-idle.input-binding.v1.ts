@@ -15,7 +15,6 @@ import {
 } from './ds4-powertrain-demand-binding-shared.v1';
 import { multichannelHasRpmLabels, validateZeroRpmPathFailClosed } from './ds4-powertrain-demand-cold-engine.input-binding.v1';
 import { canonicalizeMultichannelObservations, verifyMultichannelRpmParityWithV1a } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
-import { DS4_REVIVING_IDLE_BINDING_MIN_RPM_SPEED_LABELS } from './ds4-powertrain-demand-revving-idle-reference.v1';
 import {
   validateRevvingIdlePowertrainBindingAllPaths,
   validateRevvingIdleZeroRpmConventionalIceAdmission,
@@ -42,10 +41,6 @@ export type Ds4RevvingIdleBindingResultV1 =
       canon: ReturnType<typeof canonicalizeMultichannelObservations>;
     }
   | { ok: false; reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[] };
-
-function rpmSpeedCoPresentCount(canon: ReturnType<typeof canonicalizeMultichannelObservations>): number {
-  return canon.buckets.filter((b) => b.rpm != null && b.speedKmh != null).length;
-}
 
 function applyV1bIntegrityChecks(
   input: Ds4RevvingIdleResearchInputV1,
@@ -203,13 +198,6 @@ export function validateDs4PowertrainDemandRevvingIdleInputBinding(
       const fp = fingerprintsMatch(input);
       if (!fp.ok) reasonCodes.push('V1B_INPUT_FINGERPRINT_MISMATCH');
     }
-  }
-
-  const coPresent = rpmSpeedCoPresentCount(canonPreview);
-  if (coPresent === 0) {
-    reasonCodes.push('INSUFFICIENT_RPM_SPEED_LABEL_OBSERVATIONS');
-  } else if (coPresent < DS4_REVIVING_IDLE_BINDING_MIN_RPM_SPEED_LABELS) {
-    reasonCodes.push('INSUFFICIENT_RPM_SPEED_LABEL_OBSERVATIONS');
   }
 
   const expectedMcFp = validateMultichannelFingerprint(input, family, reasonCodes);

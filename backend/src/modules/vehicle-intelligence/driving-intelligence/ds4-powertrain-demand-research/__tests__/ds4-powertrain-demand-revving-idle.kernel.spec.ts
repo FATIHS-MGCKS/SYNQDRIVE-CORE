@@ -63,6 +63,12 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
     expect(out.revvingIdle.facetA.deduplicatedCandidateCount).toBe(1);
     expect(out.revvingIdle.facetA.tripEvidenceClassification).toBe('HIGH_RPM_STATIONARY_LIKE_PROXY_CANDIDATE');
     expect(out.revvingIdle.facetA.candidates[0]?.researchLabelSpanMs).toBeGreaterThanOrEqual(3000);
+    expect(out.revvingIdle.facetA.assessability).toBe('ASSESSABLE');
+    expect(out.revvingIdle.facetB.assessability).toBe('NOT_ASSESSABLE');
+    expect(out.revvingIdle.facetB.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
+    expect(out.revvingIdle.facetB.coverageDiagnostics.assessabilityReasonCodes).toContain(
+      'INSUFFICIENT_LABEL_SPAN_OPPORTUNITY',
+    );
   });
 
   it('2 revving below entry threshold yields no facet A candidate', () => {
@@ -296,6 +302,11 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
     const out = computeDs4PowertrainDemandRevvingIdleResearchV1(input);
     expect(out.status).toBe('ABSTAINED');
     expect(out.abstainReasons).toContain('MULTICHANNEL_FINGERPRINT_MISMATCH');
+    expect(out.revvingIdle.facetA.assessability).toBe('NOT_ASSESSABLE');
+    expect(out.revvingIdle.facetB.assessability).toBe('NOT_ASSESSABLE');
+    expect(out.revvingIdle.facetA.tripEvidenceClassification).toBe('NOT_ASSESSABLE');
+    expect(out.revvingIdle.coverageEvidence.gridBucketCount).toBe(0);
+    expect(out.revvingIdle.facetA.deduplicatedCandidateCount).toBe(0);
   });
 
   it('18 V1B sequence parity tamper abstains', () => {
@@ -371,21 +382,23 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
     });
   });
 
-  it('22 input order determinism', () => {
+  it('22 input order determinism (reversed permutation)', () => {
     const rev = withPrefix(
       buildObservationSeries('2026-01-01T10:00:12.000Z', 4, 1, (i) => ({
         speedKmh: 0,
         rpm: 2000 + i * 50,
       })),
     );
-    const shuffled = [...rev].sort(() => (Math.random() > 0.5 ? 1 : -1));
+    const reversed = [...rev].reverse();
     const a = computeDs4PowertrainDemandRevvingIdleResearchV1(
       buildBoundPowertrainInput({ multichannelObservations: rev, tripId: TRIP }),
     );
     const b = computeDs4PowertrainDemandRevvingIdleResearchV1(
-      buildBoundPowertrainInput({ multichannelObservations: shuffled, tripId: TRIP }),
+      buildBoundPowertrainInput({ multichannelObservations: reversed, tripId: TRIP }),
     );
     expect(a.revvingIdle.facetA.candidates[0]?.episodeKey).toBe(b.revvingIdle.facetA.candidates[0]?.episodeKey);
+    expect(a.revvingIdle.facetA.deduplicatedCandidateCount).toBe(1);
+    expect(b.revvingIdle.facetA.deduplicatedCandidateCount).toBe(1);
   });
 
   it('23 P39 literal policy drift pins', () => {
@@ -402,39 +415,26 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
     expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.minResearchLabelSpanMs).toBe(
       HIGH_RPM_STATIONARY_SHADOW_POLICY.minClusterDurationMs,
     );
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.shadowPolicyVersion).toBe(
+      HIGH_RPM_STATIONARY_SHADOW_POLICY_VERSION,
+    );
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.shadowPolicyVersion).toBe(
+      EXCESSIVE_IDLING_SHADOW_POLICY_VERSION,
+    );
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.stationarySpeedMaxKmh).toBe(5);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.stationarySpeedMaxKmh).toBe(3);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.maxAdjacentLabelGapMs).toBe(4000);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.maxAdjacentLabelGapMs).toBe(10_000);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.idleRpmBandMaxExclusive).toBe(1200);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.shortIdleMaxResearchLabelSpanMs).toBe(120_000);
   });
 
-  it('24 P2-B1/B2/B3 regression isolation smoke', () => {
+  it('24 P2-B1 kickdown regression positive control', () => {
     const kick = computeDs4PowertrainDemandResearchV1(
       buildBoundPowertrainInput({ multichannelObservations: positiveKickdownGrid() }),
     );
     expect(kick.status).toBe('COMPUTED');
-
-    const coldGrid = buildObservationSeries('2026-01-01T10:00:01.000Z', 12, 1, (i) => ({
-      rpm: 2500,
-      coolantC: 40,
-      loadPct: i === 5 ? 85 : 30,
-      throttlePct: 20,
-      speedKmh: 40,
-    }));
-    const cold = computeDs4PowertrainDemandColdEngineResearchV1(
-      buildColdEngineBoundInput({ multichannelObservations: coldGrid }),
-    );
-    expect(['COMPUTED', 'NOT_OBSERVED', 'ABSTAINED']).toContain(cold.status);
-
-    const loadGrid = buildObservationSeries('2026-01-01T10:00:12.000Z', 5, 5, () => ({
-      loadPct: 80,
-      rpm: 2000,
-      throttlePct: 50,
-      speedKmh: 60,
-    }));
-    const load = computeDs4PowertrainDemandSustainedLoadResearchV1(
-      buildBoundPowertrainInput({
-        multichannelObservations: [...v1bPrefixGrid(), ...loadGrid],
-        tripId: 'trip-sustained-load-regression',
-      }),
-    );
-    expect(load.sustainedLoad.deduplicatedCandidateCount).toBeGreaterThanOrEqual(0);
+    expect(kick.kickdown.deduplicatedCandidateCount).toBeGreaterThan(0);
   });
 
   it('25 research contract temporal and limitation codes', () => {
@@ -452,6 +452,150 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
     expect(out.revvingIdle.scientificLimitationCodes).toContain('STATIONARY_INFERRED_FROM_SPEED_ONLY');
     expect(out.revvingIdle.scientificLimitationCodes).toContain('NOT_CONFIRMED_IDLE');
     expect(out.revvingIdle.facetA.assessability).toBe('ASSESSABLE');
-    expect(out.revvingIdle.facetB.assessability).toBe('ASSESSABLE');
+    expect(out.revvingIdle.facetB.assessability).toBe('NOT_ASSESSABLE');
+    expect(out.revvingIdle.facetB.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
+  });
+
+  describe('assessability remediation adversarial matrix', () => {
+    it('A four RPM/speed labels across 3s: Facet A candidate, Facet B insufficient window', () => {
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({
+          multichannelObservations: [
+            ...v1bMovingPrefixGrid(),
+            ...buildObservationSeries('2026-01-01T10:00:12.000Z', 4, 1, () => ({
+              speedKmh: 0,
+              rpm: 2100,
+            })),
+          ],
+          tripId: TRIP,
+        }),
+      );
+      expect(out.revvingIdle.facetA.deduplicatedCandidateCount).toBe(1);
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
+      expect(out.revvingIdle.facetB.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
+    });
+
+    it('B valid 75s idle-like trace: Facet B insufficient 180s window', () => {
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({
+          multichannelObservations: [
+            ...v1bMovingPrefixGrid(),
+            ...buildObservationSeries('2026-01-01T10:00:12.000Z', 76, 1, () => ({ speedKmh: 0, rpm: 850 })),
+          ],
+          tripId: TRIP,
+        }),
+      );
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
+      expect(out.revvingIdle.facetB.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
+      expect(out.revvingIdle.facetB.coverageDiagnostics.longestCoherentResearchLabelSpanMs).toBeLessThan(180_000);
+    });
+
+    it('C valid 200s dense idle: Facet B candidate', () => {
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({
+          multichannelObservations: [
+            ...v1bMovingPrefixGrid(),
+            ...buildObservationSeries('2026-01-01T10:00:12.000Z', 201, 1, () => ({ speedKmh: 0, rpm: 850 })),
+          ],
+          tripId: TRIP,
+        }),
+      );
+      expect(out.revvingIdle.facetB.assessability).toBe('ASSESSABLE');
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(1);
+    });
+
+    it('D 200s moving trace: Facet B NOT_OBSERVED not insufficient', () => {
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({
+          multichannelObservations: [
+            ...v1bMovingPrefixGrid(),
+            ...buildObservationSeries('2026-01-01T10:00:12.000Z', 201, 1, () => ({
+              speedKmh: 45,
+              rpm: 1800,
+            })),
+          ],
+          tripId: TRIP,
+        }),
+      );
+      expect(out.revvingIdle.facetB.assessability).toBe('ASSESSABLE');
+      expect(out.revvingIdle.facetB.tripEvidenceClassification).toBe('NOT_OBSERVED');
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
+    });
+
+    it('E 200s sparse labels >10s gaps: Facet B insufficient coverage visible', () => {
+      const base = Date.parse('2026-01-01T10:00:12.000Z');
+      const sparse = Array.from({ length: 25 }, (_, i) => ({
+        recordedAtIso: new Date(base + i * 11_000).toISOString(),
+        speedKmh: 0,
+        rpm: 850,
+      }));
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({
+          multichannelObservations: [...v1bMovingPrefixGrid(), ...sparse],
+          tripId: TRIP,
+        }),
+      );
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
+      expect(out.revvingIdle.facetB.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
+      expect(out.revvingIdle.facetB.coverageDiagnostics.longestCoherentResearchLabelSpanMs).toBeLessThan(180_000);
+    });
+
+    it('F coarse 10s labels over 200s: Facet B may qualify, Facet A not high-res assessable for revving', () => {
+      const coarse = buildObservationSeries('2026-01-01T10:00:01.000Z', 29, 10, () => ({
+        speedKmh: 0,
+        rpm: 850,
+      }));
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({
+          multichannelObservations: coarse,
+          tripId: TRIP,
+        }),
+      );
+      expect(out.revvingIdle.facetB.assessability).toBe('ASSESSABLE');
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(1);
+      expect(out.revvingIdle.facetA.assessability).toBe('NOT_ASSESSABLE');
+      expect(out.revvingIdle.facetA.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
+    });
+
+    it('G Facet A insufficient, Facet B positive preserved', () => {
+      const idleOnly = [
+        ...v1bMovingPrefixGrid(),
+        ...buildObservationSeries('2026-01-01T10:00:12.000Z', 201, 1, () => ({ speedKmh: 0, rpm: 850 })),
+      ];
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: idleOnly, tripId: TRIP }),
+      );
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(1);
+      expect(out.revvingIdle.facetA.deduplicatedCandidateCount).toBe(0);
+      expect(out.revvingIdle.facetA.tripEvidenceClassification).toBe('NOT_OBSERVED');
+    });
+
+    it('H Facet B insufficient, Facet A positive preserved', () => {
+      const revOnly = [
+        ...v1bMovingPrefixGrid(),
+        ...buildObservationSeries('2026-01-01T10:00:12.000Z', 4, 1, () => ({ speedKmh: 0, rpm: 2100 })),
+      ];
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: revOnly, tripId: TRIP }),
+      );
+      expect(out.revvingIdle.facetA.deduplicatedCandidateCount).toBe(1);
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
+      expect(out.revvingIdle.facetB.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
+    });
+
+    it('I forged fingerprint: both NOT_ASSESSABLE and zero trusted coverage', () => {
+      const input = buildBoundPowertrainInput({
+        multichannelObservations: [
+          ...v1bMovingPrefixGrid(),
+          ...buildObservationSeries('2026-01-01T10:00:12.000Z', 4, 1, () => ({ speedKmh: 0, rpm: 2100 })),
+        ],
+        tripId: TRIP,
+      });
+      input.multichannelFingerprint = 'forged';
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(input);
+      expect(out.status).toBe('ABSTAINED');
+      expect(out.revvingIdle.facetA.tripEvidenceClassification).toBe('NOT_ASSESSABLE');
+      expect(out.revvingIdle.coverageEvidence.rpmAndSpeedPresentBucketCount).toBe(0);
+    });
   });
 });

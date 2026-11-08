@@ -21,6 +21,7 @@ const SOURCE_FILES = [
   'ds4-powertrain-demand-revving-idle-dual-facet.v1.ts',
   'ds4-powertrain-demand-revving-idle-reference.v1.ts',
   'ds4-powertrain-demand-revving-idle-powertrain.v1.ts',
+  'ds4-powertrain-demand-revving-idle-assessability.v1.ts',
   'ds4-powertrain-demand-multichannel-canonicalize.v1.ts',
 ];
 

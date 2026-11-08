@@ -334,6 +334,8 @@ export function detectRevvingIdleDualFacetCandidates(input: {
   fuelType: string | null;
   isEvPowertrain: boolean;
   canon: Ds4MultichannelCanonicalizeResultV1;
+  runFacetA?: boolean;
+  runFacetB?: boolean;
 }): Ds4RevvingIdleDualFacetDetectResultV1 {
   const { powertrainClass, contradictoryEvIceClaim } = classifySustainedLoadPowertrainV1(
     input.fuelType,
@@ -352,9 +354,11 @@ export function detectRevvingIdleDualFacetCandidates(input: {
     powertrainClass,
     sorted,
   };
+  const runA = input.runFacetA !== false;
+  const runB = input.runFacetB !== false;
   return {
-    facetA: detectFacetA(ctx),
-    facetB: detectFacetB(ctx),
+    facetA: runA ? detectFacetA(ctx) : emptyA,
+    facetB: runB ? detectFacetB(ctx) : emptyB,
   };
 }
 

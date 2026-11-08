@@ -408,6 +408,24 @@ export type Ds4RevvingIdleResearchInputV1 = Ds4PowertrainDemandResearchInputV1;
 
 export type Ds4RevvingIdleFacetAssessabilityV1 = 'ASSESSABLE' | 'NOT_ASSESSABLE';
 
+export type Ds4RevvingIdleFacetAssessabilityReasonV1 =
+  | 'ASSESSABLE'
+  | 'INTEGRITY_NOT_ADMITTED'
+  | 'RPM_SPEED_CO_OBSERVATION_UNAVAILABLE'
+  | 'INSUFFICIENT_CO_LABEL_COUNT'
+  | 'INSUFFICIENT_LABEL_SPAN_OPPORTUNITY'
+  | 'INSUFFICIENT_COHERENT_GAP_COVERAGE';
+
+export type Ds4RevvingIdleFacetCoverageDiagnosticsV1 = {
+  rpmSpeedCoObservedLabelCount: number;
+  rpmMissingRequiredChannelCount: number;
+  speedMissingRequiredChannelCount: number;
+  longestCoherentRunLabelCount: number;
+  longestCoherentResearchLabelSpanMs: number;
+  longestCoherentMaxAdjacentGapMs: number;
+  assessabilityReasonCodes: readonly Ds4RevvingIdleFacetAssessabilityReasonV1[];
+};
+
 export type Ds4RevvingIdleFacetATripEvidenceClassificationV1 =
   | 'NOT_ASSESSABLE'
   | 'INSUFFICIENT_OBSERVATIONS'
@@ -473,6 +491,7 @@ export type Ds4PowertrainDemandRevvingIdleResultV1 = {
     identicalDuplicateCollapsedCount: number;
     facetA: {
       assessability: Ds4RevvingIdleFacetAssessabilityV1;
+      coverageDiagnostics: Ds4RevvingIdleFacetCoverageDiagnosticsV1;
       entryLabelCount: number;
       deduplicatedCandidateCount: number;
       candidates: Ds4HighRpmStationaryLikeProxyCandidateV1[];
@@ -480,6 +499,7 @@ export type Ds4PowertrainDemandRevvingIdleResultV1 = {
     };
     facetB: {
       assessability: Ds4RevvingIdleFacetAssessabilityV1;
+      coverageDiagnostics: Ds4RevvingIdleFacetCoverageDiagnosticsV1;
       entryLabelCount: number;
       deduplicatedCandidateCount: number;
       candidates: Ds4ExcessiveStationaryLikeSpanProxyCandidateV1[];

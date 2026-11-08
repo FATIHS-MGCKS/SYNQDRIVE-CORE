@@ -3,6 +3,7 @@ import { DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS } from '../ds4-rpm-real
 import type {
   Ds4PowertrainDemandBindingAbstainReason,
   Ds4PowertrainDemandRevvingIdleResultV1,
+  Ds4RevvingIdleFacetCoverageDiagnosticsV1,
   Ds4RevvingIdleResearchInputV1,
 } from './ds4-powertrain-demand-research.contract.v1';
 import {
@@ -10,8 +11,13 @@ import {
   DS4_REVIVING_IDLE_DUAL_FACET_RESEARCH_POLICY_VERSION,
 } from './ds4-powertrain-demand-research.contract.v1';
 import {
-  classifyRevvingIdleFacetATripEvidence,
-  classifyRevvingIdleFacetBTripEvidence,
+  classifyFacetATripEvidenceAfterDetection,
+  classifyFacetBTripEvidenceAfterDetection,
+  evaluateRevvingIdleFacetAAssessability,
+  evaluateRevvingIdleFacetBAssessability,
+  resolveRevvingIdleTripStatus,
+} from './ds4-powertrain-demand-revving-idle-assessability.v1';
+import {
   detectRevvingIdleDualFacetCandidates,
   DS4_REVIVING_IDLE_SCIENTIFIC_LIMITATION_CODES,
 } from './ds4-powertrain-demand-revving-idle-dual-facet.v1';
@@ -20,7 +26,7 @@ import { validateDs4PowertrainDemandRevvingIdleInputBinding } from './ds4-powert
 
 const SYNTHETIC_PROVENANCE_LIMITATION = 'SYNTHETIC_FIXTURE_NOT_SOURCE_ATTESTED';
 
-type Ds4RevvingIdleAbstainCoverageV1 = {
+type Ds4RevvingIdleGlobalCoverageV1 = {
   gridBucketCount: number;
   rpmAndSpeedPresentBucketCount: number;
   rpmMissingBucketCount: number;
@@ -31,7 +37,7 @@ type Ds4RevvingIdleAbstainCoverageV1 = {
   identicalDuplicateCollapsedCount: number;
 };
 
-const UNTRUSTED_ABSTAIN_COVERAGE: Ds4RevvingIdleAbstainCoverageV1 = {
+const UNTRUSTED_GLOBAL_COVERAGE: Ds4RevvingIdleGlobalCoverageV1 = {
   gridBucketCount: 0,
   rpmAndSpeedPresentBucketCount: 0,
   rpmMissingBucketCount: 0,
@@ -42,54 +48,30 @@ const UNTRUSTED_ABSTAIN_COVERAGE: Ds4RevvingIdleAbstainCoverageV1 = {
   identicalDuplicateCollapsedCount: 0,
 };
 
-export function isSoleInsufficientRpmSpeedLabelBindingFailure(
-  reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[],
-): boolean {
-  const unique = [...new Set(reasonCodes)];
-  return unique.length === 1 && unique[0] === 'INSUFFICIENT_RPM_SPEED_LABEL_OBSERVATIONS';
-}
+const UNTRUSTED_FACET_DIAGNOSTICS: Ds4RevvingIdleFacetCoverageDiagnosticsV1 = {
+  rpmSpeedCoObservedLabelCount: 0,
+  rpmMissingRequiredChannelCount: 0,
+  speedMissingRequiredChannelCount: 0,
+  longestCoherentRunLabelCount: 0,
+  longestCoherentResearchLabelSpanMs: 0,
+  longestCoherentMaxAdjacentGapMs: 0,
+  assessabilityReasonCodes: ['INTEGRITY_NOT_ADMITTED'],
+};
 
-function facetATripEvidenceForAbstain(
-  reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[],
-): Ds4PowertrainDemandRevvingIdleResultV1['revvingIdle']['facetA']['tripEvidenceClassification'] {
-  if (isSoleInsufficientRpmSpeedLabelBindingFailure(reasonCodes)) {
-    return 'INSUFFICIENT_OBSERVATIONS';
-  }
-  return 'NOT_ASSESSABLE';
-}
-
-function facetBTripEvidenceForAbstain(
-  reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[],
-): Ds4PowertrainDemandRevvingIdleResultV1['revvingIdle']['facetB']['tripEvidenceClassification'] {
-  if (isSoleInsufficientRpmSpeedLabelBindingFailure(reasonCodes)) {
-    return 'INSUFFICIENT_OBSERVATIONS';
-  }
-  return 'NOT_ASSESSABLE';
-}
-
-function buildCoverageFromCanon(canon: ReturnType<typeof canonicalizeMultichannelObservations>): {
-  coverage: Ds4RevvingIdleAbstainCoverageV1;
-  distinctMs: number;
-} {
+function buildGlobalCoverageFromCanon(
+  canon: ReturnType<typeof canonicalizeMultichannelObservations>,
+): Ds4RevvingIdleGlobalCoverageV1 {
   const gridCount = canon.buckets.length;
   const rpmAndSpeed = canon.buckets.filter((b) => b.rpm != null && b.speedKmh != null).length;
-  const rpmMissing = canon.buckets.filter((b) => b.rpm == null).length;
-  const speedMissing = canon.buckets.filter((b) => b.speedKmh == null).length;
-  const loadPresent = canon.buckets.filter((b) => b.loadPct != null).length;
-  const coolantPresent = canon.buckets.filter((b) => b.coolantC != null).length;
-  const distinctMs = new Set(canon.buckets.map((b) => b.recordedAtMs)).size;
   return {
-    distinctMs,
-    coverage: {
-      gridBucketCount: gridCount,
-      rpmAndSpeedPresentBucketCount: rpmAndSpeed,
-      rpmMissingBucketCount: rpmMissing,
-      speedMissingBucketCount: speedMissing,
-      loadPresentBucketCount: loadPresent,
-      coolantPresentBucketCount: coolantPresent,
-      distinctMsLabelsInTrip: distinctMs,
-      identicalDuplicateCollapsedCount: canon.identicalDuplicateCollapsedCount,
-    },
+    gridBucketCount: gridCount,
+    rpmAndSpeedPresentBucketCount: rpmAndSpeed,
+    rpmMissingBucketCount: canon.buckets.filter((b) => b.rpm == null).length,
+    speedMissingBucketCount: canon.buckets.filter((b) => b.speedKmh == null).length,
+    loadPresentBucketCount: canon.buckets.filter((b) => b.loadPct != null).length,
+    coolantPresentBucketCount: canon.buckets.filter((b) => b.coolantC != null).length,
+    distinctMsLabelsInTrip: new Set(canon.buckets.map((b) => b.recordedAtMs)).size,
+    identicalDuplicateCollapsedCount: canon.identicalDuplicateCollapsedCount,
   };
 }
 
@@ -97,10 +79,7 @@ function buildAbstained(
   input: Ds4RevvingIdleResearchInputV1,
   reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[],
   familyPreview: ReturnType<typeof resolveTelemetrySourceFamily>,
-  coverage: Ds4RevvingIdleAbstainCoverageV1,
 ): Ds4PowertrainDemandRevvingIdleResultV1 {
-  const facetTripA = facetATripEvidenceForAbstain(reasonCodes);
-  const facetTripB = facetBTripEvidenceForAbstain(reasonCodes);
   return {
     contractVersion: DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION,
     policyVersion: DS4_REVIVING_IDLE_DUAL_FACET_RESEARCH_POLICY_VERSION,
@@ -127,31 +106,26 @@ function buildAbstained(
       sourceBundleId: input.sourceBundleId,
     },
     revvingIdle: {
-      canonicalRowsFullKey: coverage.gridBucketCount,
-      distinctMsLabelsInTrip: coverage.distinctMsLabelsInTrip,
-      identicalDuplicateCollapsedCount: coverage.identicalDuplicateCollapsedCount,
+      canonicalRowsFullKey: 0,
+      distinctMsLabelsInTrip: 0,
+      identicalDuplicateCollapsedCount: 0,
       facetA: {
         assessability: 'NOT_ASSESSABLE',
+        coverageDiagnostics: { ...UNTRUSTED_FACET_DIAGNOSTICS },
         entryLabelCount: 0,
         deduplicatedCandidateCount: 0,
         candidates: [],
-        tripEvidenceClassification: facetTripA,
+        tripEvidenceClassification: 'NOT_ASSESSABLE',
       },
       facetB: {
         assessability: 'NOT_ASSESSABLE',
+        coverageDiagnostics: { ...UNTRUSTED_FACET_DIAGNOSTICS },
         entryLabelCount: 0,
         deduplicatedCandidateCount: 0,
         candidates: [],
-        tripEvidenceClassification: facetTripB,
+        tripEvidenceClassification: 'NOT_ASSESSABLE',
       },
-      coverageEvidence: {
-        gridBucketCount: coverage.gridBucketCount,
-        rpmAndSpeedPresentBucketCount: coverage.rpmAndSpeedPresentBucketCount,
-        rpmMissingBucketCount: coverage.rpmMissingBucketCount,
-        speedMissingBucketCount: coverage.speedMissingBucketCount,
-        loadPresentBucketCount: coverage.loadPresentBucketCount,
-        coolantPresentBucketCount: coverage.coolantPresentBucketCount,
-      },
+      coverageEvidence: { ...UNTRUSTED_GLOBAL_COVERAGE },
       scientificLimitationCodes: [...DS4_REVIVING_IDLE_SCIENTIFIC_LIMITATION_CODES],
     },
     unsupportedScientificClaims: [...DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS],
@@ -167,13 +141,7 @@ export function computeDs4PowertrainDemandRevvingIdleResearchV1(
   const familyPreview = resolveTelemetrySourceFamily(input.dimoVehicleRawJson);
   const binding = validateDs4PowertrainDemandRevvingIdleInputBinding(input);
   if (!binding.ok) {
-    let coverageForAbstain = { ...UNTRUSTED_ABSTAIN_COVERAGE };
-    if (isSoleInsufficientRpmSpeedLabelBindingFailure(binding.reasonCodes)) {
-      const canonAbstain = canonicalizeMultichannelObservations(input.multichannelObservations);
-      const built = buildCoverageFromCanon(canonAbstain);
-      coverageForAbstain = built.coverage;
-    }
-    const out = buildAbstained(input, binding.reasonCodes, familyPreview, coverageForAbstain);
+    const out = buildAbstained(input, binding.reasonCodes, familyPreview);
     if (input.evidenceOrigin === 'SYNTHETIC_FIXTURE') {
       return {
         ...out,
@@ -188,7 +156,9 @@ export function computeDs4PowertrainDemandRevvingIdleResearchV1(
   }
 
   const canon = binding.canon;
-  const { coverage, distinctMs } = buildCoverageFromCanon(canon);
+  const globalCoverage = buildGlobalCoverageFromCanon(canon);
+  const facetAAssess = evaluateRevvingIdleFacetAAssessability(canon);
+  const facetBAssess = evaluateRevvingIdleFacetBAssessability(canon);
 
   const detect = detectRevvingIdleDualFacetCandidates({
     tripId: input.tripId,
@@ -196,22 +166,29 @@ export function computeDs4PowertrainDemandRevvingIdleResearchV1(
     fuelType: input.fuelType,
     isEvPowertrain: input.isEvPowertrain,
     canon,
+    runFacetA: facetAAssess.assessable,
+    runFacetB: facetBAssess.assessable,
   });
 
-  const facetATripEvidence = classifyRevvingIdleFacetATripEvidence({
-    entryLabelCount: detect.facetA.entryLabelCount,
+  const facetATripEvidence = classifyFacetATripEvidenceAfterDetection({
+    assessable: facetAAssess.assessable,
+    assessabilityReasonCodes: facetAAssess.diagnostics.assessabilityReasonCodes,
     candidateCount: detect.facetA.candidates.length,
+    entryLabelCount: detect.facetA.entryLabelCount,
     longestRunLabelCount: detect.facetA.longestRunLabelCount,
   });
-  const facetBTripEvidence = classifyRevvingIdleFacetBTripEvidence({
-    entryLabelCount: detect.facetB.entryLabelCount,
+  const facetBTripEvidence = classifyFacetBTripEvidenceAfterDetection({
+    assessable: facetBAssess.assessable,
     candidateCount: detect.facetB.candidates.length,
+    entryLabelCount: detect.facetB.entryLabelCount,
     longestRunLabelCount: detect.facetB.longestRunLabelCount,
   });
 
-  const bothNotObserved =
-    facetATripEvidence === 'NOT_OBSERVED' && facetBTripEvidence === 'NOT_OBSERVED';
-  const status = bothNotObserved ? 'NOT_OBSERVED' : 'COMPUTED';
+  const status = resolveRevvingIdleTripStatus({
+    globalAbstained: false,
+    facetATripEvidence,
+    facetBTripEvidence,
+  });
 
   const unsupportedScientificClaims: string[] = [...DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS];
   if (input.evidenceOrigin === 'SYNTHETIC_FIXTURE') {
@@ -246,29 +223,37 @@ export function computeDs4PowertrainDemandRevvingIdleResearchV1(
     },
     revvingIdle: {
       canonicalRowsFullKey: canon.buckets.length,
-      distinctMsLabelsInTrip: distinctMs,
+      distinctMsLabelsInTrip: globalCoverage.distinctMsLabelsInTrip,
       identicalDuplicateCollapsedCount: canon.identicalDuplicateCollapsedCount,
       facetA: {
-        assessability: 'ASSESSABLE',
+        assessability: facetAAssess.assessable ? 'ASSESSABLE' : 'NOT_ASSESSABLE',
+        coverageDiagnostics: {
+          ...facetAAssess.diagnostics,
+          assessabilityReasonCodes: [...facetAAssess.diagnostics.assessabilityReasonCodes],
+        },
         entryLabelCount: detect.facetA.entryLabelCount,
         deduplicatedCandidateCount: detect.facetA.candidates.length,
         candidates: detect.facetA.candidates,
         tripEvidenceClassification: facetATripEvidence,
       },
       facetB: {
-        assessability: 'ASSESSABLE',
+        assessability: facetBAssess.assessable ? 'ASSESSABLE' : 'NOT_ASSESSABLE',
+        coverageDiagnostics: {
+          ...facetBAssess.diagnostics,
+          assessabilityReasonCodes: [...facetBAssess.diagnostics.assessabilityReasonCodes],
+        },
         entryLabelCount: detect.facetB.entryLabelCount,
         deduplicatedCandidateCount: detect.facetB.candidates.length,
         candidates: detect.facetB.candidates,
         tripEvidenceClassification: facetBTripEvidence,
       },
       coverageEvidence: {
-        gridBucketCount: coverage.gridBucketCount,
-        rpmAndSpeedPresentBucketCount: coverage.rpmAndSpeedPresentBucketCount,
-        rpmMissingBucketCount: coverage.rpmMissingBucketCount,
-        speedMissingBucketCount: coverage.speedMissingBucketCount,
-        loadPresentBucketCount: coverage.loadPresentBucketCount,
-        coolantPresentBucketCount: coverage.coolantPresentBucketCount,
+        gridBucketCount: globalCoverage.gridBucketCount,
+        rpmAndSpeedPresentBucketCount: globalCoverage.rpmAndSpeedPresentBucketCount,
+        rpmMissingBucketCount: globalCoverage.rpmMissingBucketCount,
+        speedMissingBucketCount: globalCoverage.speedMissingBucketCount,
+        loadPresentBucketCount: globalCoverage.loadPresentBucketCount,
+        coolantPresentBucketCount: globalCoverage.coolantPresentBucketCount,
       },
       scientificLimitationCodes: [...DS4_REVIVING_IDLE_SCIENTIFIC_LIMITATION_CODES],
     },

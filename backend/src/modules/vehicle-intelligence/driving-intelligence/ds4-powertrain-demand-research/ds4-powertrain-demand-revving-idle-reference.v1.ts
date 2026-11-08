@@ -46,5 +46,3 @@ export const DS4_REVIVING_IDLE_DUAL_FACET_POLICY = {
   facetB: DS4_REV_EXCESSIVE_STATIONARY_P39_THRESHOLD_REFERENCE,
 } as const;
 
-/** Binding floor: co-labelled rpm + speed buckets (Facet A admission minimum). */
-export const DS4_REVIVING_IDLE_BINDING_MIN_RPM_SPEED_LABELS = 3 as const;
