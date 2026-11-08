@@ -50,6 +50,38 @@ describe('FSD P6C GO/NO-GO correctness', () => {
     expect(go.gates.offlineReferenceOnly).toBe(false);
   });
 
+  it('rejects BUDGET_TRUNCATED even when allExecutable and provider guard appear OK', () => {
+    const plan = {
+      ...productionPlanReport(),
+      allExecutable: true,
+      planCompleteness: 'BUDGET_TRUNCATED' as const,
+    };
+    const decision = buildFsdP6cLiveTestGoNoGoV1({
+      planReport: plan,
+      providerBudgetGuard: guardOk(),
+      context: 'EXECUTE',
+      liveProvider: 'dimo_live',
+      ownerAuthorizationSatisfied: true,
+      productionManifestValid: true,
+      architectureReviewCleared: true,
+    }).decision;
+    expect(decision).toBe('NO_GO');
+
+    const gates = buildFsdP6cLiveTestGoNoGoV1({
+      planReport: plan,
+      providerBudgetGuard: guardOk(),
+      context: 'EXECUTE',
+      liveProvider: 'dimo_live',
+      ownerAuthorizationSatisfied: true,
+      productionManifestValid: true,
+      architectureReviewCleared: true,
+    }).gates;
+    expect(gates.allPlansExecutable).toBe(true);
+    expect(gates.providerBudgetGuardOk).toBe(true);
+    expect(gates.planCompletenessFull).toBe(false);
+    expect(isFsdP6cLiveGoEligibleV1(gates)).toBe(false);
+  });
+
   it('rejects OFFLINE, mock execute, missing owner, missing architecture, bad manifest', () => {
     const plan = productionPlanReport();
     const guard = guardOk();

@@ -22,6 +22,7 @@ export type FsdP6cLiveTestGoNoGoV1 = {
     liveExecuteContext: boolean;
     offlineReferenceOnly: boolean;
     notOfflineReferencePlan: boolean;
+    planCompletenessFull: boolean;
   };
   planReport: Pick<
     FsdP6cFleetDiscoveryPlanReportV1,
@@ -44,6 +45,7 @@ export function resolveFsdP6cArchitectureReviewClearedV1(env: NodeJS.ProcessEnv 
 export function isFsdP6cLiveGoEligibleV1(gates: FsdP6cLiveTestGoNoGoV1['gates']): boolean {
   return (
     gates.allPlansExecutable &&
+    gates.planCompletenessFull &&
     gates.providerBudgetGuardOk &&
     gates.ownerAuthorizationSatisfied &&
     gates.architectureReviewCleared &&
@@ -112,6 +114,7 @@ export function buildFsdP6cLiveTestGoNoGoV1(input: {
     liveExecuteContext: input.context === 'EXECUTE' && input.liveProvider === 'dimo_live',
     offlineReferenceOnly,
     notOfflineReferencePlan: input.planReport.planBinding !== 'OFFLINE_REFERENCE',
+    planCompletenessFull: input.planReport.planCompleteness === 'FULL',
   };
 
   const decision: 'GO' | 'NO_GO' = isFsdP6cLiveGoEligibleV1(gates) ? 'GO' : 'NO_GO';
