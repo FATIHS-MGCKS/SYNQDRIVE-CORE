@@ -1,5 +1,7 @@
 # P6B — Owner approval trust provisioning (V1)
 
+> **SUPERSEDED (2026-11-08):** Simplified P6B uses `SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED=1` + `FSD3_ONE_SHOT_HOST_ATTESTATION=1` for live DIMO one-shot. Ed25519 trust store provisioning below is **historical** only.
+
 ## Public trust store (root-controlled)
 
 - Provision **Ed25519 public keys only** via VPS/root operator control.

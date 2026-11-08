@@ -36,6 +36,25 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'fsd-p6b-simplify-direct-production-2026-11-08',
+    version: '4.9.5031',
+    title: 'FSD P6B — simplified one-shot CLI for direct production live test',
+    summary: [
+      'Removed pre-Node attestation, HMAC capabilities/tickets, Ed25519 owner trust store, and launcher indirection; single tsx CLI uses MASTER_ADMIN + env owner gate for live DIMO.',
+      'Retains orchestration budget (2 requests / 26 snapshot fields), persistence idempotency, lease fencing, provider budget, P5B link fences, and read-only inspector.',
+      'Runbook: architecture/fsd/P6B_DIRECT_PRODUCTION_ONE_SHOT_RUNBOOK.md — deploy and live execute still require explicit owner authorization.',
+    ],
+    reason:
+      'Operator path to first production FSD3 discovery without a parallel cryptographic approval framework.',
+    previousBehavior:
+      'P6B draft stacked L2 signing, trust files, pre-Node git attestation, and HMAC capability minting before orchestration.',
+    details:
+      'backend/scripts/ops/fsd3-live-discovery-one-shot.ts, fsd-integration/ops/{preflight,execution,types,live-owner-gate}; architecture/fsd/P6B_*.md; workflow path trim.',
+    affectsArchitecture: true,
+    module: 'Vehicle Intelligence',
+    createdAt: '2026-11-08T17:50:00.000Z',
+  },
+  {
     id: 'fsd-p6b-h1-pre-node-trust-closeout-2026-11-08',
     version: '4.9.5030',
     title: 'FSD P6B — pre-Node trust closeout (privileged one-shot, non-activating)',

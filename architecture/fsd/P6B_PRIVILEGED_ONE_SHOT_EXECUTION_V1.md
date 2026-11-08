@@ -1,63 +1,59 @@
-# FSD P6B — Privileged one-shot FSD3 execution (V1)
+# FSD P6B — Privileged one-shot FSD3 execution (simplified, direct production)
 
-Status: **draft implementation** — no production activation, no PM2 FSD flag changes.
+Status: **simplified operator CLI** — no fleet scheduler, FSD4 off by default, no L2 crypto framework.
 
 ## Purpose
 
-Provide a minimal, auditable, explicitly authorized **one-shot** entrypoint for FSD3 catalog/snapshot discovery. Reuses existing orchestration, persistence, DIMO adapter factory, request ledger, and P5B source-link fences without forking discovery logic.
+Run **one** FSD3 catalog + snapshot discovery for **one** explicitly selected vehicle with existing SynqDrive orchestration, persistence, DIMO budget, and P5B source-link fences. Production live DIMO requires **owner env authorization**, not Ed25519 trust stores.
 
 ## Entrypoints
 
 | Artifact | Role |
 |----------|------|
-| `backend/scripts/ops/fsd3-live-discovery-one-shot-launcher.sh` | Trusted env scrub + `tsx` launcher (**required** for PREFLIGHT/EXECUTE on VPS) |
-| `backend/scripts/ops/fsd3-live-discovery-one-shot.ts` | Operator CLI |
+| `backend/scripts/ops/fsd3-live-discovery-one-shot.ts` | Operator CLI (`tsx`) |
 | `backend/scripts/ops/fsd3-discovery-run-inspector.ts` | Read-only run inspector |
-| `backend/src/modules/vehicle-intelligence/fsd-integration/ops/fsd-discovery-ops.module.ts` | Minimal Nest context (no AppModule, HTTP, Bull, cron) |
+| `backend/src/modules/vehicle-intelligence/fsd-integration/ops/fsd-discovery-ops.module.ts` | Minimal Nest context (mock/CI) |
+| `backend/src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-live-bootstrap.module.ts` | Slim live DIMO slice for EXECUTE `--provider=live` |
 
 ## Modes
 
-1. **OFFLINE_PLAN** — Parses L2 approval JSON and prints planned scope/budget. No `DATABASE_URL`, no provider, no writes.
-2. **AUTHORIZED_READ_ONLY_PREFLIGHT** — DB reads: MASTER_ADMIN operator auth, active DIMO link fence, identity fingerprint. No provider calls, no discovery mutations.
-3. **EXECUTE** — Full orchestration after preflight. **CI and local dev:** `--provider=mock` or `FSD3_ONE_SHOT_FORCE_MOCK_PROVIDER=1`. Live DIMO only on an explicitly authorized host with owner L2 approval (P6C gate).
+| Mode | Behavior |
+|------|----------|
+| `AUTHORIZED_READ_ONLY_PREFLIGHT` | MASTER_ADMIN + active DIMO link + identity fingerprint; **no** provider HTTP, **no** discovery writes |
+| `EXECUTE` | Preflight then orchestration. CI/local: `--provider=mock`. Production live: `--provider=live` + owner gates below |
 
-## Authorization layers (fail-closed)
+## Authorization (fail-closed, no crypto layer)
 
-1. **Host attestation** — `FSD3_ONE_SHOT_HOST_ATTESTATION=1` in the operator shell (not owner approval).
-2. **Platform operator** — ACTIVE `MASTER_ADMIN` with org/vehicle/link binding (`DimoSourceLinkOperatorAuthorizationService`).
-3. **Owner L2 approval** — signed envelope `FSD3_LIVE_OWNER_APPROVAL_V2` for **live** `dimo_live` (Ed25519 over canonical payload) binding: **git-attested** executable release SHA, org, vehicle, source link, discovery request key, `liveProvider`, budget cap, validity window (max 24h, strict `…Z` UTC ISO), **`actorUserId`**, **`dimoTokenId`**, **`connectionIdentityFingerprint`**. Legacy `FSD3_LIVE_OWNER_APPROVAL_V1` remains valid for mock/CI only. **Live `dimo_live` EXECUTE:** root-owned trust file only under `/etc/synqdrive` or `/var/lib/synqdrive` (no env prefix override, no relaxed anchor, no inline/test trust). Non-live mock paths may use isolated test trust in CI only. Sign off-repo with `scripts/ops/fsd3-live-owner-approval-sign.ts` + `FSD3_OWNER_L2_SIGNING_KEY_PEM_FILE`.
-4. **Executable SHA attestation** — `fsd3-one-shot-pre-node-attest.mjs` runs under `/usr/bin/node` **before** `tsx` loads Nest modules; trusted `/usr/bin/git` with scrubbed env; rejects index skip-worktree/assume-unchanged; compares on-disk boundary sources to `HEAD` blobs; stamps `FSD3_PRE_NODE_ATTEST_SHA`. Launcher scrubs `NODE_OPTIONS`/`GIT_*`, rejects operator `RELAXED`/`SKIP_TRUSTED_LAUNCHER` env, requires pinned `backend/node_modules/.bin/tsx` (no `npx --yes`). Direct `fsd3-live-discovery-one-shot.ts` is forbidden. **VPS requirement:** release checkout and launcher must not be operator-writable; otherwise attestation returns `NO_GO` (`FSD3_EXECUTABLE_RELEASE_TREE_WRITABLE` / `FSD3_LAUNCHER_OPERATOR_WRITABLE`).
-5. **Preflight ticket** — HMAC ticket minted **once** per authoritative `runAuthorizedReadOnlyPreflight` binding (consumes in-memory binding; re-mint requires fresh preflight). **Single-use:** a consumed ticket cannot mint a second capability in the same CLI process. Live EXECUTE uses **ephemeral per-process** HMAC secrets (env override forbidden).
-6. **Execution capability** — HMAC-bound token minted only after verified Ed25519 approval + valid preflight ticket. **Replay safety:** duplicate execute with the **same** capability + same `discoveryRequestKey` is absorbed by existing FSD3 persistence idempotency (no second provider dispatch). A **new** capability still requires a **new** authoritative preflight ticket mint.
-7. **Process-scoped FSD3 gates** — CLI builds orchestration config with FSD3 enabled for **one** vehicle and `providerExecutionEnabled=true`. Does **not** read PM2 replica env. FSD4 remains default-off for the process.
-8. **P5B fences** — `assertActiveSourceLinkForDispatch` and persistence invalidation semantics unchanged.
-
-Empty `FSD3_LIVE_ACTIVATION_BLOCKERS_V1` in orchestration config is **not** used as the authorization decision for this CLI.
+1. **Operator shell ack** — `FSD3_ONE_SHOT_HOST_ATTESTATION=1` in the invoking shell (preflight, execute, inspector).
+2. **MASTER_ADMIN** — `DimoSourceLinkOperatorAuthorizationService` binds `actorUserId` to org / vehicle / source link.
+3. **Live owner ack** — for `--provider=live` EXECUTE only: `SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED=1` **and** host attestation (see `fsd3-one-shot-live-owner-gate.v1.ts`).
+4. **P5B + persistence** — active source link, DIMO dispatch binding, idempotent `discoveryRequestKey`, lease fencing, UNKNOWN_OUTCOME handling unchanged.
+5. **PM2 FSD flags** — remain **OFF**; one-shot CLI enables FSD3 only inside the process via `buildFsd3OneShotCliOrchestrationConfigV1` (single vehicle). **FSD4** default-off.
 
 ## Budget (hard cap V1)
 
-- `maxRequestsPerRun = 2` (**FSD discovery** catalog + at most one snapshot — not a global DIMO network cap; DIMO JWT/auth exchanges are separate and may occur outside this ledger)
+- `maxRequestsPerRun = 2` (catalog + at most one snapshot in FSD discovery ledger)
 - `maxSnapshotFieldsPerDocument = 26`
 - `maxResponseBytes = 524288`
-- No historical requests in the default P6B cap
-- L2 approval budget must match cap exactly; no CLI override to increase limits.
+- No historical discovery in default cap
+- DIMO JWT/auth outside the 2-request ledger still applies; provider budget service enforces in-flight caps on live path
 
-## Rollback
+## Removed (prior P6B drafts)
 
-- Do not merge or enable PM2 FSD flags.
-- One-shot runs are keyed by `discoveryRequestKey`; inspector is read-only.
-- Deactivate source link via existing P5B lifecycle ops to invalidate in-flight runs.
-
-Trust provisioning detail: `architecture/fsd/P6B_OWNER_APPROVAL_TRUST_PROVISIONING.md`
+Pre-Node git attestation, trusted launcher, HMAC preflight tickets, HMAC execution capabilities, Ed25519 owner approvals, trust-store files, `fsd3-live-owner-approval-sign.ts`. Superseded signing doc: `P6B_OWNER_APPROVAL_TRUST_PROVISIONING.md` (historical).
 
 ## Tests
 
-- Unit: L2 approval, host attestation, CLI FSD3/FSD4 config, ops module bootstrap.
-- PostgreSQL: preflight fences, mock execute, idempotent duplicate request key, inspector.
-- CI: `backend/scripts/test/fsd2-persistence-postgres-ci.sh` and FSD P5A workflow.
+- Unit: host attestation, live owner gate, CLI FSD3 config, inspector edge, live bootstrap slice.
+- PostgreSQL: preflight fences, mock execute, idempotency, concurrent serialize, inspector.
+- CI: `backend/scripts/test/fsd2-persistence-postgres-ci.sh`, FSD P5A workflow.
 
-## Change record (H1 pre-Node trust closeout)
+## First production live
+
+See **`architecture/fsd/P6B_DIRECT_PRODUCTION_ONE_SHOT_RUNBOOK.md`**. Deploy first; owner authorizes env; single vehicle; inspect result. **No deploy or live execute without explicit owner instruction.**
+
+## Change record
 
 | When | What |
 |------|------|
-| 2026-11-08 | Removed operator env bypasses (`RELAXED`, `SKIP_TRUSTED_LAUNCHER`); Jest-only policy hooks. Pre-node attestation (`fsd3-one-shot-pre-node-attest.mjs`) before `tsx`; bootstrap dynamic import; launcher requires pinned local `tsx`. Adversarial + trust-anchor matrix + inspector edge + real Redis budget integration (opt-in). One-shot concurrent dispatch coalesces on shared host lease owner. |
+| 2026-11-08 | Simplified P6B: direct `tsx` CLI, MASTER_ADMIN + dual env for live, retained orchestration/budget/idempotency |
