@@ -15,6 +15,9 @@ export const DS4_COLD_ENGINE_BUCKET_GRID_RESEARCH_POLICY_VERSION =
 export const DS4_SUSTAINED_LOAD_GAP_AWARE_RESEARCH_POLICY_VERSION =
   'sustained-load-gap-aware-research-v1' as const;
 
+export const DS4_REVIVING_IDLE_DUAL_FACET_RESEARCH_POLICY_VERSION =
+  'revving-idle-dual-facet-research-v1' as const;
+
 export const DS4_MULTICHANNEL_MANIFEST_VERSION = 'ds4-multichannel-manifest-v1' as const;
 
 export type Ds4PowertrainDemandTimeAuthority = 'BUCKET_LABEL_UNVERIFIED';
@@ -153,7 +156,8 @@ export type Ds4PowertrainDemandBindingAbstainReason =
   | 'REFERENCE_PROVENANCE_DOWNGRADED'
   | 'ICE_RPM_NOT_APPLICABLE'
   | 'LOAD_CHANNEL_UNAVAILABLE'
-  | 'INSUFFICIENT_LOAD_LABEL_OBSERVATIONS';
+  | 'INSUFFICIENT_LOAD_LABEL_OBSERVATIONS'
+  | 'INSUFFICIENT_RPM_SPEED_LABEL_OBSERVATIONS';
 
 export type Ds4PowertrainDemandResearchInputV1 = {
   contractVersion: typeof DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION;
@@ -394,6 +398,137 @@ export type Ds4PowertrainDemandSustainedLoadResultV1 = {
       loadMissingBucketCount: number;
       gridBucketCount: number;
     };
+  };
+  unsupportedScientificClaims: string[];
+  r1HistoricalObdRecordTimeUncertain: boolean;
+  realDataValidation: 'NOT_EVALUATED' | 'SYNTHETIC_ONLY';
+};
+
+export type Ds4RevvingIdleResearchInputV1 = Ds4PowertrainDemandResearchInputV1;
+
+export type Ds4RevvingIdleFacetAssessabilityV1 = 'ASSESSABLE' | 'NOT_ASSESSABLE';
+
+export type Ds4RevvingIdleFacetAssessabilityReasonV1 =
+  | 'ASSESSABLE'
+  | 'INTEGRITY_NOT_ADMITTED'
+  | 'RPM_SPEED_CO_OBSERVATION_UNAVAILABLE'
+  | 'INSUFFICIENT_CO_LABEL_COUNT'
+  | 'INSUFFICIENT_LABEL_SPAN_OPPORTUNITY'
+  | 'NO_SINGLE_COHERENT_RUN_MEETS_LABEL_AND_SPAN';
+
+export type Ds4RevvingIdleFacetCoverageDiagnosticsV1 = {
+  rpmSpeedCoObservedLabelCount: number;
+  rpmMissingRequiredChannelCount: number;
+  speedMissingRequiredChannelCount: number;
+  /**
+   * Independent per-run maximum label count (may be from a different run than
+   * longestCoherentResearchLabelSpanMs).
+   */
+  longestCoherentRunLabelCount: number;
+  /**
+   * Independent per-run maximum research label span (may be from a different run than
+   * longestCoherentRunLabelCount).
+   */
+  longestCoherentResearchLabelSpanMs: number;
+  /** Max adjacent gap inside the run that achieved longestCoherentResearchLabelSpanMs. */
+  longestCoherentMaxAdjacentGapMs: number;
+  /** Max span among runs that meet both facet min label count and min span admission. */
+  maxQualifyingCoherentResearchLabelSpanMs: number;
+  /** Label count in the single run that achieved longestCoherentResearchLabelSpanMs. */
+  labelsInMaxSpanRun: number;
+  /** Research label span in the single run that achieved longestCoherentRunLabelCount. */
+  spanMsInMaxLabelCountRun: number;
+  assessabilityReasonCodes: readonly Ds4RevvingIdleFacetAssessabilityReasonV1[];
+};
+
+export type Ds4RevvingIdleFacetATripEvidenceClassificationV1 =
+  | 'NOT_ASSESSABLE'
+  | 'INSUFFICIENT_OBSERVATIONS'
+  | 'NOT_OBSERVED'
+  | 'HIGH_RPM_STATIONARY_LIKE_PROXY_CANDIDATE';
+
+export type Ds4RevvingIdleFacetBTripEvidenceClassificationV1 =
+  | 'NOT_ASSESSABLE'
+  | 'INSUFFICIENT_OBSERVATIONS'
+  | 'NOT_OBSERVED'
+  | 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY_CANDIDATE';
+
+export type Ds4HighRpmStationaryLikeProxyCandidateV1 = {
+  episodeKey: string;
+  classification: 'HIGH_RPM_STATIONARY_LIKE_PROXY_CANDIDATE';
+  startProviderBucketLabelIso: string;
+  endProviderBucketLabelIso: string;
+  observedLabelCount: number;
+  researchLabelSpanMs: number;
+  maxObservedLabelGapMs: number;
+  peakObservedRpm: number;
+  limitationCodes: string[];
+  requiredChannelPresence: Record<string, boolean>;
+};
+
+export type Ds4ExcessiveStationaryLikeSpanProxyCandidateV1 = {
+  episodeKey: string;
+  classification: 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY_CANDIDATE';
+  startProviderBucketLabelIso: string;
+  endProviderBucketLabelIso: string;
+  observedLabelCount: number;
+  researchLabelSpanMs: number;
+  maxObservedLabelGapMs: number;
+  meanObservedRpmInBand: number | null;
+  limitationCodes: string[];
+  requiredChannelPresence: Record<string, boolean>;
+};
+
+export type Ds4PowertrainDemandRevvingIdleResultV1 = {
+  contractVersion: typeof DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION;
+  policyVersion: typeof DS4_REVIVING_IDLE_DUAL_FACET_RESEARCH_POLICY_VERSION;
+  researchOnly: true;
+  timeAuthority: Ds4PowertrainDemandTimeAuthority;
+  temporalMode: Ds4PowertrainDemandTemporalMode;
+  misuseEligibility: 'NOT_EVALUATED_BY_DESIGN';
+  evidenceOrigin: Ds4PowertrainDemandEvidenceOrigin;
+  status: Ds4PowertrainDemandTripStatus;
+  abstainReasons: readonly Ds4PowertrainDemandBindingAbstainReason[];
+  provenance: Ds4PowertrainDemandProvenanceVerdictV1;
+  bindings: {
+    organizationId: string;
+    vehicleId: string;
+    tripId: string;
+    providerSourceLinkId: string;
+    v1bInputFingerprint: string | null;
+    multichannelFingerprint: string | null;
+    telemetrySourceFamily: TelemetrySourceFamily | null;
+    sourceBundleId: string | null;
+  };
+  revvingIdle: {
+    canonicalRowsFullKey: number;
+    distinctMsLabelsInTrip: number;
+    identicalDuplicateCollapsedCount: number;
+    facetA: {
+      assessability: Ds4RevvingIdleFacetAssessabilityV1;
+      coverageDiagnostics: Ds4RevvingIdleFacetCoverageDiagnosticsV1;
+      entryLabelCount: number;
+      deduplicatedCandidateCount: number;
+      candidates: Ds4HighRpmStationaryLikeProxyCandidateV1[];
+      tripEvidenceClassification: Ds4RevvingIdleFacetATripEvidenceClassificationV1;
+    };
+    facetB: {
+      assessability: Ds4RevvingIdleFacetAssessabilityV1;
+      coverageDiagnostics: Ds4RevvingIdleFacetCoverageDiagnosticsV1;
+      entryLabelCount: number;
+      deduplicatedCandidateCount: number;
+      candidates: Ds4ExcessiveStationaryLikeSpanProxyCandidateV1[];
+      tripEvidenceClassification: Ds4RevvingIdleFacetBTripEvidenceClassificationV1;
+    };
+    coverageEvidence: {
+      gridBucketCount: number;
+      rpmAndSpeedPresentBucketCount: number;
+      rpmMissingBucketCount: number;
+      speedMissingBucketCount: number;
+      loadPresentBucketCount: number;
+      coolantPresentBucketCount: number;
+    };
+    scientificLimitationCodes: string[];
   };
   unsupportedScientificClaims: string[];
   r1HistoricalObdRecordTimeUncertain: boolean;
