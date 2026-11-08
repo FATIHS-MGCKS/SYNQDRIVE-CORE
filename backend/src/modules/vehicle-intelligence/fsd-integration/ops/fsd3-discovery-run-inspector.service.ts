@@ -21,12 +21,22 @@ export type Fsd3DiscoveryRunInspectorReportV1 = {
   stages: Array<{ stageType: string; status: string; version: number }>;
   ledgerAttemptCount: number | null;
   ledgerOutcomes: Record<string, number> | null;
+  ledgerReconciliation: {
+    catalogAttempts: number;
+    snapshotAttempts: number;
+    totalAttempts: number;
+    deduplicatedAttemptKeys: number;
+    outcomeSum: number;
+  } | null;
   catalogSignalCount: number | null;
   signalObservationCounts: {
     observed: number;
     null: number;
     deferred: number;
     queryFailed: number;
+    absent: number;
+    other: number;
+    total: number;
   } | null;
   unknownOutcomeStages: string[];
   strandedInProgress: boolean;
@@ -38,6 +48,57 @@ function parseLedgerFromCheckpoint(checkpoint: unknown): Fsd3RequestLedgerV1 | n
   }
   const cp = checkpoint as { requestLedger?: Fsd3RequestLedgerV1 };
   return cp.requestLedger ?? null;
+}
+
+function aggregateLedgersFromStages(stages: Array<{ stageType: string; checkpointJson: unknown }>): {
+  ledgerOutcomes: Record<string, number>;
+  ledgerAttemptCount: number;
+  ledgerReconciliation: NonNullable<Fsd3DiscoveryRunInspectorReportV1['ledgerReconciliation']>;
+} | null {
+  const attemptKeys = new Set<string>();
+  const ledgerOutcomes: Record<string, number> = {};
+  let catalogAttempts = 0;
+  let snapshotAttempts = 0;
+  let totalAttempts = 0;
+
+  for (const stage of stages) {
+    const ledger = parseLedgerFromCheckpoint(stage.checkpointJson);
+    if (!ledger) {
+      continue;
+    }
+    for (const attempt of ledger.attempts) {
+      const dedupeKey = `${stage.stageType}|${attempt.attemptKey}|${attempt.queryFingerprint}`;
+      if (attemptKeys.has(dedupeKey)) {
+        continue;
+      }
+      attemptKeys.add(dedupeKey);
+      totalAttempts += 1;
+      ledgerOutcomes[attempt.outcome] = (ledgerOutcomes[attempt.outcome] ?? 0) + 1;
+      if (stage.stageType === 'CATALOG') {
+        catalogAttempts += 1;
+      }
+      if (stage.stageType === 'SNAPSHOT') {
+        snapshotAttempts += 1;
+      }
+    }
+  }
+
+  if (totalAttempts === 0 && attemptKeys.size === 0) {
+    return null;
+  }
+
+  const outcomeSum = Object.values(ledgerOutcomes).reduce((a, b) => a + b, 0);
+  return {
+    ledgerOutcomes,
+    ledgerAttemptCount: totalAttempts,
+    ledgerReconciliation: {
+      catalogAttempts,
+      snapshotAttempts,
+      totalAttempts,
+      deduplicatedAttemptKeys: attemptKeys.size,
+      outcomeSum,
+    },
+  };
 }
 
 @Injectable()
@@ -82,22 +143,30 @@ export class Fsd3DiscoveryRunInspectorService {
 
     let ledgerAttemptCount: number | null = null;
     let ledgerOutcomes: Record<string, number> | null = null;
+    let ledgerReconciliation: Fsd3DiscoveryRunInspectorReportV1['ledgerReconciliation'] = null;
     let catalogSignalCount: number | null = null;
+
+    const aggregated =
+      bundle?.stages?.length ?
+        aggregateLedgersFromStages(
+          bundle.stages.map((s) => ({
+            stageType: s.stageType,
+            checkpointJson: s.checkpointJson,
+          })),
+        )
+      : null;
+    if (aggregated) {
+      ledgerAttemptCount = aggregated.ledgerAttemptCount;
+      ledgerOutcomes = aggregated.ledgerOutcomes;
+      ledgerReconciliation = aggregated.ledgerReconciliation;
+    }
 
     const catalogStage = bundle?.stages.find((s) => s.stageType === 'CATALOG');
     if (catalogStage?.checkpointJson) {
-      const ledger = parseLedgerFromCheckpoint(catalogStage.checkpointJson);
-      if (ledger) {
-        ledgerAttemptCount = ledger.attempts.length;
-        ledgerOutcomes = {};
-        for (const a of ledger.attempts) {
-          ledgerOutcomes[a.outcome] = (ledgerOutcomes[a.outcome] ?? 0) + 1;
-        }
-        const cat = (catalogStage.checkpointJson as { catalogFetch?: { availableSignalNames?: string[] } })
-          .catalogFetch;
-        if (cat?.availableSignalNames) {
-          catalogSignalCount = cat.availableSignalNames.length;
-        }
+      const cat = (catalogStage.checkpointJson as { catalogFetch?: { availableSignalNames?: string[] } })
+        .catalogFetch;
+      if (cat?.availableSignalNames) {
+        catalogSignalCount = cat.availableSignalNames.length;
       }
     }
 
@@ -107,8 +176,9 @@ export class Fsd3DiscoveryRunInspectorService {
     });
     let signalObservationCounts: Fsd3DiscoveryRunInspectorReportV1['signalObservationCounts'] = null;
     if (evidenceRows.length > 0) {
-      const counts = { observed: 0, null: 0, deferred: 0, queryFailed: 0 };
+      const counts = { observed: 0, null: 0, deferred: 0, queryFailed: 0, absent: 0, other: 0, total: 0 };
       for (const row of evidenceRows) {
+        counts.total += 1;
         const state = row.evidenceState;
         const kind = (row.qualityJson as { observationKind?: string } | null)?.observationKind;
         if (state === 'QUERY_FAILED') {
@@ -117,6 +187,10 @@ export class Fsd3DiscoveryRunInspectorService {
         }
         if (state === 'DEFERRED') {
           counts.deferred += 1;
+          continue;
+        }
+        if (kind === 'ABSENT') {
+          counts.absent += 1;
           continue;
         }
         if (kind === 'NULL') {
@@ -130,7 +204,9 @@ export class Fsd3DiscoveryRunInspectorService {
           kind === 'OBSERVED'
         ) {
           counts.observed += 1;
+          continue;
         }
+        counts.other += 1;
       }
       signalObservationCounts = counts;
     }
@@ -158,6 +234,7 @@ export class Fsd3DiscoveryRunInspectorService {
       })),
       ledgerAttemptCount,
       ledgerOutcomes,
+      ledgerReconciliation,
       catalogSignalCount,
       signalObservationCounts,
       unknownOutcomeStages,

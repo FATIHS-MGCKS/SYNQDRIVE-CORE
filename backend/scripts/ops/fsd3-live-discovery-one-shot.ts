@@ -20,6 +20,7 @@ import {
 import { assertFsd3OneShotHostAttestation } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-host-attestation.v1';
 import { FSD3_P6B_CLI_BUDGET_V1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-cli-budget.v1';
 import { resolveFsd3OneShotExecutableReleaseShaV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-executable-attestation.v1';
+import { assertFsd3OneShotTrustedLauncherV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-runtime-launch-guard.v1';
 import type { Fsd3OneShotLiveProviderV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-execution-capability.v1';
 import {
   type Fsd3OwnerApprovalTrustLoadContextV1,
@@ -113,11 +114,12 @@ function loadVerifiedOwnerApprovalEnvelope(
   scope: Fsd3OneShotCliScopeV1,
   liveProvider: Fsd3OneShotLiveProviderV1,
   trustContext: Fsd3OwnerApprovalTrustLoadContextV1,
+  actorUserId?: string,
 ): Fsd3LiveOwnerApprovalEnvelopeV1 {
   const raw = fs.readFileSync(filePath, 'utf8');
   const envelope = parseFsd3LiveOwnerApprovalEnvelopeJson(raw);
   const approval = verifyFsd3LiveOwnerApprovalEnvelopeV1({ envelope, trustContext });
-  assertFsd3LiveOwnerApprovalMatchesScope({ approval, scope, liveProvider });
+  assertFsd3LiveOwnerApprovalMatchesScope({ approval, scope, liveProvider, actorUserId });
   return envelope;
 }
 
@@ -147,6 +149,7 @@ function offlinePlan(
 
 async function main(): Promise<void> {
   const args = parseArgs();
+  assertFsd3OneShotTrustedLauncherV1({ cliMode: args.mode });
   const attestedSha = resolveFsd3OneShotExecutableReleaseShaV1({
     entrypointAbsolutePaths: [
       __filename,
@@ -168,6 +171,10 @@ async function main(): Promise<void> {
   const liveProvider: Fsd3OneShotLiveProviderV1 =
     args.liveProvider ?? (args.mode === 'OFFLINE_PLAN' ? 'mock' : 'mock');
 
+  if (args.mode === 'EXECUTE' && liveProvider === 'dimo_live') {
+    process.env.FSD3_ONE_SHOT_LIVE_EPHEMERAL_SECRETS_REQUIRED = '1';
+  }
+
   if (args.mode === 'OFFLINE_PLAN') {
     offlinePlan(args, scope, liveProvider, trustContext);
     return;
@@ -184,6 +191,7 @@ async function main(): Promise<void> {
     scope,
     liveProvider,
     trustContext,
+    args.actorUserId,
   );
 
   if (!process.env.DATABASE_URL) {

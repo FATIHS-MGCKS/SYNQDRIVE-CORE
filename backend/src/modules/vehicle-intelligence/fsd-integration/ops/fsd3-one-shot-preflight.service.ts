@@ -41,6 +41,7 @@ const AUTHORITATIVE_PREFLIGHT_TTL_MS = 2 * 60 * 1000;
 export class Fsd3OneShotPreflightService implements OnModuleInit {
   private preflightTicketSecret!: Buffer;
   private readonly authoritativePreflights = new Map<string, AuthoritativePreflightBindingV1>();
+  private readonly consumedPreflightTickets = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -161,6 +162,9 @@ export class Fsd3OneShotPreflightService implements OnModuleInit {
       approval,
       scope: input.scope,
       liveProvider: input.liveProvider,
+      actorUserId: input.actorUserId,
+      connectionIdentityFingerprint: undefined,
+      dimoTokenId: undefined,
     });
 
     const ticket = verifyFsd3OneShotPreflightTicketV1({
@@ -168,6 +172,20 @@ export class Fsd3OneShotPreflightService implements OnModuleInit {
       scope: input.scope,
       actorUserId: input.actorUserId,
       secret: this.preflightTicketSecret,
+    });
+
+    if (this.consumedPreflightTickets.has(input.preflightTicket)) {
+      throw new Error('FSD3_PREFLIGHT_TICKET_ALREADY_CONSUMED');
+    }
+    this.consumedPreflightTickets.add(input.preflightTicket);
+
+    assertFsd3LiveOwnerApprovalMatchesScope({
+      approval,
+      scope: input.scope,
+      liveProvider: input.liveProvider,
+      actorUserId: input.actorUserId,
+      connectionIdentityFingerprint: ticket.connectionIdentityFingerprint,
+      dimoTokenId: ticket.dimoTokenId,
     });
 
     return this.capability.mint({

@@ -64,8 +64,8 @@ describe('Fsd3 live dimo trust anchor (adversarial)', () => {
         discoveryRequestKey: '44444444-4444-4444-8444-444444444444',
         liveProvider: 'dimo_live',
         budget: { ...FSD3_P6B_CLI_BUDGET_V1 },
-        validFromIso: '2020-01-01T00:00:00.000Z',
-        validUntilIso: '2099-01-01T00:00:00.000Z',
+        validFromIso: new Date(Date.now() - 60_000).toISOString(),
+        validUntilIso: new Date(Date.now() + 3_600_000).toISOString(),
       },
     });
     expect(() =>

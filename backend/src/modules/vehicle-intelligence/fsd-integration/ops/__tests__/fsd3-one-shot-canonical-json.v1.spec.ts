@@ -47,8 +47,8 @@ describe('stableStringifyFsd3OneShotV1', () => {
         maxSnapshotFieldsPerDocument: 26,
         maxResponseBytes: 524288,
       },
-      validFromIso: '2020-01-01T00:00:00.000Z',
-      validUntilIso: '2099-01-01T00:00:00.000Z',
+      validFromIso: new Date(Date.now() - 60_000).toISOString(),
+      validUntilIso: new Date(Date.now() + 3_600_000).toISOString(),
     };
     const { privateKey } = generateKeyPairSync('ed25519');
     const digestA = buildFsd3OwnerApprovalSigningDigestV1(payloadA);

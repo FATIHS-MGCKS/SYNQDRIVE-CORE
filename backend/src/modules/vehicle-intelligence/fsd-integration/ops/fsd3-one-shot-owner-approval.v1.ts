@@ -15,12 +15,18 @@ import { resolveFsd3OwnerApprovalTrustPublicKeyV1 } from './fsd3-one-shot-owner-
 import type { Fsd3OneShotLiveProviderV1 } from './fsd3-one-shot-execution-capability.v1';
 
 export const FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1 = 'FSD3_LIVE_OWNER_APPROVAL_V1' as const;
+export const FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V2 = 'FSD3_LIVE_OWNER_APPROVAL_V2' as const;
 
 const SHA40 = /^[a-f0-9]{40}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STRICT_UTC_ISO_Z =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+const MAX_APPROVAL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type Fsd3LiveOwnerApprovalSignablePayloadV1 = {
-  schemaVersion: typeof FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1;
+  schemaVersion:
+    | typeof FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1
+    | typeof FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V2;
   approvalReference: string;
   executableReleaseSha: string;
   organizationId: string;
@@ -37,6 +43,9 @@ export type Fsd3LiveOwnerApprovalSignablePayloadV1 = {
   };
   validFromIso: string;
   validUntilIso: string;
+  actorUserId?: string;
+  dimoTokenId?: number;
+  connectionIdentityFingerprint?: string;
 };
 
 export type Fsd3LiveOwnerApprovalDocumentV1 = Fsd3LiveOwnerApprovalSignablePayloadV1;
@@ -93,10 +102,21 @@ function expectBudget(obj: Record<string, unknown>): Fsd3LiveOwnerApprovalSignab
   return out;
 }
 
+function parseStrictUtcIsoZ(value: string): string {
+  if (!STRICT_UTC_ISO_Z.test(value)) {
+    throw new Error('FSD3_L2_APPROVAL_WINDOW_INVALID');
+  }
+  return value;
+}
+
 function parseSignablePayload(raw: Record<string, unknown>): Fsd3LiveOwnerApprovalSignablePayloadV1 {
-  if (raw.schemaVersion !== FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1) {
+  if (
+    raw.schemaVersion !== FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1 &&
+    raw.schemaVersion !== FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V2
+  ) {
     throw new Error('FSD3_L2_APPROVAL_SCHEMA_INVALID');
   }
+  const isV2 = raw.schemaVersion === FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V2;
   const approvalReference = expectString(raw, 'approvalReference');
   if (approvalReference.length < 8 || approvalReference.length > 256) {
     throw new Error('FSD3_L2_APPROVAL_SCHEMA_INVALID');
@@ -118,8 +138,26 @@ function parseSignablePayload(raw: Record<string, unknown>): Fsd3LiveOwnerApprov
   if (liveProvider !== 'mock' && liveProvider !== 'dimo_live') {
     throw new Error('FSD3_L2_APPROVAL_LIVE_PROVIDER_INVALID');
   }
+  let actorUserId: string | undefined;
+  let dimoTokenId: number | undefined;
+  let connectionIdentityFingerprint: string | undefined;
+  if (isV2) {
+    actorUserId = expectString(raw, 'actorUserId');
+    if (!UUID.test(actorUserId)) {
+      throw new Error('FSD3_L2_APPROVAL_SCHEMA_INVALID');
+    }
+    if (typeof raw.dimoTokenId !== 'number' || !Number.isFinite(raw.dimoTokenId)) {
+      throw new Error('FSD3_L2_APPROVAL_SCHEMA_INVALID');
+    }
+    dimoTokenId = Math.floor(raw.dimoTokenId);
+    connectionIdentityFingerprint = expectString(raw, 'connectionIdentityFingerprint');
+    if (connectionIdentityFingerprint.length < 8) {
+      throw new Error('FSD3_L2_APPROVAL_SCHEMA_INVALID');
+    }
+  }
+
   return {
-    schemaVersion: FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1,
+    schemaVersion: raw.schemaVersion as Fsd3LiveOwnerApprovalSignablePayloadV1['schemaVersion'],
     approvalReference,
     executableReleaseSha,
     organizationId,
@@ -128,8 +166,11 @@ function parseSignablePayload(raw: Record<string, unknown>): Fsd3LiveOwnerApprov
     discoveryRequestKey,
     liveProvider,
     budget: expectBudget(raw),
-    validFromIso: expectString(raw, 'validFromIso'),
-    validUntilIso: expectString(raw, 'validUntilIso'),
+    validFromIso: parseStrictUtcIsoZ(expectString(raw, 'validFromIso')),
+    validUntilIso: parseStrictUtcIsoZ(expectString(raw, 'validUntilIso')),
+    actorUserId,
+    dimoTokenId,
+    connectionIdentityFingerprint,
   };
 }
 
@@ -211,11 +252,34 @@ export function assertFsd3LiveOwnerApprovalMatchesScope(input: {
   approval: Fsd3LiveOwnerApprovalDocumentV1;
   scope: Fsd3OneShotCliScopeV1;
   liveProvider: Fsd3OneShotLiveProviderV1;
+  actorUserId?: string;
+  connectionIdentityFingerprint?: string;
+  dimoTokenId?: number;
   now?: Date;
 }): void {
   const now = input.now ?? new Date();
   const a = input.approval;
   const s = input.scope;
+  if (input.liveProvider === 'dimo_live' && a.schemaVersion === FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1) {
+    throw new Error('FSD3_L2_APPROVAL_LEGACY_LIVE_REJECTED');
+  }
+  if (a.schemaVersion === FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V2) {
+    if (!a.actorUserId || a.dimoTokenId == null || !a.connectionIdentityFingerprint) {
+      throw new Error('FSD3_L2_APPROVAL_SCHEMA_INVALID');
+    }
+    if (input.actorUserId && input.actorUserId !== a.actorUserId) {
+      throw new Error('FSD3_L2_APPROVAL_ACTOR_MISMATCH');
+    }
+    if (input.dimoTokenId != null && input.dimoTokenId !== a.dimoTokenId) {
+      throw new Error('FSD3_L2_APPROVAL_TOKEN_MISMATCH');
+    }
+    if (
+      input.connectionIdentityFingerprint &&
+      input.connectionIdentityFingerprint !== a.connectionIdentityFingerprint
+    ) {
+      throw new Error('FSD3_L2_APPROVAL_IDENTITY_FINGERPRINT_MISMATCH');
+    }
+  }
   if (a.liveProvider !== input.liveProvider) {
     throw new Error('FSD3_L2_APPROVAL_LIVE_PROVIDER_MISMATCH');
   }
@@ -252,6 +316,9 @@ export function assertFsd3LiveOwnerApprovalMatchesScope(input: {
   const from = new Date(a.validFromIso);
   const until = new Date(a.validUntilIso);
   if (Number.isNaN(from.getTime()) || Number.isNaN(until.getTime()) || until <= from) {
+    throw new Error('FSD3_L2_APPROVAL_WINDOW_INVALID');
+  }
+  if (until.getTime() - from.getTime() > MAX_APPROVAL_WINDOW_MS) {
     throw new Error('FSD3_L2_APPROVAL_WINDOW_INVALID');
   }
   if (now < from || now > until) {

@@ -1,4 +1,4 @@
-import { accessSync, constants, lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { accessSync, closeSync, constants, lstatSync, openSync, readSync, realpathSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import {
   parseFsd3LiveOwnerApprovalTrustStoreJson,
@@ -12,6 +12,51 @@ export type Fsd3OwnerApprovalTrustLoadContextV1 =
 const LIVE_TRUST_ROOT_PREFIXES = ['/etc/synqdrive', '/var/lib/synqdrive'].map((entry) => path.resolve(entry));
 
 const DEFAULT_TRUST_ROOT_PREFIXES = LIVE_TRUST_ROOT_PREFIXES;
+
+export type Fsd3TrustAnchorFsDepsV1 = {
+  lstatSync: typeof lstatSync;
+  statSync: typeof statSync;
+  realpathSync: typeof realpathSync;
+  accessSync: typeof accessSync;
+  readTrustFileUtf8: (resolvedPath: string) => string;
+};
+
+const defaultFsDeps: Fsd3TrustAnchorFsDepsV1 = {
+  lstatSync,
+  statSync,
+  realpathSync,
+  accessSync,
+  readTrustFileUtf8: (resolvedPath: string) => readTrustFileUtf8SameFdV1(resolvedPath),
+};
+
+let trustAnchorFsDeps: Fsd3TrustAnchorFsDepsV1 = defaultFsDeps;
+
+/** Test-only: production CLI cannot reach this without importing the test bundle. */
+export function __setFsd3TrustAnchorFsDepsForTestsV1(deps: Fsd3TrustAnchorFsDepsV1 | null): void {
+  trustAnchorFsDeps = deps ?? defaultFsDeps;
+}
+
+function readTrustFileUtf8SameFdV1(resolvedPath: string): string {
+  const fd = openSync(resolvedPath, constants.O_RDONLY);
+  try {
+    const st = statSync(resolvedPath);
+    if (!st.isFile()) {
+      throw new Error('FSD3_L2_TRUST_FILE_INVALID');
+    }
+    const buf = Buffer.alloc(st.size);
+    let offset = 0;
+    while (offset < st.size) {
+      const n = readSync(fd, buf, offset, st.size - offset, null);
+      if (n <= 0) {
+        break;
+      }
+      offset += n;
+    }
+    return buf.toString('utf8', 0, offset);
+  } finally {
+    closeSync(fd);
+  }
+}
 
 function trustRootPrefixes(env: NodeJS.ProcessEnv): string[] {
   const raw = env.FSD3_LIVE_OWNER_APPROVAL_TRUST_FILE_ROOT_PREFIXES?.trim();
@@ -50,7 +95,7 @@ function assertParentDirectoryTrustChain(resolvedFile: string, allowedRoots: str
 
   let dir = path.dirname(resolvedFile);
   while (true) {
-    const st = lstatSync(dir);
+    const st = trustAnchorFsDeps.lstatSync(dir);
     if (st.isSymbolicLink()) {
       throw new Error('FSD3_L2_TRUST_SYMLINK_ESCAPE');
     }
@@ -77,12 +122,12 @@ function assertTrustFileAnchored(filePath: string, env: NodeJS.ProcessEnv, liveD
   }
 
   const rawPath = path.resolve(filePath);
-  const rawLstat = lstatSync(rawPath);
+  const rawLstat = trustAnchorFsDeps.lstatSync(rawPath);
   if (rawLstat.isSymbolicLink()) {
     throw new Error('FSD3_L2_TRUST_SYMLINK_ESCAPE');
   }
 
-  const resolved = realpathSync(rawPath);
+  const resolved = trustAnchorFsDeps.realpathSync(rawPath);
   const allowedRoots = liveDimoExecute ? LIVE_TRUST_ROOT_PREFIXES : trustRootPrefixes(env);
   const allowed = allowedRoots.some((prefix) => {
     return resolved === prefix || resolved.startsWith(`${prefix}${path.sep}`);
@@ -94,7 +139,7 @@ function assertTrustFileAnchored(filePath: string, env: NodeJS.ProcessEnv, liveD
     throw new Error('FSD3_L2_TRUST_PATH_NOT_ANCHORED');
   }
 
-  const stat = statSync(resolved);
+  const stat = trustAnchorFsDeps.statSync(resolved);
   if (!stat.isFile()) {
     throw new Error('FSD3_L2_TRUST_FILE_INVALID');
   }
@@ -116,7 +161,7 @@ function assertTrustFileAnchored(filePath: string, env: NodeJS.ProcessEnv, liveD
   }
 
   try {
-    accessSync(resolved, constants.R_OK);
+    trustAnchorFsDeps.accessSync(resolved, constants.R_OK);
   } catch {
     throw new Error('FSD3_L2_TRUST_FILE_UNREADABLE');
   }
@@ -154,5 +199,5 @@ export function loadFsd3LiveOwnerApprovalTrustStoreForContextV1(input: {
   }
 
   const anchoredPath = assertTrustFileAnchored(file, env, liveDimoExecute);
-  return parseFsd3LiveOwnerApprovalTrustStoreJson(readFileSync(anchoredPath, 'utf8'));
+  return parseFsd3LiveOwnerApprovalTrustStoreJson(trustAnchorFsDeps.readTrustFileUtf8(anchoredPath));
 }

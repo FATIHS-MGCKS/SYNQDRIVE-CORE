@@ -1,5 +1,6 @@
 import {
   FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1,
+  FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V2,
   assertFsd3LiveOwnerApprovalMatchesScope,
   parseFsd3LiveOwnerApprovalEnvelopeJson,
   verifyFsd3LiveOwnerApprovalEnvelopeV1,
@@ -31,8 +32,8 @@ function signedEnvelope(overrides: Record<string, unknown> = {}) {
     discoveryRequestKey: scope.discoveryRequestKey,
     liveProvider: 'mock' as const,
     budget: { ...FSD3_P6B_CLI_BUDGET_V1 },
-    validFromIso: '2020-01-01T00:00:00.000Z',
-    validUntilIso: '2099-01-01T00:00:00.000Z',
+    validFromIso: new Date(Date.now() - 3_600_000).toISOString(),
+    validUntilIso: new Date(Date.now() + 3_600_000).toISOString(),
     ...overrides,
   };
   return {
@@ -99,5 +100,40 @@ describe('Fsd3LiveOwnerApproval V1 (signed)', () => {
         liveProvider: 'mock',
       }),
     ).toThrow('FSD3_L2_APPROVAL_EXECUTABLE_SHA_MISMATCH');
+  });
+
+  it('rejects live dimo V1 legacy schema', () => {
+    const { envelope, signing } = signedEnvelope({ liveProvider: 'dimo_live' });
+    const verified = verifyFsd3LiveOwnerApprovalEnvelopeV1({
+      envelope,
+      trustContext: { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: signing.trustStoreJson },
+    });
+    expect(() =>
+      assertFsd3LiveOwnerApprovalMatchesScope({ approval: verified, scope, liveProvider: 'dimo_live' }),
+    ).toThrow('FSD3_L2_APPROVAL_LEGACY_LIVE_REJECTED');
+  });
+
+  it('rejects V2 actor mismatch', () => {
+    const actorA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const actorB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const { envelope, signing } = signedEnvelope({
+      schemaVersion: FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V2,
+      actorUserId: actorA,
+      dimoTokenId: 1,
+      connectionIdentityFingerprint: 'fp-test-v2',
+      liveProvider: 'mock',
+    });
+    const verified = verifyFsd3LiveOwnerApprovalEnvelopeV1({
+      envelope,
+      trustContext: { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: signing.trustStoreJson },
+    });
+    expect(() =>
+      assertFsd3LiveOwnerApprovalMatchesScope({
+        approval: verified,
+        scope,
+        liveProvider: 'mock',
+        actorUserId: actorB,
+      }),
+    ).toThrow('FSD3_L2_APPROVAL_ACTOR_MISMATCH');
   });
 });

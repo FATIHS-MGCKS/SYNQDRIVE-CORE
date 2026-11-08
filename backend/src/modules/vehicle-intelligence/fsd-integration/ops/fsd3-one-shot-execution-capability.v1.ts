@@ -90,6 +90,9 @@ export function verifyFsd3OneShotExecutionCapabilityV1(input: {
 
 export function resolveFsd3OneShotCapabilitySecretV1(env: NodeJS.ProcessEnv = process.env): Buffer {
   const raw = env.FSD3_ONE_SHOT_CAPABILITY_HMAC_SECRET?.trim();
+  if (env.FSD3_ONE_SHOT_LIVE_EPHEMERAL_SECRETS_REQUIRED === '1' && raw) {
+    throw new Error('FSD3_LIVE_HMAC_SECRET_ENV_FORBIDDEN');
+  }
   if (raw) {
     return Buffer.from(raw, 'utf8');
   }

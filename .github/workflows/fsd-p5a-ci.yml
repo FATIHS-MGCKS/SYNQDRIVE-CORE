@@ -16,6 +16,7 @@ on:
       - 'backend/scripts/test/fsd2-persistence-postgres-ci.sh'
       - 'backend/scripts/ops/fsd-lifecycle-deactivate-dimo-source-link.ts'
       - 'backend/scripts/ops/fsd3-live-discovery-one-shot.ts'
+      - 'backend/scripts/ops/fsd3-live-discovery-one-shot-launcher.sh'
       - 'backend/scripts/ops/fsd3-discovery-run-inspector.ts'
       - 'backend/scripts/ops/fsd3-live-owner-approval-sign.ts'
       - 'architecture/fsd/P6B_*'

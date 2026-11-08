@@ -39,6 +39,9 @@ describe('Fsd3DiscoveryRunInspectorService evidence counting', () => {
       null: 1,
       deferred: 1,
       queryFailed: 1,
+      absent: 0,
+      other: 0,
+      total: 4,
     });
   });
 });

@@ -20,6 +20,7 @@ export function assertBudgetMatchesP6bCliCap(budget: FsdBudgetConfigV1): void {
     normalized.maxRequestsPerRun !== cap.maxRequestsPerRun ||
     normalized.maxSnapshotFieldsPerDocument !== cap.maxSnapshotFieldsPerDocument ||
     normalized.maxResponseBytes !== cap.maxResponseBytes ||
+    normalized.maxHistoricalWindowSeconds !== cap.maxHistoricalWindowSeconds ||
     normalized.maxHistoricalFloatFieldsPerChunk !== cap.maxHistoricalFloatFieldsPerChunk
   ) {
     throw new Error('FSD3_P6B_BUDGET_MISMATCH');

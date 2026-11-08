@@ -10,6 +10,7 @@ Provide a minimal, auditable, explicitly authorized **one-shot** entrypoint for 
 
 | Artifact | Role |
 |----------|------|
+| `backend/scripts/ops/fsd3-live-discovery-one-shot-launcher.sh` | Trusted env scrub + `tsx` launcher (**required** for PREFLIGHT/EXECUTE on VPS) |
 | `backend/scripts/ops/fsd3-live-discovery-one-shot.ts` | Operator CLI |
 | `backend/scripts/ops/fsd3-discovery-run-inspector.ts` | Read-only run inspector |
 | `backend/src/modules/vehicle-intelligence/fsd-integration/ops/fsd-discovery-ops.module.ts` | Minimal Nest context (no AppModule, HTTP, Bull, cron) |
@@ -24,9 +25,9 @@ Provide a minimal, auditable, explicitly authorized **one-shot** entrypoint for 
 
 1. **Host attestation** — `FSD3_ONE_SHOT_HOST_ATTESTATION=1` in the operator shell (not owner approval).
 2. **Platform operator** — ACTIVE `MASTER_ADMIN` with org/vehicle/link binding (`DimoSourceLinkOperatorAuthorizationService`).
-3. **Owner L2 approval** — signed envelope `FSD3_LIVE_OWNER_APPROVAL_V1` (Ed25519 over canonical payload) binding: **git-attested** executable release SHA, org, vehicle, source link, discovery request key, `liveProvider`, budget cap, validity window. **Live `dimo_live` EXECUTE:** root-owned trust file only under `/etc/synqdrive` or `/var/lib/synqdrive` (no env prefix override, no relaxed anchor, no inline/test trust). Non-live mock paths may use isolated test trust in CI only. Sign off-repo with `scripts/ops/fsd3-live-owner-approval-sign.ts` + `FSD3_OWNER_L2_SIGNING_KEY_PEM_FILE`.
-4. **Executable SHA attestation** — `resolveFsd3OneShotExecutableReleaseShaV1()` uses `git rev-parse HEAD` + clean tree (no `--executable-release-sha` CLI override).
-5. **Preflight ticket** — HMAC ticket minted **once** per authoritative `runAuthorizedReadOnlyPreflight` binding (consumes in-memory binding; re-mint requires fresh preflight). Verifier checks MAC + scope + TTL; does not by itself block capability replay.
+3. **Owner L2 approval** — signed envelope `FSD3_LIVE_OWNER_APPROVAL_V2` for **live** `dimo_live` (Ed25519 over canonical payload) binding: **git-attested** executable release SHA, org, vehicle, source link, discovery request key, `liveProvider`, budget cap, validity window (max 24h, strict `…Z` UTC ISO), **`actorUserId`**, **`dimoTokenId`**, **`connectionIdentityFingerprint`**. Legacy `FSD3_LIVE_OWNER_APPROVAL_V1` remains valid for mock/CI only. **Live `dimo_live` EXECUTE:** root-owned trust file only under `/etc/synqdrive` or `/var/lib/synqdrive` (no env prefix override, no relaxed anchor, no inline/test trust). Non-live mock paths may use isolated test trust in CI only. Sign off-repo with `scripts/ops/fsd3-live-owner-approval-sign.ts` + `FSD3_OWNER_L2_SIGNING_KEY_PEM_FILE`.
+4. **Executable SHA attestation** — trusted `/usr/bin/git` with scrubbed env; rejects index skip-worktree/assume-unchanged; compares on-disk TypeScript boundary sources to `HEAD` blobs (not only `git diff`). Launcher scrubs `NODE_OPTIONS`/`GIT_*` **before** Node starts (no `--executable-release-sha` CLI override).
+5. **Preflight ticket** — HMAC ticket minted **once** per authoritative `runAuthorizedReadOnlyPreflight` binding (consumes in-memory binding; re-mint requires fresh preflight). **Single-use:** a consumed ticket cannot mint a second capability in the same CLI process. Live EXECUTE uses **ephemeral per-process** HMAC secrets (env override forbidden).
 6. **Execution capability** — HMAC-bound token minted only after verified Ed25519 approval + valid preflight ticket. **Replay safety:** duplicate execute with the **same** capability + same `discoveryRequestKey` is absorbed by existing FSD3 persistence idempotency (no second provider dispatch). A **new** capability still requires a **new** authoritative preflight ticket mint.
 7. **Process-scoped FSD3 gates** — CLI builds orchestration config with FSD3 enabled for **one** vehicle and `providerExecutionEnabled=true`. Does **not** read PM2 replica env. FSD4 remains default-off for the process.
 8. **P5B fences** — `assertActiveSourceLinkForDispatch` and persistence invalidation semantics unchanged.
@@ -35,7 +36,7 @@ Empty `FSD3_LIVE_ACTIVATION_BLOCKERS_V1` in orchestration config is **not** used
 
 ## Budget (hard cap V1)
 
-- `maxRequestsPerRun = 2` (catalog + at most one snapshot)
+- `maxRequestsPerRun = 2` (**FSD discovery** catalog + at most one snapshot — not a global DIMO network cap; DIMO JWT/auth exchanges are separate and may occur outside this ledger)
 - `maxSnapshotFieldsPerDocument = 26`
 - `maxResponseBytes = 524288`
 - No historical requests in the default P6B cap

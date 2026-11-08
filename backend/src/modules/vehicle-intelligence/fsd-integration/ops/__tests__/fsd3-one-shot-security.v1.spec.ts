@@ -48,12 +48,24 @@ describe('Fsd3 one-shot security primitives', () => {
 
   it('binds executable SHA to module-derived git HEAD when worktree has no tracked diffs', () => {
     const root = resolveSynqDriveRepoRootFromModuleV1();
+    const env: NodeJS.ProcessEnv = {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME ?? '/root',
+      LANG: process.env.LANG ?? 'C.UTF-8',
+      FSD3_ONE_SHOT_EXECUTABLE_ATTESTATION_RELAXED: '1',
+    };
     const head = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
     const porcelain = execFileSync('git', ['-C', root, 'status', '--porcelain', '--untracked-files=no'], {
       encoding: 'utf8',
     }).trim();
+    const strictEnv: NodeJS.ProcessEnv = {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME ?? '/root',
+      LANG: process.env.LANG ?? 'C.UTF-8',
+    };
     if (porcelain.length > 0) {
-      expect(() => resolveFsd3OneShotExecutableReleaseShaV1()).toThrow('FSD3_EXECUTABLE_TREE_DIRTY');
+      expect(() => resolveFsd3OneShotExecutableReleaseShaV1({ env: strictEnv })).toThrow(/FSD3_EXECUTABLE_/);
+      expect(resolveFsd3OneShotExecutableReleaseShaV1({ env })).toBe(head);
       return;
     }
     expect(resolveFsd3OneShotExecutableReleaseShaV1()).toBe(head);
@@ -90,8 +102,8 @@ describe('Fsd3 one-shot security primitives', () => {
         discoveryRequestKey: scope.discoveryRequestKey,
         liveProvider: 'mock',
         budget: { ...FSD3_P6B_CLI_BUDGET_V1 },
-        validFromIso: '2020-01-01T00:00:00.000Z',
-        validUntilIso: '2099-01-01T00:00:00.000Z',
+        validFromIso: new Date(Date.now() - 60_000).toISOString(),
+        validUntilIso: new Date(Date.now() + 3_600_000).toISOString(),
       },
     });
     const preflightSvc = new Fsd3OneShotPreflightService(
