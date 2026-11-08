@@ -1,19 +1,5 @@
 /**
  * P6B — one-shot FSD3 catalog/snapshot discovery (privileged ops CLI).
- *
- * Modes:
- *   OFFLINE_PLAN — no DATABASE_URL, no provider, no writes
- *   AUTHORIZED_READ_ONLY_PREFLIGHT — DB reads + operator/L2 gates, no provider, no writes
- *   EXECUTE — full orchestration (live DIMO when provider is live adapter; use mock in CI)
- *
- * Usage:
- *   npx tsx scripts/ops/fsd3-live-discovery-one-shot.ts \
- *     --mode=OFFLINE_PLAN \
- *     --organization-id=... --vehicle-id=... --link-id=... \
- *     --actor-user-id=... --discovery-request-key=... \
- *     --executable-release-sha=... --l2-approval-file=/path/to/approval.json
- *
- * EXECUTE / PREFLIGHT also require FSD3_ONE_SHOT_HOST_ATTESTATION=1 in the operator shell.
  */
 import * as fs from 'fs';
 import * as path from 'path';
@@ -26,11 +12,13 @@ import { FsdDimoAdapterFactoryService } from '../../src/modules/vehicle-intellig
 import { createFsd3MockDiscoveryProvider } from '../../src/modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-mock-provider.v1';
 import {
   assertFsd3LiveOwnerApprovalMatchesScope,
-  parseFsd3LiveOwnerApprovalJson,
+  verifyFsd3LiveOwnerApprovalFileV1,
   type Fsd3OneShotCliScopeV1,
 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-owner-approval.v1';
 import { assertFsd3OneShotHostAttestation } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-host-attestation.v1';
 import { FSD3_P6B_CLI_BUDGET_V1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-cli-budget.v1';
+import { resolveFsd3OneShotExecutableReleaseShaV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-executable-attestation.v1';
+import type { Fsd3OneShotLiveProviderV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-execution-capability.v1';
 
 {
   const envPath =
@@ -47,6 +35,16 @@ import { FSD3_P6B_CLI_BUDGET_V1 } from '../../src/modules/vehicle-intelligence/f
 
 type CliMode = 'OFFLINE_PLAN' | 'AUTHORIZED_READ_ONLY_PREFLIGHT' | 'EXECUTE';
 
+function parseLiveProvider(raw: string | undefined): Fsd3OneShotLiveProviderV1 {
+  if (raw === 'mock') {
+    return 'mock';
+  }
+  if (raw === 'live') {
+    return 'dimo_live';
+  }
+  throw new Error('INVALID_PROVIDER');
+}
+
 function parseArgs() {
   const get = (prefix: string) =>
     process.argv.find((a) => a.startsWith(prefix))?.slice(prefix.length);
@@ -54,6 +52,7 @@ function parseArgs() {
   if (!['OFFLINE_PLAN', 'AUTHORIZED_READ_ONLY_PREFLIGHT', 'EXECUTE'].includes(modeRaw)) {
     throw new Error('INVALID_MODE');
   }
+  const providerRaw = get('--provider=');
   return {
     mode: modeRaw as CliMode,
     organizationId: get('--organization-id='),
@@ -61,19 +60,18 @@ function parseArgs() {
     linkId: get('--link-id='),
     actorUserId: get('--actor-user-id='),
     discoveryRequestKey: get('--discovery-request-key='),
-    executableReleaseSha: get('--executable-release-sha='),
     l2ApprovalFile: get('--l2-approval-file='),
-    provider: (get('--provider=') ?? 'live') as 'live' | 'mock',
+    providerRaw,
+    liveProvider: providerRaw ? parseLiveProvider(providerRaw) : undefined,
   };
 }
 
-function buildScope(args: ReturnType<typeof parseArgs>): Fsd3OneShotCliScopeV1 {
+function buildScope(args: ReturnType<typeof parseArgs>, executableReleaseSha: string): Fsd3OneShotCliScopeV1 {
   const missing = [
     ['--organization-id', args.organizationId],
     ['--vehicle-id', args.vehicleId],
     ['--link-id', args.linkId],
     ['--discovery-request-key', args.discoveryRequestKey],
-    ['--executable-release-sha', args.executableReleaseSha],
     ['--l2-approval-file', args.l2ApprovalFile],
   ].filter(([, v]) => !v?.trim());
   if (missing.length) {
@@ -84,27 +82,32 @@ function buildScope(args: ReturnType<typeof parseArgs>): Fsd3OneShotCliScopeV1 {
     vehicleId: args.vehicleId!,
     providerSourceLinkId: args.linkId!,
     discoveryRequestKey: args.discoveryRequestKey!,
-    executableReleaseSha: args.executableReleaseSha!,
+    executableReleaseSha,
   };
 }
 
-function loadOwnerApproval(filePath: string, scope: Fsd3OneShotCliScopeV1) {
+function loadVerifiedOwnerApproval(filePath: string, scope: Fsd3OneShotCliScopeV1, liveProvider: Fsd3OneShotLiveProviderV1) {
   const raw = fs.readFileSync(filePath, 'utf8');
-  const approval = parseFsd3LiveOwnerApprovalJson(raw);
-  assertFsd3LiveOwnerApprovalMatchesScope({ approval, scope });
+  const approval = verifyFsd3LiveOwnerApprovalFileV1({ raw });
+  assertFsd3LiveOwnerApprovalMatchesScope({ approval, scope, liveProvider });
   return approval;
 }
 
-function offlinePlan(args: ReturnType<typeof parseArgs>, scope: Fsd3OneShotCliScopeV1) {
-  const approval = loadOwnerApproval(args.l2ApprovalFile!, scope);
+function offlinePlan(
+  args: ReturnType<typeof parseArgs>,
+  scope: Fsd3OneShotCliScopeV1,
+  liveProvider: Fsd3OneShotLiveProviderV1,
+) {
+  const approval = loadVerifiedOwnerApproval(args.l2ApprovalFile!, scope, liveProvider);
   console.log(
     JSON.stringify(
       {
         status: 'OFFLINE_PLAN',
         scope,
+        attestedExecutableReleaseSha: scope.executableReleaseSha,
         approvalReference: approval.approvalReference,
+        liveProvider,
         budget: FSD3_P6B_CLI_BUDGET_V1,
-        provider: args.provider,
         note: 'No database or DIMO provider calls in OFFLINE_PLAN',
       },
       null,
@@ -115,10 +118,17 @@ function offlinePlan(args: ReturnType<typeof parseArgs>, scope: Fsd3OneShotCliSc
 
 async function main(): Promise<void> {
   const args = parseArgs();
-  const scope = buildScope(args);
+  const attestedSha = resolveFsd3OneShotExecutableReleaseShaV1();
+  const scope = buildScope(args, attestedSha);
+
+  if (args.mode !== 'OFFLINE_PLAN' && !args.liveProvider) {
+    throw new Error('MISSING_EXPLICIT_PROVIDER');
+  }
+  const liveProvider: Fsd3OneShotLiveProviderV1 =
+    args.liveProvider ?? (args.mode === 'OFFLINE_PLAN' ? 'mock' : 'mock');
 
   if (args.mode === 'OFFLINE_PLAN') {
-    offlinePlan(args, scope);
+    offlinePlan(args, scope, liveProvider);
     return;
   }
 
@@ -128,19 +138,19 @@ async function main(): Promise<void> {
   }
 
   assertFsd3OneShotHostAttestation();
-  const approval = loadOwnerApproval(args.l2ApprovalFile!, scope);
+  const approval = loadVerifiedOwnerApproval(args.l2ApprovalFile!, scope, liveProvider);
 
   if (!process.env.DATABASE_URL) {
     console.error('DATABASE_URL is required for PREFLIGHT/EXECUTE');
     process.exit(2);
   }
 
-  const nestModule =
+  const useLiveAdapter =
     args.mode === 'EXECUTE' &&
-    args.provider === 'live' &&
-    process.env.FSD3_ONE_SHOT_FORCE_MOCK_PROVIDER !== '1'
-      ? Fsd3OneShotLiveBootstrapModule
-      : FsdDiscoveryOpsModule;
+    liveProvider === 'dimo_live' &&
+    process.env.FSD3_ONE_SHOT_FORCE_MOCK_PROVIDER !== '1';
+
+  const nestModule = useLiveAdapter ? Fsd3OneShotLiveBootstrapModule : FsdDiscoveryOpsModule;
 
   const app = await NestFactory.createApplicationContext(nestModule, {
     logger: ['error', 'warn'],
@@ -159,7 +169,9 @@ async function main(): Promise<void> {
           {
             status: 'AUTHORIZED_READ_ONLY_PREFLIGHT',
             scope,
+            attestedExecutableReleaseSha: attestedSha,
             approvalReference: approval.approvalReference,
+            liveProvider,
             preflight,
           },
           null,
@@ -169,27 +181,33 @@ async function main(): Promise<void> {
       return;
     }
 
-    if (args.provider === 'mock' || process.env.FSD3_ONE_SHOT_FORCE_MOCK_PROVIDER === '1') {
-      const executionSvc = app.get(Fsd3OneShotExecutionService);
+    const executionCapability = preflightSvc.issueExecutionCapability({
+      scope,
+      approval,
+      preflight,
+      actorUserId: args.actorUserId,
+      liveProvider,
+    });
+
+    const executionSvc = app.get(Fsd3OneShotExecutionService);
+
+    if (liveProvider === 'mock' || process.env.FSD3_ONE_SHOT_FORCE_MOCK_PROVIDER === '1') {
       const provider = createFsd3MockDiscoveryProvider({ mode: 'TESLA_REFERENCE_26' });
       const result = await executionSvc.executeAuthorizedOneShot({
-        scope,
-        approvalReference: approval.approvalReference,
-        preflight,
+        executionCapability,
         provider,
+        expectedLiveProvider: 'mock',
       });
       console.log(JSON.stringify({ status: 'EXECUTE_MOCK', result }, null, 2));
       return;
     }
 
     const adapterFactory = app.get(FsdDimoAdapterFactoryService);
-    const executionSvc = app.get(Fsd3OneShotExecutionService);
     const livePort = adapterFactory.createAdapter().createFsd3Port();
     const result = await executionSvc.executeAuthorizedOneShot({
-      scope,
-      approvalReference: approval.approvalReference,
-      preflight,
+      executionCapability,
       provider: livePort,
+      expectedLiveProvider: 'dimo_live',
     });
     console.log(JSON.stringify({ status: 'EXECUTE_LIVE', result }, null, 2));
   } finally {

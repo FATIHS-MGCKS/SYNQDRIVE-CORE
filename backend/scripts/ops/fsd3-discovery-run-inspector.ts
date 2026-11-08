@@ -27,13 +27,14 @@ function parseArgs() {
   return {
     organizationId: get('--organization-id='),
     runId: get('--run-id='),
+    actorUserId: get('--actor-user-id='),
   };
 }
 
 async function main(): Promise<void> {
   const args = parseArgs();
-  if (!args.organizationId?.trim() || !args.runId?.trim()) {
-    console.error('Usage: --organization-id= --run-id=');
+  if (!args.organizationId?.trim() || !args.runId?.trim() || !args.actorUserId?.trim()) {
+    console.error('Usage: --organization-id= --run-id= --actor-user-id=');
     process.exit(2);
   }
   if (!process.env.DATABASE_URL) {
@@ -48,6 +49,7 @@ async function main(): Promise<void> {
   try {
     const inspector = app.get(Fsd3DiscoveryRunInspectorService);
     const report = await inspector.inspectTenantScoped({
+      actorUserId: args.actorUserId,
       organizationId: args.organizationId,
       runId: args.runId,
     });

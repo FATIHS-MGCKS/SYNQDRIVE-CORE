@@ -3,7 +3,9 @@ import { PrismaService } from '@shared/database/prisma.service';
 import { DimoSourceLinkOperatorAuthorizationService } from '@modules/vehicle-onboarding/services/dimo-source-link-operator-authorization.service';
 import { FsdDiscoveryPersistenceRepository } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.repository';
 import { buildFsdDimoConnectionIdentityFingerprint } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.contract.v1';
-import type { Fsd3OneShotCliScopeV1 } from './fsd3-one-shot-owner-approval.v1';
+import type { Fsd3OneShotCliScopeV1, Fsd3LiveOwnerApprovalDocumentV1 } from './fsd3-one-shot-owner-approval.v1';
+import type { Fsd3OneShotLiveProviderV1 } from './fsd3-one-shot-execution-capability.v1';
+import { Fsd3OneShotCapabilityService } from './fsd3-one-shot-capability.service';
 
 export type Fsd3OneShotPreflightResultV1 = {
   status: 'PREFLIGHT_OK';
@@ -23,6 +25,7 @@ export class Fsd3OneShotPreflightService {
     private readonly prisma: PrismaService,
     private readonly operatorAuth: DimoSourceLinkOperatorAuthorizationService,
     private readonly persistence: FsdDiscoveryPersistenceRepository,
+    private readonly capability: Fsd3OneShotCapabilityService,
   ) {}
 
   async runAuthorizedReadOnlyPreflight(input: {
@@ -77,5 +80,41 @@ export class Fsd3OneShotPreflightService {
       linkActive: link.isActive && link.deactivatedAt == null,
       authorizationReference: auth.authorizationReference,
     };
+  }
+
+  issueExecutionCapability(input: {
+    scope: Fsd3OneShotCliScopeV1;
+    approval: Fsd3LiveOwnerApprovalDocumentV1;
+    preflight: Fsd3OneShotPreflightResultV1;
+    actorUserId: string;
+    liveProvider: Fsd3OneShotLiveProviderV1;
+  }): string {
+    if (!input.preflight.dimoVehicleId || input.preflight.dimoTokenId == null) {
+      throw new Error('DIMO_IDENTITY_INCOMPLETE');
+    }
+    if (!input.preflight.connectionIdentityFingerprint) {
+      throw new Error('DIMO_IDENTITY_INCOMPLETE');
+    }
+    if (
+      input.preflight.organizationId !== input.scope.organizationId ||
+      input.preflight.vehicleId !== input.scope.vehicleId ||
+      input.preflight.providerSourceLinkId !== input.scope.providerSourceLinkId
+    ) {
+      throw new Error('FSD3_PREFLIGHT_SCOPE_MISMATCH');
+    }
+    return this.capability.mint({
+      organizationId: input.scope.organizationId,
+      vehicleId: input.scope.vehicleId,
+      providerSourceLinkId: input.scope.providerSourceLinkId,
+      discoveryRequestKey: input.scope.discoveryRequestKey,
+      attestedExecutableReleaseSha: input.scope.executableReleaseSha,
+      approvalReference: input.approval.approvalReference,
+      liveProvider: input.liveProvider,
+      actorUserId: input.actorUserId,
+      operatorAuthorizationReference: input.preflight.authorizationReference,
+      dimoVehicleId: input.preflight.dimoVehicleId,
+      dimoTokenId: input.preflight.dimoTokenId,
+      connectionIdentityFingerprint: input.preflight.connectionIdentityFingerprint,
+    });
   }
 }

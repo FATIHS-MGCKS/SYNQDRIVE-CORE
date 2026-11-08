@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { UserPlatformRole } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
 import { FsdDiscoveryPersistenceRepository } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.repository';
 import type { Fsd3RequestLedgerV1 } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-request-ledger.v1';
 
 export type Fsd3DiscoveryRunInspectorInputV1 = {
+  actorUserId: string;
   organizationId: string;
   runId: string;
 };
@@ -20,6 +22,12 @@ export type Fsd3DiscoveryRunInspectorReportV1 = {
   ledgerAttemptCount: number | null;
   ledgerOutcomes: Record<string, number> | null;
   catalogSignalCount: number | null;
+  signalObservationCounts: {
+    observed: number;
+    null: number;
+    deferred: number;
+    queryFailed: number;
+  } | null;
   unknownOutcomeStages: string[];
   strandedInProgress: boolean;
 };
@@ -39,7 +47,22 @@ export class Fsd3DiscoveryRunInspectorService {
     private readonly persistence: FsdDiscoveryPersistenceRepository,
   ) {}
 
+  async assertInspectorPrincipal(actorUserId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { id: true, platformRole: true, status: true },
+    });
+    if (!user || user.status !== 'ACTIVE') {
+      throw new Error('INSPECTOR_FORBIDDEN');
+    }
+    if (user.platformRole !== UserPlatformRole.MASTER_ADMIN) {
+      throw new Error('INSPECTOR_FORBIDDEN');
+    }
+  }
+
   async inspectTenantScoped(input: Fsd3DiscoveryRunInspectorInputV1): Promise<Fsd3DiscoveryRunInspectorReportV1> {
+    await this.assertInspectorPrincipal(input.actorUserId);
+
     const run = await this.prisma.fsdDiscoveryRun.findFirst({
       where: { id: input.runId, organizationId: input.organizationId },
       include: { stages: { orderBy: { stageType: 'asc' } } },
@@ -78,6 +101,28 @@ export class Fsd3DiscoveryRunInspectorService {
       }
     }
 
+    const evidenceRows = await this.prisma.fsdDiscoverySignalEvidence.findMany({
+      where: { runId: run.id, stageType: 'SNAPSHOT' },
+      select: { qualityJson: true },
+    });
+    let signalObservationCounts: Fsd3DiscoveryRunInspectorReportV1['signalObservationCounts'] = null;
+    if (evidenceRows.length > 0) {
+      const counts = { observed: 0, null: 0, deferred: 0, queryFailed: 0 };
+      for (const row of evidenceRows) {
+        const kind = (row.qualityJson as { observationKind?: string } | null)?.observationKind;
+        if (kind === 'OBSERVED' || kind === 'VALID_NONZERO' || kind === 'VALID_ZERO') {
+          counts.observed += 1;
+        } else if (kind === 'NULL') {
+          counts.null += 1;
+        } else if (kind === 'DEFERRED') {
+          counts.deferred += 1;
+        } else if (kind === 'QUERY_FAILED') {
+          counts.queryFailed += 1;
+        }
+      }
+      signalObservationCounts = counts;
+    }
+
     const unknownOutcomeStages =
       bundle?.stages.filter((s) => s.status === 'UNKNOWN_OUTCOME').map((s) => s.stageType) ?? [];
 
@@ -102,6 +147,7 @@ export class Fsd3DiscoveryRunInspectorService {
       ledgerAttemptCount,
       ledgerOutcomes,
       catalogSignalCount,
+      signalObservationCounts,
       unknownOutcomeStages,
       strandedInProgress,
     };

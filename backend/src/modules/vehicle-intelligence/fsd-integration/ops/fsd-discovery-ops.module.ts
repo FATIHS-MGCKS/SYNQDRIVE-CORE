@@ -5,6 +5,7 @@ import { DimoSourceLinkOperatorAuthorizationService } from '@modules/vehicle-onb
 import { Fsd3OneShotPreflightService } from './fsd3-one-shot-preflight.service';
 import { Fsd3OneShotExecutionService } from './fsd3-one-shot-execution.service';
 import { Fsd3DiscoveryRunInspectorService } from './fsd3-discovery-run-inspector.service';
+import { Fsd3OneShotCapabilityService } from './fsd3-one-shot-capability.service';
 
 /**
  * Minimal Nest surface for FSD3 one-shot ops CLIs — no BullMQ, cron, HTTP or AppModule.
@@ -14,6 +15,7 @@ import { Fsd3DiscoveryRunInspectorService } from './fsd3-discovery-run-inspector
   providers: [
     FsdDiscoveryPersistenceRepository,
     DimoSourceLinkOperatorAuthorizationService,
+    Fsd3OneShotCapabilityService,
     Fsd3OneShotPreflightService,
     Fsd3OneShotExecutionService,
     Fsd3DiscoveryRunInspectorService,
@@ -21,6 +23,7 @@ import { Fsd3DiscoveryRunInspectorService } from './fsd3-discovery-run-inspector
   exports: [
     FsdDiscoveryPersistenceRepository,
     DimoSourceLinkOperatorAuthorizationService,
+    Fsd3OneShotCapabilityService,
     Fsd3OneShotPreflightService,
     Fsd3OneShotExecutionService,
     Fsd3DiscoveryRunInspectorService,

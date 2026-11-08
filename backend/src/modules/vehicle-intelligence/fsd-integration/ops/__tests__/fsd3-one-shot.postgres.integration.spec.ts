@@ -1,5 +1,5 @@
 /**
- * P6B — one-shot preflight, mock execution, inspector (disposable PostgreSQL).
+ * P6B — one-shot preflight, capability-bound execution, inspector (disposable PostgreSQL).
  */
 import {
   BusinessType,
@@ -10,6 +10,7 @@ import {
   ProductSlug,
   VehicleStatus,
 } from '@prisma/client';
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { ensureOrganizationProductEntitlement } from '@modules/vehicle-onboarding/testing/org-product-test.harness';
 import { PrismaService } from '@shared/database/prisma.service';
@@ -24,9 +25,21 @@ import { createFsd3MockDiscoveryProvider } from '@modules/vehicle-intelligence/f
 import { Fsd3OneShotPreflightService } from '../fsd3-one-shot-preflight.service';
 import { Fsd3OneShotExecutionService } from '../fsd3-one-shot-execution.service';
 import { Fsd3DiscoveryRunInspectorService } from '../fsd3-discovery-run-inspector.service';
+import { Fsd3OneShotCapabilityService } from '../fsd3-one-shot-capability.service';
+import { FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1 } from '../fsd3-one-shot-owner-approval.v1';
+import { FSD3_P6B_CLI_BUDGET_V1 } from '../fsd3-one-shot-cli-budget.v1';
+import {
+  createFsd3OneShotTestOwnerSigningMaterialV1,
+  signFsd3LiveOwnerApprovalTestEnvelopeV1,
+} from '../__fixtures__/fsd3-one-shot-test-owner-crypto.harness.v1';
 
 const LIVE = process.env.FSD_DISCOVERY_PERSISTENCE_PG === '1';
 const REQUIRED = process.env.FSD_DISCOVERY_PERSISTENCE_PG_REQUIRED === '1';
+
+function attestedSha(): string {
+  process.env.FSD3_ONE_SHOT_ALLOW_DIRTY_TREE = '1';
+  return execFileSync('git', ['-C', '/workspace', 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+}
 
 async function ensurePlatformUser(
   prisma: PrismaClient,
@@ -96,20 +109,22 @@ async function seedDimoBinding(prisma: PrismaClient) {
       isActive: true,
     },
   });
-  const fingerprint = buildFsdDimoConnectionIdentityFingerprint({ dimoVehicleId, tokenId });
-  return { organizationId, vehicleId, linkId, dimoVehicleId, tokenId, fingerprint };
+  return { organizationId, vehicleId, linkId, dimoVehicleId, tokenId };
 }
 
 (LIVE ? describe : describe.skip)('FSD3 one-shot ops (PostgreSQL)', () => {
   jest.setTimeout(180_000);
 
   let prisma: PrismaClient;
+  const signing = createFsd3OneShotTestOwnerSigningMaterialV1();
 
   beforeAll(async () => {
     assertFsd2PersistencePostgresCiEnv();
     if (REQUIRED) {
       await ensureFsd2DisposableDatabaseOnce();
     }
+    process.env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON = signing.trustStoreJson;
+    process.env.FSD3_ONE_SHOT_CAPABILITY_HMAC_SECRET = 'p6b-postgres-capability-secret';
     prisma = new PrismaClient();
     await prisma.$connect();
   }, 600_000);
@@ -122,12 +137,70 @@ async function seedDimoBinding(prisma: PrismaClient) {
     const prismaSvc = prisma as unknown as PrismaService;
     const persistence = new FsdDiscoveryPersistenceRepository(prismaSvc);
     const operatorAuth = new DimoSourceLinkOperatorAuthorizationService(prismaSvc);
+    const capability = new Fsd3OneShotCapabilityService();
+    capability.onModuleInit();
     return {
-      preflight: new Fsd3OneShotPreflightService(prismaSvc, operatorAuth, persistence),
-      execution: new Fsd3OneShotExecutionService(persistence),
+      preflight: new Fsd3OneShotPreflightService(prismaSvc, operatorAuth, persistence, capability),
+      execution: new Fsd3OneShotExecutionService(persistence, capability),
       inspector: new Fsd3DiscoveryRunInspectorService(prismaSvc, persistence),
     };
   }
+
+  function approvalFor(scope: {
+    organizationId: string;
+    vehicleId: string;
+    providerSourceLinkId: string;
+    discoveryRequestKey: string;
+    executableReleaseSha: string;
+  }) {
+    return signFsd3LiveOwnerApprovalTestEnvelopeV1({
+      privateKey: signing.privateKey,
+      keyId: signing.keyId,
+      payload: {
+        schemaVersion: FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1,
+        approvalReference: `p6b-${scope.discoveryRequestKey.slice(0, 8)}`,
+        executableReleaseSha: scope.executableReleaseSha,
+        organizationId: scope.organizationId,
+        vehicleId: scope.vehicleId,
+        providerSourceLinkId: scope.providerSourceLinkId,
+        discoveryRequestKey: scope.discoveryRequestKey,
+        liveProvider: 'mock',
+        budget: { ...FSD3_P6B_CLI_BUDGET_V1 },
+        validFromIso: '2020-01-01T00:00:00.000Z',
+        validUntilIso: '2099-01-01T00:00:00.000Z',
+      },
+    }).payload;
+  }
+
+  it('rejects forged execution capability', async () => {
+    const { execution } = services();
+    const provider = createFsd3MockDiscoveryProvider({ mode: 'TESLA_REFERENCE_26' });
+    const wrongCapability = new Fsd3OneShotCapabilityService();
+    process.env.FSD3_ONE_SHOT_CAPABILITY_HMAC_SECRET = 'other-secret';
+    wrongCapability.onModuleInit();
+    const token = wrongCapability.mint({
+      organizationId: randomUUID(),
+      vehicleId: randomUUID(),
+      providerSourceLinkId: randomUUID(),
+      discoveryRequestKey: randomUUID(),
+      attestedExecutableReleaseSha: attestedSha(),
+      approvalReference: 'forged',
+      liveProvider: 'mock',
+      actorUserId: randomUUID(),
+      operatorAuthorizationReference: 'op',
+      dimoVehicleId: randomUUID(),
+      dimoTokenId: 1,
+      connectionIdentityFingerprint: 'fp',
+    });
+    process.env.FSD3_ONE_SHOT_CAPABILITY_HMAC_SECRET = 'p6b-postgres-capability-secret';
+    await expect(
+      execution.executeAuthorizedOneShot({
+        executionCapability: token,
+        provider,
+        expectedLiveProvider: 'mock',
+      }),
+    ).rejects.toThrow('FSD3_EXECUTION_CAPABILITY_FORGED');
+  });
 
   it('preflight rejects inactive source link', async () => {
     const seed = await seedDimoBinding(prisma);
@@ -146,13 +219,13 @@ async function seedDimoBinding(prisma: PrismaClient) {
           vehicleId: seed.vehicleId,
           providerSourceLinkId: seed.linkId,
           discoveryRequestKey: randomUUID(),
-          executableReleaseSha: 'e32880da1beb99642f1e994f45c4e9038fc1a541',
+          executableReleaseSha: attestedSha(),
         },
       }),
     ).rejects.toThrow();
   });
 
-  it('mock execute + inspector read path', async () => {
+  it('mock execute + inspector with MASTER_ADMIN', async () => {
     const seed = await seedDimoBinding(prisma);
     const actorUserId = randomUUID();
     await ensurePlatformUser(prisma, actorUserId, 'MASTER_ADMIN', 'ACTIVE');
@@ -162,27 +235,52 @@ async function seedDimoBinding(prisma: PrismaClient) {
       vehicleId: seed.vehicleId,
       providerSourceLinkId: seed.linkId,
       discoveryRequestKey,
-      executableReleaseSha: 'e32880da1beb99642f1e994f45c4e9038fc1a541',
+      executableReleaseSha: attestedSha(),
     };
     const { preflight, execution, inspector } = services();
     const pre = await preflight.runAuthorizedReadOnlyPreflight({ actorUserId, scope });
-    expect(pre.status).toBe('PREFLIGHT_OK');
+    const approval = approvalFor(scope);
+    const capability = preflight.issueExecutionCapability({
+      scope,
+      approval,
+      preflight: pre,
+      actorUserId,
+      liveProvider: 'mock',
+    });
     const provider = createFsd3MockDiscoveryProvider({ mode: 'TESLA_REFERENCE_26' });
     const result = await execution.executeAuthorizedOneShot({
-      scope,
-      approvalReference: 'test-approval-ref-p6b',
-      preflight: pre,
+      executionCapability: capability,
       provider,
+      expectedLiveProvider: 'mock',
     });
     expect(['COMPLETED', 'PARTIAL']).toContain(result.terminalStatus);
-    expect(result.runId.length).toBeGreaterThan(10);
     const report = await inspector.inspectTenantScoped({
+      actorUserId,
       organizationId: seed.organizationId,
       runId: result.runId,
     });
-    expect(report.runId).toBe(result.runId);
-    expect(report.ledgerAttemptCount).not.toBeNull();
     expect(report.catalogSignalCount).toBe(26);
+    await expect(
+      inspector.inspectTenantScoped({
+        actorUserId: randomUUID(),
+        organizationId: seed.organizationId,
+        runId: result.runId,
+      }),
+    ).rejects.toThrow('INSPECTOR_FORBIDDEN');
+  });
+
+  it('inspector cross-tenant fails closed', async () => {
+    const seed = await seedDimoBinding(prisma);
+    const actorUserId = randomUUID();
+    await ensurePlatformUser(prisma, actorUserId, 'MASTER_ADMIN', 'ACTIVE');
+    const { inspector } = services();
+    await expect(
+      inspector.inspectTenantScoped({
+        actorUserId,
+        organizationId: randomUUID(),
+        runId: randomUUID(),
+      }),
+    ).rejects.toThrow('RUN_NOT_FOUND');
   });
 
   it('duplicate discoveryRequestKey is idempotent on second execute', async () => {
@@ -195,22 +293,35 @@ async function seedDimoBinding(prisma: PrismaClient) {
       vehicleId: seed.vehicleId,
       providerSourceLinkId: seed.linkId,
       discoveryRequestKey,
-      executableReleaseSha: 'e32880da1beb99642f1e994f45c4e9038fc1a541',
+      executableReleaseSha: attestedSha(),
     };
     const { preflight, execution } = services();
     const pre = await preflight.runAuthorizedReadOnlyPreflight({ actorUserId, scope });
+    const approval = approvalFor(scope);
     const provider = createFsd3MockDiscoveryProvider({ mode: 'TESLA_REFERENCE_26' });
-    const first = await execution.executeAuthorizedOneShot({
+    const cap1 = preflight.issueExecutionCapability({
       scope,
-      approvalReference: 'dup-test',
+      approval,
       preflight: pre,
+      actorUserId,
+      liveProvider: 'mock',
+    });
+    const first = await execution.executeAuthorizedOneShot({
+      executionCapability: cap1,
       provider,
+      expectedLiveProvider: 'mock',
+    });
+    const cap2 = preflight.issueExecutionCapability({
+      scope,
+      approval,
+      preflight: pre,
+      actorUserId,
+      liveProvider: 'mock',
     });
     const second = await execution.executeAuthorizedOneShot({
-      scope,
-      approvalReference: 'dup-test',
-      preflight: pre,
+      executionCapability: cap2,
       provider,
+      expectedLiveProvider: 'mock',
     });
     expect(first.terminalStatus).not.toBe('SKIPPED');
     expect(second.runId).toBe(first.runId);

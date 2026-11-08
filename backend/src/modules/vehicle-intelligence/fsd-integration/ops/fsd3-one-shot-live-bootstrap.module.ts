@@ -1,14 +1,9 @@
-import { Module, forwardRef } from '@nestjs/common';
-import { DimoModule } from '@modules/dimo/dimo.module';
-import { FsdDimoAdapterFactoryService } from '../fsd-dimo-adapter-factory.service';
-import { FsdDiscoveryOpsModule } from './fsd-discovery-ops.module';
+import { Module } from '@nestjs/common';
+import { Fsd3OneShotDimoLiveSliceModule } from './fsd3-one-shot-dimo-live-slice.module';
 
-/**
- * Live DIMO dispatch bootstrap for the one-shot CLI only — not loaded for mock/offline modes.
- */
+/** Live DIMO dispatch bootstrap for the one-shot CLI only — not loaded for mock/offline modes. */
 @Module({
-  imports: [FsdDiscoveryOpsModule, forwardRef(() => DimoModule)],
-  providers: [FsdDimoAdapterFactoryService],
-  exports: [FsdDimoAdapterFactoryService, FsdDiscoveryOpsModule],
+  imports: [Fsd3OneShotDimoLiveSliceModule],
+  exports: [Fsd3OneShotDimoLiveSliceModule],
 })
 export class Fsd3OneShotLiveBootstrapModule {}
