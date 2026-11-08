@@ -9791,6 +9791,8 @@ export interface VehicleServiceEventRecord {
   updatedAt: string;
 }
 
+export type ServiceEventServiceKind = 'INSPECTION_SMALL' | 'INSPECTION_LARGE';
+
 export interface CreateVehicleServiceEventInput {
   eventType: ServiceEventType;
   eventDate: string;
@@ -9801,6 +9803,11 @@ export interface CreateVehicleServiceEventInput {
   provider?: string;
   documentUrl?: string;
   origin?: ServiceEventOrigin;
+  /** Structured performed work items (proof) — used by the maintenance forecast coverage rules. */
+  performedWork?: string[];
+  serviceKind?: ServiceEventServiceKind;
+  /** Skip the same-day/same-odometer duplicate guard after explicit user confirmation. */
+  allowDuplicate?: boolean;
 }
 
 export interface UpdateVehicleServiceEventInput {
@@ -9813,14 +9820,115 @@ export interface UpdateVehicleServiceEventInput {
   provider?: string | null;
   documentUrl?: string | null;
   origin?: ServiceEventOrigin;
+  performedWork?: string[] | null;
+  serviceKind?: ServiceEventServiceKind | null;
 }
 
 export type ServiceTrackingStatus = 'TRACKED' | 'NO_TRACKING' | 'STALE';
 export type ServiceComplianceSeverity = 'GOOD' | 'WARNING' | 'CRITICAL' | 'INFO';
+export type ServiceNextSource = 'HM_OEM' | 'COMPUTED_ONEAUTO_SCHEDULE' | 'COMPUTED_MANUAL_INTERVAL' | null;
+
+// ── Service Info V2: provider-agnostic deterministic maintenance forecast ──
+export type MaintenancePositionKind = 'INSPECTION' | 'INSPECTION_SMALL' | 'INSPECTION_LARGE' | 'OIL_CHANGE' | 'OTHER';
+export type MaintenanceIntervalMode = 'RECURRING' | 'ABSOLUTE_MILESTONE';
+export type MaintenanceScheduleSource = 'HM_OEM' | 'ONEAUTO_SCHEDULE' | 'MANUAL_INTERVAL' | 'NONE';
+export type MaintenanceEventSource =
+  | 'SERVICE_EVENT_MANUAL'
+  | 'SERVICE_EVENT_OCR'
+  | 'SERVICE_EVENT_ONEAUTO'
+  | 'SERVICE_EVENT_WORKSHOP'
+  | 'VEHICLE_MASTER_DATA'
+  | 'NONE';
+export type MaintenanceOdometerSource = 'HM_OEM' | 'VEHICLE_LATEST_STATE' | 'VEHICLE_MASTER_DATA' | 'NONE';
+export type MaintenanceCalculationMethod = 'OEM_REMAINING' | 'COMPUTED_FROM_SCHEDULE_AND_HISTORY' | 'NOT_COMPUTABLE';
+export type MaintenanceDueState = 'OK' | 'DUE_SOON' | 'OVERDUE' | 'NO_BASELINE' | 'NO_INTERVAL';
+export type MaintenanceComputationMode = 'KM_AND_TIME' | 'TIME_ONLY' | 'KM_ONLY' | 'NONE';
+export type MaintenanceDataQualityFlag =
+  | 'ODOMETER_MISSING'
+  | 'ODOMETER_STALE'
+  | 'ODOMETER_TIMESTAMP_UNKNOWN'
+  | 'ODOMETER_BELOW_BASELINE'
+  | 'BASELINE_ODOMETER_MISSING'
+  | 'BASELINE_FROM_MASTER_DATA'
+  | 'SCHEDULE_POSITION_UNSCHEDULED'
+  | 'SCHEDULE_VARIANTS_COLLAPSED'
+  | 'SCHEDULE_MISSING'
+  | 'HISTORY_MISSING'
+  | 'CONFLICT_HM_VS_COMPUTED';
+
+export interface MaintenanceProvenance {
+  scheduleSource: MaintenanceScheduleSource;
+  eventSource: MaintenanceEventSource;
+  odometerSource: MaintenanceOdometerSource;
+  calculationMethod: MaintenanceCalculationMethod;
+}
+
+export interface MaintenanceBaselineRef {
+  date: string | null;
+  odometerKm: number | null;
+  eventId: string | null;
+  eventType: string | null;
+  eventSource: MaintenanceEventSource;
+}
+
+export interface MaintenancePositionForecast {
+  positionId: string;
+  kind: MaintenancePositionKind;
+  label: string;
+  intervalMode: MaintenanceIntervalMode;
+  intervalKm: number | null;
+  intervalMonths: number | null;
+  rawIntervalDescription: string | null;
+  baseline: MaintenanceBaselineRef | null;
+  dueAtKm: number | null;
+  dueAtDate: string | null;
+  remainingKm: number | null;
+  remainingDays: number | null;
+  remainingMonths: number | null;
+  dueState: MaintenanceDueState;
+  computationMode: MaintenanceComputationMode;
+  severity: ServiceComplianceSeverity;
+  provenance: MaintenanceProvenance;
+  dataQuality: MaintenanceDataQualityFlag[];
+}
+
+export interface MaintenanceConflict {
+  code: 'CONFLICT_HM_VS_COMPUTED' | 'ODOMETER_BELOW_BASELINE';
+  positionId: string | null;
+  hmRemainingKm: number | null;
+  computedRemainingKm: number | null;
+  hmRemainingDays: number | null;
+  computedRemainingDays: number | null;
+}
+
+export interface MaintenanceForecastResult {
+  computedAt: string;
+  positions: MaintenancePositionForecast[];
+  unscheduledPositions: Array<{ positionId: string; label: string; scheduleSource: MaintenanceScheduleSource }>;
+  nextDue: MaintenancePositionForecast | null;
+  lastRelevantMaintenance: MaintenanceBaselineRef | null;
+  hmOem: {
+    distanceToNextServiceKm: number | null;
+    timeToNextServiceDays: number | null;
+    lastUpdatedAt: string | null;
+    fresh: boolean;
+  } | null;
+  odometer: { km: number; observedAt: string | null; source: MaintenanceOdometerSource } | null;
+  conflicts: MaintenanceConflict[];
+  dataQuality: MaintenanceDataQualityFlag[];
+  freshness: {
+    odometerObservedAt: string | null;
+    scheduleFetchedAt: string | null;
+    hmLastUpdatedAt: string | null;
+    latestEventDate: string | null;
+  };
+  scheduleSources: MaintenanceScheduleSource[];
+  eventSources: MaintenanceEventSource[];
+}
 
 export interface NextServiceCompliance {
   trackingStatus: ServiceTrackingStatus;
-  source: 'HM_OEM' | null;
+  source: ServiceNextSource;
   distanceToNextServiceKm: number | null;
   timeToNextServiceDays: number | null;
   lastUpdatedAt: string | null;
@@ -9833,10 +9941,25 @@ export interface NextServiceCompliance {
   hmDistanceFromOem: boolean;
   hmTimeFromOem: boolean;
   hmDerivedDueDate: string | null;
+  projectedDueDate?: string | null;
+  positionKind?: MaintenancePositionKind | null;
+  positionId?: string | null;
+  provenance?: MaintenanceProvenance | null;
+  dataQuality?: MaintenanceDataQualityFlag[];
+  conflicts?: MaintenanceConflict[];
+  computedComparison?: {
+    source: 'COMPUTED_ONEAUTO_SCHEDULE' | 'COMPUTED_MANUAL_INTERVAL';
+    positionId: string;
+    remainingKm: number | null;
+    remainingDays: number | null;
+    projectedDueDate: string | null;
+  } | null;
 }
 
 export interface ServiceInfoStatus {
   nextService?: NextServiceCompliance;
+  /** Service Info V2 per-position forecast (null when the vehicle could not be loaded). */
+  maintenanceForecast?: MaintenanceForecastResult | null;
   hasServiceHistory?: boolean;
   hasServiceBaseline: boolean;
   serviceRemainingPercent: number | null;

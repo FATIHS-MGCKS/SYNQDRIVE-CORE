@@ -77,7 +77,7 @@ export function mapNextServiceToDisplayItem(next: NextServiceComplianceDto): Com
     label: 'Next service',
     status,
     uiStatus,
-    validTill: next.hmDerivedDueDate,
+    validTill: next.projectedDueDate ?? next.hmDerivedDueDate,
     lastDate: next.lastUpdatedAt,
     source: 'service_compliance_service',
     detail: next.message,

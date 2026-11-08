@@ -17,6 +17,7 @@ import type { VehicleHealthBoxData } from './useVehicleHealthBoxData';
 import type { VehicleHealthResponse } from '../../../lib/api';
 import type { VehicleData } from '../../data/vehicles';
 import { SegmentedHealthIndicator } from '../health/SegmentedHealthIndicator';
+import { useLanguage } from '../../../i18n/LanguageContext';
 
 export interface VehicleHealthBoxProps {
   selectedVehicle: VehicleData | null;
@@ -150,7 +151,7 @@ function UntrackedModulesInfo({ untrackedCount }: { untrackedCount: number }) {
   );
 }
 
-function ComplianceGrid({ vm }: { vm: VehicleHealthBoxViewModel }) {
+function ComplianceGrid({ vm, t, formattingLocale }: { vm: VehicleHealthBoxViewModel; t: (key: import('../../../i18n/LanguageContext').TranslationKey, vars?: Record<string, string | number>) => string; formattingLocale: string }) {
   const nsDisplay = vm.nsDisplay;
   const tuvCompliance = vm.tuvCompliance;
   const bokCompliance = vm.bokCompliance;
@@ -160,28 +161,22 @@ function ComplianceGrid({ vm }: { vm: VehicleHealthBoxViewModel }) {
   const bokraftTone = complianceToneClass(bokCompliance.tone);
 
   const svcStatusText = (() => {
-    if (nsDisplay.trackingStatus === 'NO_TRACKING') return 'Kein Tracking';
-    if (nsDisplay.trackingStatus === 'STALE') return 'Veraltet';
-    const { days, km } = nsDisplay.daysKm;
-    if (nsDisplay.showHmOverdueHint) {
-      const parts: string[] = [];
-      if (days != null && days < 0) parts.push(`${Math.abs(days)} T`);
-      if (km != null && km < 0) parts.push(`${Math.abs(km).toLocaleString('de-DE')} km`);
-      return parts.length ? `−${parts.join(' / ')}` : 'Überfällig';
+    if (nsDisplay.trackingStatus === 'LOADING' || nsDisplay.trackingStatus === 'ERROR') {
+      return nsDisplay.primaryLine;
     }
-    if (days != null && days >= 0 && days <= 90) return `in ${days} T`;
-    if (days != null && days > 90) return `in ${Math.round(days / 30)} M`;
-    if (km != null && km >= 0) return `${km.toLocaleString('de-DE')} km`;
-    return nsDisplay.badge ?? 'HM/OEM';
+    if (nsDisplay.trackingStatus === 'NO_TRACKING') return nsDisplay.badge ?? t('health.serviceInfo.v2.badge.noBasis');
+    if (nsDisplay.trackingStatus === 'STALE') return nsDisplay.badge ?? t('health.serviceInfo.v2.badge.stale');
+    if (nsDisplay.showHmOverdueHint) return nsDisplay.badge ?? t('health.serviceInfo.v2.badge.overdue');
+    const { days, km } = nsDisplay.daysKm;
+    if (days != null && days >= 0 && days <= 90) return t('health.serviceInfo.v2.remaining.days', { days });
+    if (days != null && days > 90) return t('health.serviceInfo.v2.remaining.months', { months: Math.round(days / 30) });
+    if (km != null && km >= 0) return t('health.serviceInfo.v2.remaining.km', { km: Math.round(km).toLocaleString(formattingLocale) });
+    return nsDisplay.badge ?? '—';
   })();
 
   const svcSubText = (() => {
-    if (nsDisplay.trackingStatus === 'NO_TRACKING') return 'HM/OEM ohne Daten';
-    if (nsDisplay.trackingStatus === 'STALE') return 'HM/OEM veraltet';
-    if (nsDisplay.showHmOverdueHint) return 'überfällig';
-    const { km } = nsDisplay.daysKm;
-    if (km != null && km >= 0) return `${km.toLocaleString('de-DE')} km`;
-    return 'Von HM/OEM';
+    if (nsDisplay.sourceLine) return nsDisplay.sourceLine;
+    return nsDisplay.primaryLine;
   })();
 
   const items = [
@@ -281,6 +276,7 @@ export function VehicleHealthBox({
   onViewDetails,
   showDataBasis = true,
 }: VehicleHealthBoxProps) {
+  const { t, formattingLocale } = useLanguage();
   const vm = buildVehicleHealthBoxViewModel({
     rentalHealth,
     rentalHealthLoading,
@@ -294,6 +290,7 @@ export function VehicleHealthBox({
     healthTabSummary: boxData.healthTabSummary,
     vehicleTiresFallback: selectedVehicle?.tires ?? 0,
     lvBatteryVoltage,
+    serviceDisplay: { t, formattingLocale },
   });
 
   const divider = <div className="border-t my-3 border-border" />;
@@ -363,7 +360,7 @@ export function VehicleHealthBox({
       <HealthModuleRows vm={vm} isDarkMode={isDarkMode} />
       <UntrackedModulesInfo untrackedCount={vm.untrackedCount} />
       <div className={vm.untrackedCount <= 0 ? 'mt-2' : undefined}>
-        <ComplianceGrid vm={vm} />
+        <ComplianceGrid vm={vm} t={t} formattingLocale={formattingLocale} />
       </div>
 
       {vm.findings.length > 0 && (

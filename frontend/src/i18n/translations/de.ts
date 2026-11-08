@@ -62,6 +62,7 @@ import { tripsM7aMapDE } from './trips-m7a-map.de';
 import { masterPlatformOpsDiS4De } from './master.platformOps.diS4.de';
 import { batteryV2HvInspectionDE } from './battery-v2-hv-inspection.de';
 import { tireWearV3De } from './tire.wearV3.de';
+import { serviceIntelligenceDe } from './service-intelligence.de';
 import { masterPhysicalDeviceInventoryDe } from './master.physicalDeviceInventory.de';
 import { masterIntelligenceDe } from './master.intelligence.de';
 import { masterMotionPhysicsDe } from './master.motionPhysics.de';
@@ -6034,4 +6035,5 @@ export const de: Record<TranslationKey, string> = {
   ...masterCvOemSpecsDe,
   ...batteryV2HvInspectionDE,
   ...tireWearV3De,
+  ...serviceIntelligenceDe,
 } satisfies CompleteTranslationDictionary;

@@ -108,6 +108,19 @@ export const DOCUMENT_FIELD_SCHEMAS: Record<ApplyDocumentExtractionType, FieldDe
     { key: 'invoiceNumber', label: 'Invoice number', type: 'string' },
     { key: 'nextServiceDate', label: 'Next service date', type: 'date' },
     { key: 'nextServiceMileageKm', label: 'Next service mileage (km)', type: 'number' },
+    {
+      key: 'serviceKind',
+      label: 'Inspection scope',
+      type: 'enum',
+      enumValues: ['INSPECTION_SMALL', 'INSPECTION_LARGE'],
+      hint: 'Only when the document explicitly states small/large (e.g. "kleine/große Inspektion") — otherwise leave empty',
+    },
+    {
+      key: 'performedWork',
+      label: 'Performed work items',
+      type: 'string',
+      hint: 'JSON array of strings or one item per line — only work explicitly documented as performed (no quotes/offers)',
+    },
   ],
   OIL_CHANGE: [
     ...COMMON_EVENT,
@@ -116,6 +129,12 @@ export const DOCUMENT_FIELD_SCHEMAS: Record<ApplyDocumentExtractionType, FieldDe
     { key: 'notes', label: 'Notes', type: 'string' },
     { key: 'nextOilChangeDate', label: 'Next oil change date', type: 'date' },
     { key: 'nextOilChangeMileageKm', label: 'Next oil change mileage (km)', type: 'number' },
+    {
+      key: 'performedWork',
+      label: 'Performed work items',
+      type: 'string',
+      hint: 'JSON array of strings or one item per line — only work explicitly documented as performed',
+    },
   ],
   TIRE: [
     { key: 'measurementDate', label: 'Measurement date', type: 'date', hint: 'Required for apply — ISO date YYYY-MM-DD' },

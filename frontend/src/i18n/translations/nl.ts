@@ -7,6 +7,7 @@ import { dimoWebhookHealthNl } from './dimo-webhook-health.nl';
 import { masterPlatformOpsDiS4Nl } from './master.platformOps.diS4.nl';
 import { batteryV2HvInspectionNL } from './battery-v2-hv-inspection.nl';
 import { tireWearV3Nl } from './tire.wearV3.nl';
+import { serviceIntelligenceNl } from './service-intelligence.nl';
 import { masterPhysicalDeviceInventoryNl } from './master.physicalDeviceInventory.nl';
 import { masterIntelligenceNl } from './master.intelligence.nl';
 import { masterMotionPhysicsNl } from './master.motionPhysics.nl';
@@ -214,4 +215,5 @@ export const nl = {
   ...masterCvOemSpecsNl,
   ...batteryV2HvInspectionNL,
   ...tireWearV3Nl,
+  ...serviceIntelligenceNl,
 } satisfies PartialTranslationDictionary;

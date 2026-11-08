@@ -5,6 +5,7 @@ import { masterCvTechnicalSpecsTr } from './master.cv.technicalSpecs.tr';
 import { masterCvOemSpecsTr } from './master.cv.oemSpecs.tr';
 import { masterIntelligenceTr } from './master.intelligence.tr';
 import { tireWearV3Tr } from './tire.wearV3.tr';
+import { serviceIntelligenceTr } from './service-intelligence.tr';
 
 /**
  * Turkish product-copy dictionary (partial).
@@ -47,4 +48,5 @@ export const tr = {
   'health.aiTireSpec.identityMismatch':
     'AI spesifikasyon kimliği kurulum veya istek ile eşleşmiyor.',
   ...tireWearV3Tr,
+  ...serviceIntelligenceTr,
 } satisfies PartialTranslationDictionary;

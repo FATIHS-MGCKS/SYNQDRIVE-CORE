@@ -84,7 +84,7 @@ export function buildServiceOverdueTaskContext(input: {
     overdueKm: overdueByKm && remainingKm != null ? Math.abs(remainingKm) : null,
     remainingDays: remainingDays != null && remainingDays >= 0 ? remainingDays : null,
     remainingKm: remainingKm != null && remainingKm >= 0 ? remainingKm : null,
-    hmDerivedDueDate: nextService.hmDerivedDueDate,
+    hmDerivedDueDate: nextService.projectedDueDate ?? nextService.hmDerivedDueDate,
     lastServiceDate,
     lastServiceOdometerKm: vehicle?.lastServiceOdometerKm ?? null,
     currentOdometerKm,

@@ -26,7 +26,13 @@ export type ServiceApplyPayload = {
   workshopName: string | null;
   notes: string | null;
   costCents: number | null;
+  /** Structured performed-work items confirmed by the user (never free-text notes). */
+  performedWork: string[];
+  serviceKind: 'INSPECTION_SMALL' | 'INSPECTION_LARGE' | null;
 };
+
+const PERFORMED_WORK_MAX_ITEMS = 40;
+const PERFORMED_WORK_ITEM_MAX = 300;
 
 function toStr(value: unknown): string | null {
   if (typeof value === 'string' && value.trim().length > 0) return value.trim();
@@ -74,6 +80,41 @@ export function readServiceCostCents(data: Record<string, unknown>): number | nu
 
 export function readServiceNotes(data: Record<string, unknown>): string | null {
   return toStr(data.notes) ?? toStr(data.description);
+}
+
+/** Accepts a JSON array, an array value, or newline/semicolon-separated lines. */
+export function readServicePerformedWork(data: Record<string, unknown>): string[] {
+  const raw = data.performedWork ?? data.serviceActions ?? data.workItems;
+  let items: unknown[] = [];
+  if (Array.isArray(raw)) {
+    items = raw;
+  } else if (typeof raw === 'string' && raw.trim()) {
+    const text = raw.trim();
+    if (text.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) items = parsed;
+      } catch {
+        items = [];
+      }
+    }
+    if (items.length === 0) {
+      items = text.split(/\r?\n|;/);
+    }
+  }
+  const out: string[] = [];
+  for (const item of items) {
+    const str = typeof item === 'string' ? item : item && typeof item === 'object' && 'label' in item ? String((item as { label: unknown }).label) : '';
+    const trimmed = str.trim().replace(/^[-•*]\s*/, '').slice(0, PERFORMED_WORK_ITEM_MAX);
+    if (trimmed && !out.includes(trimmed)) out.push(trimmed);
+    if (out.length >= PERFORMED_WORK_MAX_ITEMS) break;
+  }
+  return out;
+}
+
+export function readServiceKind(data: Record<string, unknown>): 'INSPECTION_SMALL' | 'INSPECTION_LARGE' | null {
+  const raw = toStr(data.serviceKind)?.toUpperCase();
+  return raw === 'INSPECTION_SMALL' || raw === 'INSPECTION_LARGE' ? raw : null;
 }
 
 export function resolveServiceEventType(documentType: ServiceDocumentType): ServiceEventType {
@@ -126,5 +167,7 @@ export function buildServiceApplyPayload(
     workshopName: readServiceWorkshopName(fields),
     notes: readServiceNotes(fields),
     costCents: readServiceCostCents(fields),
+    performedWork: readServicePerformedWork(fields),
+    serviceKind: documentType === SERVICE_DOCUMENT_TYPES.SERVICE ? readServiceKind(fields) : null,
   };
 }

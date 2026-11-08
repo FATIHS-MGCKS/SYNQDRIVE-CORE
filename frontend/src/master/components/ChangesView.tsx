@@ -49,29 +49,29 @@ export const FALLBACK_ENTRIES: ChangelogEntry[] = [
     previousBehavior:
       'P6B draft stacked L2 signing, trust files, pre-Node git attestation, and HMAC capability minting before orchestration.',
     details:
-      'backend/scripts/ops/fsd3-live-discovery-one-shot.ts, fsd-integration/ops/{preflight,execution,types,live-owner-gate}; architecture/fsd/P6B_*.md; workflow path trim.',
+      'backend/scripts/ops/fsd3-live-discovery-one-shot.ts, fsd-integration/ops/{preflight,execution,types,live-owner-gate}; architecture/fsd/P6B_*.md.',
     affectsArchitecture: true,
     module: 'Vehicle Intelligence',
     createdAt: '2026-11-08T17:50:00.000Z',
   },
   {
-    id: 'fsd-p6b-h1-pre-node-trust-closeout-2026-11-08',
-    version: '4.9.5030',
-    title: 'FSD P6B — pre-Node trust closeout (privileged one-shot, non-activating)',
+    id: 'service-info-v2-provider-agnostic-maintenance-2026-11-08',
+    version: '4.9.50',
+    title: 'Service Info V2 — provider-agnostic deterministic maintenance forecast',
     summary: [
-      'Pre-node attestation runs in plain Node before tsx loads Nest modules; launcher forbids operator RELAXED/SKIP bypass env and npx tsx fallback.',
-      'Live entry is bootstrap → dynamic main import; direct tsx on legacy CLI path is rejected. Adversarial tests cover skip-worktree, poisoned imports, and trust-anchor uid/mode matrix.',
-      'No FSD live activation, no production trust-store install; VPS release tree must be non-operator-writable for go-live.',
+      'Pure maintenance engine (schedule + proven events + odometer); HM OEM optional with computed comparison and conflicts; no new OneAuto requests.',
+      'ServiceComplianceService exposes maintenanceForecast + ServiceNextSource; manual/OCR performedWork + serviceKind; duplicate guard SERVICE_EVENT_DUPLICATE.',
+      'Rental Health Service modal: ServiceMaintenanceForecastPanel, upload + manual entry + manual intervals; i18n health.serviceInfo.v2.* (9 locales).',
     ],
     reason:
-      'Opus H1: executable attestation and trusted launcher were bypassable; static imports ran before SHA attestation.',
+      'Service tracking must work without HM and must not conflate OEM remaining km with SYNQDRIVE-computed schedule forecasts.',
     previousBehavior:
-      'Operator env could relax attestation; launcher could fall back to npx --yes tsx; one-shot CLI imported Nest graph at module load.',
+      'Next Service was HM/OEM-only in UI; NO_TRACKING implied missing HM; history did not structure work items for forecast coverage.',
     details:
-      'backend/scripts/ops/fsd3-one-shot-pre-node-attest.mjs, fsd3-live-discovery-one-shot.{bootstrap,main}.ts, fsd-integration/ops/*; architecture/fsd/P6B_PRIVILEGED_ONE_SHOT_EXECUTION_V1.md; .github/workflows/fsd-p5a-ci.yml.',
+      'backend: maintenance-forecast/*, ServiceComplianceService; frontend: service-info-display.ts, ServiceMaintenanceForecastPanel; architecture/service-events-compliance/',
     affectsArchitecture: true,
     module: 'Vehicle Intelligence',
-    createdAt: '2026-11-08T16:30:00.000Z',
+    createdAt: '2026-11-08T14:50:00.000Z',
   },
   {
     id: 'oneauto-oe-service-schedule-failed-callback-recovery-p1-2026-11-06',
