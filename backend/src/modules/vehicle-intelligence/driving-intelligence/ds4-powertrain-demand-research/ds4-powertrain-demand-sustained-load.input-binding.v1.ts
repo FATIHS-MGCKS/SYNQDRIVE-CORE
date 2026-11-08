@@ -17,7 +17,8 @@ import { multichannelHasRpmLabels, validateZeroRpmPathFailClosed } from './ds4-p
 import { canonicalizeMultichannelObservations, verifyMultichannelRpmParityWithV1a } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
 import { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from './ds4-powertrain-demand-sustained-load-reference.v1';
 import {
-  validateSustainedLoadZeroRpmPowertrainFailClosed,
+  validateSustainedLoadPowertrainBindingAllPaths,
+  validateSustainedLoadZeroRpmConventionalIceAdmission,
   validateSustainedLoadZeroRpmTripAdmission,
 } from './ds4-powertrain-demand-sustained-load-powertrain.v1';
 
@@ -163,6 +164,8 @@ export function validateDs4PowertrainDemandSustainedLoadInputBinding(
   const family = resolveTelemetrySourceFamily(input.dimoVehicleRawJson);
   if (family === 'UNKNOWN') reasonCodes.push('TELEMETRY_SOURCE_FAMILY_UNKNOWN');
 
+  const powertrainClass = validateSustainedLoadPowertrainBindingAllPaths(input, reasonCodes);
+
   const canonPreview = validateCanonicalMultichannelGrid(input, tripStartMs, tripEndMs, reasonCodes);
   const v1aHasRpm = tripInput.rpmPoints.length > 0;
   const multichannelHasRpm = multichannelHasRpmLabels(canonPreview);
@@ -193,7 +196,7 @@ export function validateDs4PowertrainDemandSustainedLoadInputBinding(
     }
     validateSustainedLoadZeroRpmTripAdmission(input, reasonCodes);
     validateZeroRpmPathFailClosed(input, reasonCodes);
-    validateSustainedLoadZeroRpmPowertrainFailClosed(input, reasonCodes);
+    validateSustainedLoadZeroRpmConventionalIceAdmission(input, powertrainClass, reasonCodes);
     if (v1bResult != null) {
       const fp = fingerprintsMatch(input);
       if (!fp.ok) reasonCodes.push('V1B_INPUT_FINGERPRINT_MISMATCH');
@@ -209,7 +212,6 @@ export function validateDs4PowertrainDemandSustainedLoadInputBinding(
   const expectedMcFp = validateMultichannelFingerprint(input, family, reasonCodes);
   validateOfflineManifestAttestation(input, family, expectedMcFp, canonPreview, reasonCodes);
 
-  if (input.isEvPowertrain) reasonCodes.push('POWERTRAIN_NOT_APPLICABLE');
   if (input.declaredIceOperationConfirmed === true) reasonCodes.push('ICE_CONFIRMATION_CALLER_ONLY');
 
   appendV1bSequenceParityMismatchIfApplicable(input, rpmEvidencePresent, reasonCodes);

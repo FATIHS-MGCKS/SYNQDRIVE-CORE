@@ -1,8 +1,9 @@
 import { createHash } from 'crypto';
+import { COLD_ENGINE_SHADOW_POLICY } from '../../shadow-detector/detectors/cold-engine-shadow.policy';
 import {
-  COLD_ENGINE_SHADOW_POLICY,
-  isPhevFuelType,
-} from '../../shadow-detector/detectors/cold-engine-shadow.policy';
+  classifySustainedLoadPowertrainV1,
+  sustainedLoadRequiresSequenceIceRpmConfirmation,
+} from './ds4-powertrain-demand-sustained-load-powertrain.v1';
 import type {
   Ds4GapAwareSustainedLoadCandidateV1,
   Ds4SustainedLoadEntryBranchV1,
@@ -62,7 +63,7 @@ function resolvePhevIceConfirmedInCandidateSequence(
 
 function sequenceMeetsAdmission(
   slice: SequenceSlice,
-  fuelType: string | null,
+  powertrainClass: ReturnType<typeof classifySustainedLoadPowertrainV1>['powertrainClass'],
 ): { ok: boolean; maxGapMs: number; peakLoad: number } {
   const buckets = slice.buckets;
   if (buckets.length < DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.minObservations) {
@@ -81,7 +82,10 @@ function sequenceMeetsAdmission(
       return { ok: false, maxGapMs, peakLoad: 0 };
     }
   }
-  if (isPhevFuelType(fuelType) && !resolvePhevIceConfirmedInCandidateSequence(buckets)) {
+  if (
+    sustainedLoadRequiresSequenceIceRpmConfirmation(powertrainClass) &&
+    !resolvePhevIceConfirmedInCandidateSequence(buckets)
+  ) {
     return { ok: false, maxGapMs, peakLoad: 0 };
   }
   const peakLoad = Math.max(...buckets.map((b) => b.loadPct ?? 0));
@@ -98,8 +102,10 @@ export function detectGapAwareSustainedLoadCandidates(input: {
   tripId: string;
   providerSourceLinkId: string;
   fuelType: string | null;
+  isEvPowertrain: boolean;
   canon: Ds4MultichannelCanonicalizeResultV1;
 }): Ds4GapAwareSustainedLoadDetectResultV1 {
+  const { powertrainClass } = classifySustainedLoadPowertrainV1(input.fuelType, input.isEvPowertrain);
   const sorted = [...input.canon.buckets].sort((a, b) => a.recordedAtMs - b.recordedAtMs);
   const candidates: Ds4GapAwareSustainedLoadCandidateV1[] = [];
   let entryLabelCount = 0;
@@ -123,7 +129,7 @@ export function detectGapAwareSustainedLoadCandidates(input: {
       return;
     }
     longestRunLabelCount = Math.max(longestRunLabelCount, active.buckets.length);
-    const admission = sequenceMeetsAdmission(active, input.fuelType);
+    const admission = sequenceMeetsAdmission(active, powertrainClass);
     if (!admission.ok) {
       active = null;
       return;

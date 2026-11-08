@@ -146,6 +146,7 @@ export function computeDs4PowertrainDemandSustainedLoadResearchV1(
     tripId: input.tripId,
     providerSourceLinkId: input.providerSourceLinkId,
     fuelType: input.fuelType,
+    isEvPowertrain: input.isEvPowertrain,
     canon,
   });
 

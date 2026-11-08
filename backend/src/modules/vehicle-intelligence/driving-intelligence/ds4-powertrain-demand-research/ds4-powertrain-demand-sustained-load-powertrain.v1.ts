@@ -66,28 +66,41 @@ export function classifySustainedLoadPowertrainV1(
   return { powertrainClass: 'UNKNOWN', contradictoryEvIceClaim: false };
 }
 
-/** Zero-RPM sustained-load path only — does not affect RPM-path detector classification. */
-export function validateSustainedLoadZeroRpmPowertrainFailClosed(
+export function sustainedLoadRequiresSequenceIceRpmConfirmation(
+  powertrainClass: Ds4SustainedLoadPowertrainClassV1,
+): boolean {
+  return powertrainClass === 'PHEV' || powertrainClass === 'HYBRID_HEV';
+}
+
+/** RPM-present and zero-RPM binding — BEV and unknown fuel fail closed at bind time. */
+export function validateSustainedLoadPowertrainBindingAllPaths(
   input: Ds4SustainedLoadResearchInputV1,
   reasonCodes: Ds4PowertrainDemandBindingAbstainReason[],
-): void {
+): Ds4SustainedLoadPowertrainClassV1 {
   const { powertrainClass, contradictoryEvIceClaim } = classifySustainedLoadPowertrainV1(
     input.fuelType,
     input.isEvPowertrain,
   );
 
-  if (contradictoryEvIceClaim) {
+  if (contradictoryEvIceClaim || powertrainClass === 'BEV') {
     reasonCodes.push('POWERTRAIN_NOT_APPLICABLE');
-    return;
-  }
-
-  if (powertrainClass === 'BEV') {
-    reasonCodes.push('POWERTRAIN_NOT_APPLICABLE');
-    return;
-  }
-
-  if (powertrainClass === 'PHEV' || powertrainClass === 'HYBRID_HEV' || powertrainClass === 'UNKNOWN') {
+  } else if (powertrainClass === 'UNKNOWN') {
     reasonCodes.push('ICE_OPERATION_NOT_CONFIRMED');
+  }
+
+  return powertrainClass;
+}
+
+/** Zero-RPM conventional ICE only — after shared all-paths classification. */
+export function validateSustainedLoadZeroRpmConventionalIceAdmission(
+  input: Ds4SustainedLoadResearchInputV1,
+  powertrainClass: Ds4SustainedLoadPowertrainClassV1,
+  reasonCodes: Ds4PowertrainDemandBindingAbstainReason[],
+): void {
+  if (powertrainClass !== 'CONVENTIONAL_ICE') {
+    if (powertrainClass === 'PHEV' || powertrainClass === 'HYBRID_HEV') {
+      reasonCodes.push('ICE_OPERATION_NOT_CONFIRMED');
+    }
     return;
   }
 

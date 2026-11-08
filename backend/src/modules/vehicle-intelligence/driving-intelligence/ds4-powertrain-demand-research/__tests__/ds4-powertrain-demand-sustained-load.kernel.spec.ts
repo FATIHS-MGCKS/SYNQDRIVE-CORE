@@ -176,6 +176,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
       tripId: TRIP,
       providerSourceLinkId: 'link',
       fuelType: 'GASOLINE',
+      isEvPowertrain: false,
       canon,
     });
     expect(direct.candidates).toHaveLength(1);
@@ -362,9 +363,84 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
         tripId: TRIP,
         providerSourceLinkId: 'link',
         fuelType: 'GASOLINE',
+        isEvPowertrain: false,
         canon,
       });
       expect(direct.candidates).toHaveLength(1);
+    });
+  });
+
+  describe('all-paths powertrain classification', () => {
+    function hybridRun(map: (seq: number) => Record<string, unknown>) {
+      return buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: (seq) => map(seq) as never });
+    }
+
+    it('A: PLUG_IN_HYBRID with one qualifying local RPM and throttle => no candidate', () => {
+      const grid = hybridRun((seq) => ({
+        loadPct: 80,
+        rpm: seq === 0 ? 450 : null,
+        throttlePct: 70,
+      }));
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP, fuelType: 'PLUG_IN_HYBRID' }),
+      );
+      expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(0);
+    });
+
+    it('B: PLUG_IN_HYBRID with three qualifying local RPM labels => candidate admitted', () => {
+      const grid = hybridRun((seq) => ({
+        loadPct: 80,
+        rpm: seq < 3 ? 500 : null,
+        throttlePct: 70,
+      }));
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP, fuelType: 'PLUG_IN_HYBRID' }),
+      );
+      expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(1);
+    });
+
+    it('C: HYBRID with insufficient local RPM evidence => no candidate', () => {
+      const grid = hybridRun((seq) => ({
+        loadPct: 80,
+        rpm: seq < 2 ? 500 : null,
+        throttlePct: 70,
+      }));
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP, fuelType: 'HYBRID' }),
+      );
+      expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(0);
+    });
+
+    it('D: ELECTRIC with isEvPowertrain=false and RPM grid => ABSTAINED NOT_APPLICABLE', () => {
+      const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
+        buildBoundPowertrainInput({
+          multichannelObservations: grid,
+          tripId: TRIP,
+          fuelType: 'ELECTRIC',
+          isEvPowertrain: false,
+        }),
+      );
+      expect(out.status).toBe('ABSTAINED');
+      expect(out.abstainReasons).toContain('POWERTRAIN_NOT_APPLICABLE');
+    });
+
+    it('E: fuelType=null with RPM present => fail closed', () => {
+      const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
+      const input = buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP });
+      input.fuelType = null;
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(input);
+      expect(out.status).toBe('ABSTAINED');
+      expect(out.abstainReasons).toContain('ICE_OPERATION_NOT_CONFIRMED');
+    });
+
+    it('F: GASOLINE with valid RPM evidence => positive control unchanged', () => {
+      const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP, fuelType: 'GASOLINE' }),
+      );
+      expect(out.status).toBe('COMPUTED');
+      expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(1);
     });
   });
 
@@ -398,6 +474,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
         tripId: TRIP,
         providerSourceLinkId: 'link',
         fuelType: 'PHEV',
+        isEvPowertrain: false,
         canon,
       });
       expect(d.candidates).toHaveLength(0);
@@ -416,6 +493,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
           tripId: TRIP,
           providerSourceLinkId: 'link',
           fuelType: 'PHEV',
+          isEvPowertrain: false,
           canon,
         }).candidates,
       ).toHaveLength(0);
@@ -434,6 +512,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
           tripId: TRIP,
           providerSourceLinkId: 'link',
           fuelType: 'PHEV',
+          isEvPowertrain: false,
           canon,
         }).candidates,
       ).toHaveLength(0);
@@ -516,6 +595,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
         tripId: TRIP,
         providerSourceLinkId: 'link',
         fuelType: 'GASOLINE',
+        isEvPowertrain: false,
         canon,
       });
       expect(msCount).toBe(5);
