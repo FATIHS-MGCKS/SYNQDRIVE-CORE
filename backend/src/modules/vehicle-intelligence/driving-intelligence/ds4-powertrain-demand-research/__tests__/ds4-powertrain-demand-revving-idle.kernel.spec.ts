@@ -14,6 +14,7 @@ import {
   DS4_REVIVING_IDLE_DUAL_FACET_POLICY,
   detectRevvingIdleDualFacetCandidates,
 } from '../ds4-powertrain-demand-revving-idle-dual-facet.v1';
+import { evaluateRevvingIdleFacetAAssessability } from '../ds4-powertrain-demand-revving-idle-assessability.v1';
 import { computeDs4PowertrainDemandRevvingIdleResearchV1 } from '../ds4-powertrain-demand-revving-idle.kernel.v1';
 import { canonicalizeMultichannelObservations } from '../ds4-powertrain-demand-multichannel-canonicalize.v1';
 import { computeMultichannelContentFingerprint } from '../ds4-powertrain-demand-research.input-binding.v1';
@@ -663,6 +664,282 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
       expect(out.status).toBe('ABSTAINED');
       expect(out.revvingIdle.facetA.tripEvidenceClassification).toBe('NOT_ASSESSABLE');
       expect(out.revvingIdle.coverageEvidence.rpmAndSpeedPresentBucketCount).toBe(0);
+    });
+  });
+
+  describe('Opus final semantic closeout', () => {
+    const t0 = Date.parse('2026-01-01T10:00:12.000Z');
+    const at = (offsetMs: number, o: Record<string, unknown>) => ({
+      recordedAtIso: new Date(t0 + offsetMs).toISOString(),
+      ...o,
+    });
+    const movingPad = [5, 6, 7, 8, 9].map((k) =>
+      at(60_000 + k * 20_000, { speedKmh: 40, rpm: 1800 }),
+    );
+
+    it('K embedded 75s idle in 201s coherent moving trip: Facet B NOT_OBSERVED, trip NOT_OBSERVED', () => {
+      const grid = buildObservationSeries('2026-01-01T10:00:01.000Z', 201, 1, (i) =>
+        i >= 60 && i < 136 ? { speedKmh: 0, rpm: 850 } : { speedKmh: 45, rpm: 1800 },
+      );
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
+      );
+      expect(out.revvingIdle.facetB.assessability).toBe('ASSESSABLE');
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
+      expect(out.revvingIdle.facetB.tripEvidenceClassification).toBe('NOT_OBSERVED');
+      expect(out.revvingIdle.facetA.deduplicatedCandidateCount).toBe(0);
+      expect(out.revvingIdle.facetA.tripEvidenceClassification).toBe('NOT_OBSERVED');
+      expect(out.status).toBe('NOT_OBSERVED');
+    });
+
+    it('L zero-RPM admitted synthetic: facets NOT_ASSESSABLE / NOT_ASSESSABLE with RPM_SPEED unavailable', () => {
+      const grid = buildObservationSeries('2026-01-01T10:00:01.000Z', 30, 1, () => ({
+        speedKmh: 0,
+        rpm: null,
+        loadPct: 20,
+      }));
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildColdEngineBoundInput({ multichannelObservations: grid, tripId: TRIP }) as never,
+      );
+      expect(out.status).toBe('COMPUTED');
+      expect(out.revvingIdle.facetA.assessability).toBe('NOT_ASSESSABLE');
+      expect(out.revvingIdle.facetB.assessability).toBe('NOT_ASSESSABLE');
+      expect(out.revvingIdle.facetA.tripEvidenceClassification).toBe('NOT_ASSESSABLE');
+      expect(out.revvingIdle.facetB.tripEvidenceClassification).toBe('NOT_ASSESSABLE');
+      expect(out.revvingIdle.facetB.coverageDiagnostics.assessabilityReasonCodes).toContain(
+        'RPM_SPEED_CO_OBSERVATION_UNAVAILABLE',
+      );
+      expect(out.revvingIdle.facetA.deduplicatedCandidateCount).toBe(0);
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
+    });
+
+    it('J mixed coherent runs: NO_SINGLE_COHERENT_RUN_MEETS_LABEL_AND_SPAN on Facet A', () => {
+      const grid = [
+        at(0, { speedKmh: 0, rpm: 2100 }),
+        at(1000, { speedKmh: 0, rpm: 2100 }),
+        at(2000, { speedKmh: 0, rpm: 2100 }),
+        at(7000, { speedKmh: 0, rpm: 2100 }),
+        at(11000, { speedKmh: 0, rpm: 2100 }),
+        at(20000, { speedKmh: 0, rpm: 2100 }),
+        at(30000, { speedKmh: 0, rpm: 2100 }),
+        at(40000, { speedKmh: 0, rpm: 2100 }),
+      ];
+      const verdict = evaluateRevvingIdleFacetAAssessability(canonicalizeMultichannelObservations(grid));
+      expect(verdict.assessable).toBe(false);
+      expect(verdict.diagnostics.assessabilityReasonCodes).toContain(
+        'NO_SINGLE_COHERENT_RUN_MEETS_LABEL_AND_SPAN',
+      );
+      expect(verdict.diagnostics.labelsInMaxSpanRun).toBeGreaterThan(0);
+      expect(verdict.diagnostics.spanMsInMaxLabelCountRun).toBeGreaterThan(0);
+    });
+
+    it('paired diagnostics on mixed runs expose independent maxima', () => {
+      const dense = buildObservationSeries('2026-01-01T10:00:01.000Z', 101, 1, () => ({
+        speedKmh: 0,
+        rpm: 850,
+      }));
+      const coarse = buildObservationSeries('2026-01-01T10:01:56.000Z', 19, 10, () => ({
+        speedKmh: 0,
+        rpm: 850,
+      }));
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: [...dense, ...coarse], tripId: TRIP }),
+      );
+      const d = out.revvingIdle.facetB.coverageDiagnostics;
+      expect(d.longestCoherentRunLabelCount).toBeGreaterThan(d.labelsInMaxSpanRun);
+      expect(d.longestCoherentResearchLabelSpanMs).toBeGreaterThan(d.spanMsInMaxLabelCountRun);
+    });
+
+    describe('Facet A boundary matrix', () => {
+      const revRow = (rpm: number) => ({ speedKmh: 0, rpm });
+      const pad = () => movingPad;
+
+      it('entry rpm 1999 vs 2000', () => {
+        const low = computeDs4PowertrainDemandRevvingIdleResearchV1(
+          buildBoundPowertrainInput({
+            multichannelObservations: withPrefix([
+              at(0, revRow(1999)),
+              at(1000, revRow(1999)),
+              at(2000, revRow(1999)),
+              at(3000, revRow(1999)),
+              ...pad(),
+            ]),
+            tripId: TRIP,
+          }),
+        );
+        const hi = computeDs4PowertrainDemandRevvingIdleResearchV1(
+          buildBoundPowertrainInput({
+            multichannelObservations: withPrefix([
+              at(0, revRow(2000)),
+              at(1000, revRow(1440)),
+              at(2000, revRow(1440)),
+              at(3000, revRow(1440)),
+              ...pad(),
+            ]),
+            tripId: TRIP,
+          }),
+        );
+        expect(low.revvingIdle.facetA.deduplicatedCandidateCount).toBe(0);
+        expect(hi.revvingIdle.facetA.deduplicatedCandidateCount).toBe(1);
+      });
+
+      it('continuation rpm 1439 vs 1440', () => {
+        const lo = computeDs4PowertrainDemandRevvingIdleResearchV1(
+          buildBoundPowertrainInput({
+            multichannelObservations: withPrefix([
+              at(0, revRow(2000)),
+              at(1000, revRow(1439)),
+              at(2000, revRow(1439)),
+              at(3000, revRow(1439)),
+              ...pad(),
+            ]),
+            tripId: TRIP,
+          }),
+        );
+        const hi = computeDs4PowertrainDemandRevvingIdleResearchV1(
+          buildBoundPowertrainInput({
+            multichannelObservations: withPrefix([
+              at(0, revRow(2000)),
+              at(1000, revRow(1440)),
+              at(2000, revRow(1440)),
+              at(3000, revRow(1440)),
+              ...pad(),
+            ]),
+            tripId: TRIP,
+          }),
+        );
+        expect(lo.revvingIdle.facetA.deduplicatedCandidateCount).toBe(0);
+        expect(hi.revvingIdle.facetA.deduplicatedCandidateCount).toBe(1);
+      });
+
+      it('speed 4.9 vs 5.0', () => {
+        const ok = computeDs4PowertrainDemandRevvingIdleResearchV1(
+          buildBoundPowertrainInput({
+            multichannelObservations: withPrefix([
+              at(0, { speedKmh: 4.9, rpm: 2100 }),
+              at(1000, { speedKmh: 4.9, rpm: 2100 }),
+              at(2000, { speedKmh: 4.9, rpm: 2100 }),
+              at(3000, { speedKmh: 4.9, rpm: 2100 }),
+              ...pad(),
+            ]),
+            tripId: TRIP,
+          }),
+        );
+        const high = computeDs4PowertrainDemandRevvingIdleResearchV1(
+          buildBoundPowertrainInput({
+            multichannelObservations: withPrefix([
+              at(0, { speedKmh: 5, rpm: 2100 }),
+              at(1000, { speedKmh: 5, rpm: 2100 }),
+              at(2000, { speedKmh: 5, rpm: 2100 }),
+              at(3000, { speedKmh: 5, rpm: 2100 }),
+              ...pad(),
+            ]),
+            tripId: TRIP,
+          }),
+        );
+        expect(ok.revvingIdle.facetA.deduplicatedCandidateCount).toBe(1);
+        expect(high.revvingIdle.facetA.deduplicatedCandidateCount).toBe(0);
+      });
+
+      it('gap 4000ms vs 4001ms', () => {
+        const allow = computeDs4PowertrainDemandRevvingIdleResearchV1(
+          buildBoundPowertrainInput({
+            multichannelObservations: withPrefix([
+              at(0, revRow(2100)),
+              at(4000, revRow(2100)),
+              at(8000, revRow(2100)),
+              ...pad(),
+            ]),
+            tripId: TRIP,
+          }),
+        );
+        const split = computeDs4PowertrainDemandRevvingIdleResearchV1(
+          buildBoundPowertrainInput({
+            multichannelObservations: withPrefix([
+              at(0, revRow(2100)),
+              at(4001, revRow(2100)),
+              at(8002, revRow(2100)),
+              ...pad(),
+            ]),
+            tripId: TRIP,
+          }),
+        );
+        expect(allow.revvingIdle.facetA.deduplicatedCandidateCount).toBe(1);
+        expect(split.revvingIdle.facetA.deduplicatedCandidateCount).toBe(0);
+      });
+    });
+
+    describe('Facet B boundary matrix', () => {
+      it('rpm band 320/321 and 1199/1200', () => {
+        const run = (rpm: number) =>
+          computeDs4PowertrainDemandRevvingIdleResearchV1(
+            buildBoundPowertrainInput({
+              multichannelObservations: [
+                ...v1bMovingPrefixGrid(),
+                ...buildObservationSeries('2026-01-01T10:00:12.000Z', 201, 1, () => ({
+                  speedKmh: 0,
+                  rpm,
+                })),
+              ],
+              tripId: TRIP,
+            }),
+          ).revvingIdle.facetB.deduplicatedCandidateCount;
+        expect(run(320)).toBe(0);
+        expect(run(321)).toBe(1);
+        expect(run(1200)).toBe(0);
+        expect(run(1199)).toBe(1);
+      });
+
+      it('speed below 3 vs 3.0', () => {
+        const ok = computeDs4PowertrainDemandRevvingIdleResearchV1(
+          buildBoundPowertrainInput({
+            multichannelObservations: [
+              ...v1bMovingPrefixGrid(),
+              ...buildObservationSeries('2026-01-01T10:00:12.000Z', 201, 1, () => ({
+                speedKmh: 2.9,
+                rpm: 850,
+              })),
+            ],
+            tripId: TRIP,
+          }),
+        );
+        const high = computeDs4PowertrainDemandRevvingIdleResearchV1(
+          buildBoundPowertrainInput({
+            multichannelObservations: [
+              ...v1bMovingPrefixGrid(),
+              ...buildObservationSeries('2026-01-01T10:00:12.000Z', 201, 1, () => ({
+                speedKmh: 3,
+                rpm: 850,
+              })),
+            ],
+            tripId: TRIP,
+          }),
+        );
+        expect(ok.revvingIdle.facetB.deduplicatedCandidateCount).toBe(1);
+        expect(high.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
+      });
+
+      it('gap 10000ms vs 10001ms', () => {
+        const allow = computeDs4PowertrainDemandRevvingIdleResearchV1(
+          buildBoundPowertrainInput({
+            multichannelObservations: buildObservationSeries('2026-01-01T10:00:01.000Z', 19, 10, () => ({
+              speedKmh: 0,
+              rpm: 850,
+            })),
+            tripId: TRIP,
+          }),
+        );
+        const split = computeDs4PowertrainDemandRevvingIdleResearchV1(
+          buildBoundPowertrainInput({
+            multichannelObservations: Array.from({ length: 19 }, (_, k) =>
+              at(k * 10_001, { speedKmh: 0, rpm: 850 }),
+            ),
+            tripId: TRIP,
+          }),
+        );
+        expect(allow.revvingIdle.facetB.deduplicatedCandidateCount).toBe(1);
+        expect(split.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
+      });
     });
   });
 });

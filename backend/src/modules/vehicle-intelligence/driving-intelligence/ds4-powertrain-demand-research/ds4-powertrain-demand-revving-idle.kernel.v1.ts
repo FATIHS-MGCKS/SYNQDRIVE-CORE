@@ -56,6 +56,8 @@ const UNTRUSTED_FACET_DIAGNOSTICS: Ds4RevvingIdleFacetCoverageDiagnosticsV1 = {
   longestCoherentResearchLabelSpanMs: 0,
   longestCoherentMaxAdjacentGapMs: 0,
   maxQualifyingCoherentResearchLabelSpanMs: 0,
+  labelsInMaxSpanRun: 0,
+  spanMsInMaxLabelCountRun: 0,
   assessabilityReasonCodes: ['INTEGRITY_NOT_ADMITTED'],
 };
 
@@ -174,14 +176,12 @@ export function computeDs4PowertrainDemandRevvingIdleResearchV1(
   const facetATripEvidence = classifyFacetATripEvidenceAfterDetection({
     assessable: facetAAssess.assessable,
     candidateCount: detect.facetA.candidates.length,
-    entryLabelCount: detect.facetA.entryLabelCount,
-    longestRunLabelCount: detect.facetA.longestRunLabelCount,
+    assessabilityReasonCodes: facetAAssess.diagnostics.assessabilityReasonCodes,
   });
   const facetBTripEvidence = classifyFacetBTripEvidenceAfterDetection({
     assessable: facetBAssess.assessable,
     candidateCount: detect.facetB.candidates.length,
-    entryLabelCount: detect.facetB.entryLabelCount,
-    longestRunLabelCount: detect.facetB.longestRunLabelCount,
+    assessabilityReasonCodes: facetBAssess.diagnostics.assessabilityReasonCodes,
   });
 
   const status = resolveRevvingIdleTripStatus({

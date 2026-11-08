@@ -76,6 +76,11 @@ function runWithMaxSpan(runs: readonly CoherentRun[]): CoherentRun | null {
   return runs.reduce((best, run) => (run.spanMs > best.spanMs ? run : best));
 }
 
+function runWithMaxLabelCount(runs: readonly CoherentRun[]): CoherentRun | null {
+  if (runs.length === 0) return null;
+  return runs.reduce((best, run) => (run.labelCount > best.labelCount ? run : best));
+}
+
 function baseDiagnostics(canon: Ds4MultichannelCanonicalizeResultV1): Pick<
   Ds4RevvingIdleFacetCoverageDiagnosticsV1,
   'rpmSpeedCoObservedLabelCount' | 'rpmMissingRequiredChannelCount' | 'speedMissingRequiredChannelCount'
@@ -86,6 +91,15 @@ function baseDiagnostics(canon: Ds4MultichannelCanonicalizeResultV1): Pick<
     speedMissingRequiredChannelCount: canon.buckets.filter((b) => b.speedKmh == null).length,
   };
 }
+
+const EMPTY_PAIRED_DIAGNOSTICS = {
+  longestCoherentRunLabelCount: 0,
+  longestCoherentResearchLabelSpanMs: 0,
+  longestCoherentMaxAdjacentGapMs: 0,
+  maxQualifyingCoherentResearchLabelSpanMs: 0,
+  labelsInMaxSpanRun: 0,
+  spanMsInMaxLabelCountRun: 0,
+};
 
 function evaluateFacetOpportunity(input: {
   canon: Ds4MultichannelCanonicalizeResultV1;
@@ -103,10 +117,7 @@ function evaluateFacetOpportunity(input: {
       assessable: false,
       diagnostics: {
         ...base,
-        longestCoherentRunLabelCount: 0,
-        longestCoherentResearchLabelSpanMs: 0,
-        longestCoherentMaxAdjacentGapMs: 0,
-        maxQualifyingCoherentResearchLabelSpanMs: 0,
+        ...EMPTY_PAIRED_DIAGNOSTICS,
         assessabilityReasonCodes: reasons,
       },
     };
@@ -118,6 +129,7 @@ function evaluateFacetOpportunity(input: {
   const maxSpan = runs.reduce((m, r) => Math.max(m, r.spanMs), 0);
   const maxQualifyingSpan = qualifying.reduce((m, r) => Math.max(m, r.spanMs), 0);
   const spanChampion = runWithMaxSpan(runs);
+  const labelChampion = runWithMaxLabelCount(runs);
 
   const diagnostics: Ds4RevvingIdleFacetCoverageDiagnosticsV1 = {
     ...base,
@@ -125,6 +137,8 @@ function evaluateFacetOpportunity(input: {
     longestCoherentResearchLabelSpanMs: maxSpan,
     longestCoherentMaxAdjacentGapMs: spanChampion?.maxAdjacentGapMs ?? 0,
     maxQualifyingCoherentResearchLabelSpanMs: maxQualifyingSpan,
+    labelsInMaxSpanRun: spanChampion?.labelCount ?? 0,
+    spanMsInMaxLabelCountRun: labelChampion?.spanMs ?? 0,
     assessabilityReasonCodes: [],
   };
 
@@ -136,7 +150,7 @@ function evaluateFacetOpportunity(input: {
       reasons.push('INSUFFICIENT_LABEL_SPAN_OPPORTUNITY');
     }
     if (reasons.length === 0) {
-      reasons.push('INSUFFICIENT_LABEL_SPAN_OPPORTUNITY');
+      reasons.push('NO_SINGLE_COHERENT_RUN_MEETS_LABEL_AND_SPAN');
     }
     diagnostics.assessabilityReasonCodes = reasons;
     return { assessable: false, diagnostics };
@@ -168,46 +182,44 @@ export function evaluateRevvingIdleFacetBAssessability(
   });
 }
 
+function classifyNotAssessableTripEvidence(
+  assessabilityReasonCodes: readonly Ds4RevvingIdleFacetAssessabilityReasonV1[],
+): 'NOT_ASSESSABLE' | 'INSUFFICIENT_OBSERVATIONS' {
+  if (assessabilityReasonCodes.includes('INTEGRITY_NOT_ADMITTED')) {
+    return 'NOT_ASSESSABLE';
+  }
+  if (assessabilityReasonCodes.includes('RPM_SPEED_CO_OBSERVATION_UNAVAILABLE')) {
+    return 'NOT_ASSESSABLE';
+  }
+  return 'INSUFFICIENT_OBSERVATIONS';
+}
+
 export function classifyFacetATripEvidenceAfterDetection(input: {
   assessable: boolean;
   candidateCount: number;
-  entryLabelCount: number;
-  longestRunLabelCount: number;
+  assessabilityReasonCodes: readonly Ds4RevvingIdleFacetAssessabilityReasonV1[];
 }): Ds4RevvingIdleFacetATripEvidenceClassificationV1 {
   if (!input.assessable) {
-    return 'INSUFFICIENT_OBSERVATIONS';
+    return classifyNotAssessableTripEvidence(input.assessabilityReasonCodes);
   }
   if (input.candidateCount > 0) {
     return 'HIGH_RPM_STATIONARY_LIKE_PROXY_CANDIDATE';
   }
-  if (input.entryLabelCount === 0) {
-    return 'NOT_OBSERVED';
-  }
-  if (input.longestRunLabelCount >= FACET_A.minObservations) {
-    return 'INSUFFICIENT_OBSERVATIONS';
-  }
-  return 'INSUFFICIENT_OBSERVATIONS';
+  return 'NOT_OBSERVED';
 }
 
 export function classifyFacetBTripEvidenceAfterDetection(input: {
   assessable: boolean;
   candidateCount: number;
-  entryLabelCount: number;
-  longestRunLabelCount: number;
+  assessabilityReasonCodes: readonly Ds4RevvingIdleFacetAssessabilityReasonV1[];
 }): Ds4RevvingIdleFacetBTripEvidenceClassificationV1 {
   if (!input.assessable) {
-    return 'INSUFFICIENT_OBSERVATIONS';
+    return classifyNotAssessableTripEvidence(input.assessabilityReasonCodes);
   }
   if (input.candidateCount > 0) {
     return 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY_CANDIDATE';
   }
-  if (input.entryLabelCount === 0) {
-    return 'NOT_OBSERVED';
-  }
-  if (input.longestRunLabelCount >= FACET_B.minObservations) {
-    return 'INSUFFICIENT_OBSERVATIONS';
-  }
-  return 'INSUFFICIENT_OBSERVATIONS';
+  return 'NOT_OBSERVED';
 }
 
 export function resolveRevvingIdleTripStatus(input: {
