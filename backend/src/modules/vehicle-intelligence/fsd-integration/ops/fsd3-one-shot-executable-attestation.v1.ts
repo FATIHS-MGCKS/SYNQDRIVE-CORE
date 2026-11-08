@@ -22,9 +22,23 @@ export function resolveSynqDriveRepoRootFromModuleV1(): string {
   throw new Error('FSD3_EXECUTABLE_ROOT_UNVERIFIABLE');
 }
 
+const SOURCE_PATH =
+  /^(backend|frontend)\/.*\.(ts|tsx|js|mjs|cjs)$/;
+const SOURCE_PREFIX = /^(backend\/src|backend\/scripts|frontend\/src)\//;
+
 function assertGitWorkTreeClean(root: string): void {
-  const porcelain = execFileSync('git', ['-C', root, 'status', '--porcelain'], { encoding: 'utf8' }).trim();
-  if (porcelain.length > 0) {
+  const porcelain = execFileSync('git', ['-C', root, 'status', '--porcelain'], { encoding: 'utf8' })
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  for (const line of porcelain) {
+    const pathEntry = line.slice(3).trim();
+    if (line.startsWith('?? ')) {
+      if (SOURCE_PATH.test(pathEntry) || SOURCE_PREFIX.test(pathEntry)) {
+        throw new Error('FSD3_EXECUTABLE_TREE_DIRTY');
+      }
+      continue;
+    }
     throw new Error('FSD3_EXECUTABLE_TREE_DIRTY');
   }
 }
