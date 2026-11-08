@@ -11,6 +11,11 @@ const SOURCE_FILES = [
   'ds4-powertrain-demand-cold-engine.kernel.v1.ts',
   'ds4-powertrain-demand-cold-engine-bucket-grid.v1.ts',
   'ds4-powertrain-demand-cold-engine.input-binding.v1.ts',
+  'ds4-powertrain-demand-sustained-load.kernel.v1.ts',
+  'ds4-powertrain-demand-sustained-load.input-binding.v1.ts',
+  'ds4-powertrain-demand-sustained-load-gap-aware.v1.ts',
+  'ds4-powertrain-demand-sustained-load-reference.v1.ts',
+  'ds4-powertrain-demand-sustained-load-powertrain.v1.ts',
   'ds4-powertrain-demand-multichannel-canonicalize.v1.ts',
 ];
 
@@ -21,6 +26,7 @@ const FORBIDDEN = [
   'hf-abuse',
   'event-context-classifier',
   'detectKickdownLikeClusters',
+  'detectSustainedHighLoadClusters',
 ];
 
 describe('ds4-powertrain-demand-research import boundary', () => {

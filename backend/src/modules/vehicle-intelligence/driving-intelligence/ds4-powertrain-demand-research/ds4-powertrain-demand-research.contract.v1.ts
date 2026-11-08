@@ -12,6 +12,9 @@ export const DS4_KICKDOWN_BUCKET_GRID_RESEARCH_POLICY_VERSION =
 export const DS4_COLD_ENGINE_BUCKET_GRID_RESEARCH_POLICY_VERSION =
   'cold-engine-bucket-grid-research-v1' as const;
 
+export const DS4_SUSTAINED_LOAD_GAP_AWARE_RESEARCH_POLICY_VERSION =
+  'sustained-load-gap-aware-research-v1' as const;
+
 export const DS4_MULTICHANNEL_MANIFEST_VERSION = 'ds4-multichannel-manifest-v1' as const;
 
 export type Ds4PowertrainDemandTimeAuthority = 'BUCKET_LABEL_UNVERIFIED';
@@ -148,7 +151,9 @@ export type Ds4PowertrainDemandBindingAbstainReason =
   | 'REFERENCE_SPEC_UNAVAILABLE'
   | 'REFERENCE_PAIR_INCONSISTENT'
   | 'REFERENCE_PROVENANCE_DOWNGRADED'
-  | 'ICE_RPM_NOT_APPLICABLE';
+  | 'ICE_RPM_NOT_APPLICABLE'
+  | 'LOAD_CHANNEL_UNAVAILABLE'
+  | 'INSUFFICIENT_LOAD_LABEL_OBSERVATIONS';
 
 export type Ds4PowertrainDemandResearchInputV1 = {
   contractVersion: typeof DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION;
@@ -321,6 +326,72 @@ export type Ds4PowertrainDemandColdEngineResultV1 = {
       ectMissingBucketCount: number;
       ectColdObservedBucketCount: number;
       ectWarmObservedBucketCount: number;
+      gridBucketCount: number;
+    };
+  };
+  unsupportedScientificClaims: string[];
+  r1HistoricalObdRecordTimeUncertain: boolean;
+  realDataValidation: 'NOT_EVALUATED' | 'SYNTHETIC_ONLY';
+};
+
+export type Ds4SustainedLoadResearchInputV1 = Ds4PowertrainDemandResearchInputV1;
+
+export type Ds4SustainedLoadEntryBranchV1 = 'RPM' | 'THROTTLE' | 'BOTH';
+
+export type Ds4SustainedLoadTripEvidenceClassificationV1 =
+  | 'NOT_ASSESSABLE'
+  | 'INSUFFICIENT_OBSERVATIONS'
+  | 'NOT_OBSERVED'
+  | 'SINGLE_HIGH_LOAD_ENTRY_LABEL'
+  | 'MULTI_LABEL_HIGH_LOAD_RUN'
+  | 'GAP_AWARE_SUSTAINED_PROXY_CANDIDATE';
+
+export type Ds4GapAwareSustainedLoadCandidateV1 = {
+  episodeKey: string;
+  classification: 'GAP_AWARE_SUSTAINED_PROXY_CANDIDATE';
+  startProviderBucketLabelIso: string;
+  endProviderBucketLabelIso: string;
+  observedLabelCount: number;
+  researchLabelSpanMs: number;
+  maxObservedLabelGapMs: number;
+  peakObservedLoadPct: number;
+  entryBranch: Ds4SustainedLoadEntryBranchV1;
+  limitationCodes: string[];
+  requiredChannelPresence: Record<string, boolean>;
+};
+
+export type Ds4PowertrainDemandSustainedLoadResultV1 = {
+  contractVersion: typeof DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION;
+  policyVersion: typeof DS4_SUSTAINED_LOAD_GAP_AWARE_RESEARCH_POLICY_VERSION;
+  researchOnly: true;
+  timeAuthority: Ds4PowertrainDemandTimeAuthority;
+  temporalMode: Ds4PowertrainDemandTemporalMode;
+  misuseEligibility: 'NOT_EVALUATED_BY_DESIGN';
+  evidenceOrigin: Ds4PowertrainDemandEvidenceOrigin;
+  status: Ds4PowertrainDemandTripStatus;
+  abstainReasons: readonly Ds4PowertrainDemandBindingAbstainReason[];
+  provenance: Ds4PowertrainDemandProvenanceVerdictV1;
+  bindings: {
+    organizationId: string;
+    vehicleId: string;
+    tripId: string;
+    providerSourceLinkId: string;
+    v1bInputFingerprint: string | null;
+    multichannelFingerprint: string | null;
+    telemetrySourceFamily: TelemetrySourceFamily | null;
+    sourceBundleId: string | null;
+  };
+  sustainedLoad: {
+    canonicalRowsFullKey: number;
+    distinctMsLabelsInTrip: number;
+    identicalDuplicateCollapsedCount: number;
+    entryLabelCount: number;
+    deduplicatedCandidateCount: number;
+    candidates: Ds4GapAwareSustainedLoadCandidateV1[];
+    tripEvidenceClassification: Ds4SustainedLoadTripEvidenceClassificationV1;
+    coverageEvidence: {
+      loadPresentBucketCount: number;
+      loadMissingBucketCount: number;
       gridBucketCount: number;
     };
   };

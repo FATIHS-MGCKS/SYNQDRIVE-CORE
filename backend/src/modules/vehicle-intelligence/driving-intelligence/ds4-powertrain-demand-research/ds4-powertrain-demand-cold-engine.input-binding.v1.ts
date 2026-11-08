@@ -57,8 +57,13 @@ export function hasColdEngineRpmEvidence(input: Ds4PowertrainDemandColdEngineRes
   return multichannelHasRpmLabels(canon) || tripHasRpmPoints(input);
 }
 
-function validateZeroRpmPathFailClosed(
-  input: Ds4PowertrainDemandColdEngineResearchInputV1,
+type Ds4ZeroRpmFailClosedInputV1 = Pick<
+  Ds4PowertrainDemandColdEngineResearchInputV1,
+  'tripInput' | 'v1bResult'
+>;
+
+export function validateZeroRpmPathFailClosed(
+  input: Ds4ZeroRpmFailClosedInputV1,
   reasonCodes: Ds4PowertrainDemandBindingAbstainReason[],
 ): void {
   const { tripInput } = input;
