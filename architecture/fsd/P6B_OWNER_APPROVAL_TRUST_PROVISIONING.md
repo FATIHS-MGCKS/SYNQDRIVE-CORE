@@ -1,0 +1,31 @@
+# P6B — Owner approval trust provisioning (V1)
+
+> **SUPERSEDED (2026-11-08):** Simplified P6B uses `SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED=1` + `FSD3_ONE_SHOT_HOST_ATTESTATION=1` for live DIMO one-shot. Ed25519 trust store provisioning below is **historical** only.
+
+## Public trust store (root-controlled)
+
+- Provision **Ed25519 public keys only** via VPS/root operator control.
+- Runtime loading (operator / live EXECUTE):
+  - **`FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_FILE`** only — anchored under `/etc/synqdrive` or `/var/lib/synqdrive` (prefix override: `FSD3_LIVE_OWNER_APPROVAL_TRUST_FILE_ROOT_PREFIXES`).
+  - Inline `FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON` is **rejected** for operator contexts (fail-closed anti-replacement).
+  - Trust file must not be group/world-writable; optional `FSD3_ONE_SHOT_TRUST_REQUIRE_ROOT_OWNER=1` enforces uid 0.
+- **Live `dimo_live` EXECUTE (mandatory):**
+  - Trust file path: `FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_FILE` under `/etc/synqdrive` or `/var/lib/synqdrive` only.
+  - File and parent directories: **root-owned**, not group/world-writable; no symlink escape.
+  - Rejects: `FSD3_ONE_SHOT_TRUST_ANCHOR_RELAXED`, `FSD3_LIVE_OWNER_APPROVAL_TRUST_FILE_ROOT_PREFIXES`, inline JSON, `FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE`.
+- Isolated CI/tests: `FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE=1` + explicit `TEST_ISOLATED_INLINE` trust context for **mock** paths only.
+- Schema: `FSD3_LIVE_OWNER_APPROVAL_TRUST_SCHEMA_V1`
+- Duplicate `keyId` and invalid `notBeforeIso` / `notAfterIso` windows are rejected fail-closed.
+- Revocation: `revokedKeyIds` list in the same store.
+
+No production private keys or production trust material belong in the git repository.
+
+## Private signing key (owner, off-repo)
+
+- Owner signs canonical approval payloads off-repo using `backend/scripts/ops/fsd3-live-owner-approval-sign.ts`.
+- Private PEM path via `FSD3_OWNER_L2_SIGNING_KEY_PEM_FILE` only — never commit PEM files.
+- Deliver signed envelope JSON to operators; operators store file with restrictive permissions.
+
+## P6B scope
+
+This phase documents and enforces verification only. **No production trust-store installation** is performed as part of P6B PR work.

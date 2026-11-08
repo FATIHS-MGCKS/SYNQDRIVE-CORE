@@ -81,6 +81,7 @@ async function seedDimoBinding(prisma: PrismaClient) {
 }
 
 (LIVE ? describe : describe.skip)('FSD-3 orchestration safety H1–H4 (PostgreSQL)', () => {
+  jest.setTimeout(180_000);
   let prisma: PrismaClient;
 
   beforeAll(async () => {
