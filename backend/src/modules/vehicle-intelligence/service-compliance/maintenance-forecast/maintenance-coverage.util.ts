@@ -77,6 +77,19 @@ const OIL_CHANGE_ACTION_TERMS = [
   'oil change',
 ];
 
+/** Noun phrases that identify *engine* oil service (not gearbox/axle/filter-only). */
+const ENGINE_OIL_NOUN_TERMS = [
+  'engine oil',
+  'engine: oil',
+  'motor oil',
+  'motoröl',
+  'motoroel',
+  'ölwechsel',
+  'oil change',
+];
+
+const FILTER_INSPECTION_TERMS = ['inspect', 'inspection', 'check', 'kontrolle', 'kontrol', 'prüf', 'pruf', 'pruef'];
+
 export function normalizeWorkText(text: string): string {
   return text.toLowerCase().replace(/\s+/g, ' ').trim();
 }
@@ -90,13 +103,44 @@ export function isOilLevelCheckOnlyWorkItem(item: string): boolean {
   return !OIL_CHANGE_ACTION_TERMS.some((term) => t.includes(term));
 }
 
-/** True when a structured work item documents an engine oil change. */
+/** Oil-filter line that only inspects/checks — not a motor oil change baseline. */
+export function isOilFilterInspectionWorkItem(item: string): boolean {
+  const t = normalizeWorkText(item);
+  const mentionsOilFilter = t.includes('oil filter') || t.includes('ölfilter') || t.includes('oelfilter');
+  if (!mentionsOilFilter) return false;
+  const hasEngineOilNoun = ENGINE_OIL_NOUN_TERMS.some((term) => t.includes(term));
+  const hasChange = OIL_CHANGE_ACTION_TERMS.some((term) => t.includes(term));
+  if (hasEngineOilNoun && hasChange) return false;
+  if (FILTER_INSPECTION_TERMS.some((term) => t.includes(term))) return true;
+  return !hasChange;
+}
+
+/**
+ * True when a structured work item documents an actual *engine* oil change (not level check,
+ * filter inspection, or filter-only replace without motor-oil service).
+ */
 export function isEngineOilChangeWorkItem(item: string): boolean {
   const t = normalizeWorkText(item);
   if (isOilLevelCheckOnlyWorkItem(item)) return false;
-  if (!ENGINE_OIL_TERMS.some((term) => t.includes(term))) return false;
+  if (isOilFilterInspectionWorkItem(item)) return false;
   if (NON_ENGINE_OIL_CONTEXT.some((ctx) => t.includes(ctx))) return false;
-  return true;
+
+  const hasEngineOilNoun = ENGINE_OIL_NOUN_TERMS.some((term) => t.includes(term));
+  const hasChangeAction = OIL_CHANGE_ACTION_TERMS.some((term) => t.includes(term));
+
+  if (t.includes('ölwechsel') || t.includes('oil change')) return true;
+
+  if (hasEngineOilNoun && hasChangeAction) return true;
+
+  // Filter-only replace (no motor-oil noun) is not proof of a motor oil change.
+  const filterOnly =
+    (t.includes('oil filter') || t.includes('ölfilter') || t.includes('oelfilter')) && !hasEngineOilNoun;
+  if (filterOnly) return false;
+
+  if (!ENGINE_OIL_TERMS.some((term) => t.includes(term))) return false;
+
+  // Residual oil mentions without a documented change action do not count (e.g. vague "oil service").
+  return hasChangeAction;
 }
 
 /** Component keys mentioned by a text (plan description/task or structured work item). */

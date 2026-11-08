@@ -2,6 +2,7 @@ import type { MaintenanceEvidenceEvent, MaintenanceSchedulePosition } from './ma
 import {
   eventCoversPosition,
   isEngineOilChangeWorkItem,
+  isOilFilterInspectionWorkItem,
   isOilLevelCheckOnlyWorkItem,
 } from './maintenance-coverage.util';
 
@@ -49,6 +50,32 @@ describe('maintenance-coverage.util (oil classification)', () => {
   it('accepts documented engine oil change vocabulary', () => {
     expect(isEngineOilChangeWorkItem('Engine Oil Replace')).toBe(true);
     expect(isEngineOilChangeWorkItem('Motoröl und Filter wechseln')).toBe(true);
+  });
+
+  it('rejects oil filter inspection and filter-only work without motor-oil proof', () => {
+    expect(isOilFilterInspectionWorkItem('Oil filter check')).toBe(true);
+    expect(isOilFilterInspectionWorkItem('Ölfilter Kontrolle')).toBe(true);
+    expect(isEngineOilChangeWorkItem('Oil filter check')).toBe(false);
+    expect(isEngineOilChangeWorkItem('Oil Filter Replace')).toBe(false);
+    expect(isEngineOilChangeWorkItem('Ölfilter prüfen')).toBe(false);
+  });
+
+  it('does not reset OIL_CHANGE from OCR/workshop with only filter or level lines', () => {
+    const pos = oilPosition();
+    for (const source of ['SERVICE_EVENT_OCR', 'SERVICE_EVENT_WORKSHOP'] as const) {
+      expect(
+        eventCoversPosition(event({ eventSource: source, performedWork: ['Oil level check'] }), pos),
+      ).toBe(false);
+      expect(
+        eventCoversPosition(event({ eventSource: source, performedWork: ['Oil filter inspection'] }), pos),
+      ).toBe(false);
+      expect(
+        eventCoversPosition(
+          event({ eventSource: source, performedWork: ['Engine Oil Replace'] }),
+          pos,
+        ),
+      ).toBe(true);
+    }
   });
 
   it('does not reset OIL_CHANGE from OneAuto without engine-oil proof', () => {
@@ -118,5 +145,14 @@ describe('maintenance-coverage.util (oil classification)', () => {
         oilPosition(),
       ),
     ).toBe(true);
+    expect(
+      eventCoversPosition(
+        event({
+          eventSource: 'SERVICE_EVENT_ONEAUTO',
+          performedWork: ['Oil Filter Replace'],
+        }),
+        oilPosition(),
+      ),
+    ).toBe(false);
   });
 });
