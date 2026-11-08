@@ -1,3 +1,8 @@
+import {
+  assertOperatorAttestationEnvHasNoTestBypassV1,
+  isFsd3TrustedLauncherTestBypassActiveV1,
+} from './fsd3-one-shot-attestation-test-policy.v1';
+
 const BLOCKED_NODE_ENV_KEYS = [
   'NODE_OPTIONS',
   'NODE_PATH',
@@ -43,7 +48,8 @@ export function assertFsd3OneShotTrustedLauncherV1(input?: {
   cliMode?: 'OFFLINE_PLAN' | 'AUTHORIZED_READ_ONLY_PREFLIGHT' | 'EXECUTE';
 }): void {
   const env = input?.env ?? process.env;
-  if (env.FSD3_ONE_SHOT_SKIP_TRUSTED_LAUNCHER === '1') {
+  assertOperatorAttestationEnvHasNoTestBypassV1(env);
+  if (isFsd3TrustedLauncherTestBypassActiveV1()) {
     return;
   }
   if (input?.cliMode === 'OFFLINE_PLAN') {
@@ -51,6 +57,9 @@ export function assertFsd3OneShotTrustedLauncherV1(input?: {
   }
   if (env.FSD3_ONE_SHOT_TRUSTED_LAUNCHER !== '1') {
     throw new Error('FSD3_TRUSTED_LAUNCHER_REQUIRED');
+  }
+  if (!env.FSD3_PRE_NODE_ATTEST_SHA?.trim()) {
+    throw new Error('FSD3_PRE_NODE_ATTEST_MISSING');
   }
   assertFsd3NodeRuntimeEnvSanitizedV1(env);
 }

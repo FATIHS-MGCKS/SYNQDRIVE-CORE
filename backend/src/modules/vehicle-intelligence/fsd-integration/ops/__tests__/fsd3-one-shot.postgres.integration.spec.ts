@@ -11,6 +11,10 @@ import {
   VehicleStatus,
 } from '@prisma/client';
 import { resolveFsd3OneShotExecutableReleaseShaV1 } from '../fsd3-one-shot-executable-attestation.v1';
+import {
+  __setFsd3AttestationTestPolicyForJestV1,
+  __setFsd3TrustedLauncherTestBypassForJestV1,
+} from '../fsd3-one-shot-attestation-test-policy.v1';
 import { randomUUID } from 'node:crypto';
 import { ensureOrganizationProductEntitlement } from '@modules/vehicle-onboarding/testing/org-product-test.harness';
 import { PrismaService } from '@shared/database/prisma.service';
@@ -46,7 +50,6 @@ const attestationTestEnv: NodeJS.ProcessEnv = {
   PATH: process.env.PATH,
   HOME: process.env.HOME ?? '/root',
   LANG: process.env.LANG ?? 'C.UTF-8',
-  FSD3_ONE_SHOT_EXECUTABLE_ATTESTATION_RELAXED: '1',
 };
 
 function attestedSha(): string {
@@ -141,14 +144,18 @@ async function seedDimoBinding(prisma: PrismaClient) {
     process.env.FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE = '1';
     process.env.FSD3_ONE_SHOT_CAPABILITY_HMAC_SECRET = 'p6b-postgres-capability-secret';
     process.env.FSD3_ONE_SHOT_PREFLIGHT_TICKET_HMAC_SECRET = 'p6b-postgres-preflight-ticket-secret';
-    process.env.FSD3_ONE_SHOT_EXECUTABLE_ATTESTATION_RELAXED = '1';
-    process.env.FSD3_ONE_SHOT_SKIP_TRUSTED_LAUNCHER = '1';
+    __setFsd3AttestationTestPolicyForJestV1('RELAXED_WORKTREE_ONLY');
+    __setFsd3TrustedLauncherTestBypassForJestV1(true);
     cachedAttestedSha = resolveFsd3OneShotExecutableReleaseShaV1({ env: attestationTestEnv });
+    process.env.FSD3_PRE_NODE_ATTEST_SHA = cachedAttestedSha;
+    process.env.FSD3_ONE_SHOT_TRUSTED_LAUNCHER = '1';
     prisma = new PrismaClient();
     await prisma.$connect();
   }, 600_000);
 
   afterAll(async () => {
+    __setFsd3AttestationTestPolicyForJestV1(null);
+    __setFsd3TrustedLauncherTestBypassForJestV1(false);
     await prisma?.$disconnect();
   });
 
@@ -441,6 +448,77 @@ async function seedDimoBinding(prisma: PrismaClient) {
     expect(replayed.terminalStatus).toBe(first.terminalStatus);
     expect(provider.getCatalogCallCount()).toBe(catalogAfterFirst);
     expect(provider.getSnapshotCallCount()).toBe(snapshotAfterFirst);
+  });
+
+  it('concurrent mock execute with same discoveryRequestKey serializes to one run', async () => {
+    const seed = await seedDimoBinding(prisma);
+    const actorUserId = randomUUID();
+    await ensurePlatformUser(prisma, actorUserId, 'MASTER_ADMIN', 'ACTIVE');
+    const discoveryRequestKey = randomUUID();
+    const scope = {
+      organizationId: seed.organizationId,
+      vehicleId: seed.vehicleId,
+      providerSourceLinkId: seed.linkId,
+      discoveryRequestKey,
+      executableReleaseSha: attestedSha(),
+    };
+    const { preflight, execution } = services();
+    let releaseCatalog!: () => void;
+    const catalogBlock = new Promise<void>((resolve) => {
+      releaseCatalog = resolve;
+    });
+    const provider = createFsd3MockDiscoveryProvider({
+      mode: 'TESLA_REFERENCE_26',
+      catalogGate: { blockUntilReleased: catalogBlock },
+    }) as ReturnType<typeof createFsd3MockDiscoveryProvider> & {
+      getCatalogCallCount(): number;
+      getSnapshotCallCount(): number;
+    };
+
+    const mintCaps = async () => {
+      const pre = await preflight.runAuthorizedReadOnlyPreflight({ actorUserId, scope });
+      const envelope = signFsd3LiveOwnerApprovalTestEnvelopeV1({
+        privateKey: signing.privateKey,
+        keyId: signing.keyId,
+        payload: approvalFor(scope, {
+          actorUserId,
+          dimoTokenId: pre.dimoTokenId!,
+          connectionIdentityFingerprint: buildFsdDimoConnectionIdentityFingerprint({
+            dimoVehicleId: pre.dimoVehicleId!,
+            tokenId: pre.dimoTokenId!,
+          }),
+        }),
+      });
+      return preflight.issueExecutionCapability({
+        scope,
+        verifiedOwnerApprovalEnvelope: envelope,
+        preflightTicket: preflight.mintAuthorizedPreflightTicket({ scope, actorUserId }),
+        actorUserId,
+        liveProvider: 'mock',
+        trustContext: { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: signing.trustStoreJson },
+      });
+    };
+
+    const capA = await mintCaps();
+    const capB = await mintCaps();
+    const pending = Promise.all([
+      execution.executeAuthorizedOneShot({
+        executionCapability: capA,
+        provider,
+        expectedLiveProvider: 'mock',
+      }),
+      execution.executeAuthorizedOneShot({
+        executionCapability: capB,
+        provider,
+        expectedLiveProvider: 'mock',
+      }),
+    ]);
+    await new Promise((r) => setTimeout(r, 50));
+    releaseCatalog();
+    const [a, b] = await pending;
+    expect(a.runId).toBe(b.runId);
+    expect(a.terminalStatus).toBe(b.terminalStatus);
+    expect(provider.getCatalogCallCount() + provider.getSnapshotCallCount()).toBeLessThanOrEqual(2);
   });
 
   it('rejects live ephemeral HMAC secret env override', () => {

@@ -36,6 +36,25 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'fsd-p6b-h1-pre-node-trust-closeout-2026-11-08',
+    version: '4.9.5030',
+    title: 'FSD P6B — pre-Node trust closeout (privileged one-shot, non-activating)',
+    summary: [
+      'Pre-node attestation runs in plain Node before tsx loads Nest modules; launcher forbids operator RELAXED/SKIP bypass env and npx tsx fallback.',
+      'Live entry is bootstrap → dynamic main import; direct tsx on legacy CLI path is rejected. Adversarial tests cover skip-worktree, poisoned imports, and trust-anchor uid/mode matrix.',
+      'No FSD live activation, no production trust-store install; VPS release tree must be non-operator-writable for go-live.',
+    ],
+    reason:
+      'Opus H1: executable attestation and trusted launcher were bypassable; static imports ran before SHA attestation.',
+    previousBehavior:
+      'Operator env could relax attestation; launcher could fall back to npx --yes tsx; one-shot CLI imported Nest graph at module load.',
+    details:
+      'backend/scripts/ops/fsd3-one-shot-pre-node-attest.mjs, fsd3-live-discovery-one-shot.{bootstrap,main}.ts, fsd-integration/ops/*; architecture/fsd/P6B_PRIVILEGED_ONE_SHOT_EXECUTION_V1.md; .github/workflows/fsd-p5a-ci.yml.',
+    affectsArchitecture: true,
+    module: 'Vehicle Intelligence',
+    createdAt: '2026-11-08T16:30:00.000Z',
+  },
+  {
     id: 'oneauto-oe-service-schedule-failed-callback-recovery-p1-2026-11-06',
     version: '4.9.5027',
     title:

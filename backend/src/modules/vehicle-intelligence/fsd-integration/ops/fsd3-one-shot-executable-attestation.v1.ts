@@ -7,6 +7,10 @@ import {
   resolveTrustedGitExecutableV1,
   trustedGitExecFileSyncV1,
 } from './fsd3-one-shot-trusted-git.v1';
+import {
+  assertOperatorAttestationEnvHasNoTestBypassV1,
+  resolveFsd3AttestationTestPolicyV1,
+} from './fsd3-one-shot-attestation-test-policy.v1';
 
 const SHA40 = /^[a-f0-9]{40}$/;
 
@@ -200,6 +204,7 @@ export function resolveFsd3OneShotExecutableReleaseShaV1(input?: {
 }): string {
   const mode = input?.mode ?? 'OPERATOR';
   const env = input?.env ?? process.env;
+  assertOperatorAttestationEnvHasNoTestBypassV1(env);
   assertGitEnvironmentNotInjectedV1(env);
   const canonicalRoot = resolveSynqDriveRepoRootFromModuleV1();
   const root = input?.repoRoot ? path.resolve(input.repoRoot) : canonicalRoot;
@@ -220,11 +225,12 @@ export function resolveFsd3OneShotExecutableReleaseShaV1(input?: {
     throw new Error('FSD3_EXECUTABLE_SHA_UNVERIFIABLE');
   }
 
-  const relaxed = env.FSD3_ONE_SHOT_EXECUTABLE_ATTESTATION_RELAXED === '1';
+  const testPolicy = resolveFsd3AttestationTestPolicyV1();
+  const skipFullAttestation = testPolicy === 'RELAXED_WORKTREE_ONLY';
 
   try {
     assertGitTopLevelMatchesRoot(root);
-    if (!relaxed) {
+    if (!skipFullAttestation) {
       assertNoIndexSpoofFlags(root);
       assertGitWorkTreeClean(root);
       if (mode === 'OPERATOR' && !input?.repoRoot) {

@@ -5,13 +5,13 @@ import {
   resolveFsd3OneShotExecutableReleaseShaV1,
   resolveSynqDriveRepoRootFromModuleV1,
 } from '../fsd3-one-shot-executable-attestation.v1';
+import { __setFsd3AttestationTestPolicyForJestV1 } from '../fsd3-one-shot-attestation-test-policy.v1';
 
 describe('Fsd3 executable attestation adversarial', () => {
-  const relaxedEnv: NodeJS.ProcessEnv = {
+  const attestationEnv: NodeJS.ProcessEnv = {
     PATH: process.env.PATH,
     HOME: process.env.HOME ?? '/root',
     LANG: process.env.LANG ?? 'C.UTF-8',
-    FSD3_ONE_SHOT_EXECUTABLE_ATTESTATION_RELAXED: '1',
   };
 
   it('rejects untracked entrypoints', () => {
@@ -24,8 +24,10 @@ describe('Fsd3 executable attestation adversarial', () => {
     ).toThrow('FSD3_EXECUTABLE_ENTRYPOINT_UNTRACKED');
   });
 
-  it('resolves HEAD sha under relaxed dev attestation when tree is dirty', () => {
-    const sha = resolveFsd3OneShotExecutableReleaseShaV1({ env: relaxedEnv });
+  it('resolves HEAD sha under jest attestation policy when tree is dirty', () => {
+    __setFsd3AttestationTestPolicyForJestV1('RELAXED_WORKTREE_ONLY');
+    const sha = resolveFsd3OneShotExecutableReleaseShaV1({ env: attestationEnv });
+    __setFsd3AttestationTestPolicyForJestV1(null);
     expect(sha).toMatch(/^[a-f0-9]{40}$/);
   });
 });

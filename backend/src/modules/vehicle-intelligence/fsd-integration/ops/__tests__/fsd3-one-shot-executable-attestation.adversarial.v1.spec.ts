@@ -76,6 +76,31 @@ describe('Fsd3 executable attestation adversarial (disposable clone)', () => {
   });
 });
 
+describe('Fsd3 pre-node poison module', () => {
+  jest.setTimeout(240_000);
+  const relModule =
+    'backend/src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-execution.service.ts';
+
+  it('pre-node attestation fails before poison top-level side effect can run via tsx', () => {
+    withDisposableClone((root) => {
+      const abs = path.join(root, relModule);
+      fs.appendFileSync(abs, '\nglobalThis.__FSD3_POISONED = true;\n');
+      const nodeBin = fs.existsSync('/usr/bin/node') ? '/usr/bin/node' : 'node';
+      const preAttest = path.join(root, 'backend/scripts/ops/fsd3-one-shot-pre-node-attest.mjs');
+      let exitCode = 0;
+      try {
+        execFileSync(nodeBin, [preAttest, root], {
+          env: { HOME: process.env.HOME ?? '/root', LANG: 'C.UTF-8', PATH: '/usr/bin:/bin' },
+        });
+      } catch (err) {
+        exitCode = (err as { status?: number }).status ?? 1;
+      }
+      expect(exitCode).not.toBe(0);
+      expect((globalThis as { __FSD3_POISONED?: boolean }).__FSD3_POISONED).toBeUndefined();
+    });
+  });
+});
+
 describe('Fsd3 runtime launch guard', () => {
   it('rejects NODE_OPTIONS preload', () => {
     expect(() =>

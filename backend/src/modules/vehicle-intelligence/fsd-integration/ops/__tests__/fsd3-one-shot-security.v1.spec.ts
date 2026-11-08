@@ -6,6 +6,7 @@ import {
   resolveFsd3OneShotExecutableReleaseShaV1,
   resolveSynqDriveRepoRootFromModuleV1,
 } from '../fsd3-one-shot-executable-attestation.v1';
+import { __setFsd3AttestationTestPolicyForJestV1 } from '../fsd3-one-shot-attestation-test-policy.v1';
 import { execFileSync } from 'node:child_process';
 import {
   FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1,
@@ -52,7 +53,6 @@ describe('Fsd3 one-shot security primitives', () => {
       PATH: process.env.PATH,
       HOME: process.env.HOME ?? '/root',
       LANG: process.env.LANG ?? 'C.UTF-8',
-      FSD3_ONE_SHOT_EXECUTABLE_ATTESTATION_RELAXED: '1',
     };
     const head = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
     const porcelain = execFileSync('git', ['-C', root, 'status', '--porcelain', '--untracked-files=no'], {
@@ -65,7 +65,9 @@ describe('Fsd3 one-shot security primitives', () => {
     };
     if (porcelain.length > 0) {
       expect(() => resolveFsd3OneShotExecutableReleaseShaV1({ env: strictEnv })).toThrow(/FSD3_EXECUTABLE_/);
+      __setFsd3AttestationTestPolicyForJestV1('RELAXED_WORKTREE_ONLY');
       expect(resolveFsd3OneShotExecutableReleaseShaV1({ env })).toBe(head);
+      __setFsd3AttestationTestPolicyForJestV1(null);
       return;
     }
     expect(resolveFsd3OneShotExecutableReleaseShaV1()).toBe(head);
