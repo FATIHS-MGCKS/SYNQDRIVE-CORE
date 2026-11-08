@@ -54,31 +54,41 @@ export function hasColdEngineRpmEvidence(input: Ds4PowertrainDemandColdEngineRes
   return multichannelHasRpmLabels(canon) || tripHasRpmPoints(input);
 }
 
-function validateGenuineEmptyRpmRead(
+function validateZeroRpmPathFailClosed(
   input: Ds4PowertrainDemandColdEngineResearchInputV1,
   reasonCodes: Ds4PowertrainDemandBindingAbstainReason[],
 ): void {
-  const dq = input.tripInput.dataQuality;
-  const genuinelyEmpty =
-    dq.validPointCount === 0 &&
-    (dq.completenessLabel === 'EMPTY' || dq.completenessLabel === 'COMPLETE');
-  if (!genuinelyEmpty) {
+  const { tripInput } = input;
+  const ch = tripInput.clickHouseRead;
+
+  if (ch.status === 'QUERY_FAILED') reasonCodes.push('HF_CLICKHOUSE_QUERY_FAILED');
+  if (ch.status === 'UNAVAILABLE' || !ch.available) reasonCodes.push('HF_CLICKHOUSE_UNAVAILABLE');
+  if (ch.degradedReason != null && String(ch.degradedReason).trim().length > 0) {
+    reasonCodes.push('HF_CLICKHOUSE_DEGRADED');
+  }
+
+  const dq = tripInput.dataQuality;
+  if (dq.completenessLabel !== 'EMPTY') {
     reasonCodes.push('RPM_READ_NOT_GENUINELY_EMPTY');
   }
-}
+  if (dq.validPointCount !== 0) {
+    reasonCodes.push('EMPTY_RPM_DATA_QUALITY_INCONSISTENT');
+  }
+  if (dq.returnedPointCount !== 0) {
+    reasonCodes.push('EMPTY_RPM_DATA_QUALITY_INCONSISTENT');
+  }
+  if (dq.totalMatchingCount !== 0) {
+    reasonCodes.push('EMPTY_RPM_DATA_QUALITY_INCONSISTENT');
+  }
+  if (dq.invalidValueCount !== 0 || dq.duplicateTimestampCount !== 0) {
+    reasonCodes.push('EMPTY_RPM_DATA_QUALITY_INCONSISTENT');
+  }
+  if (tripInput.rpmPoints.length !== 0) {
+    reasonCodes.push('EMPTY_RPM_DATA_QUALITY_INCONSISTENT');
+  }
 
-function validateV1bDoesNotContradictEmptyRpm(
-  input: Ds4PowertrainDemandColdEngineResearchInputV1,
-  reasonCodes: Ds4PowertrainDemandBindingAbstainReason[],
-): void {
-  if (input.v1bResult == null) return;
-  const tripRpm = tripHasRpmPoints(input);
-  const v1bCoverage = input.v1bResult.temporalCoverage?.observedBucketCoverageRatio ?? 0;
-  if (
-    input.v1bResult.processingOutcome === 'SUCCEEDED' &&
-    (tripRpm || v1bCoverage > 0)
-  ) {
-    reasonCodes.push('V1B_RPM_EVIDENCE_CONTRADICTS_EMPTY_READ');
+  if (input.v1bResult != null) {
+    reasonCodes.push('V1B_UNEXPECTED_ON_ZERO_RPM_PATH');
   }
 }
 
@@ -158,16 +168,11 @@ export function validateDs4PowertrainDemandColdEngineInputBinding(
     validateConditionalRpmV1aParity(input, canon, reasonCodes);
     applyV1bRpmIntegrityChecks(input, reasonCodes);
   } else {
-    const dq = input.tripInput.dataQuality;
-    const genuinelyEmpty =
-      dq.validPointCount === 0 &&
-      (dq.completenessLabel === 'EMPTY' || dq.completenessLabel === 'COMPLETE');
-    if (genuinelyEmpty) {
+    if (input.tripInput.dataQuality.completenessLabel === 'EMPTY') {
       const hfIdx = reasonCodes.indexOf('HF_READ_INCOMPLETE');
       if (hfIdx >= 0) reasonCodes.splice(hfIdx, 1);
     }
-    validateGenuineEmptyRpmRead(input, reasonCodes);
-    validateV1bDoesNotContradictEmptyRpm(input, reasonCodes);
+    validateZeroRpmPathFailClosed(input, reasonCodes);
   }
 
   const expectedMcFp = validateMultichannelFingerprint(input, family, reasonCodes);

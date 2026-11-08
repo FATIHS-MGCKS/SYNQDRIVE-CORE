@@ -137,7 +137,13 @@ export type Ds4PowertrainDemandBindingAbstainReason =
   | 'V1B_REQUIRED_FOR_RPM_EVIDENCE'
   | 'V1B_RPM_EVIDENCE_CONTRADICTS_EMPTY_READ'
   | 'RPM_READ_NOT_GENUINELY_EMPTY'
+  | 'HF_CLICKHOUSE_QUERY_FAILED'
+  | 'HF_CLICKHOUSE_UNAVAILABLE'
+  | 'HF_CLICKHOUSE_DEGRADED'
+  | 'EMPTY_RPM_DATA_QUALITY_INCONSISTENT'
+  | 'V1B_UNEXPECTED_ON_ZERO_RPM_PATH'
   | 'VEHICLE_REFERENCE_BINDING_MISMATCH'
+  | 'REFERENCE_TRUST_REQUIRES_SYNTHETIC_FIXTURE'
   | 'REFERENCE_SPEC_UNAVAILABLE'
   | 'REFERENCE_PAIR_INCONSISTENT'
   | 'REFERENCE_PROVENANCE_DOWNGRADED'
@@ -295,7 +301,11 @@ export type Ds4PowertrainDemandColdEngineResultV1 = {
     telemetrySourceFamily: TelemetrySourceFamily | null;
     sourceBundleId: string | null;
     vehicleRpmReferenceBinding: { organizationId: string; vehicleId: string } | null;
-    highRpmReferenceTrustTier: 'OEM_USER_CONFIRMED' | 'DOWNGRADED_ESTIMATE' | 'UNAVAILABLE' | null;
+    highRpmReferenceTrustTier:
+      | 'SYNTHETIC_FIXTURE_ONLY'
+      | 'DOWNGRADED_ESTIMATE'
+      | 'UNAVAILABLE'
+      | null;
   };
   coldEngine: {
     rawWindowCount: number;

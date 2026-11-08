@@ -102,6 +102,7 @@ export function computeDs4PowertrainDemandColdEngineResearchV1(
     vehicleId: input.vehicleId,
     vehicleRpmReferenceBinding: input.vehicleRpmReferenceBinding,
     reference: input.vehicleRpmReference,
+    evidenceOrigin: input.evidenceOrigin,
   });
 
   const subtypeAssessability = computeColdEngineSubtypeAssessability({

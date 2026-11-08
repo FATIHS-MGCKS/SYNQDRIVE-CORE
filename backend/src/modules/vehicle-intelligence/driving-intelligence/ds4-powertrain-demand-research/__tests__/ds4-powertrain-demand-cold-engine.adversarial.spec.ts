@@ -9,7 +9,10 @@ import {
   TIER_TEST_VEHICLE,
 } from '../../rpm-hf-v1b/__tests__/ds4-rpm-hf-v1b-tier-fixtures';
 import { computeDs4PowertrainDemandColdEngineResearchV1 } from '../ds4-powertrain-demand-cold-engine.kernel.v1';
-import { DS4_COLD_ENGINE_MAX_RPM_SANITY_UPPER } from '../ds4-powertrain-demand-cold-engine-reference.v1';
+import {
+  DS4_COLD_ENGINE_MAX_RPM_SANITY_UPPER,
+  evaluateColdEngineHighRpmReferenceAdmission,
+} from '../ds4-powertrain-demand-cold-engine-reference.v1';
 import {
   buildColdEngineBoundInput,
   buildObservationSeries,
@@ -59,7 +62,101 @@ describe('ds4-powertrain-demand cold-engine P2-B2 adversarial', () => {
     input.v1bResult = tierOut.result;
     const out = computeDs4PowertrainDemandColdEngineResearchV1(input);
     expect(out.status).toBe('ABSTAINED');
-    expect(out.abstainReasons).toContain('V1B_RPM_EVIDENCE_CONTRADICTS_EMPTY_READ');
+    expect(out.abstainReasons).toContain('V1B_UNEXPECTED_ON_ZERO_RPM_PATH');
+  });
+
+  function zeroRpmColdLoadInput() {
+    const grid = coldEctGrid(12, (i) => {
+      if (i >= 2 && i <= 4) return { loadPct: 88, rpm: null };
+      return { loadPct: 8, rpm: null };
+    });
+    return buildColdEngineBoundInput({ multichannelObservations: grid });
+  }
+
+  it('QUERY_FAILED with EMPTY semantics abstains on zero-RPM path', () => {
+    const input = zeroRpmColdLoadInput();
+    input.tripInput.clickHouseRead = {
+      ...input.tripInput.clickHouseRead,
+      status: 'QUERY_FAILED',
+      available: false,
+    };
+    const out = computeDs4PowertrainDemandColdEngineResearchV1(input);
+    expect(out.status).toBe('ABSTAINED');
+    expect(out.abstainReasons).toContain('HF_CLICKHOUSE_QUERY_FAILED');
+  });
+
+  it('UNAVAILABLE with EMPTY semantics abstains on zero-RPM path', () => {
+    const input = zeroRpmColdLoadInput();
+    input.tripInput.clickHouseRead = {
+      ...input.tripInput.clickHouseRead,
+      status: 'UNAVAILABLE',
+      available: false,
+    };
+    const out = computeDs4PowertrainDemandColdEngineResearchV1(input);
+    expect(out.abstainReasons).toContain('HF_CLICKHOUSE_UNAVAILABLE');
+  });
+
+  it('degraded ClickHouse read abstains on zero-RPM path', () => {
+    const input = zeroRpmColdLoadInput();
+    input.tripInput.clickHouseRead = {
+      ...input.tripInput.clickHouseRead,
+      degradedReason: 'PARTIAL_SHARD_TIMEOUT',
+    };
+    const out = computeDs4PowertrainDemandColdEngineResearchV1(input);
+    expect(out.abstainReasons).toContain('HF_CLICKHOUSE_DEGRADED');
+  });
+
+  it('nonzero totalMatchingCount abstains on declared empty read', () => {
+    const input = zeroRpmColdLoadInput();
+    input.tripInput.dataQuality = {
+      ...input.tripInput.dataQuality,
+      totalMatchingCount: 3,
+    };
+    const out = computeDs4PowertrainDemandColdEngineResearchV1(input);
+    expect(out.abstainReasons).toContain('EMPTY_RPM_DATA_QUALITY_INCONSISTENT');
+  });
+
+  it('nonzero returnedPointCount abstains on declared empty read', () => {
+    const input = zeroRpmColdLoadInput();
+    input.tripInput.dataQuality = {
+      ...input.tripInput.dataQuality,
+      returnedPointCount: 1,
+    };
+    const out = computeDs4PowertrainDemandColdEngineResearchV1(input);
+    expect(out.abstainReasons).toContain('EMPTY_RPM_DATA_QUALITY_INCONSISTENT');
+  });
+
+  it('synthetic fixture HIGH_RPM reference experiment remains assessable', () => {
+    const refMax = 6000;
+    const grid = coldEctGrid(12, (i) => ({
+      rpm: i >= 2 && i <= 4 ? highRpmThreshold(refMax) + 80 : 900,
+      loadPct: 45,
+    }));
+    const out = computeDs4PowertrainDemandColdEngineResearchV1(
+      buildColdEngineBoundInput({
+        multichannelObservations: grid,
+        vehicleRpmReference: buildTrustedVehicleRpmReference(refMax),
+        evidenceOrigin: 'SYNTHETIC_FIXTURE',
+      }),
+    );
+    expect(out.coldEngine.subtypeAssessability.COLD_ENGINE_HIGH_RPM.status).toBe('ASSESSABLE');
+    expect(out.bindings.highRpmReferenceTrustTier).toBe('SYNTHETIC_FIXTURE_ONLY');
+    expect(out.provenance.independentFieldValidation).toBe(false);
+    expect(out.provenance.sourceProvenanceVerified).toBe(false);
+  });
+
+  it('unverified non-synthetic reference cannot admit HIGH_RPM', () => {
+    const refMax = 6000;
+    const verdict = evaluateColdEngineHighRpmReferenceAdmission({
+      organizationId: TIER_TEST_ORG,
+      vehicleId: TIER_TEST_VEHICLE,
+      vehicleRpmReferenceBinding: { organizationId: TIER_TEST_ORG, vehicleId: TIER_TEST_VEHICLE },
+      reference: buildTrustedVehicleRpmReference(refMax),
+      evidenceOrigin: 'OFFLINE_SEALED_BUNDLE',
+    });
+    expect(verdict.admitted).toBe(false);
+    expect(verdict.reasonCodes).toContain('REFERENCE_TRUST_REQUIRES_SYNTHETIC_FIXTURE');
+    expect(verdict.referenceTrustTier).not.toBe('SYNTHETIC_FIXTURE_ONLY');
   });
 
   it('USER_CONFIRMED maxRpm without vehicle binding is not assessable', () => {
