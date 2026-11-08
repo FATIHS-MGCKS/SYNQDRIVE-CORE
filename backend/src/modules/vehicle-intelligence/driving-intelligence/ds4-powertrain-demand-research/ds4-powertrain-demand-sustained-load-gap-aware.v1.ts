@@ -105,7 +105,14 @@ export function detectGapAwareSustainedLoadCandidates(input: {
   isEvPowertrain: boolean;
   canon: Ds4MultichannelCanonicalizeResultV1;
 }): Ds4GapAwareSustainedLoadDetectResultV1 {
-  const { powertrainClass } = classifySustainedLoadPowertrainV1(input.fuelType, input.isEvPowertrain);
+  const { powertrainClass, contradictoryEvIceClaim } = classifySustainedLoadPowertrainV1(
+    input.fuelType,
+    input.isEvPowertrain,
+  );
+  if (contradictoryEvIceClaim || powertrainClass === 'BEV' || powertrainClass === 'UNKNOWN') {
+    return { candidates: [], entryLabelCount: 0, longestRunLabelCount: 0 };
+  }
+
   const sorted = [...input.canon.buckets].sort((a, b) => a.recordedAtMs - b.recordedAtMs);
   const candidates: Ds4GapAwareSustainedLoadCandidateV1[] = [];
   let entryLabelCount = 0;

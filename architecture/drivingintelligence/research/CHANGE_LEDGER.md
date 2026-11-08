@@ -2975,4 +2975,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | P2-B3 abstain evidence integrity (2026-11-08, PR #2369) | Sole `INSUFFICIENT_LOAD_LABEL_OBSERVATIONS` only promotes `INSUFFICIENT_OBSERVATIONS` + trusted `loadPresentBucketCount`; all other abstains zero untrusted coverage metrics |
 | P2-B3 Opus P1 security integrity closeout (2026-11-08, PR #2369) | V1B sequence parity before sole-insufficient promotion; consistent canonical coverage on sole-insufficient; zero-RPM trip admission + explicit powertrain fail-closed (`sustained-load-powertrain.v1`); mandatory V1A RPM grid binding; non-vacuous missing-load split regression |
 | P2-B3 all-paths powertrain classification (2026-11-08, PR #2369) | Shared `classifySustainedLoadPowertrainV1` on RPM and zero-RPM binding; PHEV/HEV alias ICE gate in gap-aware detector; BEV/UNKNOWN fail-closed on RPM-present path |
+| P2-B3 final P2 pre-merge closeout (2026-11-08, PR #2369) | Literal P37/research threshold pin test; direct `detectGapAwareSustainedLoadCandidates` fail-closed for BEV/UNKNOWN/contradictory EV |
 

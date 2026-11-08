@@ -6,12 +6,19 @@ import {
 } from '../../rpm-hf-v1b/__tests__/ds4-rpm-hf-v1b-tier-fixtures';
 import { computeDs4PowertrainDemandColdEngineResearchV1 } from '../ds4-powertrain-demand-cold-engine.kernel.v1';
 import { computeDs4PowertrainDemandResearchV1 } from '../ds4-powertrain-demand-research.kernel.v1';
-import { SUSTAINED_HIGH_LOAD_SHADOW_POLICY } from '../../../shadow-detector/detectors/sustained-high-load-shadow.policy';
+import {
+  SUSTAINED_HIGH_LOAD_SHADOW_POLICY,
+  SUSTAINED_HIGH_LOAD_SHADOW_POLICY_VERSION,
+} from '../../../shadow-detector/detectors/sustained-high-load-shadow.policy';
 import {
   detectGapAwareSustainedLoadCandidates,
   resolveSustainedLoadEntryBranch,
 } from '../ds4-powertrain-demand-sustained-load-gap-aware.v1';
-import { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from '../ds4-powertrain-demand-sustained-load-reference.v1';
+import { DS4_SUSTAINED_LOAD_GAP_AWARE_RESEARCH_POLICY_VERSION } from '../ds4-powertrain-demand-research.contract.v1';
+import {
+  DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY,
+  DS4_SUSTAINED_LOAD_RESEARCH_MIN_OBSERVATIONS,
+} from '../ds4-powertrain-demand-sustained-load-reference.v1';
 import { computeDs4PowertrainDemandSustainedLoadResearchV1 } from '../ds4-powertrain-demand-sustained-load.kernel.v1';
 import { canonicalizeMultichannelObservations } from '../ds4-powertrain-demand-multichannel-canonicalize.v1';
 import { computeMultichannelContentFingerprint } from '../ds4-powertrain-demand-research.input-binding.v1';
@@ -449,17 +456,134 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
       return buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: (seq) => map(seq) as never });
     }
 
-    it('P37 threshold parity via read-only shadow policy reference', () => {
-      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.highEngineLoadEntryPct).toBe(
-        SUSTAINED_HIGH_LOAD_SHADOW_POLICY.highEngineLoadPct,
+    it('P37 literal threshold and policy-version pin (independent of live P37 object identity)', () => {
+      expect(SUSTAINED_HIGH_LOAD_SHADOW_POLICY_VERSION).toBe('sustained-high-load-shadow-v1');
+      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_RESEARCH_POLICY_VERSION).toBe(
+        'sustained-load-gap-aware-research-v1',
       );
-      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.minRpm).toBe(SUSTAINED_HIGH_LOAD_SHADOW_POLICY.minRpm);
-      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.highThrottlePct).toBe(
-        SUSTAINED_HIGH_LOAD_SHADOW_POLICY.highThrottlePct,
+      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.shadowPolicyVersion).toBe(
+        'sustained-high-load-shadow-v1',
       );
-      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.maxAdjacentLabelGapMs).toBe(
-        SUSTAINED_HIGH_LOAD_SHADOW_POLICY.clusterMaxGapMs,
+      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.highEngineLoadEntryPct).toBe(75);
+      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.highEngineLoadContinuePct).toBe(70);
+      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.minRpm).toBe(1800);
+      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.highThrottlePct).toBe(65);
+      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.minResearchLabelSpanMs).toBe(20_000);
+      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.maxAdjacentLabelGapMs).toBe(5000);
+      expect(DS4_SUSTAINED_LOAD_RESEARCH_MIN_OBSERVATIONS).toBe(5);
+      expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.minObservations).toBe(5);
+      expect(SUSTAINED_HIGH_LOAD_SHADOW_POLICY.minClusterSamples).toBe(4);
+      expect(SUSTAINED_HIGH_LOAD_SHADOW_POLICY.minClusterSamples).not.toBe(
+        DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.minObservations,
       );
+    });
+
+    describe('direct detector fail-closed (exported API boundary)', () => {
+      function gasolineValidCanon() {
+        return canonicalizeMultichannelObservations(
+          buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) }),
+        );
+      }
+
+      function phevThreeIceRpmCanon() {
+        return canonicalizeMultichannelObservations(
+          buildContiguousHighLoadRun({
+            pointCount: 5,
+            stepMs: 5000,
+            map: (seq) => ({ loadPct: 80, rpm: seq < 3 ? 500 : null, throttlePct: 70 }),
+          }),
+        );
+      }
+
+      function throttleOnlyCanon() {
+        return canonicalizeMultichannelObservations(
+          buildContiguousHighLoadRun({
+            pointCount: 5,
+            stepMs: 5000,
+            map: (seq) => ({ loadPct: 80, rpm: null, throttlePct: seq === 0 ? 70 : 50 }),
+          }),
+        );
+      }
+
+      const emptyDetect = { candidates: [], entryLabelCount: 0, longestRunLabelCount: 0 };
+
+      it('ELECTRIC with RPM labels => zero candidates', () => {
+        const d = detectGapAwareSustainedLoadCandidates({
+          tripId: TRIP,
+          providerSourceLinkId: 'link',
+          fuelType: 'ELECTRIC',
+          isEvPowertrain: false,
+          canon: gasolineValidCanon(),
+        });
+        expect(d).toEqual(emptyDetect);
+      });
+
+      it('ELECTRIC without RPM => zero candidates', () => {
+        const d = detectGapAwareSustainedLoadCandidates({
+          tripId: TRIP,
+          providerSourceLinkId: 'link',
+          fuelType: 'ELECTRIC',
+          isEvPowertrain: false,
+          canon: throttleOnlyCanon(),
+        });
+        expect(d).toEqual(emptyDetect);
+      });
+
+      it('fuelType=null => zero candidates', () => {
+        const d = detectGapAwareSustainedLoadCandidates({
+          tripId: TRIP,
+          providerSourceLinkId: 'link',
+          fuelType: null,
+          isEvPowertrain: false,
+          canon: gasolineValidCanon(),
+        });
+        expect(d).toEqual(emptyDetect);
+      });
+
+      it('UNKNOWN fuel token => zero candidates', () => {
+        const d = detectGapAwareSustainedLoadCandidates({
+          tripId: TRIP,
+          providerSourceLinkId: 'link',
+          fuelType: 'UNKNOWN_FUEL_TOKEN',
+          isEvPowertrain: false,
+          canon: gasolineValidCanon(),
+        });
+        expect(d).toEqual(emptyDetect);
+      });
+
+      it('GASOLINE with isEvPowertrain=true (contradiction) => zero candidates', () => {
+        const d = detectGapAwareSustainedLoadCandidates({
+          tripId: TRIP,
+          providerSourceLinkId: 'link',
+          fuelType: 'GASOLINE',
+          isEvPowertrain: true,
+          canon: gasolineValidCanon(),
+        });
+        expect(d).toEqual(emptyDetect);
+      });
+
+      it('PHEV with 3 qualifying local RPM in sequence => one candidate', () => {
+        const d = detectGapAwareSustainedLoadCandidates({
+          tripId: TRIP,
+          providerSourceLinkId: 'link',
+          fuelType: 'PHEV',
+          isEvPowertrain: false,
+          canon: phevThreeIceRpmCanon(),
+        });
+        expect(d.candidates).toHaveLength(1);
+        expect(d.entryLabelCount).toBeGreaterThan(0);
+      });
+
+      it('GASOLINE valid sequence => one candidate', () => {
+        const d = detectGapAwareSustainedLoadCandidates({
+          tripId: TRIP,
+          providerSourceLinkId: 'link',
+          fuelType: 'GASOLINE',
+          isEvPowertrain: false,
+          canon: gasolineValidCanon(),
+        });
+        expect(d.candidates).toHaveLength(1);
+      });
     });
 
     it('PHEV: single rpm=1 does not confirm ICE', () => {
