@@ -147,6 +147,7 @@ import { VehicleHealthTabSummaryService } from './health-summary/vehicle-health-
 import { RentalHealthModule } from '../rental-health/rental-health.module';
 import { DashboardWarningLightsService } from './dashboard-warning-lights/dashboard-warning-lights.service';
 import { ServiceComplianceService } from './service-compliance/service-compliance.service';
+import { MaintenanceForecastService } from './service-compliance/maintenance-forecast/maintenance-forecast.service';
 import { ComplianceTaskMaterializeService } from './service-compliance/compliance-task-materialize.service';
 import { ServiceOverdueTaskService } from './service-compliance/service-overdue-task.service';
 import { BatteryTaskService } from './battery-health/battery-task.service';
@@ -546,6 +547,7 @@ import { FsdDiscoveryIntegrationModule } from './fsd-integration/fsd-integration
     VehicleHealthTabSummaryService,
     DashboardWarningLightsService,
     ServiceComplianceService,
+    MaintenanceForecastService,
     ComplianceTaskMaterializeService,
     ServiceOverdueTaskService,
     BatteryTaskService,
@@ -797,6 +799,7 @@ import { FsdDiscoveryIntegrationModule } from './fsd-integration/fsd-integration
     BatterySnapshotRestBackfillService,
     BatteryShadowValidationService,
     ServiceComplianceService,
+    MaintenanceForecastService,
     DashboardWarningLightsService,
     ComplianceTaskMaterializeService,
     ServiceOverdueTaskService,

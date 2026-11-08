@@ -64,6 +64,8 @@ async function executeCreateServiceEvent(
         notes: payload.notes,
         costCents: payload.costCents,
         documentUrl: context.sourceFileUrl,
+        performedWork: payload.performedWork,
+        serviceKind: payload.serviceKind,
       });
 
       return {

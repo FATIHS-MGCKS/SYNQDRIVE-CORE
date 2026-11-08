@@ -580,7 +580,7 @@ export class VehicleHealthTabSummaryService {
       if (mod.state === 'unknown' && key === 'battery') reasons.push('Battery tracking unavailable');
       if (mod.state === 'stale' && key === 'error_codes') reasons.push('DTC data stale');
       if (mod.state === 'no_tracking' && key === 'service_compliance') {
-        reasons.push('Next service not tracked by HM/OEM');
+        reasons.push('Next service forecast unavailable (no OEM values and no schedule with proven history)');
       }
     }
     if (input.dtcStale) reasons.push('DTC data stale');

@@ -6,7 +6,7 @@
 
 **Central registry validator:** `bash architecture/scripts/validate-module-registry.sh`
 
-**Last updated:** 2026-10-28 (DS4 authoritative assessment migration PR-0: DI design doc + owner decision; Brakes Health / Rental Driving Analysis / Rental Health → `AUDIT_IN_PROGRESS`)
+**Last updated:** 2026-11-08 (Service Events & Compliance → `AUDIT_IN_PROGRESS`; Service Info V2 provider-agnostic maintenance forecast bootstrap authority)
 
 ---
 
@@ -66,7 +66,7 @@ Canonical overview of known modules. **Every row includes module name, mini desc
 | Rental Rules | Org-level rental policy and rules configuration governing bookings and operations. | `NOT_STARTED` | N/A — inventory only | — |
 | Scaling Process | Documents horizontal scaling, multi-replica coordination, scheduler leader election, and production scale gates. | `AUTHORITY_ACTIVE` | Bootstrap established · living architecture authority | [`architecture/scaling-process/`](scaling-process/) |
 | Service Cases | Operational service-case tracking linked to fleet maintenance and vendor work. | `NOT_STARTED` | N/A — inventory only | — |
-| Service Events & Compliance | Oil change, TÜV, service intervals, and compliance task materialization for vehicles. | `NOT_STARTED` | N/A — inventory only | — |
+| Service Events & Compliance | Oil change, TÜV, service intervals, provider-agnostic deterministic maintenance forecast, and compliance task signals for vehicles. | `AUDIT_IN_PROGRESS` | Bootstrap V0.1 · Service Info V2 forecast engine · Production baseline `VERIFIED_READ_ONLY` (bounded) | [`architecture/service-events-compliance/`](service-events-compliance/) |
 | SMS & Twilio Messaging | SMS conversation persistence and Twilio provider provisioning for messaging channels. | `NOT_STARTED` | N/A — inventory only | — |
 | Stations | Rental station locations, geofencing, booking rules, transfers, and Stations V2 configuration. | `NOT_STARTED` | N/A — inventory only | — |
 | Support | Customer and operator support ticket APIs and in-app support surfaces. | `NOT_STARTED` | N/A — inventory only | — |
@@ -446,6 +446,20 @@ Detailed sections for modules with usable living authorities. See [Module invent
 | **Ownership boundary** | **Owns** rental gate aggregation semantics. **Does NOT own** DS4 shadow tables or Driving Impact scoring. |
 | **Mandatory entry documents (partial)** | [README.md](rental-health/README.md) · [AUDIT_MANIFEST.md](rental-health/AUDIT_MANIFEST.md) · [CURRENT_STATE.md](rental-health/CURRENT_STATE.md) · [AGENT_CONTRACT.md](rental-health/AGENT_CONTRACT.md) |
 | **Validation** | Registry validator only until graph script exists |
+
+---
+
+### Service Events & Compliance
+
+| Field | Value |
+|-------|-------|
+| **Registry coverage status** | `AUDIT_IN_PROGRESS` — bootstrap 2026-11-08 (Service Info V2 workstream); **not** promoted |
+| **Scope** | `VehicleServiceEvent` history, deterministic provider-agnostic maintenance forecast (HM OEM / stored OneAuto schedule / manual intervals / confirmed events), TÜV/BOKraft dates, compliance task signals, Service Info Box read model. |
+| **Authority directory** | [`architecture/service-events-compliance/`](service-events-compliance/) |
+| **Authority-native status** | Bootstrap V0.1 · Production baseline `VERIFIED_READ_ONLY` @ `dbf5d91b7` (bounded counts) |
+| **Ownership boundary** | **Owns** maintenance position taxonomy, due rules, baseline-coverage rules, provenance contract, service-event semantics. **Does NOT own** OneAuto transport/charging, HM ingestion, document OCR extraction, task persistence. |
+| **Mandatory entry documents (partial)** | [README.md](service-events-compliance/README.md) · [AUDIT_MANIFEST.md](service-events-compliance/AUDIT_MANIFEST.md) · [CURRENT_STATE.md](service-events-compliance/CURRENT_STATE.md) · [decisions/DECISION_REGISTER.md](service-events-compliance/decisions/DECISION_REGISTER.md) · [evidence/PRODUCTION_BASELINE.md](service-events-compliance/evidence/PRODUCTION_BASELINE.md) · [contradictions/KNOWLEDGE_GAPS.md](service-events-compliance/contradictions/KNOWLEDGE_GAPS.md) · [AGENT_CONTRACT.md](service-events-compliance/AGENT_CONTRACT.md) |
+| **Validation** | Registry validator + module jest/vitest specs listed in README until graph script exists |
 
 ---
 
