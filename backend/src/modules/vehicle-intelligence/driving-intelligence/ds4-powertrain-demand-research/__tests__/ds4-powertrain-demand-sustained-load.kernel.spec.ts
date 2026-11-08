@@ -14,6 +14,8 @@ import {
 import { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from '../ds4-powertrain-demand-sustained-load-reference.v1';
 import { computeDs4PowertrainDemandSustainedLoadResearchV1 } from '../ds4-powertrain-demand-sustained-load.kernel.v1';
 import { canonicalizeMultichannelObservations } from '../ds4-powertrain-demand-multichannel-canonicalize.v1';
+import { computeMultichannelContentFingerprint } from '../ds4-powertrain-demand-research.input-binding.v1';
+import { resolveTelemetrySourceFamily } from '../../../telemetry-source-family';
 import {
   buildBoundPowertrainInput,
   buildColdEngineBoundInput,
@@ -127,18 +129,28 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
     expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(2);
   });
 
-  it('explicit missing load bucket splits sequence', () => {
-    const grid = buildObservationSeries('2026-01-01T10:00:01.000Z', 28, 1, (i) => {
-      if (i === 12) return { rpm: 2000, loadPct: null, throttlePct: 40 };
-      if (i >= 5 && i <= 25 && i !== 12 && (i - 5) % 5 === 0) {
-        return { rpm: 2000, loadPct: 78, throttlePct: 40 };
-      }
-      return { rpm: 1500, loadPct: 20, throttlePct: 10 };
+  it('missing load bucket splits an otherwise qualifying sustained sequence', () => {
+    const controlGrid = buildContiguousHighLoadRun({
+      pointCount: 5,
+      stepMs: 5000,
+      map: () => ({ loadPct: 80, rpm: 2000 }),
     });
-    const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
-      buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
+    const control = computeDs4PowertrainDemandSustainedLoadResearchV1(
+      buildBoundPowertrainInput({ multichannelObservations: controlGrid, tripId: TRIP }),
     );
-    expect(out.sustainedLoad.deduplicatedCandidateCount).toBeLessThanOrEqual(1);
+    expect(control.sustainedLoad.deduplicatedCandidateCount).toBe(1);
+    expect(control.sustainedLoad.tripEvidenceClassification).toBe('GAP_AWARE_SUSTAINED_PROXY_CANDIDATE');
+
+    const adversarialGrid = buildContiguousHighLoadRun({
+      pointCount: 5,
+      stepMs: 5000,
+      map: (seq) => (seq === 2 ? { loadPct: null, rpm: 2000, throttlePct: 35 } : { loadPct: 80, rpm: 2000 }),
+    });
+    const adversarial = computeDs4PowertrainDemandSustainedLoadResearchV1(
+      buildBoundPowertrainInput({ multichannelObservations: adversarialGrid, tripId: TRIP }),
+    );
+    expect(adversarial.sustainedLoad.deduplicatedCandidateCount).toBe(0);
+    expect(adversarial.sustainedLoad.tripEvidenceClassification).not.toBe('GAP_AWARE_SUSTAINED_PROXY_CANDIDATE');
   });
 
   it('load continuation below 70 splits sequence', () => {
@@ -523,8 +535,10 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
       expect(out.abstainReasons).toEqual(['INSUFFICIENT_LOAD_LABEL_OBSERVATIONS']);
       expect(out.sustainedLoad.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
       expect(out.sustainedLoad.coverageEvidence.loadPresentBucketCount).toBe(4);
-      expect(out.sustainedLoad.coverageEvidence.gridBucketCount).toBe(0);
-      expect(out.sustainedLoad.canonicalRowsFullKey).toBe(0);
+      expect(out.sustainedLoad.coverageEvidence.loadMissingBucketCount).toBe(8);
+      expect(out.sustainedLoad.coverageEvidence.gridBucketCount).toBe(12);
+      expect(out.sustainedLoad.canonicalRowsFullKey).toBe(12);
+      expect(out.sustainedLoad.distinctMsLabelsInTrip).toBe(12);
     });
 
     it('genuine zero-RPM CH EMPTY with v1b null and throttle entry admits candidate', () => {
@@ -564,7 +578,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
       }));
     }
 
-    it('3 load labels sole failure: INSUFFICIENT_OBSERVATIONS with trusted load count only', () => {
+    it('3 load labels sole failure: INSUFFICIENT_OBSERVATIONS with consistent canonical coverage', () => {
       const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
         buildBoundPowertrainInput({ multichannelObservations: gridWithLoadLabels(3), tripId: TRIP }),
       );
@@ -572,8 +586,127 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
       expect(out.abstainReasons).toEqual(['INSUFFICIENT_LOAD_LABEL_OBSERVATIONS']);
       expect(out.sustainedLoad.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
       expect(out.sustainedLoad.coverageEvidence.loadPresentBucketCount).toBe(3);
-      expect(out.sustainedLoad.coverageEvidence.gridBucketCount).toBe(0);
+      expect(out.sustainedLoad.coverageEvidence.loadMissingBucketCount).toBe(9);
+      expect(out.sustainedLoad.coverageEvidence.gridBucketCount).toBe(12);
+      expect(out.sustainedLoad.canonicalRowsFullKey).toBe(12);
+      expect(out.sustainedLoad.distinctMsLabelsInTrip).toBe(12);
+    });
+
+    it('3 load labels + tampered V1B sequenceStats: NOT_ASSESSABLE with zero trusted counts', () => {
+      const input = buildBoundPowertrainInput({
+        multichannelObservations: gridWithLoadLabels(3),
+        tripId: TRIP,
+      });
+      input.v1bResult = {
+        ...input.v1bResult!,
+        sequenceStats: {
+          ...input.v1bResult!.sequenceStats,
+          continuousSequenceCount: 9_999,
+        },
+      };
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(input);
+      expect(out.status).toBe('ABSTAINED');
+      expect(out.abstainReasons).toContain('V1B_SEQUENCE_PARITY_MISMATCH');
+      expect(out.abstainReasons).toContain('INSUFFICIENT_LOAD_LABEL_OBSERVATIONS');
+      expect(out.sustainedLoad.tripEvidenceClassification).toBe('NOT_ASSESSABLE');
+      expect(out.sustainedLoad.coverageEvidence.loadPresentBucketCount).toBe(0);
       expect(out.sustainedLoad.canonicalRowsFullKey).toBe(0);
+    });
+
+    it('V1A RPM grid stripped while V1A points remain: fail closed', () => {
+      const grid = buildContiguousHighLoadRun({
+        pointCount: 5,
+        stepMs: 5000,
+        map: () => ({ loadPct: 80, rpm: 2000 }),
+      });
+      const input = buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP });
+      input.multichannelObservations = input.multichannelObservations.map((row) => ({ ...row, rpm: null }));
+      const family = resolveTelemetrySourceFamily(input.dimoVehicleRawJson) ?? 'UNKNOWN';
+      input.multichannelFingerprint = computeMultichannelContentFingerprint({
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        tripId: input.tripId,
+        providerSourceLinkId: input.providerSourceLinkId,
+        telemetrySourceFamily: family,
+        observations: input.multichannelObservations,
+      });
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(input);
+      expect(out.status).toBe('ABSTAINED');
+      expect(out.abstainReasons).toContain('RPM_V1A_UNMATCHED_LABEL');
+      expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(0);
+    });
+
+    it('zero-RPM path: processingAllowed=false abstains', () => {
+      const grid = buildContiguousHighLoadRun({
+        pointCount: 5,
+        stepMs: 5000,
+        map: (seq) => ({ loadPct: 80, rpm: null, throttlePct: seq === 0 ? 70 : 50 }),
+      }).map((row) => ({ ...row, rpm: null }));
+      const input = buildColdEngineBoundInput({ multichannelObservations: grid, tripId: TRIP });
+      input.tripInput = {
+        ...input.tripInput,
+        admission: { ...input.tripInput.admission, processingAllowed: false },
+      };
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(input);
+      expect(out.abstainReasons).toContain('TRIP_ADMISSION_NOT_ALLOWED');
+      expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(0);
+    });
+
+    it('zero-RPM path: iceRpmApplicability NOT_APPLICABLE abstains', () => {
+      const grid = buildContiguousHighLoadRun({
+        pointCount: 5,
+        stepMs: 5000,
+        map: (seq) => ({ loadPct: 80, rpm: null, throttlePct: seq === 0 ? 70 : 50 }),
+      }).map((row) => ({ ...row, rpm: null }));
+      const input = buildColdEngineBoundInput({ multichannelObservations: grid, tripId: TRIP });
+      input.tripInput = {
+        ...input.tripInput,
+        admission: { ...input.tripInput.admission, iceRpmApplicability: 'NOT_APPLICABLE' },
+      };
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(input);
+      expect(out.abstainReasons).toContain('ICE_APPLICABILITY_NOT_ADMITTED');
+    });
+
+    function zeroRpmThrottleOnlyGrid() {
+      const prefix = buildObservationSeries('2026-01-01T10:00:01.000Z', 8, 1, () => ({
+        rpm: null,
+        loadPct: 18,
+        throttlePct: 12,
+      }));
+      const runRows = buildContiguousHighLoadRun({
+        pointCount: 5,
+        stepMs: 5000,
+        map: (seq) => ({ loadPct: 80, rpm: null, throttlePct: seq === 0 ? 70 : 50 }),
+      })
+        .slice(8, 13)
+        .map((row) => ({ ...row, rpm: null }));
+      return [...prefix, ...runRows];
+    }
+
+    it.each([['PLUG_IN_HYBRID'], ['PHEV'], ['HYBRID'], ['ELECTRIC']] as const)(
+      'zero-RPM path: fuelType %s without RPM abstains (fail-closed powertrain)',
+      (fuelType) => {
+        const input = buildColdEngineBoundInput({
+          multichannelObservations: zeroRpmThrottleOnlyGrid(),
+          tripId: TRIP,
+          fuelType,
+          isEvPowertrain: fuelType === 'ELECTRIC' ? false : undefined,
+        });
+        const out = computeDs4PowertrainDemandSustainedLoadResearchV1(input);
+        expect(out.status).toBe('ABSTAINED');
+        expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(0);
+      },
+    );
+
+    it('zero-RPM path: fuelType null without RPM abstains', () => {
+      const input = buildColdEngineBoundInput({
+        multichannelObservations: zeroRpmThrottleOnlyGrid(),
+        tripId: TRIP,
+      });
+      input.fuelType = null;
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(input);
+      expect(out.status).toBe('ABSTAINED');
+      expect(out.abstainReasons).toContain('ICE_OPERATION_NOT_CONFIRMED');
     });
 
     it('3 load labels + TENANT_SCOPE_VIOLATION: NOT_ASSESSABLE without trusted counts', () => {

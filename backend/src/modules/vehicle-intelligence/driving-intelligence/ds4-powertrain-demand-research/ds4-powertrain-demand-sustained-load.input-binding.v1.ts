@@ -16,6 +16,10 @@ import {
 import { multichannelHasRpmLabels, validateZeroRpmPathFailClosed } from './ds4-powertrain-demand-cold-engine.input-binding.v1';
 import { canonicalizeMultichannelObservations, verifyMultichannelRpmParityWithV1a } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
 import { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from './ds4-powertrain-demand-sustained-load-reference.v1';
+import {
+  validateSustainedLoadZeroRpmPowertrainFailClosed,
+  validateSustainedLoadZeroRpmTripAdmission,
+} from './ds4-powertrain-demand-sustained-load-powertrain.v1';
 
 export { DS4_COLD_ENGINE_ZERO_RPM_CLICKHOUSE_ALLOWED_STATUSES as DS4_SUSTAINED_LOAD_ZERO_RPM_CLICKHOUSE_ALLOWED_STATUSES } from './ds4-powertrain-demand-cold-engine.input-binding.v1';
 
@@ -90,6 +94,62 @@ function applyV1bIntegrityChecks(
   if (!fp.ok) reasonCodes.push('V1B_INPUT_FINGERPRINT_MISMATCH');
 }
 
+function enforceSustainedLoadV1aRpmGridBinding(
+  input: Ds4SustainedLoadResearchInputV1,
+  canon: ReturnType<typeof canonicalizeMultichannelObservations>,
+  reasonCodes: Ds4PowertrainDemandBindingAbstainReason[],
+): void {
+  const { tripInput } = input;
+  if (tripInput.rpmPoints.length === 0) return;
+
+  const parity = verifyMultichannelRpmParityWithV1a({
+    buckets: canon.buckets,
+    rpmPoints: tripInput.rpmPoints,
+  });
+  if (!parity.ok) reasonCodes.push(parity.reason);
+
+  const bucketByEpoch = new Map(canon.buckets.map((b) => [b.recordedAtMs, b]));
+  for (const p of tripInput.rpmPoints) {
+    const ms = Date.parse(p.recordedAtIso);
+    if (!Number.isFinite(ms)) continue;
+    const bucket = bucketByEpoch.get(ms);
+    if (bucket == null || bucket.rpm == null) {
+      reasonCodes.push('RPM_V1A_UNMATCHED_LABEL');
+      break;
+    }
+  }
+}
+
+function appendV1bSequenceParityMismatchIfApplicable(
+  input: Ds4SustainedLoadResearchInputV1,
+  rpmEvidencePresent: boolean,
+  reasonCodes: Ds4PowertrainDemandBindingAbstainReason[],
+): void {
+  const { tripInput, v1bResult } = input;
+  if (!rpmEvidencePresent || v1bResult == null) return;
+
+  const tierCadence = v1bResult.tierEvidence?.temporalCadenceProfile ?? null;
+  if (!tierCadence) return;
+
+  const temporal = computeDs4RpmHfV1bTemporalAnalysis(
+    {
+      tripStartIso: tripInput.tripStartIso,
+      tripEndIso: tripInput.tripEndIso,
+      points: tripInput.rpmPoints,
+      invalidValueCount: tripInput.dataQuality.invalidValueCount,
+      duplicateTimestampCount: tripInput.dataQuality.duplicateTimestampCount,
+    },
+    tierCadence,
+  );
+  const seq = v1bResult.sequenceStats;
+  if (
+    temporal.sequences.continuousSequenceCount !== seq.continuousSequenceCount ||
+    temporal.sequences.observedSequenceDurationSeconds !== seq.observedSequenceDurationSeconds
+  ) {
+    reasonCodes.push('V1B_SEQUENCE_PARITY_MISMATCH');
+  }
+}
+
 export function validateDs4PowertrainDemandSustainedLoadInputBinding(
   input: Ds4SustainedLoadResearchInputV1,
 ): Ds4SustainedLoadBindingResultV1 {
@@ -104,21 +164,19 @@ export function validateDs4PowertrainDemandSustainedLoadInputBinding(
   if (family === 'UNKNOWN') reasonCodes.push('TELEMETRY_SOURCE_FAMILY_UNKNOWN');
 
   const canonPreview = validateCanonicalMultichannelGrid(input, tripStartMs, tripEndMs, reasonCodes);
-  const rpmEvidencePresent =
-    multichannelHasRpmLabels(canonPreview) || input.tripInput.rpmPoints.length > 0;
+  const v1aHasRpm = tripInput.rpmPoints.length > 0;
+  const multichannelHasRpm = multichannelHasRpmLabels(canonPreview);
+  const rpmEvidencePresent = v1aHasRpm || multichannelHasRpm;
 
   if (rpmEvidencePresent) {
     if (v1bResult == null) {
       reasonCodes.push('V1B_REQUIRED_FOR_RPM_EVIDENCE');
     }
-    validateConditionalRpmV1aParity(input, canonPreview, reasonCodes);
+    if (multichannelHasRpm) {
+      validateConditionalRpmV1aParity(input, canonPreview, reasonCodes);
+    }
+    enforceSustainedLoadV1aRpmGridBinding(input, canonPreview, reasonCodes);
     applyV1bIntegrityChecks(input, reasonCodes);
-
-    const parity = verifyMultichannelRpmParityWithV1a({
-      buckets: canonPreview.buckets,
-      rpmPoints: tripInput.rpmPoints,
-    });
-    if (!parity.ok) reasonCodes.push(parity.reason);
 
     if (v1bResult != null) {
       const cadenceProfile = v1bResult.tierEvidence?.temporalCadenceProfile ?? null;
@@ -133,7 +191,9 @@ export function validateDs4PowertrainDemandSustainedLoadInputBinding(
       const hfIdx = reasonCodes.indexOf('HF_READ_INCOMPLETE');
       if (hfIdx >= 0) reasonCodes.splice(hfIdx, 1);
     }
+    validateSustainedLoadZeroRpmTripAdmission(input, reasonCodes);
     validateZeroRpmPathFailClosed(input, reasonCodes);
+    validateSustainedLoadZeroRpmPowertrainFailClosed(input, reasonCodes);
     if (v1bResult != null) {
       const fp = fingerprintsMatch(input);
       if (!fp.ok) reasonCodes.push('V1B_INPUT_FINGERPRINT_MISMATCH');
@@ -152,6 +212,8 @@ export function validateDs4PowertrainDemandSustainedLoadInputBinding(
   if (input.isEvPowertrain) reasonCodes.push('POWERTRAIN_NOT_APPLICABLE');
   if (input.declaredIceOperationConfirmed === true) reasonCodes.push('ICE_CONFIRMATION_CALLER_ONLY');
 
+  appendV1bSequenceParityMismatchIfApplicable(input, rpmEvidencePresent, reasonCodes);
+
   const uniqueReasons = [...new Set(reasonCodes)];
   if (uniqueReasons.length > 0) {
     return { ok: false, reasonCodes: uniqueReasons };
@@ -163,26 +225,6 @@ export function validateDs4PowertrainDemandSustainedLoadInputBinding(
     nominalCadenceSeconds: tierCadence?.nominalCadenceSeconds ?? FALLBACK_CADENCE.nominalCadenceSeconds,
     sequenceMaxGapSeconds: tierCadence?.sequenceMaxGapSeconds ?? FALLBACK_CADENCE.sequenceMaxGapSeconds,
   };
-
-  if (rpmIntegrityBound && tierCadence) {
-    const temporal = computeDs4RpmHfV1bTemporalAnalysis(
-      {
-        tripStartIso: tripInput.tripStartIso,
-        tripEndIso: tripInput.tripEndIso,
-        points: tripInput.rpmPoints,
-        invalidValueCount: tripInput.dataQuality.invalidValueCount,
-        duplicateTimestampCount: tripInput.dataQuality.duplicateTimestampCount,
-      },
-      tierCadence,
-    );
-    const seq = v1bResult!.sequenceStats;
-    if (
-      temporal.sequences.continuousSequenceCount !== seq.continuousSequenceCount ||
-      temporal.sequences.observedSequenceDurationSeconds !== seq.observedSequenceDurationSeconds
-    ) {
-      return { ok: false, reasonCodes: ['V1B_SEQUENCE_PARITY_MISMATCH'] };
-    }
-  }
 
   const fp = fingerprintsMatch(input);
   const fullCanon = canonicalizeMultichannelObservations(input.multichannelObservations);

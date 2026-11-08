@@ -15,6 +15,7 @@ const SOURCE_FILES = [
   'ds4-powertrain-demand-sustained-load.input-binding.v1.ts',
   'ds4-powertrain-demand-sustained-load-gap-aware.v1.ts',
   'ds4-powertrain-demand-sustained-load-reference.v1.ts',
+  'ds4-powertrain-demand-sustained-load-powertrain.v1.ts',
   'ds4-powertrain-demand-multichannel-canonicalize.v1.ts',
 ];
 

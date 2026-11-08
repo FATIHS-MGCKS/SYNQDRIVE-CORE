@@ -113,11 +113,13 @@ export function computeDs4PowertrainDemandSustainedLoadResearchV1(
     if (isSoleInsufficientLoadLabelBindingFailure(binding.reasonCodes)) {
       const canonAbstain = canonicalizeMultichannelObservations(input.multichannelObservations);
       const loadPresentAbstain = canonAbstain.buckets.filter((b) => b.loadPct != null).length;
+      const gridCount = canonAbstain.buckets.length;
+      const distinctMs = new Set(canonAbstain.buckets.map((b) => b.recordedAtMs)).size;
       coverageForAbstain = {
-        gridBucketCount: 0,
-        loadMissingBucketCount: 0,
-        distinctMsLabelsInTrip: 0,
-        identicalDuplicateCollapsedCount: 0,
+        gridBucketCount: gridCount,
+        loadMissingBucketCount: gridCount - loadPresentAbstain,
+        distinctMsLabelsInTrip: distinctMs,
+        identicalDuplicateCollapsedCount: canonAbstain.identicalDuplicateCollapsedCount,
         loadPresentBucketCount: loadPresentAbstain,
       };
     }
