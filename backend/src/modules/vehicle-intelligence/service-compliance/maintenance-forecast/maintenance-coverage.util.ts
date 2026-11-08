@@ -43,13 +43,57 @@ const NON_ENGINE_OIL_CONTEXT = [
 
 const ENGINE_OIL_TERMS = ['oil', 'öl'];
 
+const OIL_LEVEL_CHECK_TERMS = [
+  'oil level',
+  'ölstand',
+  'oil-level',
+  'check oil',
+  'oil check',
+  'öl kontrolle',
+  'öl kontrol',
+  'kontrolle öl',
+  'oil inspection',
+  'top up oil',
+  'oil top up',
+  'top-up oil',
+  'öl nachfüllen',
+  'nachfüllen öl',
+  'oil refill',
+  'refill oil',
+  'öl auffüllen',
+];
+
+const OIL_CHANGE_ACTION_TERMS = [
+  'replace',
+  'change',
+  'wechsel',
+  'tausch',
+  'erneuern',
+  'renew',
+  'drain',
+  'entleeren',
+  'service oil',
+  'ölwechsel',
+  'oil change',
+];
+
 export function normalizeWorkText(text: string): string {
   return text.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/** True when the work item is only an oil level check / top-up without a documented change. */
+export function isOilLevelCheckOnlyWorkItem(item: string): boolean {
+  const t = normalizeWorkText(item);
+  if (!ENGINE_OIL_TERMS.some((term) => t.includes(term))) return false;
+  const looksLikeLevelCheck = OIL_LEVEL_CHECK_TERMS.some((term) => t.includes(term));
+  if (!looksLikeLevelCheck) return false;
+  return !OIL_CHANGE_ACTION_TERMS.some((term) => t.includes(term));
 }
 
 /** True when a structured work item documents an engine oil change. */
 export function isEngineOilChangeWorkItem(item: string): boolean {
   const t = normalizeWorkText(item);
+  if (isOilLevelCheckOnlyWorkItem(item)) return false;
   if (!ENGINE_OIL_TERMS.some((term) => t.includes(term))) return false;
   if (NON_ENGINE_OIL_CONTEXT.some((ctx) => t.includes(ctx))) return false;
   return true;
@@ -112,7 +156,21 @@ export function eventCoversPosition(
   }
 
   if (kind === 'OIL_CHANGE') {
-    if (type === 'OIL_CHANGE') return true;
+    if (type === 'OIL_CHANGE') {
+      if (event.performedWork.length > 0) {
+        return event.performedWork.some(isEngineOilChangeWorkItem);
+      }
+      // OneAuto / workshop / OCR without structured proof must not reset engine oil.
+      if (event.eventSource === 'SERVICE_EVENT_ONEAUTO') return false;
+      if (
+        event.eventSource === 'SERVICE_EVENT_OCR' ||
+        event.eventSource === 'SERVICE_EVENT_WORKSHOP'
+      ) {
+        return false;
+      }
+      // Explicit confirmed manual motor-oil entry (type only) remains allowed.
+      return event.eventSource === 'SERVICE_EVENT_MANUAL';
+    }
     if (type === 'FULL_SERVICE' || type === 'GENERAL_INSPECTION') {
       return event.performedWork.some(isEngineOilChangeWorkItem);
     }

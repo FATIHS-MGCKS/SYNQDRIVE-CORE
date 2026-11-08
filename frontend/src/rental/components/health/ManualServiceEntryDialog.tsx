@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -20,6 +20,13 @@ import {
 import { useLanguage } from '../../../i18n/LanguageContext';
 import type { TranslationKey } from '../../../i18n/LanguageContext';
 import { formatServiceEventType } from '../../lib/service-info-display';
+import {
+  buildPartialIntervalPatch,
+  formValuesFromSnapshot,
+  snapshotFromVehicle,
+  type IntervalFormField,
+  type VehicleIntervalSnapshot,
+} from './service-intervals-dialog.util';
 
 export const SERVICE_EVENT_DUPLICATE_MARKER = 'SERVICE_EVENT_DUPLICATE';
 
@@ -307,17 +314,11 @@ export interface ServiceIntervalsDialogProps {
   onOpenChange: (open: boolean) => void;
   orgId: string;
   vehicleId: string;
-  initial: {
-    serviceIntervalKm: number | null;
-    serviceIntervalMonths: number | null;
-    oilChangeIntervalKm: number | null;
-    oilChangeIntervalMonths: number | null;
-  };
   onSaved?: () => void | Promise<void>;
 }
 
 const INTERVAL_FIELDS: Array<{
-  key: keyof ServiceIntervalsDialogProps['initial'];
+  key: IntervalFormField;
   labelKey: TranslationKey;
 }> = [
   { key: 'serviceIntervalKm', labelKey: 'health.serviceInfo.v2.intervals.field.serviceKm' },
@@ -326,29 +327,66 @@ const INTERVAL_FIELDS: Array<{
   { key: 'oilChangeIntervalMonths', labelKey: 'health.serviceInfo.v2.intervals.field.oilMonths' },
 ];
 
-export function ServiceIntervalsDialog({ open, onOpenChange, orgId, vehicleId, initial, onSaved }: ServiceIntervalsDialogProps) {
+export function ServiceIntervalsDialog({ open, onOpenChange, orgId, vehicleId, onSaved }: ServiceIntervalsDialogProps) {
   const { t } = useLanguage();
-  const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(INTERVAL_FIELDS.map((f) => [f.key, initial[f.key] != null ? String(initial[f.key]) : ''])),
-  );
+  const loadedRef = useRef<VehicleIntervalSnapshot | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({
+    serviceIntervalKm: '',
+    serviceIntervalMonths: '',
+    oilChangeIntervalKm: '',
+    oilChangeIntervalMonths: '',
+  });
+  const [dirty, setDirty] = useState<Set<IntervalFormField>>(() => new Set());
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadingVehicle, setLoadingVehicle] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!open || !orgId || !vehicleId) return;
+    let cancelled = false;
+    setLoadingVehicle(true);
+    setLoadError(null);
+    setDirty(new Set());
+    api.vehicles
+      .getByOrg(orgId, vehicleId)
+      .then((vehicle) => {
+        if (cancelled) return;
+        const snapshot = snapshotFromVehicle(vehicle as Record<string, unknown>);
+        loadedRef.current = snapshot;
+        const form = formValuesFromSnapshot(snapshot);
+        setValues(form);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError(t('health.serviceInfo.v2.intervals.error'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingVehicle(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, orgId, vehicleId, t]);
+
+  const markDirty = (key: IntervalFormField) => {
+    setDirty((prev) => new Set(prev).add(key));
+  };
+
   const submit = async () => {
     setFormError(null);
-    const payload: Record<string, number | null> = {};
-    for (const f of INTERVAL_FIELDS) {
-      const raw = values[f.key]?.trim() ?? '';
-      if (!raw) {
-        payload[f.key] = null;
-        continue;
-      }
-      const n = Number(raw);
-      if (!Number.isFinite(n) || n <= 0) {
-        setFormError(t('health.serviceInfo.v2.intervals.error'));
-        return;
-      }
-      payload[f.key] = Math.round(n);
+    const loaded = loadedRef.current;
+    if (!loaded) {
+      setFormError(t('health.serviceInfo.v2.intervals.error'));
+      return;
+    }
+    if (dirty.size === 0) {
+      onOpenChange(false);
+      return;
+    }
+    const payload = buildPartialIntervalPatch(loaded, values, dirty);
+    if (Object.keys(payload).length === 0) {
+      setFormError(t('health.serviceInfo.v2.intervals.error'));
+      return;
     }
     setSubmitting(true);
     try {
@@ -370,6 +408,14 @@ export function ServiceIntervalsDialog({ open, onOpenChange, orgId, vehicleId, i
           <DialogTitle>{t('health.serviceInfo.v2.intervals.title')}</DialogTitle>
           <DialogDescription>{t('health.serviceInfo.v2.intervals.description')}</DialogDescription>
         </DialogHeader>
+        {loadError ? (
+          <p role="alert" className="text-xs font-medium text-red-600 dark:text-red-400">
+            {loadError}
+          </p>
+        ) : null}
+        {loadingVehicle ? (
+          <p className="text-xs text-muted-foreground">{t('health.serviceInfo.v2.loading')}</p>
+        ) : null}
         <form
           className="space-y-3"
           onSubmit={(e) => {
@@ -387,8 +433,12 @@ export function ServiceIntervalsDialog({ open, onOpenChange, orgId, vehicleId, i
                   min={1}
                   step={1}
                   className={fieldClass}
+                  disabled={loadingVehicle || Boolean(loadError)}
                   value={values[f.key] ?? ''}
-                  onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                  onChange={(e) => {
+                    markDirty(f.key);
+                    setValues((prev) => ({ ...prev, [f.key]: e.target.value }));
+                  }}
                 />
               </label>
             ))}
@@ -402,7 +452,7 @@ export function ServiceIntervalsDialog({ open, onOpenChange, orgId, vehicleId, i
             <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={submitting}>
               {t('health.serviceInfo.v2.manual.cancel')}
             </Button>
-            <Button type="submit" size="sm" disabled={submitting}>
+            <Button type="submit" size="sm" disabled={submitting || loadingVehicle || Boolean(loadError)}>
               {submitting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
               {t('health.serviceInfo.v2.intervals.save')}
             </Button>

@@ -359,12 +359,6 @@ export function ServiceMaintenanceForecastPanel({
           onOpenChange={setIntervalsOpen}
           orgId={orgId}
           vehicleId={vehicleId}
-          initial={{
-            serviceIntervalKm: serviceInfo?.intervalKm ?? null,
-            serviceIntervalMonths: serviceInfo?.intervalMonths ?? null,
-            oilChangeIntervalKm: null,
-            oilChangeIntervalMonths: null,
-          }}
           onSaved={onChanged}
         />
       )}

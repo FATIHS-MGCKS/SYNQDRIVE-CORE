@@ -44,4 +44,9 @@ bash architecture/scripts/validate-module-registry.sh
 
 - OE schedule **extra** positions: component vocabulary coverage incomplete without more Production schedule shape samples.
 - HM OEM freshness vs computed headline: conflict surfacing implemented; operator policy for “which wins” beyond display is not productized.
-- Manual intervals dialog does not yet preload oil-change intervals from vehicle GET (uses service-info interval fields for inspection only).
+
+## Remediation 2026-11-08 (PR #2365 architect pass)
+
+- **H1:** Interval editor loads full vehicle interval snapshot via `getByOrg`; PATCH includes only user-dirty fields; manufacturer lane preserved when untouched.
+- **H2:** Engine-oil baseline requires structured engine-oil proof for OneAuto/OCR/workshop; transmission/axle/differential and oil-level-only lines excluded.
+- **H3:** OneAuto schedule emits `INSPECTION` or `OIL_CHANGE` only (no `INSPECTION_SMALL`/`INSPECTION_LARGE` inference); oil-only when all tasks are engine-oil service.

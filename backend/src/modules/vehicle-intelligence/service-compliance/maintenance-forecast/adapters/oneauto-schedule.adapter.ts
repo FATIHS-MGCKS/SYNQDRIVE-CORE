@@ -6,12 +6,6 @@ import type {
   MaintenanceSchedulePosition,
 } from '../maintenance-forecast.types';
 
-/**
- * Heuristic bound: oil-service positions in the stored Production schedule carry ≤ 9 tasks,
- * inspection positions ≥ 40. Classification additionally requires an engine-oil task match.
- */
-const OIL_SERVICE_MAX_TASKS = 12;
-
 export interface OneAutoScheduleAdapterResult {
   positions: MaintenanceSchedulePosition[];
   unscheduledPositions: Array<{ positionId: string; label: string; scheduleSource: 'ONEAUTO_SCHEDULE' }>;
@@ -41,10 +35,28 @@ function fingerprint(service: OneAutoOeServiceScheduleService, tasks: string[]):
   ].join('#');
 }
 
+function isAncillaryEngineOilServiceTask(text: string): boolean {
+  if (isEngineOilChangeWorkItem(text)) return true;
+  const t = normalizeWorkText(text);
+  const ancillary = ['oil filter', 'ölfilter', 'sealing plug', 'sump', 'drain plug', 'ölwanne', 'dichtung'];
+  return ancillary.some((a) => t.includes(a)) && (t.includes('oil') || t.includes('öl'));
+}
+
+/** Tasks that are not engine-oil service (checks, unrelated components, transmission oil, etc.). */
+function isNonEngineOilOnlyTask(text: string): boolean {
+  return !isEngineOilChangeWorkItem(text) && !isAncillaryEngineOilServiceTask(text);
+}
+
+/**
+ * OIL_CHANGE only when every task is engine-oil service (incl. filter/plug). Mixed inspection → INSPECTION.
+ * INSPECTION_SMALL / INSPECTION_LARGE are never inferred from OneAuto schedule fields (SEC-DEC-002).
+ */
 function classifyNormalService(tasks: string[]): MaintenancePositionKind {
-  const oilTasks = tasks.filter(isEngineOilChangeWorkItem).length;
-  if (oilTasks > 0 && tasks.length <= OIL_SERVICE_MAX_TASKS) return 'OIL_CHANGE';
-  return 'INSPECTION';
+  if (tasks.length === 0) return 'INSPECTION';
+  const hasEngineOil = tasks.some((task) => isEngineOilChangeWorkItem(task));
+  if (!hasEngineOil) return 'INSPECTION';
+  if (tasks.some(isNonEngineOilOnlyTask)) return 'INSPECTION';
+  return 'OIL_CHANGE';
 }
 
 function componentTermsFor(service: OneAutoOeServiceScheduleService, tasks: string[]): string[] {

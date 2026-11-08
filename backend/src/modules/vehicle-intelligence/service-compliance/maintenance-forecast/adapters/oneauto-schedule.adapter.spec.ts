@@ -107,4 +107,21 @@ describe('mapOneAutoScheduleToPositions', () => {
     const result = mapOneAutoScheduleToPositions({ normalServices: [inspectionService('X')], extraServices: [] });
     expect(result.positions.every((p) => p.intervalMode === 'RECURRING')).toBe(true);
   });
+
+  it('classifies mixed oil+inspection normal service as INSPECTION not OIL_CHANGE', () => {
+    const result = mapOneAutoScheduleToPositions({
+      normalServices: [inspectionService('MIXED')],
+      extraServices: [],
+    });
+    expect(result.positions).toHaveLength(1);
+    expect(result.positions[0]).toMatchObject({ positionId: 'oneauto:MIXED', kind: 'INSPECTION' });
+  });
+
+  it('never emits INSPECTION_SMALL or INSPECTION_LARGE from schedule', () => {
+    const result = mapOneAutoScheduleToPositions({
+      normalServices: [oilService('O1'), inspectionService('I1')],
+      extraServices: [],
+    });
+    expect(result.positions.every((p) => p.kind === 'OIL_CHANGE' || p.kind === 'INSPECTION')).toBe(true);
+  });
 });
