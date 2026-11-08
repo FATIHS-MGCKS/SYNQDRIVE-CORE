@@ -18,6 +18,7 @@ REPORT_NO_RELOAD=SKIP
 REPORT_VALID_REFRESH=SKIP
 REPORT_DOCKER_RUNTIME=SKIP
 REPORT_DOCKER_MKTEMP_PERMS=SKIP
+REPORT_STAGING_NO_PROMETHEUS_COPY=SKIP
 
 cleanup() {
   [[ -n "${TMP_PROM:-}" && -d "$TMP_PROM" ]] && rm -rf "$TMP_PROM"
@@ -335,6 +336,14 @@ assert_valid_refresh_promotes_rules() {
   REPORT_VALID_REFRESH=PASS
 }
 
+assert_staging_skips_prometheus_yml_copy() {
+  if grep -qE 'cp[[:space:]]+"\$SRC_PROM/prometheus\.vps\.yml"[[:space:]]+"\$tmp/prometheus\.yml"' "$OPS_SCRIPT"; then
+    echo "validate_prometheus_bundle must not copy prometheus.vps.yml into mktemp staging" >&2
+    return 1
+  fi
+  REPORT_STAGING_NO_PROMETHEUS_COPY=PASS
+}
+
 assert_docker_reads_mktemp_bundle_rules() {
   if ! docker_daemon_ready; then
     REPORT_DOCKER_MKTEMP_PERMS=SKIP
@@ -344,7 +353,6 @@ assert_docker_reads_mktemp_bundle_rules() {
   tmp="$(mktemp -d)"
   rules="$tmp/alerts.yml"
   cp "$CANONICAL_PROM/alerts.yml" "$rules"
-  # Deliberately leave mktemp dir at default 0700 — fix must chmod before docker mount.
   set +e
   PATH="/usr/bin:/bin" PROMTOOL_BIN="" bash -c '
     # shellcheck disable=SC1090
@@ -443,6 +451,7 @@ assert_docker_failure_propagates_bundle
 assert_conditional_validate_fail_closed
 assert_destination_unchanged_and_no_reload_on_failure
 assert_valid_refresh_promotes_rules
+assert_staging_skips_prometheus_yml_copy
 assert_docker_reads_mktemp_bundle_rules
 assert_legacy_docker_false_green_baseline
 rollback_snapshot_contract
@@ -459,3 +468,4 @@ echo "NO_RELOAD_ON_FAILURE=$REPORT_NO_RELOAD"
 echo "VALID_REFRESH_REGRESSION=$REPORT_VALID_REFRESH"
 echo "DOCKER_RUNTIME_TESTS=$REPORT_DOCKER_RUNTIME"
 echo "DOCKER_MKTEMP_PERMISSION_FIX=$REPORT_DOCKER_MKTEMP_PERMS"
+echo "STAGING_NO_PROMETHEUS_YML_COPY=$REPORT_STAGING_NO_PROMETHEUS_COPY"

@@ -36,7 +36,7 @@ docker_container_running() {
   docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$name"
 }
 
-# prom/prometheus runs promtool as a non-root user; mktemp -d (0700) bind-mounts deny read.
+# prom/prometheus runs promtool as a non-root user; mktemp -d (0700) bind-mounts deny access.
 promtool_make_docker_mount_readable() {
   local rules_file="$1"
   local dir base
@@ -45,7 +45,8 @@ promtool_make_docker_mount_readable() {
   if [[ ! -f "${dir}/${base}" ]]; then
     return 1
   fi
-  chmod a+rx "$dir"
+  # Traverse-only on the staging dir (not world-readable listing); read on the rule under test.
+  chmod a+x "$dir"
   chmod a+r "${dir}/${base}"
 }
 
@@ -105,10 +106,6 @@ validate_prometheus_bundle() {
     return 1
   fi
   if ! cp "$SRC_PROM/alerts-di-s4.yml" "$tmp/alerts-di-s4.yml"; then
-    rm -rf "$tmp"
-    return 1
-  fi
-  if ! cp "$SRC_PROM/prometheus.vps.yml" "$tmp/prometheus.yml"; then
     rm -rf "$tmp"
     return 1
   fi
