@@ -1,11 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '@shared/database/prisma.service';
 import { DimoSourceLinkOperatorAuthorizationService } from '@modules/vehicle-onboarding/services/dimo-source-link-operator-authorization.service';
 import { FsdDiscoveryPersistenceRepository } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.repository';
 import { buildFsdDimoConnectionIdentityFingerprint } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.contract.v1';
-import type { Fsd3OneShotCliScopeV1, Fsd3LiveOwnerApprovalDocumentV1 } from './fsd3-one-shot-owner-approval.v1';
+import {
+  assertFsd3LiveOwnerApprovalMatchesScope,
+  verifyFsd3LiveOwnerApprovalEnvelopeV1,
+  type Fsd3LiveOwnerApprovalEnvelopeV1,
+  type Fsd3OneShotCliScopeV1,
+} from './fsd3-one-shot-owner-approval.v1';
 import type { Fsd3OneShotLiveProviderV1 } from './fsd3-one-shot-execution-capability.v1';
 import { Fsd3OneShotCapabilityService } from './fsd3-one-shot-capability.service';
+import {
+  mintFsd3OneShotPreflightTicketV1,
+  resolveFsd3OneShotPreflightTicketSecretV1,
+  verifyFsd3OneShotPreflightTicketV1,
+} from './fsd3-one-shot-preflight-ticket.v1';
 
 export type Fsd3OneShotPreflightResultV1 = {
   status: 'PREFLIGHT_OK';
@@ -20,13 +30,19 @@ export type Fsd3OneShotPreflightResultV1 = {
 };
 
 @Injectable()
-export class Fsd3OneShotPreflightService {
+export class Fsd3OneShotPreflightService implements OnModuleInit {
+  private preflightTicketSecret!: Buffer;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly operatorAuth: DimoSourceLinkOperatorAuthorizationService,
     private readonly persistence: FsdDiscoveryPersistenceRepository,
     private readonly capability: Fsd3OneShotCapabilityService,
   ) {}
+
+  onModuleInit(): void {
+    this.preflightTicketSecret = resolveFsd3OneShotPreflightTicketSecretV1();
+  }
 
   async runAuthorizedReadOnlyPreflight(input: {
     scope: Fsd3OneShotCliScopeV1;
@@ -82,39 +98,57 @@ export class Fsd3OneShotPreflightService {
     };
   }
 
-  issueExecutionCapability(input: {
+  mintAuthorizedPreflightTicket(input: {
     scope: Fsd3OneShotCliScopeV1;
-    approval: Fsd3LiveOwnerApprovalDocumentV1;
     preflight: Fsd3OneShotPreflightResultV1;
     actorUserId: string;
-    liveProvider: Fsd3OneShotLiveProviderV1;
   }): string {
-    if (!input.preflight.dimoVehicleId || input.preflight.dimoTokenId == null) {
-      throw new Error('DIMO_IDENTITY_INCOMPLETE');
-    }
-    if (!input.preflight.connectionIdentityFingerprint) {
-      throw new Error('DIMO_IDENTITY_INCOMPLETE');
-    }
-    if (
-      input.preflight.organizationId !== input.scope.organizationId ||
-      input.preflight.vehicleId !== input.scope.vehicleId ||
-      input.preflight.providerSourceLinkId !== input.scope.providerSourceLinkId
-    ) {
-      throw new Error('FSD3_PREFLIGHT_SCOPE_MISMATCH');
-    }
+    return mintFsd3OneShotPreflightTicketV1({
+      scope: input.scope,
+      preflight: input.preflight,
+      actorUserId: input.actorUserId,
+      secret: this.preflightTicketSecret,
+    });
+  }
+
+  issueExecutionCapability(input: {
+    scope: Fsd3OneShotCliScopeV1;
+    verifiedOwnerApprovalEnvelope: Fsd3LiveOwnerApprovalEnvelopeV1;
+    preflightTicket: string;
+    actorUserId: string;
+    liveProvider: Fsd3OneShotLiveProviderV1;
+    trustStoreJson?: string;
+  }): string {
+    const approval = verifyFsd3LiveOwnerApprovalEnvelopeV1({
+      envelope: input.verifiedOwnerApprovalEnvelope,
+      trustStoreJson: input.trustStoreJson,
+    });
+    assertFsd3LiveOwnerApprovalMatchesScope({
+      approval,
+      scope: input.scope,
+      liveProvider: input.liveProvider,
+    });
+
+    const ticket = verifyFsd3OneShotPreflightTicketV1({
+      token: input.preflightTicket,
+      scope: input.scope,
+      actorUserId: input.actorUserId,
+      secret: this.preflightTicketSecret,
+    });
+
     return this.capability.mint({
       organizationId: input.scope.organizationId,
       vehicleId: input.scope.vehicleId,
       providerSourceLinkId: input.scope.providerSourceLinkId,
       discoveryRequestKey: input.scope.discoveryRequestKey,
       attestedExecutableReleaseSha: input.scope.executableReleaseSha,
-      approvalReference: input.approval.approvalReference,
+      approvalReference: approval.approvalReference,
       liveProvider: input.liveProvider,
       actorUserId: input.actorUserId,
-      operatorAuthorizationReference: input.preflight.authorizationReference,
-      dimoVehicleId: input.preflight.dimoVehicleId,
-      dimoTokenId: input.preflight.dimoTokenId,
-      connectionIdentityFingerprint: input.preflight.connectionIdentityFingerprint,
+      operatorAuthorizationReference: ticket.authorizationReference,
+      dimoVehicleId: ticket.dimoVehicleId,
+      dimoTokenId: ticket.dimoTokenId,
+      connectionIdentityFingerprint: ticket.connectionIdentityFingerprint,
     });
   }
 }

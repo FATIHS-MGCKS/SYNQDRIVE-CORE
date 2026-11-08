@@ -3,12 +3,8 @@ import { ModulesContainer } from '@nestjs/core';
 import { PrismaService } from '@shared/database/prisma.service';
 import { RedisService } from '@shared/redis/redis.service';
 import { DimoRequestExecutor } from '@modules/dimo/provider-budget/dimo-request-executor.service';
-import { DimoProviderBudgetService } from '@modules/dimo/provider-budget/dimo-provider-budget.service';
-import { DimoAuthService } from '@modules/dimo/dimo-auth.service';
-import { DimoTelemetryService } from '@modules/dimo/dimo-telemetry.service';
 import { Fsd3OneShotLiveBootstrapModule } from '../fsd3-one-shot-live-bootstrap.module';
 import { FsdDimoAdapterFactoryService } from '../../fsd-dimo-adapter-factory.service';
-import { createFsd3LiveStubDiscoveryProvider } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-mock-provider.v1';
 
 describe('Fsd3OneShotLiveBootstrapModule integration boot', () => {
   it('boots slim live slice without workers schedulers HTTP or provider dispatch on init', async () => {
@@ -30,22 +26,11 @@ describe('Fsd3OneShotLiveBootstrapModule integration boot', () => {
           get: jest.fn(),
           set: jest.fn(),
           del: jest.fn(),
+          eval: jest.fn(),
         }),
       })
-      .overrideProvider(DimoProviderBudgetService)
-      .useValue({ onModuleInit: jest.fn(), acquirePermit: jest.fn(), releasePermit: jest.fn() })
       .overrideProvider(DimoRequestExecutor)
       .useValue({ execute: executeSpy })
-      .overrideProvider(DimoAuthService)
-      .useValue({})
-      .overrideProvider(DimoTelemetryService)
-      .useValue({})
-      .overrideProvider(FsdDimoAdapterFactoryService)
-      .useValue({
-        createAdapter: () => ({
-          createFsd3Port: () => createFsd3LiveStubDiscoveryProvider(),
-        }),
-      })
       .compile();
 
     await moduleRef.init();
@@ -58,6 +43,9 @@ describe('Fsd3OneShotLiveBootstrapModule integration boot', () => {
         names.push(typeof token === 'function' ? token.name : String(token));
       }
     }
+    expect(names.join(',')).toMatch(/DimoProviderBudgetService/);
+    expect(names.join(',')).toMatch(/DimoAuthService/);
+    expect(names.join(',')).toMatch(/DimoTelemetryService/);
     expect(names.join(',')).not.toMatch(/Bull|WorkerHost|Schedule|WorkersModule|AppModule|Controller/);
     expect(executeSpy).not.toHaveBeenCalled();
 

@@ -103,21 +103,33 @@ export class Fsd3DiscoveryRunInspectorService {
 
     const evidenceRows = await this.prisma.fsdDiscoverySignalEvidence.findMany({
       where: { runId: run.id, stageType: 'SNAPSHOT' },
-      select: { qualityJson: true },
+      select: { evidenceState: true, qualityJson: true },
     });
     let signalObservationCounts: Fsd3DiscoveryRunInspectorReportV1['signalObservationCounts'] = null;
     if (evidenceRows.length > 0) {
       const counts = { observed: 0, null: 0, deferred: 0, queryFailed: 0 };
       for (const row of evidenceRows) {
+        const state = row.evidenceState;
         const kind = (row.qualityJson as { observationKind?: string } | null)?.observationKind;
-        if (kind === 'OBSERVED' || kind === 'VALID_NONZERO' || kind === 'VALID_ZERO') {
-          counts.observed += 1;
-        } else if (kind === 'NULL') {
-          counts.null += 1;
-        } else if (kind === 'DEFERRED') {
-          counts.deferred += 1;
-        } else if (kind === 'QUERY_FAILED') {
+        if (state === 'QUERY_FAILED') {
           counts.queryFailed += 1;
+          continue;
+        }
+        if (state === 'DEFERRED') {
+          counts.deferred += 1;
+          continue;
+        }
+        if (kind === 'NULL') {
+          counts.null += 1;
+          continue;
+        }
+        if (
+          state === 'OBSERVED' ||
+          kind === 'VALID_NONZERO' ||
+          kind === 'VALID_ZERO' ||
+          kind === 'OBSERVED'
+        ) {
+          counts.observed += 1;
         }
       }
       signalObservationCounts = counts;

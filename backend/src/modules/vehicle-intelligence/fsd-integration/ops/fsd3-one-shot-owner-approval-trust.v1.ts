@@ -37,6 +37,7 @@ export function parseFsd3LiveOwnerApprovalTrustStoreJson(raw: string): Fsd3LiveO
     ? o.revokedKeyIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
     : [];
   const keys: Fsd3LiveOwnerApprovalTrustKeyV1[] = [];
+  const seenKeyIds = new Set<string>();
   for (const entry of o.keys) {
     if (!entry || typeof entry !== 'object') {
       throw new Error('FSD3_L2_TRUST_SCHEMA_INVALID');
@@ -47,11 +48,37 @@ export function parseFsd3LiveOwnerApprovalTrustStoreJson(raw: string): Fsd3LiveO
     if (typeof keyId !== 'string' || !keyId.trim() || typeof publicKeySpkiBase64 !== 'string' || !publicKeySpkiBase64.trim()) {
       throw new Error('FSD3_L2_TRUST_SCHEMA_INVALID');
     }
+    const trimmedId = keyId.trim();
+    if (seenKeyIds.has(trimmedId)) {
+      throw new Error('FSD3_L2_TRUST_DUPLICATE_KEY_ID');
+    }
+    seenKeyIds.add(trimmedId);
+    const notBeforeIso = typeof e.notBeforeIso === 'string' ? e.notBeforeIso.trim() : undefined;
+    const notAfterIso = typeof e.notAfterIso === 'string' ? e.notAfterIso.trim() : undefined;
+    if (notBeforeIso) {
+      const from = new Date(notBeforeIso);
+      if (Number.isNaN(from.getTime())) {
+        throw new Error('FSD3_L2_TRUST_KEY_WINDOW_INVALID');
+      }
+    }
+    if (notAfterIso) {
+      const until = new Date(notAfterIso);
+      if (Number.isNaN(until.getTime())) {
+        throw new Error('FSD3_L2_TRUST_KEY_WINDOW_INVALID');
+      }
+    }
+    if (notBeforeIso && notAfterIso) {
+      const from = new Date(notBeforeIso);
+      const until = new Date(notAfterIso);
+      if (until <= from) {
+        throw new Error('FSD3_L2_TRUST_KEY_WINDOW_INVALID');
+      }
+    }
     keys.push({
-      keyId: keyId.trim(),
+      keyId: trimmedId,
       publicKeySpkiBase64: publicKeySpkiBase64.trim(),
-      notBeforeIso: typeof e.notBeforeIso === 'string' ? e.notBeforeIso : undefined,
-      notAfterIso: typeof e.notAfterIso === 'string' ? e.notAfterIso : undefined,
+      notBeforeIso,
+      notAfterIso,
     });
   }
   return { schemaVersion: FSD3_LIVE_OWNER_APPROVAL_TRUST_SCHEMA_V1, keys, revokedKeyIds };
@@ -86,13 +113,19 @@ export function resolveFsd3OwnerApprovalTrustPublicKeyV1(input: {
   }
   if (entry.notBeforeIso) {
     const from = new Date(entry.notBeforeIso);
-    if (!Number.isNaN(from.getTime()) && now < from) {
+    if (Number.isNaN(from.getTime())) {
+      throw new Error('FSD3_L2_TRUST_KEY_WINDOW_INVALID');
+    }
+    if (now < from) {
       throw new Error('FSD3_L2_TRUST_KEY_NOT_YET_VALID');
     }
   }
   if (entry.notAfterIso) {
     const until = new Date(entry.notAfterIso);
-    if (!Number.isNaN(until.getTime()) && now > until) {
+    if (Number.isNaN(until.getTime())) {
+      throw new Error('FSD3_L2_TRUST_KEY_WINDOW_INVALID');
+    }
+    if (now > until) {
       throw new Error('FSD3_L2_TRUST_KEY_EXPIRED');
     }
   }

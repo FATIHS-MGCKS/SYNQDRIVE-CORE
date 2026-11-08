@@ -1,9 +1,24 @@
-import { execFileSync } from 'node:child_process';
 import {
   mintFsd3OneShotExecutionCapabilityV1,
   verifyFsd3OneShotExecutionCapabilityV1,
 } from '../fsd3-one-shot-execution-capability.v1';
-import { resolveFsd3OneShotExecutableReleaseShaV1 } from '../fsd3-one-shot-executable-attestation.v1';
+import {
+  resolveFsd3OneShotExecutableReleaseShaV1,
+  resolveSynqDriveRepoRootFromModuleV1,
+} from '../fsd3-one-shot-executable-attestation.v1';
+import { execFileSync } from 'node:child_process';
+import {
+  FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1,
+  assertFsd3LiveOwnerApprovalMatchesScope,
+  verifyFsd3LiveOwnerApprovalEnvelopeV1,
+} from '../fsd3-one-shot-owner-approval.v1';
+import { FSD3_P6B_CLI_BUDGET_V1 } from '../fsd3-one-shot-cli-budget.v1';
+import {
+  createFsd3OneShotTestOwnerSigningMaterialV1,
+  signFsd3LiveOwnerApprovalTestEnvelopeV1,
+} from '../__fixtures__/fsd3-one-shot-test-owner-crypto.harness.v1';
+import { Fsd3OneShotPreflightService } from '../fsd3-one-shot-preflight.service';
+import { Fsd3OneShotCapabilityService } from '../fsd3-one-shot-capability.service';
 
 describe('Fsd3 one-shot security primitives', () => {
   it('rejects forged execution capability MAC', () => {
@@ -31,10 +46,83 @@ describe('Fsd3 one-shot security primitives', () => {
     expect(() => verifyFsd3OneShotExecutionCapabilityV1({ token, secret })).not.toThrow();
   });
 
-  it('binds executable SHA to git HEAD (not user supplied)', () => {
-    process.env.FSD3_ONE_SHOT_ALLOW_DIRTY_TREE = '1';
-    const head = execFileSync('git', ['-C', '/workspace', 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-    const resolved = resolveFsd3OneShotExecutableReleaseShaV1({ FSD3_ONE_SHOT_ALLOW_DIRTY_TREE: '1', SYNQDRIVE_REPO_ROOT: '/workspace' });
-    expect(resolved).toBe(head);
+  it('binds executable SHA to module-derived git HEAD when worktree has no tracked diffs', () => {
+    const root = resolveSynqDriveRepoRootFromModuleV1();
+    const head = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+    const porcelain = execFileSync('git', ['-C', root, 'status', '--porcelain', '--untracked-files=no'], {
+      encoding: 'utf8',
+    }).trim();
+    if (porcelain.length > 0) {
+      expect(() => resolveFsd3OneShotExecutableReleaseShaV1()).toThrow('FSD3_EXECUTABLE_TREE_DIRTY');
+      return;
+    }
+    expect(resolveFsd3OneShotExecutableReleaseShaV1()).toBe(head);
+  });
+
+  it('rejects spoofed repo root substitution on operator attestation', () => {
+    expect(() =>
+      resolveFsd3OneShotExecutableReleaseShaV1({
+        env: { SYNQDRIVE_REPO_ROOT: '/tmp/not-synqdrive' } as NodeJS.ProcessEnv,
+      }),
+    ).toThrow('FSD3_EXECUTABLE_ROOT_SUBSTITUTION_REJECTED');
+  });
+
+  it('rejects capability mint without verified envelope and preflight ticket', () => {
+    const signing = createFsd3OneShotTestOwnerSigningMaterialV1();
+    process.env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON = signing.trustStoreJson;
+    const scope = {
+      organizationId: '11111111-1111-4111-8111-111111111111',
+      vehicleId: '22222222-2222-4222-8222-222222222222',
+      providerSourceLinkId: '33333333-3333-4333-8333-333333333333',
+      discoveryRequestKey: '44444444-4444-4444-8444-444444444444',
+      executableReleaseSha: 'e32880da1beb99642f1e994f45c4e9038fc1a541',
+    };
+    const envelope = signFsd3LiveOwnerApprovalTestEnvelopeV1({
+      privateKey: signing.privateKey,
+      keyId: signing.keyId,
+      payload: {
+        schemaVersion: FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1,
+        approvalReference: 'ref-cap-bypass',
+        executableReleaseSha: scope.executableReleaseSha,
+        organizationId: scope.organizationId,
+        vehicleId: scope.vehicleId,
+        providerSourceLinkId: scope.providerSourceLinkId,
+        discoveryRequestKey: scope.discoveryRequestKey,
+        liveProvider: 'mock',
+        budget: { ...FSD3_P6B_CLI_BUDGET_V1 },
+        validFromIso: '2020-01-01T00:00:00.000Z',
+        validUntilIso: '2099-01-01T00:00:00.000Z',
+      },
+    });
+    const preflightSvc = new Fsd3OneShotPreflightService(
+      {} as never,
+      {} as never,
+      {} as never,
+      new Fsd3OneShotCapabilityService(),
+    );
+    preflightSvc.onModuleInit();
+    expect(() =>
+      preflightSvc.issueExecutionCapability({
+        scope,
+        verifiedOwnerApprovalEnvelope: envelope,
+        preflightTicket: 'not-a-valid-ticket',
+        actorUserId: '55555555-5555-4555-8555-555555555555',
+        liveProvider: 'mock',
+      }),
+    ).toThrow();
+    expect(() =>
+      assertFsd3LiveOwnerApprovalMatchesScope({
+        approval: verifyFsd3LiveOwnerApprovalEnvelopeV1({
+          envelope,
+          trustStoreJson: signing.trustStoreJson,
+        }),
+        scope: { ...scope, vehicleId: randomUUID() },
+        liveProvider: 'mock',
+      }),
+    ).toThrow('FSD3_L2_APPROVAL_VEHICLE_MISMATCH');
   });
 });
+
+function randomUUID(): string {
+  return 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+}

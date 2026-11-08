@@ -10,7 +10,7 @@ import {
   ProductSlug,
   VehicleStatus,
 } from '@prisma/client';
-import { execFileSync } from 'node:child_process';
+import { resolveFsd3OneShotExecutableReleaseShaV1 } from '../fsd3-one-shot-executable-attestation.v1';
 import { randomUUID } from 'node:crypto';
 import { ensureOrganizationProductEntitlement } from '@modules/vehicle-onboarding/testing/org-product-test.harness';
 import { PrismaService } from '@shared/database/prisma.service';
@@ -32,13 +32,18 @@ import {
   createFsd3OneShotTestOwnerSigningMaterialV1,
   signFsd3LiveOwnerApprovalTestEnvelopeV1,
 } from '../__fixtures__/fsd3-one-shot-test-owner-crypto.harness.v1';
+import type { Fsd3LiveOwnerApprovalSignablePayloadV1 } from '../fsd3-one-shot-owner-approval.v1';
 
 const LIVE = process.env.FSD_DISCOVERY_PERSISTENCE_PG === '1';
 const REQUIRED = process.env.FSD_DISCOVERY_PERSISTENCE_PG_REQUIRED === '1';
 
+let cachedAttestedSha: string;
+
 function attestedSha(): string {
-  process.env.FSD3_ONE_SHOT_ALLOW_DIRTY_TREE = '1';
-  return execFileSync('git', ['-C', '/workspace', 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  if (!cachedAttestedSha) {
+    cachedAttestedSha = resolveFsd3OneShotExecutableReleaseShaV1();
+  }
+  return cachedAttestedSha;
 }
 
 async function ensurePlatformUser(
@@ -125,6 +130,8 @@ async function seedDimoBinding(prisma: PrismaClient) {
     }
     process.env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON = signing.trustStoreJson;
     process.env.FSD3_ONE_SHOT_CAPABILITY_HMAC_SECRET = 'p6b-postgres-capability-secret';
+    process.env.FSD3_ONE_SHOT_PREFLIGHT_TICKET_HMAC_SECRET = 'p6b-postgres-preflight-ticket-secret';
+    cachedAttestedSha = resolveFsd3OneShotExecutableReleaseShaV1();
     prisma = new PrismaClient();
     await prisma.$connect();
   }, 600_000);
@@ -139,8 +146,10 @@ async function seedDimoBinding(prisma: PrismaClient) {
     const operatorAuth = new DimoSourceLinkOperatorAuthorizationService(prismaSvc);
     const capability = new Fsd3OneShotCapabilityService();
     capability.onModuleInit();
+    const preflight = new Fsd3OneShotPreflightService(prismaSvc, operatorAuth, persistence, capability);
+    preflight.onModuleInit();
     return {
-      preflight: new Fsd3OneShotPreflightService(prismaSvc, operatorAuth, persistence, capability),
+      preflight,
       execution: new Fsd3OneShotExecutionService(persistence, capability),
       inspector: new Fsd3DiscoveryRunInspectorService(prismaSvc, persistence),
     };
@@ -152,24 +161,20 @@ async function seedDimoBinding(prisma: PrismaClient) {
     providerSourceLinkId: string;
     discoveryRequestKey: string;
     executableReleaseSha: string;
-  }) {
-    return signFsd3LiveOwnerApprovalTestEnvelopeV1({
-      privateKey: signing.privateKey,
-      keyId: signing.keyId,
-      payload: {
-        schemaVersion: FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1,
-        approvalReference: `p6b-${scope.discoveryRequestKey.slice(0, 8)}`,
-        executableReleaseSha: scope.executableReleaseSha,
-        organizationId: scope.organizationId,
-        vehicleId: scope.vehicleId,
-        providerSourceLinkId: scope.providerSourceLinkId,
-        discoveryRequestKey: scope.discoveryRequestKey,
-        liveProvider: 'mock',
-        budget: { ...FSD3_P6B_CLI_BUDGET_V1 },
-        validFromIso: '2020-01-01T00:00:00.000Z',
-        validUntilIso: '2099-01-01T00:00:00.000Z',
-      },
-    }).payload;
+  }): Fsd3LiveOwnerApprovalSignablePayloadV1 {
+    return {
+      schemaVersion: FSD3_LIVE_OWNER_APPROVAL_SCHEMA_V1,
+      approvalReference: `p6b-${scope.discoveryRequestKey.slice(0, 8)}`,
+      executableReleaseSha: scope.executableReleaseSha,
+      organizationId: scope.organizationId,
+      vehicleId: scope.vehicleId,
+      providerSourceLinkId: scope.providerSourceLinkId,
+      discoveryRequestKey: scope.discoveryRequestKey,
+      liveProvider: 'mock',
+      budget: { ...FSD3_P6B_CLI_BUDGET_V1 },
+      validFromIso: '2020-01-01T00:00:00.000Z',
+      validUntilIso: '2099-01-01T00:00:00.000Z',
+    };
   }
 
   it('rejects forged execution capability', async () => {
@@ -239,13 +244,19 @@ async function seedDimoBinding(prisma: PrismaClient) {
     };
     const { preflight, execution, inspector } = services();
     const pre = await preflight.runAuthorizedReadOnlyPreflight({ actorUserId, scope });
-    const approval = approvalFor(scope);
+    const envelope = signFsd3LiveOwnerApprovalTestEnvelopeV1({
+      privateKey: signing.privateKey,
+      keyId: signing.keyId,
+      payload: approvalFor(scope),
+    });
+    const ticket = preflight.mintAuthorizedPreflightTicket({ scope, preflight: pre, actorUserId });
     const capability = preflight.issueExecutionCapability({
       scope,
-      approval,
-      preflight: pre,
+      verifiedOwnerApprovalEnvelope: envelope,
+      preflightTicket: ticket,
       actorUserId,
       liveProvider: 'mock',
+      trustStoreJson: signing.trustStoreJson,
     });
     const provider = createFsd3MockDiscoveryProvider({ mode: 'TESLA_REFERENCE_26' });
     const result = await execution.executeAuthorizedOneShot({
@@ -297,14 +308,19 @@ async function seedDimoBinding(prisma: PrismaClient) {
     };
     const { preflight, execution } = services();
     const pre = await preflight.runAuthorizedReadOnlyPreflight({ actorUserId, scope });
-    const approval = approvalFor(scope);
+    const envelope = signFsd3LiveOwnerApprovalTestEnvelopeV1({
+      privateKey: signing.privateKey,
+      keyId: signing.keyId,
+      payload: approvalFor(scope),
+    });
     const provider = createFsd3MockDiscoveryProvider({ mode: 'TESLA_REFERENCE_26' });
     const cap1 = preflight.issueExecutionCapability({
       scope,
-      approval,
-      preflight: pre,
+      verifiedOwnerApprovalEnvelope: envelope,
+      preflightTicket: preflight.mintAuthorizedPreflightTicket({ scope, preflight: pre, actorUserId }),
       actorUserId,
       liveProvider: 'mock',
+      trustStoreJson: signing.trustStoreJson,
     });
     const first = await execution.executeAuthorizedOneShot({
       executionCapability: cap1,
@@ -313,10 +329,11 @@ async function seedDimoBinding(prisma: PrismaClient) {
     });
     const cap2 = preflight.issueExecutionCapability({
       scope,
-      approval,
-      preflight: pre,
+      verifiedOwnerApprovalEnvelope: envelope,
+      preflightTicket: preflight.mintAuthorizedPreflightTicket({ scope, preflight: pre, actorUserId }),
       actorUserId,
       liveProvider: 'mock',
+      trustStoreJson: signing.trustStoreJson,
     });
     const second = await execution.executeAuthorizedOneShot({
       executionCapability: cap2,

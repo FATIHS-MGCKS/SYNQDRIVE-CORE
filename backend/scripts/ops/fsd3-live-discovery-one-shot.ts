@@ -12,7 +12,9 @@ import { FsdDimoAdapterFactoryService } from '../../src/modules/vehicle-intellig
 import { createFsd3MockDiscoveryProvider } from '../../src/modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-mock-provider.v1';
 import {
   assertFsd3LiveOwnerApprovalMatchesScope,
-  verifyFsd3LiveOwnerApprovalFileV1,
+  parseFsd3LiveOwnerApprovalEnvelopeJson,
+  verifyFsd3LiveOwnerApprovalEnvelopeV1,
+  type Fsd3LiveOwnerApprovalEnvelopeV1,
   type Fsd3OneShotCliScopeV1,
 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-owner-approval.v1';
 import { assertFsd3OneShotHostAttestation } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-host-attestation.v1';
@@ -86,11 +88,16 @@ function buildScope(args: ReturnType<typeof parseArgs>, executableReleaseSha: st
   };
 }
 
-function loadVerifiedOwnerApproval(filePath: string, scope: Fsd3OneShotCliScopeV1, liveProvider: Fsd3OneShotLiveProviderV1) {
+function loadVerifiedOwnerApprovalEnvelope(
+  filePath: string,
+  scope: Fsd3OneShotCliScopeV1,
+  liveProvider: Fsd3OneShotLiveProviderV1,
+): Fsd3LiveOwnerApprovalEnvelopeV1 {
   const raw = fs.readFileSync(filePath, 'utf8');
-  const approval = verifyFsd3LiveOwnerApprovalFileV1({ raw });
+  const envelope = parseFsd3LiveOwnerApprovalEnvelopeJson(raw);
+  const approval = verifyFsd3LiveOwnerApprovalEnvelopeV1({ envelope });
   assertFsd3LiveOwnerApprovalMatchesScope({ approval, scope, liveProvider });
-  return approval;
+  return envelope;
 }
 
 function offlinePlan(
@@ -98,14 +105,14 @@ function offlinePlan(
   scope: Fsd3OneShotCliScopeV1,
   liveProvider: Fsd3OneShotLiveProviderV1,
 ) {
-  const approval = loadVerifiedOwnerApproval(args.l2ApprovalFile!, scope, liveProvider);
+  const envelope = loadVerifiedOwnerApprovalEnvelope(args.l2ApprovalFile!, scope, liveProvider);
   console.log(
     JSON.stringify(
       {
         status: 'OFFLINE_PLAN',
         scope,
         attestedExecutableReleaseSha: scope.executableReleaseSha,
-        approvalReference: approval.approvalReference,
+        approvalReference: envelope.payload.approvalReference,
         liveProvider,
         budget: FSD3_P6B_CLI_BUDGET_V1,
         note: 'No database or DIMO provider calls in OFFLINE_PLAN',
@@ -138,7 +145,7 @@ async function main(): Promise<void> {
   }
 
   assertFsd3OneShotHostAttestation();
-  const approval = loadVerifiedOwnerApproval(args.l2ApprovalFile!, scope, liveProvider);
+  const ownerApprovalEnvelope = loadVerifiedOwnerApprovalEnvelope(args.l2ApprovalFile!, scope, liveProvider);
 
   if (!process.env.DATABASE_URL) {
     console.error('DATABASE_URL is required for PREFLIGHT/EXECUTE');
@@ -170,7 +177,7 @@ async function main(): Promise<void> {
             status: 'AUTHORIZED_READ_ONLY_PREFLIGHT',
             scope,
             attestedExecutableReleaseSha: attestedSha,
-            approvalReference: approval.approvalReference,
+            approvalReference: ownerApprovalEnvelope.payload.approvalReference,
             liveProvider,
             preflight,
           },
@@ -181,10 +188,15 @@ async function main(): Promise<void> {
       return;
     }
 
+    const preflightTicket = preflightSvc.mintAuthorizedPreflightTicket({
+      scope,
+      preflight,
+      actorUserId: args.actorUserId,
+    });
     const executionCapability = preflightSvc.issueExecutionCapability({
       scope,
-      approval,
-      preflight,
+      verifiedOwnerApprovalEnvelope: ownerApprovalEnvelope,
+      preflightTicket,
       actorUserId: args.actorUserId,
       liveProvider,
     });

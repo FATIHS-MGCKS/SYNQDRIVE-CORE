@@ -46,6 +46,8 @@ Empty `FSD3_LIVE_ACTIVATION_BLOCKERS_V1` in orchestration config is **not** used
 - One-shot runs are keyed by `discoveryRequestKey`; inspector is read-only.
 - Deactivate source link via existing P5B lifecycle ops to invalidate in-flight runs.
 
+Trust provisioning detail: `architecture/fsd/P6B_OWNER_APPROVAL_TRUST_PROVISIONING.md`
+
 ## Tests
 
 - Unit: L2 approval, host attestation, CLI FSD3/FSD4 config, ops module bootstrap.
