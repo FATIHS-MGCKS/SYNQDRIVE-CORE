@@ -2962,4 +2962,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | NON_EFFECTS | No Nest provider, no production persistence, Phase 1 W0/W1C/D8/F04 untouched, no misuse-cases imports |
 | REMEDIATION (2026-11-08, Opus audit PR #2361) | P1: binding before NOT_APPLICABLE; epoch-ms dedupe + canonical UTC ISO; exceedance grid cap 128 with truncation flag. P2: syntheticDevice fixture; parseHfRpmValueFloat exclusion; I5 tri-state. +14 focused tests |
 | ICE_PARITY (2026-11-08, architect REMEDIATE PR #2361) | Fail-closed binding on trip/V1B/reference `iceRpmApplicability` parity; only `APPLICABLE` admitted; `TRIP_ADMISSION_NOT_ALLOWED`; removed kernel reference-only `NOT_APPLICABLE` short-circuit (non-ICE → `ABSTAINED` / `ICE_APPLICABILITY_NOT_ADMITTED`). +ICE matrix tests |
+| P2-B1 (2026-11-08) | `ds4-powertrain-demand-research/` — bucket-grid kickdown-like research (Mode A); P38 threshold ownership; multichannel fingerprint + manifest gate; no P38 cluster invoke; import boundary tests |
 
