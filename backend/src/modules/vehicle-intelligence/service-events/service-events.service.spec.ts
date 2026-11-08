@@ -132,6 +132,7 @@ describe('ServiceEventsService.create', () => {
       vehicleServiceEvent: {
         create: jest.fn(),
         findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn(),
       },
     };
@@ -273,7 +274,17 @@ describe('ServiceEventsService — Service Info V2 structured payload + duplicat
   function createHarness(existingDuplicate: Record<string, unknown> | null = null) {
     const prisma = {
       vehicle: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'veh-1', organizationId: 'org-1' }),
+        findUnique: jest.fn().mockImplementation(async (args?: { where: { id: string }; select?: Record<string, boolean> }) => {
+          if (args?.select?.lastOilChangeDate) {
+            return {
+              lastServiceDate: null,
+              lastServiceOdometerKm: null,
+              lastOilChangeDate: null,
+              lastOilChangeOdometerKm: null,
+            };
+          }
+          return { id: 'veh-1', organizationId: 'org-1' };
+        }),
         update: jest.fn().mockResolvedValue({}),
       },
       vehicleServiceEvent: {
@@ -283,6 +294,7 @@ describe('ServiceEventsService — Service Info V2 structured payload + duplicat
             ? existingDuplicate
             : null,
         ),
+        findMany: jest.fn().mockResolvedValue([]),
         findUnique: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(0),
       },

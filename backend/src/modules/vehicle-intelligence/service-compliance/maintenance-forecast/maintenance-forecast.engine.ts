@@ -61,11 +61,8 @@ function resolveBaseline(
 
   const md = input.masterDataBaselines;
   if (md) {
-    const candidate = INSPECTION_KINDS.has(position.kind)
-      ? md.inspection
-      : position.kind === 'OIL_CHANGE'
-        ? md.oilChange
-        : null;
+    // Engine-oil baselines must come from proven events — denormalized vehicle fields alone are not proof.
+    const candidate = INSPECTION_KINDS.has(position.kind) ? md.inspection : null;
     if (candidate && (candidate.date || candidate.odometerKm != null)) {
       flags.push('BASELINE_FROM_MASTER_DATA');
       return {

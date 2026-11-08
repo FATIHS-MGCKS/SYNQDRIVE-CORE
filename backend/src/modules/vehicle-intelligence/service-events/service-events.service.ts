@@ -22,10 +22,26 @@ import {
   SERVICE_HISTORY_EVENT_TYPES,
 } from './service-events.constants';
 import {
+  eventSourceFromOrigin,
+  readServiceActions,
   SERVICE_ACTIONS_PAYLOAD_KEY,
   SERVICE_KIND_PAYLOAD_KEY,
 } from '../service-compliance/maintenance-forecast/adapters/service-event-evidence.adapter';
+import { eventCoversPosition } from '../service-compliance/maintenance-forecast/maintenance-coverage.util';
+import type { MaintenanceSchedulePosition } from '../service-compliance/maintenance-forecast/maintenance-forecast.types';
 import type { ServiceEventServiceKind } from './dto/create-vehicle-service-event.dto';
+
+const DENORM_OIL_POSITION: MaintenanceSchedulePosition = {
+  positionId: 'denorm:oil_change',
+  kind: 'OIL_CHANGE',
+  label: 'OIL_CHANGE',
+  intervalMode: 'RECURRING',
+  intervalKm: null,
+  intervalMonths: null,
+  componentTerms: [],
+  scheduleSource: 'NONE',
+  rawIntervalDescription: null,
+};
 
 export const SERVICE_EVENT_DUPLICATE_CODE = 'SERVICE_EVENT_DUPLICATE';
 
@@ -418,7 +434,7 @@ export class ServiceEventsService {
    * Never touches next-service intervals, nextServiceDueDate, or HM-derived truth.
    */
   async refreshVehicleHistoryDenorm(vehicleId: string): Promise<void> {
-    const [latestFullService, latestOilChange] = await Promise.all([
+    const [latestFullService, oilCandidates, vehicleRow] = await Promise.all([
       this.prisma.vehicleServiceEvent.findFirst({
         where: {
           vehicleId,
@@ -427,21 +443,71 @@ export class ServiceEventsService {
         orderBy: { eventDate: 'desc' },
         select: { eventDate: true, odometerKm: true },
       }),
-      this.prisma.vehicleServiceEvent.findFirst({
+      this.prisma.vehicleServiceEvent.findMany({
         where: { vehicleId, eventType: OIL_CHANGE_EVENT_TYPE },
         orderBy: { eventDate: 'desc' },
-        select: { eventDate: true, odometerKm: true },
+        take: 80,
+        select: {
+          id: true,
+          eventDate: true,
+          odometerKm: true,
+          origin: true,
+          sourcePayloadJson: true,
+        },
+      }),
+      this.prisma.vehicle.findUnique({
+        where: { id: vehicleId },
+        select: {
+          lastServiceDate: true,
+          lastServiceOdometerKm: true,
+          lastOilChangeDate: true,
+          lastOilChangeOdometerKm: true,
+        },
       }),
     ]);
 
+    let latestProvenOil: (typeof oilCandidates)[number] | null = null;
+    for (const row of oilCandidates) {
+      const performedWork = readServiceActions(row.sourcePayloadJson);
+      const eventSource = eventSourceFromOrigin(row.origin);
+      if (
+        eventCoversPosition(
+          {
+            eventId: row.id,
+            eventType: OIL_CHANGE_EVENT_TYPE,
+            eventDate: row.eventDate,
+            odometerKm: row.odometerKm,
+            performedWork,
+            serviceKind: null,
+            eventSource,
+          },
+          DENORM_OIL_POSITION,
+        )
+      ) {
+        latestProvenOil = row;
+        break;
+      }
+    }
+
+    const data: Prisma.VehicleUpdateInput = {};
+    if (latestFullService) {
+      data.lastServiceDate = latestFullService.eventDate;
+      data.lastServiceOdometerKm = latestFullService.odometerKm;
+    } else if (vehicleRow) {
+      data.lastServiceDate = vehicleRow.lastServiceDate;
+      data.lastServiceOdometerKm = vehicleRow.lastServiceOdometerKm;
+    }
+    if (latestProvenOil) {
+      data.lastOilChangeDate = latestProvenOil.eventDate;
+      data.lastOilChangeOdometerKm = latestProvenOil.odometerKm;
+    } else if (vehicleRow) {
+      data.lastOilChangeDate = vehicleRow.lastOilChangeDate;
+      data.lastOilChangeOdometerKm = vehicleRow.lastOilChangeOdometerKm;
+    }
+
     await this.prisma.vehicle.update({
       where: { id: vehicleId },
-      data: {
-        lastServiceDate: latestFullService?.eventDate ?? null,
-        lastServiceOdometerKm: latestFullService?.odometerKm ?? null,
-        lastOilChangeDate: latestOilChange?.eventDate ?? null,
-        lastOilChangeOdometerKm: latestOilChange?.odometerKm ?? null,
-      },
+      data,
     });
   }
 

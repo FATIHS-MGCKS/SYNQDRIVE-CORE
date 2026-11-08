@@ -147,6 +147,69 @@ describe('maintenance-coverage.util (oil classification)', () => {
     ).toBe(true);
   });
 
+  it('rejects axle-only mentions and inspection-only component lines (M-1)', () => {
+    const pos: MaintenanceSchedulePosition = {
+      ...oilPosition(),
+      kind: 'OTHER',
+      positionId: 'oneauto:brake_awd',
+      componentTerms: ['brake_fluid', 'axle_oil'],
+    };
+    expect(
+      eventCoversPosition(
+        event({ eventType: 'REPAIR', performedWork: ['Breakpads rear axle replaced.'] }),
+        pos,
+      ),
+    ).toBe(false);
+    expect(
+      eventCoversPosition(
+        event({ eventType: 'FULL_SERVICE', performedWork: ['Brake fluid level checked'] }),
+        {
+          ...pos,
+          componentTerms: ['brake_fluid'],
+        },
+      ),
+    ).toBe(false);
+  });
+
+  it('recognizes German past-tense engine oil service wording (M-4)', () => {
+    expect(isEngineOilChangeWorkItem('Motoröl erneuert')).toBe(true);
+    expect(isEngineOilChangeWorkItem('Engine oil and filter replaced')).toBe(true);
+  });
+
+  it('does not blanket-reset all INSPECTION tiers from unscoped FULL_SERVICE (M-3)', () => {
+    const small: MaintenanceSchedulePosition = {
+      ...oilPosition(),
+      kind: 'INSPECTION',
+      positionId: 'oneauto:15k',
+      intervalKm: 15_000,
+    };
+    const large: MaintenanceSchedulePosition = {
+      ...small,
+      positionId: 'oneauto:60k',
+      intervalKm: 60_000,
+    };
+    const unscoped = event({
+      eventType: 'FULL_SERVICE',
+      eventSource: 'SERVICE_EVENT_ONEAUTO',
+      odometerKm: 15_000,
+      performedWork: [],
+    });
+    expect(eventCoversPosition(unscoped, small)).toBe(false);
+    expect(eventCoversPosition(unscoped, large)).toBe(false);
+    expect(
+      eventCoversPosition(
+        { ...unscoped, serviceKind: 'INSPECTION_SMALL' },
+        small,
+      ),
+    ).toBe(true);
+    expect(
+      eventCoversPosition(
+        { ...unscoped, serviceKind: 'INSPECTION_SMALL' },
+        large,
+      ),
+    ).toBe(false);
+  });
+
   it('covers engine oil when OneAuto lists engine oil actions', () => {
     expect(
       eventCoversPosition(

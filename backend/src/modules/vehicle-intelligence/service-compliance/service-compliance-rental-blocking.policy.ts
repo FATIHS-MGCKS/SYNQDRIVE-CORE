@@ -40,6 +40,7 @@ export function isHmServiceOverdue(evaluation: ServiceComplianceEvaluation | nul
   if (!evaluation?.nextService) return false;
   return (
     evaluation.nextService.trackingStatus === 'TRACKED' &&
+    evaluation.nextService.source === 'HM_OEM' &&
     evaluation.nextService.severity === 'CRITICAL'
   );
 }

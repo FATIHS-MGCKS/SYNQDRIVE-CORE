@@ -16,7 +16,17 @@ export const MAINTENANCE_COMPONENT_VOCABULARY: Record<string, string[]> = {
   air_filter: ['air filter', 'luftfilter', 'air cleaner'],
   fuel_filter: ['fuel filter', 'kraftstofffilter', 'dieselfilter'],
   transmission_oil: ['transmission oil', 'automatic transmission', 'atf', 'gearbox oil', 'getriebeöl', 'transmission fluid'],
-  axle_oil: ['axle oil', 'rear axle', 'front axle', 'differential', 'coupling oil', 'achsöl', 'awd coupling', 'haldex'],
+  axle_oil: [
+    'axle oil',
+    'rear axle oil',
+    'front axle oil',
+    'differential oil',
+    'differential fluid',
+    'coupling oil',
+    'achsöl',
+    'awd coupling oil',
+    'haldex oil',
+  ],
   coolant: ['coolant', 'kühlmittel', 'antifreeze'],
   timing_belt: ['timing belt', 'zahnriemen', 'cam belt'],
   auxiliary_belt: ['auxiliary belt', 'drive belt', 'keilrippenriemen', 'poly-v'],
@@ -63,19 +73,30 @@ const OIL_LEVEL_CHECK_TERMS = [
   'öl auffüllen',
 ];
 
-const OIL_CHANGE_ACTION_TERMS = [
+const COMPONENT_CHANGE_ACTION_TERMS = [
   'replace',
+  'replaced',
   'change',
+  'changed',
   'wechsel',
+  'gewechselt',
   'tausch',
+  'getauscht',
   'erneuern',
+  'erneuert',
   'renew',
+  'renewed',
   'drain',
   'entleeren',
-  'service oil',
+  'service',
+  'serviced',
   'ölwechsel',
   'oil change',
+  'filter change',
+  'filter replaced',
 ];
+
+const OIL_CHANGE_ACTION_TERMS = COMPONENT_CHANGE_ACTION_TERMS;
 
 /** Noun phrases that identify *engine* oil service (not gearbox/axle/filter-only). */
 const ENGINE_OIL_NOUN_TERMS = [
@@ -86,9 +107,24 @@ const ENGINE_OIL_NOUN_TERMS = [
   'motoroel',
   'ölwechsel',
   'oil change',
+  'oil and filter',
+  'engine oil and filter',
 ];
 
 const FILTER_INSPECTION_TERMS = ['inspect', 'inspection', 'check', 'kontrolle', 'kontrol', 'prüf', 'pruf', 'pruef'];
+
+function hasComponentChangeAction(text: string): boolean {
+  const t = normalizeWorkText(text);
+  return COMPONENT_CHANGE_ACTION_TERMS.some((term) => t.includes(term));
+}
+
+/** CONFIRMED manual inspection entry without structured work lines. */
+function isExplicitManualInspectionBaseline(event: MaintenanceEvidenceEvent): boolean {
+  return (
+    event.eventSource === 'SERVICE_EVENT_MANUAL' &&
+    (event.eventType === 'FULL_SERVICE' || event.eventType === 'GENERAL_INSPECTION')
+  );
+}
 
 export function normalizeWorkText(text: string): string {
   return text.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -153,10 +189,10 @@ export function extractComponentKeys(text: string): string[] {
     if (key === 'air_filter') {
       // "interior air filter" / "cabin air filter" belong to cabin_filter.
       const cabin = MAINTENANCE_COMPONENT_VOCABULARY.cabin_filter!.some((term) => t.includes(term));
-      if (!cabin && terms.some((term) => t.includes(term))) keys.push(key);
+      if (!cabin && terms.some((term) => t.includes(term)) && hasComponentChangeAction(t)) keys.push(key);
       continue;
     }
-    if (terms.some((term) => t.includes(term))) keys.push(key);
+    if (terms.some((term) => t.includes(term)) && hasComponentChangeAction(t)) keys.push(key);
   }
   return keys;
 }
@@ -191,10 +227,22 @@ export function eventCoversPosition(
 
   if (INSPECTION_KINDS.includes(kind)) {
     if (type !== 'FULL_SERVICE' && type !== 'GENERAL_INSPECTION') return false;
-    if (kind === 'INSPECTION') return true;
-    if (kind === 'INSPECTION_LARGE') return event.serviceKind === 'INSPECTION_LARGE';
-    // INSPECTION_SMALL is also satisfied by a proven large inspection.
-    return event.serviceKind === 'INSPECTION_SMALL' || event.serviceKind === 'INSPECTION_LARGE';
+    if (kind === 'INSPECTION_LARGE') {
+      return event.serviceKind === 'INSPECTION_LARGE';
+    }
+    if (kind === 'INSPECTION_SMALL') {
+      return event.serviceKind === 'INSPECTION_SMALL' || event.serviceKind === 'INSPECTION_LARGE';
+    }
+    // Generic INSPECTION tier: never blanket-reset every interval row from an unscoped event.
+    if (event.serviceKind === 'INSPECTION_LARGE') return true;
+    if (event.serviceKind === 'INSPECTION_SMALL') {
+      if (position.intervalKm == null) return true;
+      if (event.odometerKm == null) return false;
+      return position.intervalKm <= event.odometerKm + 5000;
+    }
+    if (isExplicitManualInspectionBaseline(event)) return true;
+  /* v1 multi-tier: events without confirmed scope do not reset all INSPECTION positions (M-3). */
+    return false;
   }
 
   if (kind === 'OIL_CHANGE') {
@@ -223,7 +271,7 @@ export function eventCoversPosition(
   if (position.componentTerms.length === 0) return false;
   if (event.performedWork.length === 0) return false;
   const eventKeys = extractComponentKeysFromWorkItems(event.performedWork);
-  return position.componentTerms.some((term) => eventKeys.has(term));
+  return position.componentTerms.every((term) => eventKeys.has(term));
 }
 
 /** Latest covering event by date (ties: higher odometer wins) or null. */
