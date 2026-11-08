@@ -18,8 +18,6 @@ import type { Ds4MovementScopedCoverageEvidenceV1 } from './ds4-powertrain-deman
 
 const R1_OBD_RECORD_TIME_UNCERTAIN = 'R1_HISTORICAL_OBD_RECORD_TIME_UNCERTAIN';
 const SYNTHETIC_PROVENANCE_LIMITATION = 'SYNTHETIC_FIXTURE_NOT_SOURCE_ATTESTED';
-const LOCAL_COVERAGE_NOT_TRIP_REPRESENTATIVE = 'LOCAL_COVERAGE_NOT_FULL_TRIP_REPRESENTATIVE';
-
 function buildCoverageEvidence(
   mc: Ds4MovementScopedCoverageEvidenceV1,
   rpmTripCoverage: number,
@@ -145,9 +143,6 @@ export function computeDs4PowertrainDemandResearchV1(
   }
 
   const status = kickdownCandidates.length > 0 ? 'COMPUTED' : 'NOT_OBSERVED';
-  if (status === 'COMPUTED' && binding.rpmTripCoverage < 0.15) {
-    claims.push(LOCAL_COVERAGE_NOT_TRIP_REPRESENTATIVE);
-  }
 
   return {
     contractVersion: DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION,

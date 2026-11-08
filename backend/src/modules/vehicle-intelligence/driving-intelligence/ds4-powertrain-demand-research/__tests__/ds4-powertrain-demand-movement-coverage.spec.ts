@@ -3,7 +3,10 @@ import {
   resolveKickdownCandidateSupportTier,
 } from '../ds4-powertrain-demand-movement-coverage.v1';
 import { canonicalizeMultichannelObservations } from '../ds4-powertrain-demand-multichannel-canonicalize.v1';
+import { computeDs4RpmHfV1bTierAwareInputFingerprint } from '../../rpm-hf-v1b/ds4-rpm-hf-v1b-input-fingerprint';
+import { processDs4RpmHfV1bShadowTripTierAware } from '../../rpm-hf-v1b/ds4-rpm-hf-v1b-tier-processor';
 import { computeDs4PowertrainDemandResearchV1 } from '../ds4-powertrain-demand-research.kernel.v1';
+import type { Ds4MultichannelBucketObservationV1 } from '../ds4-powertrain-demand-research.contract.v1';
 import {
   buildBoundPowertrainInput,
   buildObservationSeries,
@@ -13,7 +16,7 @@ import {
 function gridWithStationaryPrefix(): ReturnType<typeof buildObservationSeries> {
   return buildObservationSeries('2026-01-01T10:00:01.000Z', 20, 1, (i) => {
     if (i < 8) {
-      return { speedKmh: 0, throttlePct: 10, rpm: 850, loadPct: 12 };
+      return { speedKmh: 0, throttlePct: 10, rpm: null, loadPct: 12 };
     }
     const j = i - 8;
     if (j === 0) return { throttlePct: 25, rpm: 2000, speedKmh: 55, loadPct: 45 };
@@ -23,8 +26,25 @@ function gridWithStationaryPrefix(): ReturnType<typeof buildObservationSeries> {
   });
 }
 
+/** 10 min synthetic: 8 min stationary without RPM, 2 min moving with full multichannel evidence. */
+function tenMinuteStationaryThenMovingTrip(): Ds4MultichannelBucketObservationV1[] {
+  const stationary = buildObservationSeries('2026-01-01T10:00:00.000Z', 480, 1, () => ({
+    speedKmh: 0,
+    throttlePct: 8,
+    rpm: null,
+    loadPct: 10,
+  }));
+  const moving = buildObservationSeries('2026-01-01T10:08:00.000Z', 120, 1, (i) => {
+    if (i === 0) return { throttlePct: 25, rpm: 2000, speedKmh: 55, loadPct: 45 };
+    if (i === 1) return { throttlePct: 55, rpm: 2600, speedKmh: 62, loadPct: 60 };
+    if (i === 2) return { throttlePct: 92, rpm: 3200, speedKmh: 70, loadPct: 78 };
+    return { throttlePct: 40, rpm: 2400, speedKmh: 72, loadPct: 50 };
+  });
+  return [...stationary, ...moving];
+}
+
 describe('movement-scoped coverage admission', () => {
-  it('A/B: stationary buckets do not penalize moving completeness', () => {
+  it('A/B: stationary buckets without RPM do not penalize moving completeness', () => {
     const grid = gridWithStationaryPrefix();
     const canon = canonicalizeMultichannelObservations(grid);
     const ev = computeMovementScopedCoverageEvidence(canon.buckets);
@@ -35,6 +55,37 @@ describe('movement-scoped coverage admission', () => {
       buildBoundPowertrainInput({ multichannelObservations: grid }),
     );
     expect(out.status).toBe('COMPUTED');
+  });
+
+  it('realistic 10-minute trip: 8 min stationary no RPM, 2 min moving kickdown-eligible', () => {
+    const grid = tenMinuteStationaryThenMovingTrip();
+    const ev = computeMovementScopedCoverageEvidence(
+      canonicalizeMultichannelObservations(grid).buckets,
+    );
+    expect(ev.observedStationaryBucketCount).toBe(480);
+    expect(ev.observedMovingBucketCount).toBe(120);
+    expect(ev.movementObservedCompleteness).toBe(1);
+    expect(ev.fullTripMovementCoverageVerdict).toBe('UNKNOWN');
+    const input = buildBoundPowertrainInput({ multichannelObservations: grid });
+    const tripEndIso = '2026-01-01T10:10:00.000Z';
+    input.tripInput = { ...input.tripInput, tripEndIso };
+    const tierOut = processDs4RpmHfV1bShadowTripTierAware({
+      tripInput: input.tripInput,
+      attemptCount: 1,
+      computedAt: new Date('2026-01-01T11:00:00.000Z'),
+      existingSucceededFingerprint: null,
+    });
+    if (tierOut.kind !== 'SUCCEEDED') {
+      throw new Error(`v1b repro failed: ${tierOut.kind}`);
+    }
+    input.v1bResult = tierOut.result;
+    input.v1bResult.inputFingerprint = computeDs4RpmHfV1bTierAwareInputFingerprint(input.tripInput);
+    const out = computeDs4PowertrainDemandResearchV1(input);
+    expect(out.status).toBe('COMPUTED');
+    expect(out.kickdown.coverageEvidence.fullTripMovementCoverageVerdict).toBe('UNKNOWN');
+    expect(out.kickdown.coverageEvidence.rpmTripCoverage).not.toBeNull();
+    expect(out.unsupportedScientificClaims).toContain('FULL_TRIP_MOVEMENT_COVERAGE_UNKNOWN');
+    expect(out.unsupportedScientificClaims).not.toContain('LOCAL_COVERAGE_NOT_FULL_TRIP_REPRESENTATIVE');
   });
 
   it('C: missing RPM on a moving bucket reduces movement completeness', () => {
@@ -72,7 +123,8 @@ describe('movement-scoped coverage admission', () => {
     );
     expect(out.kickdown.coverageEvidence.rpmTripCoverage).toBeLessThan(0.1);
     expect(out.status).toBe('COMPUTED');
-    expect(out.unsupportedScientificClaims).toContain('LOCAL_COVERAGE_NOT_FULL_TRIP_REPRESENTATIVE');
+    expect(out.unsupportedScientificClaims).toContain('FULL_TRIP_MOVEMENT_COVERAGE_UNKNOWN');
+    expect(out.unsupportedScientificClaims).not.toContain('LOCAL_COVERAGE_NOT_FULL_TRIP_REPRESENTATIVE');
   });
 
   it('G: support tier is monotonic in movement completeness', () => {
