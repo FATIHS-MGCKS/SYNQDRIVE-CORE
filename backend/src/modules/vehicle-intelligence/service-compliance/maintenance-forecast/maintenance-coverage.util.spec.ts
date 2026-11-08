@@ -50,6 +50,18 @@ describe('maintenance-coverage.util (oil classification)', () => {
   it('accepts documented engine oil change vocabulary', () => {
     expect(isEngineOilChangeWorkItem('Engine Oil Replace')).toBe(true);
     expect(isEngineOilChangeWorkItem('Motoröl und Filter wechseln')).toBe(true);
+    expect(isEngineOilChangeWorkItem('Motoröl wechseln')).toBe(true);
+  });
+
+  it('rejects generic Oil Replace without motor-oil context', () => {
+    expect(isEngineOilChangeWorkItem('Oil Replace')).toBe(false);
+    const pos = oilPosition();
+    expect(
+      eventCoversPosition(
+        event({ eventSource: 'SERVICE_EVENT_OCR', performedWork: ['Oil Replace'] }),
+        pos,
+      ),
+    ).toBe(false);
   });
 
   it('rejects oil filter inspection and filter-only work without motor-oil proof', () => {

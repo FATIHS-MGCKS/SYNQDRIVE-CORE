@@ -137,10 +137,8 @@ export function isEngineOilChangeWorkItem(item: string): boolean {
     (t.includes('oil filter') || t.includes('ölfilter') || t.includes('oelfilter')) && !hasEngineOilNoun;
   if (filterOnly) return false;
 
-  if (!ENGINE_OIL_TERMS.some((term) => t.includes(term))) return false;
-
-  // Residual oil mentions without a documented change action do not count (e.g. vague "oil service").
-  return hasChangeAction;
+  // Generic "oil" + change action (e.g. bare "Oil Replace") is not provable engine-oil service.
+  return false;
 }
 
 /** Component keys mentioned by a text (plan description/task or structured work item). */
