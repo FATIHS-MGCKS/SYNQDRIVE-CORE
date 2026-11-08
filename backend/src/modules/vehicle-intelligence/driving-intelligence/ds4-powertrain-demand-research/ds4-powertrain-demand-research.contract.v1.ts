@@ -1,6 +1,6 @@
 import type { Ds4RpmHfV1aTripInputV1 } from '../rpm-hf-v1a/ds4-rpm-hf-v1a.contract';
 import type { Ds4RpmHfV1bShadowResultV1 } from '../rpm-hf-v1b/ds4-rpm-hf-v1b.contract';
-import type { Ds4RpmReferenceSpecProvenanceClass } from '../rpm-reference-intelligence-v1/ds4-rpm-reference-intelligence-v1.contract';
+import type { Ds4RpmReferenceIntelligenceV1ComputeInput } from '../rpm-reference-intelligence-v1/ds4-rpm-reference-intelligence-v1.contract';
 import type { TelemetrySourceFamily } from '../../telemetry-source-family';
 
 export const DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION =
@@ -133,7 +133,15 @@ export type Ds4PowertrainDemandBindingAbstainReason =
   | 'PHEV_ICE_NOT_CONFIRMED_IN_WINDOW'
   | 'NO_MOVING_OPPORTUNITY_EVIDENCE'
   | 'INSUFFICIENT_ECT_OBSERVATIONS'
-  | 'COOLANT_CHANNEL_UNAVAILABLE';
+  | 'COOLANT_CHANNEL_UNAVAILABLE'
+  | 'V1B_REQUIRED_FOR_RPM_EVIDENCE'
+  | 'V1B_RPM_EVIDENCE_CONTRADICTS_EMPTY_READ'
+  | 'RPM_READ_NOT_GENUINELY_EMPTY'
+  | 'VEHICLE_REFERENCE_BINDING_MISMATCH'
+  | 'REFERENCE_SPEC_UNAVAILABLE'
+  | 'REFERENCE_PAIR_INCONSISTENT'
+  | 'REFERENCE_PROVENANCE_DOWNGRADED'
+  | 'ICE_RPM_NOT_APPLICABLE';
 
 export type Ds4PowertrainDemandResearchInputV1 = {
   contractVersion: typeof DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION;
@@ -232,8 +240,9 @@ export type Ds4PowertrainDemandKickdownResultV1 = {
 };
 
 export type Ds4PowertrainDemandColdEngineResearchInputV1 = Ds4PowertrainDemandResearchInputV1 & {
-  referenceMaxRpm: number | null;
-  referenceMaxRpmProvenance: Ds4RpmReferenceSpecProvenanceClass | null;
+  vehicleRpmReference: Ds4RpmReferenceIntelligenceV1ComputeInput['reference'];
+  /** Must match organizationId/vehicleId on the research input when HIGH_RPM assessability is evaluated. */
+  vehicleRpmReferenceBinding: { organizationId: string; vehicleId: string } | null;
 };
 
 export type Ds4ColdEngineProxyKindV1 =
@@ -285,8 +294,8 @@ export type Ds4PowertrainDemandColdEngineResultV1 = {
     multichannelFingerprint: string | null;
     telemetrySourceFamily: TelemetrySourceFamily | null;
     sourceBundleId: string | null;
-    referenceMaxRpm: number | null;
-    referenceMaxRpmProvenance: Ds4RpmReferenceSpecProvenanceClass | null;
+    vehicleRpmReferenceBinding: { organizationId: string; vehicleId: string } | null;
+    highRpmReferenceTrustTier: 'OEM_USER_CONFIRMED' | 'DOWNGRADED_ESTIMATE' | 'UNAVAILABLE' | null;
   };
   coldEngine: {
     rawWindowCount: number;

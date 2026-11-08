@@ -1,6 +1,10 @@
 import { hasUncertainHistoricalObdRecordTime, resolveTelemetrySourceFamily } from '../../telemetry-source-family';
 import { DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS } from '../ds4-rpm-real-data-replay/ds4-rpm-real-data-scientific-claims.v1';
-import { detectColdEngineBucketGridCandidates } from './ds4-powertrain-demand-cold-engine-bucket-grid.v1';
+import {
+  computeColdEngineSubtypeAssessability,
+  detectColdEngineBucketGridCandidates,
+} from './ds4-powertrain-demand-cold-engine-bucket-grid.v1';
+import { evaluateColdEngineHighRpmReferenceAdmission } from './ds4-powertrain-demand-cold-engine-reference.v1';
 import { validateDs4PowertrainDemandColdEngineInputBinding } from './ds4-powertrain-demand-cold-engine.input-binding.v1';
 import { canonicalizeMultichannelObservations } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
 import type {
@@ -45,8 +49,8 @@ function buildAbstained(
       multichannelFingerprint: input.multichannelFingerprint,
       telemetrySourceFamily: familyPreview,
       sourceBundleId: input.sourceBundleId,
-      referenceMaxRpm: input.referenceMaxRpm,
-      referenceMaxRpmProvenance: input.referenceMaxRpmProvenance,
+      vehicleRpmReferenceBinding: input.vehicleRpmReferenceBinding,
+      highRpmReferenceTrustTier: null,
     },
     coldEngine: {
       rawWindowCount: 0,
@@ -92,6 +96,20 @@ export function computeDs4PowertrainDemandColdEngineResearchV1(
 
   const canon = canonicalizeMultichannelObservations(input.multichannelObservations);
   const nominalMs = (binding.cadenceProfile.nominalCadenceSeconds ?? 1) * 1000;
+
+  const highRpmReference = evaluateColdEngineHighRpmReferenceAdmission({
+    organizationId: input.organizationId,
+    vehicleId: input.vehicleId,
+    vehicleRpmReferenceBinding: input.vehicleRpmReferenceBinding,
+    reference: input.vehicleRpmReference,
+  });
+
+  const subtypeAssessability = computeColdEngineSubtypeAssessability({
+    buckets: canon.buckets,
+    highRpmReference,
+    rpmEvidencePresent: binding.rpmEvidencePresent,
+  });
+
   const detect = detectColdEngineBucketGridCandidates({
     tripId: input.tripId,
     providerSourceLinkId: input.providerSourceLinkId,
@@ -99,8 +117,8 @@ export function computeDs4PowertrainDemandColdEngineResearchV1(
     sequenceMaxGapSeconds: binding.cadenceProfile.sequenceMaxGapSeconds,
     nominalCadenceMs: nominalMs,
     fuelType: input.fuelType,
-    referenceMaxRpm: input.referenceMaxRpm,
-    referenceMaxRpmProvenance: input.referenceMaxRpmProvenance,
+    subtypeAssessability,
+    highRpmReference,
   });
 
   const claims: string[] = [
@@ -157,8 +175,8 @@ export function computeDs4PowertrainDemandColdEngineResearchV1(
       multichannelFingerprint: binding.recomputedMultichannelFingerprint,
       telemetrySourceFamily: binding.telemetrySourceFamily,
       sourceBundleId: input.sourceBundleId,
-      referenceMaxRpm: input.referenceMaxRpm,
-      referenceMaxRpmProvenance: input.referenceMaxRpmProvenance,
+      vehicleRpmReferenceBinding: input.vehicleRpmReferenceBinding,
+      highRpmReferenceTrustTier: highRpmReference.referenceTrustTier,
     },
     coldEngine: {
       rawWindowCount: detect.rawWindowCount,

@@ -9,10 +9,12 @@ import {
   TIER_TEST_VEHICLE,
 } from '../../rpm-hf-v1b/__tests__/ds4-rpm-hf-v1b-tier-fixtures';
 import { computeMultichannelContentFingerprint } from '../ds4-powertrain-demand-research.input-binding.v1';
+import { buildDs4RpmReferenceIntelligenceV1ReferenceBlock } from '../../rpm-reference-intelligence-v1/ds4-rpm-reference-intelligence-v1-reference-input';
 import {
   buildBoundPowertrainInput,
   buildColdEngineBoundInput,
   buildObservationSeries,
+  buildTrustedVehicleRpmReference,
   coldEctGrid,
   positiveKickdownGrid,
   R1_DIMO,
@@ -46,8 +48,7 @@ describe('ds4-powertrain-demand cold-engine P2-B2', () => {
     const out = computeDs4PowertrainDemandColdEngineResearchV1(
       buildColdEngineBoundInput({
         multichannelObservations: grid,
-        referenceMaxRpm: refMax,
-        referenceMaxRpmProvenance: 'USER_CONFIRMED',
+        vehicleRpmReference: buildTrustedVehicleRpmReference(refMax),
       }),
     );
     expect(out.status).toBe('COMPUTED');
@@ -133,7 +134,17 @@ describe('ds4-powertrain-demand cold-engine P2-B2', () => {
       loadPct: 40,
     }));
     const out = computeDs4PowertrainDemandColdEngineResearchV1(
-      buildColdEngineBoundInput({ multichannelObservations: grid, referenceMaxRpm: null, referenceMaxRpmProvenance: null }),
+      buildColdEngineBoundInput({
+        multichannelObservations: grid,
+        vehicleRpmReference: buildDs4RpmReferenceIntelligenceV1ReferenceBlock({
+          idleRpm: 750,
+          maxRpm: 6200,
+          maxRpmProvenance: { category: 'AI_ESTIMATED' },
+          idleRpmProvenance: { category: 'USER_CONFIRMED' },
+          iceRpmApplicability: 'APPLICABLE',
+        }),
+        vehicleRpmReferenceBinding: null,
+      }),
     );
     expect(out.coldEngine.subtypeAssessability.COLD_ENGINE_HIGH_RPM.status).toBe('NOT_ASSESSABLE');
     expect(out.coldEngine.candidates.every((c) => c.proxyKind !== 'COLD_ENGINE_HIGH_RPM')).toBe(true);
@@ -148,8 +159,7 @@ describe('ds4-powertrain-demand cold-engine P2-B2', () => {
     const out = computeDs4PowertrainDemandColdEngineResearchV1(
       buildColdEngineBoundInput({
         multichannelObservations: grid,
-        referenceMaxRpm: refMax,
-        referenceMaxRpmProvenance: 'USER_CONFIRMED',
+        vehicleRpmReference: buildTrustedVehicleRpmReference(refMax),
       }),
     );
     expect(out.coldEngine.candidates.some((c) => c.proxyKind === 'COLD_ENGINE_HIGH_RPM')).toBe(true);

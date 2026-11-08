@@ -9,7 +9,8 @@ import {
   TIER_TEST_TRIP,
   TIER_TEST_VEHICLE,
 } from '../../rpm-hf-v1b/__tests__/ds4-rpm-hf-v1b-tier-fixtures';
-import type { Ds4RpmReferenceSpecProvenanceClass } from '../../rpm-reference-intelligence-v1/ds4-rpm-reference-intelligence-v1.contract';
+import { buildDs4RpmReferenceIntelligenceV1ReferenceBlock } from '../../rpm-reference-intelligence-v1/ds4-rpm-reference-intelligence-v1-reference-input';
+import type { Ds4RpmReferenceIntelligenceV1ComputeInput } from '../../rpm-reference-intelligence-v1/ds4-rpm-reference-intelligence-v1.contract';
 import type {
   Ds4MultichannelBucketObservationV1,
   Ds4PowertrainDemandColdEngineResearchInputV1,
@@ -119,20 +120,20 @@ export function positiveKickdownGrid(): Ds4MultichannelBucketObservationV1[] {
   });
 }
 
-function deriveV1bRpmPoints(
-  observations: readonly Ds4MultichannelBucketObservationV1[],
-): Array<{ recordedAtIso: string; valueRpm: number }> {
-  const fromMc = observations
-    .filter((r) => r.rpm != null)
-    .map((r) => ({
-      recordedAtIso: new Date(Date.parse(r.recordedAtIso)).toISOString(),
-      valueRpm: r.rpm as number,
-    }));
-  if (fromMc.length >= 8) return fromMc;
-  return observations.slice(0, Math.min(8, observations.length)).map((r, i) => ({
-    recordedAtIso: new Date(Date.parse(r.recordedAtIso)).toISOString(),
-    valueRpm: 800 + i * 50,
-  }));
+export function buildTrustedVehicleRpmReference(
+  maxRpm = 6000,
+): Ds4RpmReferenceIntelligenceV1ComputeInput['reference'] {
+  return buildDs4RpmReferenceIntelligenceV1ReferenceBlock({
+    idleRpm: 750,
+    maxRpm,
+    idleRpmProvenance: { category: 'USER_CONFIRMED' },
+    maxRpmProvenance: { category: 'USER_CONFIRMED' },
+    iceRpmApplicability: 'APPLICABLE',
+  });
+}
+
+function multichannelObservationsHaveRpm(observations: readonly Ds4MultichannelBucketObservationV1[]): boolean {
+  return observations.some((r) => r.rpm != null);
 }
 
 export function buildColdEngineBoundInput(input: {
@@ -145,32 +146,73 @@ export function buildColdEngineBoundInput(input: {
   declaredIceOperationConfirmed?: boolean | null;
   tripId?: string;
   linkId?: string;
-  referenceMaxRpm?: number | null;
-  referenceMaxRpmProvenance?: Ds4RpmReferenceSpecProvenanceClass | null;
+  vehicleRpmReference?: Ds4RpmReferenceIntelligenceV1ComputeInput['reference'];
+  vehicleRpmReferenceBinding?: { organizationId: string; vehicleId: string } | null;
+  /** When set, forces trip HF read semantics for adversarial incomplete-read fixtures. */
+  rpmCompletenessLabel?: 'COMPLETE' | 'EMPTY' | 'INCOMPLETE_MORE_POINTS_AVAILABLE';
 }): Ds4PowertrainDemandColdEngineResearchInputV1 {
   const tripId = input.tripId ?? TIER_TEST_TRIP;
   const linkId = input.linkId ?? TIER_TEST_LINK;
-  const rpmPoints = deriveV1bRpmPoints(input.multichannelObservations);
-  if (rpmPoints.length < 8) {
-    throw new Error('cold-engine fixture requires at least 8 observation buckets');
+  const rpmInMc = multichannelObservationsHaveRpm(input.multichannelObservations);
+
+  const rpmPoints = rpmInMc
+    ? input.multichannelObservations
+        .filter((r) => r.rpm != null)
+        .map((r) => ({
+          recordedAtIso: new Date(Date.parse(r.recordedAtIso)).toISOString(),
+          valueRpm: r.rpm as number,
+        }))
+    : [];
+
+  if (rpmInMc && rpmPoints.length < 8) {
+    throw new Error('cold-engine fixture with RPM labels requires at least 8 rpm-labelled buckets');
   }
 
-  const tripInput = buildTierTripInput({
+  let tripInput = buildTierTripInput({
     rpmPoints,
     tierRow: buildTierTripClassification({ tier: 'RPM_1S', tripId } as never),
     tripId,
     providerSourceLinkId: linkId,
   });
 
-  const tierOut = processDs4RpmHfV1bShadowTripTierAware({
-    tripInput,
-    attemptCount: 1,
-    computedAt: new Date('2026-01-01T11:00:00.000Z'),
-    existingSucceededFingerprint: null,
-  });
-  if (tierOut.kind !== 'SUCCEEDED') {
-    throw new Error(`fixture v1b failed: ${tierOut.kind}`);
+  if (!rpmInMc) {
+    tripInput = {
+      ...tripInput,
+      dataQuality: {
+        ...tripInput.dataQuality,
+        validPointCount: 0,
+        returnedPointCount: 0,
+        totalMatchingCount: 0,
+        completenessLabel: input.rpmCompletenessLabel ?? 'EMPTY',
+        earliestRecordedAtIso: null,
+        latestRecordedAtIso: null,
+      },
+      rpmPoints: [],
+    };
+  } else if (input.rpmCompletenessLabel != null) {
+    tripInput = {
+      ...tripInput,
+      dataQuality: {
+        ...tripInput.dataQuality,
+        completenessLabel: input.rpmCompletenessLabel,
+      },
+    };
   }
+
+  const v1bResult = rpmInMc
+    ? (() => {
+        const tierOut = processDs4RpmHfV1bShadowTripTierAware({
+          tripInput,
+          attemptCount: 1,
+          computedAt: new Date('2026-01-01T11:00:00.000Z'),
+          existingSucceededFingerprint: null,
+        });
+        if (tierOut.kind !== 'SUCCEEDED') {
+          throw new Error(`fixture v1b failed: ${tierOut.kind}`);
+        }
+        return tierOut.result;
+      })()
+    : null;
 
   const dimo = input.dimoVehicleRawJson ?? API_SYNTHETIC_DIMO;
   const family = resolveTelemetrySourceFamily(dimo) ?? 'UNKNOWN';
@@ -183,6 +225,14 @@ export function buildColdEngineBoundInput(input: {
     observations: input.multichannelObservations,
   });
 
+  const defaultReference = buildTrustedVehicleRpmReference(6000);
+  const vehicleRpmReference =
+    input.vehicleRpmReference === undefined ? defaultReference : input.vehicleRpmReference;
+  const vehicleRpmReferenceBinding =
+    input.vehicleRpmReferenceBinding === undefined
+      ? { organizationId: TIER_TEST_ORG, vehicleId: TIER_TEST_VEHICLE }
+      : input.vehicleRpmReferenceBinding;
+
   return {
     contractVersion: DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION,
     evidenceOrigin: input.evidenceOrigin ?? 'SYNTHETIC_FIXTURE',
@@ -193,15 +243,15 @@ export function buildColdEngineBoundInput(input: {
     providerSourceLinkId: linkId,
     dimoVehicleRawJson: dimo,
     tripInput,
-    v1bResult: tierOut.result,
+    v1bResult,
     multichannelObservations: input.multichannelObservations,
     multichannelManifest: input.multichannelManifest ?? null,
     multichannelFingerprint: mcFp,
     fuelType: input.fuelType ?? 'GASOLINE',
     isEvPowertrain: input.isEvPowertrain ?? false,
     declaredIceOperationConfirmed: input.declaredIceOperationConfirmed ?? null,
-    referenceMaxRpm: input.referenceMaxRpm ?? null,
-    referenceMaxRpmProvenance: input.referenceMaxRpmProvenance ?? null,
+    vehicleRpmReference,
+    vehicleRpmReferenceBinding,
   };
 }
 

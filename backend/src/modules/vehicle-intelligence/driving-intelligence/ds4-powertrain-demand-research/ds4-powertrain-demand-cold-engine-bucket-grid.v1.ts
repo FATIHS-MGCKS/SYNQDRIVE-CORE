@@ -1,10 +1,8 @@
 import {
   COLD_ENGINE_SHADOW_POLICY,
-  confirmIceOperation,
   isPhevFuelType,
 } from '../../shadow-detector/detectors/cold-engine-shadow.policy';
-import type { ShadowDetectorHfSample } from '../../shadow-detector/shadow-detector.types';
-import type { Ds4RpmReferenceSpecProvenanceClass } from '../rpm-reference-intelligence-v1/ds4-rpm-reference-intelligence-v1.contract';
+import type { Ds4ColdEngineHighRpmReferenceVerdictV1 } from './ds4-powertrain-demand-cold-engine-reference.v1';
 import type {
   Ds4CanonicalMultichannelBucketV1,
   Ds4MultichannelCanonicalizeResultV1,
@@ -29,27 +27,6 @@ export const DS4_COLD_ENGINE_BUCKET_GRID_POLICY = {
   iceLoadMinPct: COLD_ENGINE_SHADOW_POLICY.iceLoadMinPct,
   iceConfirmationMinSamples: COLD_ENGINE_SHADOW_POLICY.iceConfirmationMinSamples,
 } as const;
-
-function bucketsToIceSamples(slice: readonly Ds4CanonicalMultichannelBucketV1[]): ShadowDetectorHfSample[] {
-  return slice.map((b) => ({
-    timestamp: b.recordedAtIso,
-    speedKmh: b.speedKmh,
-    coolantC: b.coolantC,
-    rpm: b.rpm,
-    throttlePct: b.throttlePct,
-    loadPct: b.loadPct,
-    engineRuntimeSec: null,
-    torqueNm: null,
-    torquePct: null,
-    exteriorTempC: null,
-    tractionBatteryPowerKw: null,
-    socPct: null,
-    tractionBatteryTemperatureC: null,
-    altitudeM: null,
-    gear: null,
-    ignitionOn: null,
-  }));
-}
 
 function isBucketCold(b: Ds4CanonicalMultichannelBucketV1): boolean {
   return b.coolantC != null && b.coolantC < COLD_ENGINE_SHADOW_POLICY.coldCoolantMaxC;
@@ -90,15 +67,41 @@ function resolvePhevIceConfirmed(slice: readonly Ds4CanonicalMultichannelBucketV
   return rpmIceSamples >= COLD_ENGINE_SHADOW_POLICY.iceConfirmationMinSamples;
 }
 
-export function isReferenceMaxRpmAdmitted(input: {
-  maxRpm: number | null;
-  maxRpmProvenance: Ds4RpmReferenceSpecProvenanceClass | null;
-}): boolean {
-  return (
-    input.maxRpm != null &&
-    input.maxRpm > 0 &&
-    input.maxRpmProvenance === 'USER_CONFIRMED'
-  );
+export function computeColdEngineSubtypeAssessability(input: {
+  buckets: readonly Ds4CanonicalMultichannelBucketV1[];
+  highRpmReference: Ds4ColdEngineHighRpmReferenceVerdictV1;
+  rpmEvidencePresent: boolean;
+}): Record<Ds4ColdEngineProxyKindV1, Ds4ColdEngineSubtypeAssessabilityV1> {
+  const coldBuckets = input.buckets.filter(isBucketCold);
+  const hasLoad = coldBuckets.some((b) => b.loadPct != null);
+  const hasThrottle = coldBuckets.some((b) => b.throttlePct != null);
+  const hasRpmOnCold = coldBuckets.some((b) => b.rpm != null);
+
+  const highLoad: Ds4ColdEngineSubtypeAssessabilityV1 = hasLoad
+    ? { status: 'ASSESSABLE', reasonCodes: [] }
+    : { status: 'NOT_ASSESSABLE', reasonCodes: ['NO_ENGINE_LOAD_CHANNEL_EVIDENCE'] };
+
+  const fullThrottle: Ds4ColdEngineSubtypeAssessabilityV1 = hasThrottle
+    ? { status: 'ASSESSABLE', reasonCodes: [] }
+    : { status: 'NOT_ASSESSABLE', reasonCodes: ['NO_THROTTLE_CHANNEL_EVIDENCE'] };
+
+  const highRpmReasons = [...input.highRpmReference.reasonCodes];
+  if (!input.rpmEvidencePresent) highRpmReasons.push('NO_RPM_CHANNEL_EVIDENCE');
+  if (!hasRpmOnCold) highRpmReasons.push('NO_RPM_LABEL_ON_COLD_BUCKETS');
+
+  const highRpm: Ds4ColdEngineSubtypeAssessabilityV1 =
+    input.highRpmReference.admitted && input.rpmEvidencePresent && hasRpmOnCold
+      ? { status: 'ASSESSABLE', reasonCodes: [] }
+      : {
+          status: 'NOT_ASSESSABLE',
+          reasonCodes: highRpmReasons.length > 0 ? highRpmReasons : ['REFERENCE_MAX_RPM_NOT_ADMITTED'],
+        };
+
+  return {
+    COLD_ENGINE_HIGH_LOAD: highLoad,
+    COLD_ENGINE_HIGH_RPM: highRpm,
+    COLD_ENGINE_FULL_THROTTLE: fullThrottle,
+  };
 }
 
 function highRpmThresholdFromReference(maxRpm: number): number {
@@ -121,6 +124,7 @@ function detectRawColdWindowsInSequence(
   nominalIntervalMs: number,
   fuelType: string | null,
   reference: { maxRpm: number | null; admitted: boolean },
+  subtypeAssessable: Record<Ds4ColdEngineProxyKindV1, boolean>,
 ): RawColdWindow[] {
   const out: RawColdWindow[] = [];
   const phev = isPhevFuelType(fuelType);
@@ -133,26 +137,26 @@ function detectRawColdWindowsInSequence(
     const prev = seq[i - 2]!;
     const cur = seq[i]!;
 
-    // HIGH LOAD — requires load proxy; PHEV requires RPM-based ICE confirmation (not load-only).
-    if (slice.some((b) => b.loadPct != null && b.loadPct >= COLD_ENGINE_SHADOW_POLICY.highLoadEngineLoadPct)) {
+    if (
+      subtypeAssessable.COLD_ENGINE_HIGH_LOAD &&
+      slice.some((b) => b.loadPct != null && b.loadPct >= COLD_ENGINE_SHADOW_POLICY.highLoadEngineLoadPct)
+    ) {
       const iceOk = phev ? resolvePhevIceConfirmed(slice) : conventionalEngineOperationProxy(slice);
       if (iceOk) {
-        const peakLoad = Math.max(...slice.map((b) => b.loadPct ?? 0));
         out.push({
           kind: 'COLD_ENGINE_HIGH_LOAD',
           start: slice[0]!,
           end: slice[2]!,
           startIdx: i - 2,
           endIdx: i,
-          peakValue: peakLoad,
+          peakValue: Math.max(...slice.map((b) => b.loadPct ?? 0)),
           peakUnit: 'load%',
-          limitationCodes: phev ? [] : ['FUEL_TYPE_CALLER_DECLARED_UNVERIFIED'],
+          limitationCodes: phev ? ['FUEL_TYPE_CALLER_DECLARED_UNVERIFIED'] : [],
         });
       }
     }
 
-    // HIGH RPM — reference-gated at detection time.
-    if (reference.admitted && reference.maxRpm != null) {
+    if (subtypeAssessable.COLD_ENGINE_HIGH_RPM && reference.admitted && reference.maxRpm != null) {
       const threshold = highRpmThresholdFromReference(reference.maxRpm);
       if (
         slice.every((b) => b.rpm != null) &&
@@ -160,14 +164,13 @@ function detectRawColdWindowsInSequence(
       ) {
         const iceOk = phev ? resolvePhevIceConfirmed(slice) : conventionalEngineOperationProxy(slice);
         if (iceOk) {
-          const peakRpm = Math.max(...slice.map((b) => b.rpm ?? 0));
           out.push({
             kind: 'COLD_ENGINE_HIGH_RPM',
             start: slice[0]!,
             end: slice[2]!,
             startIdx: i - 2,
             endIdx: i,
-            peakValue: peakRpm,
+            peakValue: Math.max(...slice.map((b) => b.rpm ?? 0)),
             peakUnit: 'rpm',
             limitationCodes: ['VEHICLE_REFERENCE_MAX_RPM_BOUND'],
           });
@@ -175,27 +178,27 @@ function detectRawColdWindowsInSequence(
       }
     }
 
-    // FULL THROTTLE — throttle + engine-operation proxy (never speed).
-    const throttlePresent = slice.every((b) => b.throttlePct != null);
-    if (
-      throttlePresent &&
-      prev.throttlePct != null &&
-      cur.throttlePct != null &&
-      cur.throttlePct >= COLD_ENGINE_SHADOW_POLICY.highLoadThrottleEntryPct
-    ) {
-      const iceOk = phev ? resolvePhevIceConfirmed(slice) : conventionalEngineOperationProxy(slice);
-      if (iceOk) {
-        const peakThr = Math.max(...slice.map((b) => b.throttlePct ?? 0));
-        out.push({
-          kind: 'COLD_ENGINE_FULL_THROTTLE',
-          start: slice[0]!,
-          end: slice[2]!,
-          startIdx: i - 2,
-          endIdx: i,
-          peakValue: peakThr,
-          peakUnit: 'throttle%',
-          limitationCodes: phev ? ['FUEL_TYPE_CALLER_DECLARED_UNVERIFIED'] : [],
-        });
+    if (subtypeAssessable.COLD_ENGINE_FULL_THROTTLE) {
+      const throttlePresent = slice.every((b) => b.throttlePct != null);
+      if (
+        throttlePresent &&
+        prev.throttlePct != null &&
+        cur.throttlePct != null &&
+        cur.throttlePct >= COLD_ENGINE_SHADOW_POLICY.highLoadThrottleEntryPct
+      ) {
+        const iceOk = phev ? resolvePhevIceConfirmed(slice) : conventionalEngineOperationProxy(slice);
+        if (iceOk) {
+          out.push({
+            kind: 'COLD_ENGINE_FULL_THROTTLE',
+            start: slice[0]!,
+            end: slice[2]!,
+            startIdx: i - 2,
+            endIdx: i,
+            peakValue: Math.max(...slice.map((b) => b.throttlePct ?? 0)),
+            peakUnit: 'throttle%',
+            limitationCodes: phev ? ['FUEL_TYPE_CALLER_DECLARED_UNVERIFIED'] : [],
+          });
+        }
       }
     }
   }
@@ -227,37 +230,34 @@ export function detectColdEngineBucketGridCandidates(input: {
   sequenceMaxGapSeconds: number;
   nominalCadenceMs: number;
   fuelType: string | null;
-  referenceMaxRpm: number | null;
-  referenceMaxRpmProvenance: Ds4RpmReferenceSpecProvenanceClass | null;
+  subtypeAssessability: Record<Ds4ColdEngineProxyKindV1, Ds4ColdEngineSubtypeAssessabilityV1>;
+  highRpmReference: Ds4ColdEngineHighRpmReferenceVerdictV1;
 }): {
   rawWindowCount: number;
   candidates: Ds4ColdEngineProxyCandidateV1[];
   subtypeAssessability: Record<Ds4ColdEngineProxyKindV1, Ds4ColdEngineSubtypeAssessabilityV1>;
 } {
-  const referenceAdmitted = isReferenceMaxRpmAdmitted({
-    maxRpm: input.referenceMaxRpm,
-    maxRpmProvenance: input.referenceMaxRpmProvenance,
-  });
-
-  const subtypeAssessability: Record<Ds4ColdEngineProxyKindV1, Ds4ColdEngineSubtypeAssessabilityV1> = {
-    COLD_ENGINE_HIGH_LOAD: { status: 'ASSESSABLE', reasonCodes: [] },
-    COLD_ENGINE_HIGH_RPM: referenceAdmitted
-      ? { status: 'ASSESSABLE', reasonCodes: [] }
-      : {
-          status: 'NOT_ASSESSABLE',
-          reasonCodes: ['REFERENCE_MAX_RPM_NOT_ADMITTED'],
-        },
-    COLD_ENGINE_FULL_THROTTLE: { status: 'ASSESSABLE', reasonCodes: [] },
-  };
+  const subtypeAssessable = Object.fromEntries(
+    (Object.keys(input.subtypeAssessability) as Ds4ColdEngineProxyKindV1[]).map((k) => [
+      k,
+      input.subtypeAssessability[k]!.status === 'ASSESSABLE',
+    ]),
+  ) as Record<Ds4ColdEngineProxyKindV1, boolean>;
 
   const sequences = splitMultichannelSequences(input.canon.buckets, input.sequenceMaxGapSeconds);
   const rawAll: RawColdWindow[] = [];
   for (const seq of sequences) {
     rawAll.push(
-      ...detectRawColdWindowsInSequence(seq, input.nominalCadenceMs, input.fuelType, {
-        maxRpm: input.referenceMaxRpm,
-        admitted: referenceAdmitted,
-      }),
+      ...detectRawColdWindowsInSequence(
+        seq,
+        input.nominalCadenceMs,
+        input.fuelType,
+        {
+          maxRpm: input.highRpmReference.admittedMaxRpm,
+          admitted: input.highRpmReference.admitted && subtypeAssessable.COLD_ENGINE_HIGH_RPM,
+        },
+        subtypeAssessable,
+      ),
     );
   }
 
@@ -265,11 +265,9 @@ export function detectColdEngineBucketGridCandidates(input: {
   const candidates: Ds4ColdEngineProxyCandidateV1[] = [];
 
   for (const w of rawAll) {
-    if (w.kind === 'COLD_ENGINE_HIGH_RPM' && !referenceAdmitted) continue;
+    if (!subtypeAssessable[w.kind]) continue;
 
-    const start = w.start;
-    const end = w.end;
-    const key = dedupeKey(input.tripId, input.providerSourceLinkId, w.kind, start.recordedAtMs);
+    const key = dedupeKey(input.tripId, input.providerSourceLinkId, w.kind, w.start.recordedAtMs);
     if (seen.has(key)) continue;
     seen.add(key);
 
@@ -277,8 +275,8 @@ export function detectColdEngineBucketGridCandidates(input: {
       episodeKey: key,
       proxyKind: w.kind,
       classification: toClassification(w.kind),
-      providerBucketLabelStartIso: start.recordedAtIso,
-      providerBucketLabelEndIso: end.recordedAtIso,
+      providerBucketLabelStartIso: w.start.recordedAtIso,
+      providerBucketLabelEndIso: w.end.recordedAtIso,
       startBucketIndex: w.startIdx,
       endBucketIndex: w.endIdx,
       observedBucketSpanCount: w.endIdx - w.startIdx + 1,
@@ -302,6 +300,6 @@ export function detectColdEngineBucketGridCandidates(input: {
   return {
     rawWindowCount: rawAll.length,
     candidates,
-    subtypeAssessability,
+    subtypeAssessability: input.subtypeAssessability,
   };
 }

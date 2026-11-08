@@ -17,6 +17,8 @@ import {
   validateOfflineManifestAttestation,
   validatePowertrainIdentityAndTrip,
 } from './ds4-powertrain-demand-binding-shared.v1';
+import type { Ds4CanonicalMultichannelBucketV1 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
+import { canonicalizeMultichannelObservations } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
 
 const ELIGIBLE_ANALYSIS_MODES = new Set(['HIGH_RESOLUTION', 'CADENCE_AWARE']);
 
@@ -35,8 +37,50 @@ export type Ds4ColdEngineBindingResultV1 =
       rpmTripCoverage: number | null;
       ectCoverage: ReturnType<typeof computeColdEngineEctCoverageEvidence>;
       rpmIntegrityBound: boolean;
+      rpmEvidencePresent: boolean;
     }
   | { ok: false; reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[] };
+
+export function multichannelHasRpmLabels(canon: { buckets: readonly Ds4CanonicalMultichannelBucketV1[] }): boolean {
+  return canon.buckets.some((b) => b.rpm != null);
+}
+
+export function tripHasRpmPoints(input: Ds4PowertrainDemandColdEngineResearchInputV1): boolean {
+  return input.tripInput.rpmPoints.length > 0;
+}
+
+export function hasColdEngineRpmEvidence(input: Ds4PowertrainDemandColdEngineResearchInputV1): boolean {
+  const canon = canonicalizeMultichannelObservations(input.multichannelObservations);
+  return multichannelHasRpmLabels(canon) || tripHasRpmPoints(input);
+}
+
+function validateGenuineEmptyRpmRead(
+  input: Ds4PowertrainDemandColdEngineResearchInputV1,
+  reasonCodes: Ds4PowertrainDemandBindingAbstainReason[],
+): void {
+  const dq = input.tripInput.dataQuality;
+  const genuinelyEmpty =
+    dq.validPointCount === 0 &&
+    (dq.completenessLabel === 'EMPTY' || dq.completenessLabel === 'COMPLETE');
+  if (!genuinelyEmpty) {
+    reasonCodes.push('RPM_READ_NOT_GENUINELY_EMPTY');
+  }
+}
+
+function validateV1bDoesNotContradictEmptyRpm(
+  input: Ds4PowertrainDemandColdEngineResearchInputV1,
+  reasonCodes: Ds4PowertrainDemandBindingAbstainReason[],
+): void {
+  if (input.v1bResult == null) return;
+  const tripRpm = tripHasRpmPoints(input);
+  const v1bCoverage = input.v1bResult.temporalCoverage?.observedBucketCoverageRatio ?? 0;
+  if (
+    input.v1bResult.processingOutcome === 'SUCCEEDED' &&
+    (tripRpm || v1bCoverage > 0)
+  ) {
+    reasonCodes.push('V1B_RPM_EVIDENCE_CONTRADICTS_EMPTY_READ');
+  }
+}
 
 function applyV1bRpmIntegrityChecks(
   input: Ds4PowertrainDemandColdEngineResearchInputV1,
@@ -99,25 +143,35 @@ export function validateDs4PowertrainDemandColdEngineInputBinding(
   const tripStartMs = bounds?.tripStartMs ?? Number.NaN;
   const tripEndMs = bounds?.tripEndMs ?? Number.NaN;
 
-  if (input.v1bResult == null) {
-    reasonCodes.push('V1B_RESULT_NULL');
-    return { ok: false, reasonCodes: [...new Set(reasonCodes)] };
-  }
-
   const family = resolveTelemetrySourceFamily(input.dimoVehicleRawJson);
   if (family === 'UNKNOWN') {
     reasonCodes.push('TELEMETRY_SOURCE_FAMILY_UNKNOWN');
   }
 
   const canon = validateCanonicalMultichannelGrid(input, tripStartMs, tripEndMs, reasonCodes);
-  const rpmIntegrityBound = validateConditionalRpmV1aParity(input, canon, reasonCodes);
+  const rpmEvidencePresent = multichannelHasRpmLabels(canon) || tripHasRpmPoints(input);
+
+  if (rpmEvidencePresent) {
+    if (input.v1bResult == null) {
+      reasonCodes.push('V1B_REQUIRED_FOR_RPM_EVIDENCE');
+    }
+    validateConditionalRpmV1aParity(input, canon, reasonCodes);
+    applyV1bRpmIntegrityChecks(input, reasonCodes);
+  } else {
+    const dq = input.tripInput.dataQuality;
+    const genuinelyEmpty =
+      dq.validPointCount === 0 &&
+      (dq.completenessLabel === 'EMPTY' || dq.completenessLabel === 'COMPLETE');
+    if (genuinelyEmpty) {
+      const hfIdx = reasonCodes.indexOf('HF_READ_INCOMPLETE');
+      if (hfIdx >= 0) reasonCodes.splice(hfIdx, 1);
+    }
+    validateGenuineEmptyRpmRead(input, reasonCodes);
+    validateV1bDoesNotContradictEmptyRpm(input, reasonCodes);
+  }
 
   const expectedMcFp = validateMultichannelFingerprint(input, family, reasonCodes);
   validateOfflineManifestAttestation(input, family, expectedMcFp, canon, reasonCodes);
-
-  if (rpmIntegrityBound) {
-    applyV1bRpmIntegrityChecks(input, reasonCodes);
-  }
 
   const ectCoverage = computeColdEngineEctCoverageEvidence(canon.buckets);
   if (ectCoverage.ectPresentBucketCount === 0) {
@@ -132,48 +186,41 @@ export function validateDs4PowertrainDemandColdEngineInputBinding(
     reasonCodes.push('ICE_CONFIRMATION_CALLER_ONLY');
   }
 
-  if (reasonCodes.length > 0) {
-    return { ok: false, reasonCodes: [...new Set(reasonCodes)] };
+  const uniqueReasons = [...new Set(reasonCodes)];
+  if (uniqueReasons.length > 0) {
+    return { ok: false, reasonCodes: uniqueReasons };
   }
 
-  const tierCadence = input.v1bResult.tierEvidence?.temporalCadenceProfile ?? null;
-  const cadenceProfile =
-    rpmIntegrityBound && tierCadence
-      ? {
-          nominalCadenceSeconds: tierCadence.nominalCadenceSeconds ?? FALLBACK_CADENCE.nominalCadenceSeconds,
-          sequenceMaxGapSeconds: tierCadence.sequenceMaxGapSeconds ?? FALLBACK_CADENCE.sequenceMaxGapSeconds,
-        }
-      : {
-          nominalCadenceSeconds: tierCadence?.nominalCadenceSeconds ?? FALLBACK_CADENCE.nominalCadenceSeconds,
-          sequenceMaxGapSeconds: tierCadence?.sequenceMaxGapSeconds ?? FALLBACK_CADENCE.sequenceMaxGapSeconds,
-        };
+  const rpmIntegrityBound = rpmEvidencePresent && input.v1bResult != null;
+  const tierCadence = input.v1bResult?.tierEvidence?.temporalCadenceProfile ?? null;
+  const cadenceProfile = {
+    nominalCadenceSeconds: tierCadence?.nominalCadenceSeconds ?? FALLBACK_CADENCE.nominalCadenceSeconds,
+    sequenceMaxGapSeconds: tierCadence?.sequenceMaxGapSeconds ?? FALLBACK_CADENCE.sequenceMaxGapSeconds,
+  };
 
-  if (rpmIntegrityBound) {
-    const cadenceForParity = input.v1bResult.tierEvidence?.temporalCadenceProfile;
-    if (cadenceForParity) {
-      const temporal = computeDs4RpmHfV1bTemporalAnalysis(
-        {
-          tripStartIso: input.tripInput.tripStartIso,
-          tripEndIso: input.tripInput.tripEndIso,
-          points: input.tripInput.rpmPoints,
-          invalidValueCount: input.tripInput.dataQuality.invalidValueCount,
-          duplicateTimestampCount: input.tripInput.dataQuality.duplicateTimestampCount,
-        },
-        cadenceForParity,
-      );
-      const seq = input.v1bResult.sequenceStats;
-      if (
-        temporal.sequences.continuousSequenceCount !== seq.continuousSequenceCount ||
-        temporal.sequences.observedSequenceDurationSeconds !== seq.observedSequenceDurationSeconds
-      ) {
-        return { ok: false, reasonCodes: ['V1B_SEQUENCE_PARITY_MISMATCH'] };
-      }
+  if (rpmIntegrityBound && tierCadence) {
+    const temporal = computeDs4RpmHfV1bTemporalAnalysis(
+      {
+        tripStartIso: input.tripInput.tripStartIso,
+        tripEndIso: input.tripInput.tripEndIso,
+        points: input.tripInput.rpmPoints,
+        invalidValueCount: input.tripInput.dataQuality.invalidValueCount,
+        duplicateTimestampCount: input.tripInput.dataQuality.duplicateTimestampCount,
+      },
+      tierCadence,
+    );
+    const seq = input.v1bResult!.sequenceStats;
+    if (
+      temporal.sequences.continuousSequenceCount !== seq.continuousSequenceCount ||
+      temporal.sequences.observedSequenceDurationSeconds !== seq.observedSequenceDurationSeconds
+    ) {
+      return { ok: false, reasonCodes: ['V1B_SEQUENCE_PARITY_MISMATCH'] };
     }
   }
 
   const fp = fingerprintsMatch(input);
   const rpmTripCoverage = rpmIntegrityBound
-    ? (input.v1bResult.temporalCoverage?.observedBucketCoverageRatio ?? null)
+    ? (input.v1bResult!.temporalCoverage?.observedBucketCoverageRatio ?? null)
     : null;
 
   return {
@@ -185,5 +232,6 @@ export function validateDs4PowertrainDemandColdEngineInputBinding(
     rpmTripCoverage,
     ectCoverage,
     rpmIntegrityBound,
+    rpmEvidencePresent,
   };
 }
