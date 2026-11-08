@@ -7,6 +7,7 @@ import { dimoWebhookHealthPl } from './dimo-webhook-health.pl';
 import { masterPlatformOpsDiS4Pl } from './master.platformOps.diS4.pl';
 import { batteryV2HvInspectionPL } from './battery-v2-hv-inspection.pl';
 import { tireWearV3Pl } from './tire.wearV3.pl';
+import { serviceIntelligencePl } from './service-intelligence.pl';
 import { masterPhysicalDeviceInventoryPl } from './master.physicalDeviceInventory.pl';
 import { masterIntelligencePl } from './master.intelligence.pl';
 import { masterMotionPhysicsPl } from './master.motionPhysics.pl';
@@ -213,4 +214,5 @@ export const pl = {
   ...masterCvOemSpecsPl,
   ...batteryV2HvInspectionPL,
   ...tireWearV3Pl,
+  ...serviceIntelligencePl,
 } satisfies PartialTranslationDictionary;

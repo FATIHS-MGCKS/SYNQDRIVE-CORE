@@ -7,6 +7,7 @@ import { dimoWebhookHealthIt } from './dimo-webhook-health.it';
 import { masterPlatformOpsDiS4It } from './master.platformOps.diS4.it';
 import { batteryV2HvInspectionIT } from './battery-v2-hv-inspection.it';
 import { tireWearV3It } from './tire.wearV3.it';
+import { serviceIntelligenceIt } from './service-intelligence.it';
 import { masterPhysicalDeviceInventoryIt } from './master.physicalDeviceInventory.it';
 import { masterIntelligenceIt } from './master.intelligence.it';
 import { masterMotionPhysicsIt } from './master.motionPhysics.it';
@@ -213,4 +214,5 @@ export const it = {
   ...masterCvOemSpecsIt,
   ...batteryV2HvInspectionIT,
   ...tireWearV3It,
+  ...serviceIntelligenceIt,
 } satisfies PartialTranslationDictionary;

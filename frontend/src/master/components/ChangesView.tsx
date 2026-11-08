@@ -36,6 +36,25 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'service-info-v2-provider-agnostic-maintenance-2026-11-08',
+    version: '4.9.50',
+    title: 'Service Info V2 — provider-agnostic deterministic maintenance forecast',
+    summary: [
+      'Pure maintenance engine (schedule + proven events + odometer); HM OEM optional with computed comparison and conflicts; no new OneAuto requests.',
+      'ServiceComplianceService exposes maintenanceForecast + ServiceNextSource; manual/OCR performedWork + serviceKind; duplicate guard SERVICE_EVENT_DUPLICATE.',
+      'Rental Health Service modal: ServiceMaintenanceForecastPanel, upload + manual entry + manual intervals; i18n health.serviceInfo.v2.* (9 locales).',
+    ],
+    reason:
+      'Service tracking must work without HM and must not conflate OEM remaining km with SYNQDRIVE-computed schedule forecasts.',
+    previousBehavior:
+      'Next Service was HM/OEM-only in UI; NO_TRACKING implied missing HM; history did not structure work items for forecast coverage.',
+    details:
+      'backend: maintenance-forecast/*, ServiceComplianceService; frontend: service-info-display.ts, ServiceMaintenanceForecastPanel; architecture/service-events-compliance/',
+    affectsArchitecture: true,
+    module: 'Vehicle Intelligence',
+    createdAt: '2026-11-08T14:50:00.000Z',
+  },
+  {
     id: 'oneauto-oe-service-schedule-failed-callback-recovery-p1-2026-11-06',
     version: '4.9.5027',
     title:
