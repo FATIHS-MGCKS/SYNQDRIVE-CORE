@@ -20,10 +20,15 @@ Global PM2 flags `FSD3_*` / `FSD4_*` stay **unchanged**. No scheduler activation
 ```bash
 npx tsx backend/scripts/ops/fsd-fleet-full-discovery-one-shot.ts \
   --mode=OFFLINE_PLAN|AUTHORIZED_READ_ONLY_PREFLIGHT|EXECUTE \
-  --fleet-manifest=/path/to/production-fleet-manifest.json \
+  --fleet-manifest=/path/to/manifest.json \
+  --allow-offline-fixture=1 \
   --actor-user-id=<MASTER_ADMIN_USER_ID> \
   --provider=mock|live
 ```
+
+`--allow-offline-fixture=1` is required **only** for `OFFLINE_PLAN` on the CI offline fixture (`offlineFixtureHydration: true`). Production preflight/execute load manifests with `productionManifest: true` and **never** hydrate declared fields.
+
+Template: [`P6C_PRODUCTION_FLEET_MANIFEST_TEMPLATE.md`](./P6C_PRODUCTION_FLEET_MANIFEST_TEMPLATE.md).
 
 Owner gates (live only, unchanged from P6B):
 
@@ -60,7 +65,7 @@ Offline fixture: `backend/src/modules/vehicle-intelligence/fsd-integration/ops/p
 
 Recompute before live run: `npx tsx backend/scripts/ops/fsd-fleet-full-discovery-one-shot.ts --mode=OFFLINE_PLAN --fleet-manifest=...`.
 
-Fleet sequential disclosure total (offline reference): **25** provider requests across four vehicles (catalog reuse on FSD4).
+Fleet **cumulative** planned requests (offline reference only): **25** across four vehicles — **not binding** for production until replanned from live catalogs.
 
 ## Historical window
 

@@ -1,5 +1,6 @@
 {
   "schemaVersion": "FSD_P6C_FLEET_MANIFEST_V1",
+  "offlineFixtureHydration": true,
   "organizationId": "00000000-0000-4000-8000-00000000p6c0",
   "historicalWindow": {
     "fromUtc": "2026-11-04T04:32:00.000Z",

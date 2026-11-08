@@ -8,14 +8,18 @@ export type FsdP6cProviderBudgetGuardResultV1 =
   | {
       ok: true;
       peakInFlightProviderRequests: number;
+      fleetCumulativePlannedProviderRequests: number;
       fleetSequentialPlannedProviderRequests: number;
+      offlineReferenceOnly: boolean;
       notes: string[];
     }
   | {
       ok: false;
       reason: string;
       peakInFlightProviderRequests: number;
+      fleetCumulativePlannedProviderRequests: number;
       fleetSequentialPlannedProviderRequests: number;
+      offlineReferenceOnly: boolean;
     };
 
 /**
@@ -25,17 +29,40 @@ export type FsdP6cProviderBudgetGuardResultV1 =
 export function evaluateFsdP6cProviderBudgetGuardV1(
   planReport: FsdP6cFleetDiscoveryPlanReportV1,
 ): FsdP6cProviderBudgetGuardResultV1 {
-  const perVehiclePeaks = planReport.vehicles.map((v) =>
-    Math.max(v.fsd3PlannedProviderRequests, v.fsd4PlannedProviderRequests + 1),
-  );
-  const peakInFlight = perVehiclePeaks.length ? Math.max(...perVehiclePeaks) : 0;
+  const peakInFlight = planReport.peakInFlightProviderRequests;
+  const cumulative = planReport.fleetCumulativePlannedProviderRequests;
+  const offlineReferenceOnly = planReport.planBinding === 'OFFLINE_REFERENCE';
+
+  if (planReport.anyCatalogPending) {
+    return {
+      ok: false,
+      reason: 'CATALOG_PENDING',
+      peakInFlightProviderRequests: peakInFlight,
+      fleetCumulativePlannedProviderRequests: cumulative,
+      fleetSequentialPlannedProviderRequests: cumulative,
+      offlineReferenceOnly,
+    };
+  }
 
   if (!planReport.allExecutable) {
     return {
       ok: false,
       reason: 'NON_EXECUTABLE_VEHICLE_PLAN',
       peakInFlightProviderRequests: peakInFlight,
-      fleetSequentialPlannedProviderRequests: planReport.fleetSequentialPlannedProviderRequests,
+      fleetCumulativePlannedProviderRequests: cumulative,
+      fleetSequentialPlannedProviderRequests: cumulative,
+      offlineReferenceOnly,
+    };
+  }
+
+  if (planReport.planCompleteness !== 'FULL') {
+    return {
+      ok: false,
+      reason: 'PLAN_NOT_FULL',
+      peakInFlightProviderRequests: peakInFlight,
+      fleetCumulativePlannedProviderRequests: cumulative,
+      fleetSequentialPlannedProviderRequests: cumulative,
+      offlineReferenceOnly,
     };
   }
 
@@ -44,7 +71,9 @@ export function evaluateFsdP6cProviderBudgetGuardV1(
       ok: false,
       reason: 'PER_RUN_BUDGET_EXCEEDS_HARD_CEILING',
       peakInFlightProviderRequests: peakInFlight,
-      fleetSequentialPlannedProviderRequests: planReport.fleetSequentialPlannedProviderRequests,
+      fleetCumulativePlannedProviderRequests: cumulative,
+      fleetSequentialPlannedProviderRequests: cumulative,
+      offlineReferenceOnly,
     };
   }
 
@@ -53,21 +82,28 @@ export function evaluateFsdP6cProviderBudgetGuardV1(
       ok: false,
       reason: 'PEAK_IN_FLIGHT_EXCEEDS_PER_RUN_BUDGET',
       peakInFlightProviderRequests: peakInFlight,
-      fleetSequentialPlannedProviderRequests: planReport.fleetSequentialPlannedProviderRequests,
+      fleetCumulativePlannedProviderRequests: cumulative,
+      fleetSequentialPlannedProviderRequests: cumulative,
+      offlineReferenceOnly,
     };
   }
 
   const notes = [
     'Fleet runs vehicles sequentially; global PM2 FSD flags remain unchanged.',
-    `Disclosed fleet sequential provider requests: ${planReport.fleetSequentialPlannedProviderRequests}.`,
+    `Fleet cumulative planned provider requests (sequential): ${cumulative} — not a binding production commitment when planBinding=OFFLINE_REFERENCE.`,
     `Peak in-flight provider requests (single vehicle): ${peakInFlight} (must stay within per-run budget ${planReport.budget.maxRequestsPerRun}).`,
     `DIMO documented Core rate reference: ${FSD_P6C_DIMO_DOCUMENTED_RATE_PER_SECOND_V1} req/s — operator admission limiter may still throttle.`,
   ];
+  if (offlineReferenceOnly) {
+    notes.push('OFFLINE_REFERENCE plan only — recompute after live catalog for production.');
+  }
 
   return {
     ok: true,
     peakInFlightProviderRequests: peakInFlight,
-    fleetSequentialPlannedProviderRequests: planReport.fleetSequentialPlannedProviderRequests,
+    fleetCumulativePlannedProviderRequests: cumulative,
+    fleetSequentialPlannedProviderRequests: cumulative,
+    offlineReferenceOnly,
     notes,
   };
 }

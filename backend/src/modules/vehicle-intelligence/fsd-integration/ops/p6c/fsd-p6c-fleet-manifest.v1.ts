@@ -31,6 +31,10 @@ export type FsdP6cFleetManifestV1 = {
   historicalWindow: FsdHistoricalWindowV1;
   budget: FsdBudgetConfigV1;
   vehicles: readonly FsdP6cFleetVehicleManifestEntryV1[];
+  /** CI/offline only — enables reference profile hydration under OFFLINE_PLAN gates. */
+  offlineFixtureHydration?: boolean;
+  /** Required true for production preflight/execute paths. */
+  productionManifest?: boolean;
   /**
    * Disclosure-only ceiling for sequential fleet planning (sum of per-vehicle planned requests).
    * Does not override per-run orchestration budgets.
@@ -147,6 +151,8 @@ export function parseFsdP6cFleetManifestV1(raw: unknown): FsdP6cFleetManifestV1 
     historicalWindow: parseHistoricalWindow(raw.historicalWindow),
     budget: parseBudget(raw.budget),
     vehicles,
+    offlineFixtureHydration: raw.offlineFixtureHydration === true ? true : undefined,
+    productionManifest: raw.productionManifest === true ? true : undefined,
     fleetPlannedRequestDisclosureCap:
       fleetCap != null && Number.isFinite(fleetCap) && fleetCap > 0 ? Math.floor(fleetCap) : undefined,
   };

@@ -10,12 +10,22 @@ import type {
 } from './fsd-p6c-fleet-manifest.v1';
 import { assertP6cHistoricalWindowAdmissibleV1, resolveP6cCliBudgetFromManifest } from './fsd-p6c-cli-budget.v1';
 
+export type FsdP6cCatalogPlanModeV1 = 'DECLARED_FIELDS' | 'CATALOG_PENDING';
+
+export type FsdP6cPlanCompletenessV1 = 'FULL' | 'BUDGET_TRUNCATED' | 'CATALOG_PENDING';
+
+export type FsdP6cPlanBindingV1 =
+  | 'OFFLINE_REFERENCE'
+  | 'PRODUCTION_DECLARED_FIELDS'
+  | 'UNBOUND';
+
 export type FsdP6cVehicleDiscoveryPlanV1 = {
   label: FsdP6cFleetVehicleManifestEntryV1['label'];
   vehicleId: string;
   providerSourceLinkId: string;
   tokenId: number;
-  fullPlan: FsdFullDiscoveryPlanV1;
+  catalogPlanMode: FsdP6cCatalogPlanModeV1;
+  fullPlan: FsdFullDiscoveryPlanV1 | null;
   fsd3PlannedProviderRequests: number;
   fsd4PlannedProviderRequests: number;
   catalogReuseEligible: boolean;
@@ -27,8 +37,15 @@ export type FsdP6cFleetDiscoveryPlanReportV1 = {
   budget: FsdBudgetConfigV1;
   historicalWindow: FsdP6cFleetManifestV1['historicalWindow'];
   vehicles: readonly FsdP6cVehicleDiscoveryPlanV1[];
+  /** Sequential cumulative provider requests if each vehicle runs in order (not peak concurrency). */
+  fleetCumulativePlannedProviderRequests: number;
+  /** @deprecated use fleetCumulativePlannedProviderRequests */
   fleetSequentialPlannedProviderRequests: number;
+  peakInFlightProviderRequests: number;
   allExecutable: boolean;
+  anyCatalogPending: boolean;
+  planCompleteness: FsdP6cPlanCompletenessV1;
+  planBinding: FsdP6cPlanBindingV1;
 };
 
 function countFsd3PlannedRequests(plan: FsdFullDiscoveryPlanV1): number {
@@ -37,13 +54,45 @@ function countFsd3PlannedRequests(plan: FsdFullDiscoveryPlanV1): number {
 
 function countFsd4PlannedRequests(plan: FsdFullDiscoveryPlanV1): number {
   const historicalChunks = plan.historical?.chunks.length ?? 0;
-  /** Catalog slot is skipped when FSD-3 catalog reuse is verified at runtime. */
   return historicalChunks;
+}
+
+function resolvePlanBinding(manifest: FsdP6cFleetManifestV1): FsdP6cPlanBindingV1 {
+  if (manifest.offlineFixtureHydration === true) {
+    return 'OFFLINE_REFERENCE';
+  }
+  if (manifest.productionManifest === true) {
+    return 'PRODUCTION_DECLARED_FIELDS';
+  }
+  return 'UNBOUND';
+}
+
+function buildCatalogPendingFullPlan(): FsdFullDiscoveryPlanV1 {
+  return {
+    executable: false,
+    nonExecutableReason: 'INSUFFICIENT_REQUEST_BUDGET_FOR_CATALOG',
+    declaredFieldNames: [],
+    classifiedCount: 0,
+    catalogReservedRequestSlots: FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1,
+    snapshot: { documents: [], catalogSignals: [], deferredSignals: [] },
+    historical: null,
+    executableProviderRequestCount: 0,
+    totalPlannedProviderRequests: 0,
+    budgetValidation: {
+      ok: false,
+      reason: 'REQUEST_BUDGET_EXCEEDED',
+      plannedRequestCount: 0,
+      limit: 0,
+    },
+    deferredByBudget: [],
+  };
 }
 
 export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
   manifest: FsdP6cFleetManifestV1;
   tokenIdByVehicleId: ReadonlyMap<string, number>;
+  /** When false, empty declaredFieldNames throws. When true, emits CATALOG_PENDING rows. */
+  allowCatalogPending?: boolean;
 }): FsdP6cFleetDiscoveryPlanReportV1 {
   const budget = resolveP6cCliBudgetFromManifest(input.manifest);
   assertP6cHistoricalWindowAdmissibleV1({
@@ -51,16 +100,35 @@ export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
     budget,
   });
 
+  const allowCatalogPending = input.allowCatalogPending === true;
   const vehicles: FsdP6cVehicleDiscoveryPlanV1[] = [];
-  let fleetSequentialPlannedProviderRequests = 0;
+  let fleetCumulativePlannedProviderRequests = 0;
+  let anyCatalogPending = false;
+  let anyBudgetTruncated = false;
 
   for (const entry of input.manifest.vehicles) {
     const tokenId = input.tokenIdByVehicleId.get(entry.vehicleId);
     if (tokenId == null) {
       throw new Error('FSD_P6C_PLAN_TOKEN_ID_MISSING');
     }
+
     if (entry.declaredFieldNames.length === 0) {
-      throw new Error('FSD_P6C_PLAN_EMPTY_DECLARED_FIELDS');
+      if (!allowCatalogPending) {
+        throw new Error('FSD_P6C_PLAN_EMPTY_DECLARED_FIELDS');
+      }
+      anyCatalogPending = true;
+      vehicles.push({
+        label: entry.label,
+        vehicleId: entry.vehicleId,
+        providerSourceLinkId: entry.providerSourceLinkId,
+        tokenId,
+        catalogPlanMode: 'CATALOG_PENDING',
+        fullPlan: buildCatalogPendingFullPlan(),
+        fsd3PlannedProviderRequests: 0,
+        fsd4PlannedProviderRequests: 0,
+        catalogReuseEligible: false,
+      });
+      continue;
     }
 
     const fullPlan = planFsdFullSignalDiscoveryV1({
@@ -70,15 +138,20 @@ export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
       budget,
     });
 
+    if (fullPlan.deferredByBudget.length > 0) {
+      anyBudgetTruncated = true;
+    }
+
     const fsd3Planned = countFsd3PlannedRequests(fullPlan);
     const fsd4Planned = countFsd4PlannedRequests(fullPlan);
-    fleetSequentialPlannedProviderRequests += fsd3Planned + fsd4Planned;
+    fleetCumulativePlannedProviderRequests += fsd3Planned + fsd4Planned;
 
     vehicles.push({
       label: entry.label,
       vehicleId: entry.vehicleId,
       providerSourceLinkId: entry.providerSourceLinkId,
       tokenId,
+      catalogPlanMode: 'DECLARED_FIELDS',
       fullPlan,
       fsd3PlannedProviderRequests: fsd3Planned,
       fsd4PlannedProviderRequests: fsd4Planned,
@@ -88,9 +161,27 @@ export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
 
   if (
     input.manifest.fleetPlannedRequestDisclosureCap != null &&
-    fleetSequentialPlannedProviderRequests > input.manifest.fleetPlannedRequestDisclosureCap
+    fleetCumulativePlannedProviderRequests > input.manifest.fleetPlannedRequestDisclosureCap
   ) {
     throw new Error('FSD_P6C_FLEET_DISCLOSURE_CAP_EXCEEDED');
+  }
+
+  const perVehiclePeaks = vehicles.map((v) =>
+    Math.max(
+      v.fsd3PlannedProviderRequests,
+      v.fsd4PlannedProviderRequests + (v.catalogReuseEligible ? 0 : FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1),
+    ),
+  );
+  const peakInFlightProviderRequests = perVehiclePeaks.length ? Math.max(...perVehiclePeaks) : 0;
+
+  const allExecutable =
+    !anyCatalogPending && vehicles.every((v) => v.fullPlan?.executable === true);
+
+  let planCompleteness: FsdP6cPlanCompletenessV1 = 'FULL';
+  if (anyCatalogPending) {
+    planCompleteness = 'CATALOG_PENDING';
+  } else if (anyBudgetTruncated || !allExecutable) {
+    planCompleteness = 'BUDGET_TRUNCATED';
   }
 
   return {
@@ -99,7 +190,12 @@ export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
     budget,
     historicalWindow: input.manifest.historicalWindow,
     vehicles,
-    fleetSequentialPlannedProviderRequests,
-    allExecutable: vehicles.every((v) => v.fullPlan.executable),
+    fleetCumulativePlannedProviderRequests,
+    fleetSequentialPlannedProviderRequests: fleetCumulativePlannedProviderRequests,
+    peakInFlightProviderRequests,
+    allExecutable,
+    anyCatalogPending,
+    planCompleteness,
+    planBinding: resolvePlanBinding(input.manifest),
   };
 }

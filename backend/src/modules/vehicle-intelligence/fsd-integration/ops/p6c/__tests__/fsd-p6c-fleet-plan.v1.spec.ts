@@ -4,7 +4,10 @@ import {
   buildFsdP6cFleetDiscoveryPlanReportV1,
 } from '../fsd-p6c-fleet-plan.v1';
 import { parseFsdP6cFleetManifestV1 } from '../fsd-p6c-fleet-manifest.v1';
-import { hydrateFsdP6cOfflineFleetManifestV1 } from '../fsd-p6c-offline-manifest-hydrate.v1';
+import {
+  FSD_P6C_OFFLINE_FIXTURE_HYDRATION_ENV,
+  hydrateFsdP6cOfflineFleetManifestV1,
+} from '../fsd-p6c-offline-manifest-hydrate.v1';
 import {
   assertFsdP6cProviderBudgetGuardV1,
   evaluateFsdP6cProviderBudgetGuardV1,
@@ -17,6 +20,10 @@ describe('FSD P6C fleet planner-derived budgets', () => {
   it('builds executable plans for four fleet labels with disclosure totals', () => {
     const manifest = hydrateFsdP6cOfflineFleetManifestV1(
       parseFsdP6cFleetManifestV1(JSON.parse(fs.readFileSync(fixturePath, 'utf8'))),
+      {
+        allowHydration: true,
+        env: { [FSD_P6C_OFFLINE_FIXTURE_HYDRATION_ENV]: '1' },
+      },
     );
     const tokenMap = new Map(manifest.vehicles.map((v) => [v.vehicleId, 4_242_42]));
     const report = buildFsdP6cFleetDiscoveryPlanReportV1({ manifest, tokenIdByVehicleId: tokenMap });
@@ -40,7 +47,11 @@ describe('FSD P6C fleet planner-derived budgets', () => {
     const goNoGo = buildFsdP6cLiveTestGoNoGoV1({
       planReport: report,
       providerBudgetGuard: guard,
+      context: 'OFFLINE_PLAN',
+      liveProvider: 'mock',
       ownerAuthorizationSatisfied: false,
+      productionManifestValid: false,
+      architectureReviewCleared: false,
     });
     expect(goNoGo.decision).toBe('NO_GO');
     expect(goNoGo.stop).toBe('AWAIT_CHATGPT_REVIEW');
@@ -49,6 +60,10 @@ describe('FSD P6C fleet planner-derived budgets', () => {
   it('rejects non-executable plans under tight per-run budget', () => {
     const manifest = hydrateFsdP6cOfflineFleetManifestV1(
       parseFsdP6cFleetManifestV1(JSON.parse(fs.readFileSync(fixturePath, 'utf8'))),
+      {
+        allowHydration: true,
+        env: { [FSD_P6C_OFFLINE_FIXTURE_HYDRATION_ENV]: '1' },
+      },
     );
     const tight = {
       ...manifest,

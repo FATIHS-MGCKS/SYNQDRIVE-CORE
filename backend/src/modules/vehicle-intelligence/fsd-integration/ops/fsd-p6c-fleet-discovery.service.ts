@@ -17,9 +17,20 @@ import {
   assertFsdP6cProviderBudgetGuardV1,
   evaluateFsdP6cProviderBudgetGuardV1,
 } from './p6c/fsd-p6c-provider-budget-guard.v1';
-import { buildFsdP6cLiveTestGoNoGoV1 } from './p6c/fsd-p6c-go-no-go.v1';
+import {
+  buildFsdP6cLiveTestGoNoGoV1,
+  resolveFsdP6cArchitectureReviewClearedV1,
+  type FsdP6cGoNoGoContextV1,
+} from './p6c/fsd-p6c-go-no-go.v1';
 import { resolveP6cCliBudgetFromManifest } from './p6c/fsd-p6c-cli-budget.v1';
 import { SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED } from './fsd3-one-shot-live-owner-gate.v1';
+import { assertProductionFleetManifestV1 } from './p6c/fsd-p6c-production-manifest-guard.v1';
+import { assertFsdP6cMockExecuteDatabaseAllowedV1 } from './p6c/fsd-p6c-mock-execute-db-guard.v1';
+import {
+  assertFsd3TerminalAllowsFsd4ReuseV1,
+  assertFsd4TerminalAllowsFleetContinueV1,
+  assertInspectorNoUnknownOutcomeStopV1,
+} from './p6c/fsd-p6c-fsd3-fsd4-chain-guard.v1';
 
 export type FsdP6cFleetVehicleExecutionRecordV1 = {
   label: string;
@@ -30,6 +41,8 @@ export type FsdP6cFleetVehicleExecutionRecordV1 = {
   fsd4TerminalStatus: string;
   fsd3Inspector: unknown;
   fsd4Inspector: unknown;
+  fleetStopped: boolean;
+  stopReason?: string;
 };
 
 export type FsdP6cFleetDiscoveryPreflightReportV1 = {
@@ -43,6 +56,16 @@ export type FsdP6cFleetDiscoveryPreflightReportV1 = {
     preflight: Awaited<ReturnType<Fsd3OneShotPreflightService['runAuthorizedReadOnlyPreflight']>>;
   }>;
 };
+
+function assertPreflightIdentityStable(
+  label: string,
+  expected: string | null,
+  actual: string | null,
+): void {
+  if (expected == null || actual == null || expected !== actual) {
+    throw new Error(`FSD_P6C_PREFLIGHT_IDENTITY_DRIFT_${label}`);
+  }
+}
 
 @Injectable()
 export class FsdP6cFleetDiscoveryService {
@@ -61,14 +84,47 @@ export class FsdP6cFleetDiscoveryService {
     return buildFsdP6cFleetDiscoveryPlanReportV1(input);
   }
 
+  private buildGoNoGo(input: {
+    planReport: ReturnType<typeof buildFsdP6cFleetDiscoveryPlanReportV1>;
+    providerBudgetGuard: ReturnType<typeof evaluateFsdP6cProviderBudgetGuardV1>;
+    context: FsdP6cGoNoGoContextV1;
+    liveProvider: Fsd3OneShotLiveProviderV1;
+    productionManifestValid: boolean;
+    env: NodeJS.ProcessEnv;
+  }) {
+    const ownerOk =
+      input.liveProvider === 'mock' ?
+        false
+      : input.env[SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED] === '1';
+    return buildFsdP6cLiveTestGoNoGoV1({
+      planReport: input.planReport,
+      providerBudgetGuard: input.providerBudgetGuard,
+      context: input.context,
+      liveProvider: input.liveProvider,
+      ownerAuthorizationSatisfied: ownerOk,
+      productionManifestValid: input.productionManifestValid,
+      architectureReviewCleared: resolveFsdP6cArchitectureReviewClearedV1(input.env),
+    });
+  }
+
   async runAuthorizedFleetPreflight(input: {
     manifest: FsdP6cFleetManifestV1;
     actorUserId: string;
     liveProvider: Fsd3OneShotLiveProviderV1;
     env?: NodeJS.ProcessEnv;
   }): Promise<FsdP6cFleetDiscoveryPreflightReportV1> {
+    const env = input.env ?? process.env;
     assertFsdP6cFleetManifestOrderV1(input.manifest);
+    let productionManifestValid = false;
+    try {
+      assertProductionFleetManifestV1(input.manifest);
+      productionManifestValid = true;
+    } catch {
+      productionManifestValid = false;
+    }
+
     const tokenMap = new Map<string, number>();
+    const fingerprintMap = new Map<string, string | null>();
     const vehiclePreflights: FsdP6cFleetDiscoveryPreflightReportV1['vehiclePreflights'] = [];
 
     for (const vehicle of input.manifest.vehicles) {
@@ -85,22 +141,32 @@ export class FsdP6cFleetDiscoveryService {
         throw new Error('FSD_P6C_PREFLIGHT_TOKEN_MISSING');
       }
       tokenMap.set(vehicle.vehicleId, preflight.dimoTokenId);
+      fingerprintMap.set(vehicle.vehicleId, preflight.connectionIdentityFingerprint);
       vehiclePreflights.push({ label: vehicle.label, vehicleId: vehicle.vehicleId, preflight });
     }
 
     const planReport = buildFsdP6cFleetDiscoveryPlanReportV1({
       manifest: input.manifest,
       tokenIdByVehicleId: tokenMap,
+      allowCatalogPending: false,
     });
     const providerBudgetGuard = evaluateFsdP6cProviderBudgetGuardV1(planReport);
-    const env = input.env ?? process.env;
-    const ownerOk =
-      input.liveProvider === 'mock' || env[SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED] === '1';
-    const goNoGo = buildFsdP6cLiveTestGoNoGoV1({
+    const goNoGo = this.buildGoNoGo({
       planReport,
       providerBudgetGuard,
-      ownerAuthorizationSatisfied: ownerOk,
+      context: 'AUTHORIZED_READ_ONLY_PREFLIGHT',
+      liveProvider: input.liveProvider,
+      productionManifestValid,
+      env,
     });
+
+    for (const row of vehiclePreflights) {
+      assertPreflightIdentityStable(
+        row.label,
+        fingerprintMap.get(row.vehicleId) ?? null,
+        row.preflight.connectionIdentityFingerprint,
+      );
+    }
 
     return {
       status: 'AUTHORIZED_READ_ONLY_PREFLIGHT',
@@ -115,14 +181,22 @@ export class FsdP6cFleetDiscoveryService {
     manifest: FsdP6cFleetManifestV1;
     actorUserId: string;
     releaseSha?: string;
+    env?: NodeJS.ProcessEnv;
   }): Promise<{
     vehicles: FsdP6cFleetVehicleExecutionRecordV1[];
     planReport: ReturnType<typeof buildFsdP6cFleetDiscoveryPlanReportV1>;
+    fleetStopped: boolean;
+    stopReason?: string;
   }> {
+    const env = input.env ?? process.env;
+    assertFsdP6cMockExecuteDatabaseAllowedV1(env);
+    assertProductionFleetManifestV1(input.manifest);
     assertFsdP6cFleetManifestOrderV1(input.manifest);
+
     const budget = resolveP6cCliBudgetFromManifest(input.manifest);
     const records: FsdP6cFleetVehicleExecutionRecordV1[] = [];
     const tokenMap = new Map<string, number>();
+    const fingerprintMap = new Map<string, string | null>();
 
     for (const vehicle of input.manifest.vehicles) {
       const preflight = await this.preflightSvc.runAuthorizedReadOnlyPreflight({
@@ -134,10 +208,11 @@ export class FsdP6cFleetDiscoveryService {
         },
         actorUserId: input.actorUserId,
       });
-      if (preflight.dimoTokenId == null) {
+      if (preflight.dimoTokenId == null || !preflight.connectionIdentityFingerprint) {
         throw new Error('FSD_P6C_EXEC_TOKEN_MISSING');
       }
       tokenMap.set(vehicle.vehicleId, preflight.dimoTokenId);
+      fingerprintMap.set(vehicle.vehicleId, preflight.connectionIdentityFingerprint);
     }
 
     const planReport = buildFsdP6cFleetDiscoveryPlanReportV1({
@@ -146,7 +221,14 @@ export class FsdP6cFleetDiscoveryService {
     });
     assertFsdP6cProviderBudgetGuardV1(planReport);
 
+    let fleetStopped = false;
+    let stopReason: string | undefined;
+
     for (const vehicle of input.manifest.vehicles) {
+      if (fleetStopped) {
+        break;
+      }
+
       const preflight = await this.preflightSvc.runAuthorizedReadOnlyPreflight({
         scope: {
           organizationId: input.manifest.organizationId,
@@ -156,9 +238,14 @@ export class FsdP6cFleetDiscoveryService {
         },
         actorUserId: input.actorUserId,
       });
+      assertPreflightIdentityStable(
+        vehicle.label,
+        fingerprintMap.get(vehicle.vehicleId) ?? null,
+        preflight.connectionIdentityFingerprint,
+      );
 
       const fsd3Provider: Fsd3DiscoveryProviderPortV1 = createFsd3MockDiscoveryProvider({
-        mode: vehicle.label === 'tesla_model_3' ? 'TESLA_REFERENCE_26' : 'TESLA_REFERENCE_26',
+        mode: 'TESLA_REFERENCE_26',
         catalogSignals: [...vehicle.declaredFieldNames],
       });
 
@@ -176,6 +263,26 @@ export class FsdP6cFleetDiscoveryService {
         releaseSha: input.releaseSha,
       });
 
+      try {
+        assertFsd3TerminalAllowsFsd4ReuseV1(fsd3);
+      } catch (err) {
+        fleetStopped = true;
+        stopReason = err instanceof Error ? err.message : String(err);
+        records.push({
+          label: vehicle.label,
+          vehicleId: vehicle.vehicleId,
+          fsd3RunId: fsd3.runId,
+          fsd4RunId: '',
+          fsd3TerminalStatus: fsd3.terminalStatus,
+          fsd4TerminalStatus: 'BLOCKED',
+          fsd3Inspector: null,
+          fsd4Inspector: null,
+          fleetStopped: true,
+          stopReason,
+        });
+        break;
+      }
+
       const fsd4Provider: Fsd4HistoricalDiscoveryProviderPortV1 = createFsd4MockHistoricalProvider({
         mode: 'TESLA_P2E_HISTORICAL',
       });
@@ -192,7 +299,7 @@ export class FsdP6cFleetDiscoveryService {
         provider: fsd4Provider,
         historicalWindow: input.manifest.historicalWindow,
         budget,
-        verifiedFsd3CatalogRunId: fsd3.runId || undefined,
+        verifiedFsd3CatalogRunId: fsd3.runId,
         releaseSha: input.releaseSha,
       });
 
@@ -213,6 +320,28 @@ export class FsdP6cFleetDiscoveryService {
           })
         : null;
 
+      try {
+        assertInspectorNoUnknownOutcomeStopV1(`${vehicle.label}_FSD3`, fsd3Inspector);
+        assertFsd4TerminalAllowsFleetContinueV1(fsd4);
+        assertInspectorNoUnknownOutcomeStopV1(`${vehicle.label}_FSD4`, fsd4Inspector);
+      } catch (err) {
+        fleetStopped = true;
+        stopReason = err instanceof Error ? err.message : String(err);
+        records.push({
+          label: vehicle.label,
+          vehicleId: vehicle.vehicleId,
+          fsd3RunId: fsd3.runId,
+          fsd4RunId: fsd4.runId,
+          fsd3TerminalStatus: fsd3.terminalStatus,
+          fsd4TerminalStatus: fsd4.terminalStatus,
+          fsd3Inspector,
+          fsd4Inspector,
+          fleetStopped: true,
+          stopReason,
+        });
+        break;
+      }
+
       records.push({
         label: vehicle.label,
         vehicleId: vehicle.vehicleId,
@@ -222,9 +351,10 @@ export class FsdP6cFleetDiscoveryService {
         fsd4TerminalStatus: fsd4.terminalStatus,
         fsd3Inspector,
         fsd4Inspector,
+        fleetStopped: false,
       });
     }
 
-    return { vehicles: records, planReport };
+    return { vehicles: records, planReport, fleetStopped, stopReason };
   }
 }
