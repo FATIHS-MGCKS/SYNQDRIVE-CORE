@@ -2950,3 +2950,14 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | VALIDATION | `npm run test:di:ds4-dbi-w0-mbf` (135); replay TIG22/TIG22_V4/Tesla; changed-file ESLint PASS |
 | NON_EFFECTS | D4/D5/D6/D8 V1/W1C/F04 unchanged; exploratory small-n G/p retained |
 
+---
+
+## Phase 2 RPM Episode Research (P2-A1, 2026-11-08)
+
+| Field | Detail |
+|-------|--------|
+| CHANGE | `backend/.../ds4-rpm-episode-research/` — pure research kernel: absolute count-weighted RPM distribution, reference-gated hysteresis episodes (HIGH u≥0.65 / exit<0.57), mass accounting I1–I2, strict V1B fingerprint + sequence parity binding; optional B2 bundle projector |
+| WHY | Opus independent design gate approved narrowed P2-A1 after Fable architecture; no τ/DS4/dynamics/misuse path |
+| VALIDATION | `npx jest --testPathPatterns ds4-rpm-episode-research` (19); V1B/RefIntel/DBI/B2 regression suites unchanged; import-boundary spec |
+| NON_EFFECTS | No Nest provider, no production persistence, Phase 1 W0/W1C/D8/F04 untouched, no misuse-cases imports |
+
