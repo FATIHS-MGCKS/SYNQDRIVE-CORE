@@ -188,6 +188,13 @@ export function buildColdEngineBoundInput(input: {
         latestRecordedAtIso: null,
       },
       rpmPoints: [],
+      clickHouseRead: {
+        ...tripInput.clickHouseRead,
+        status: 'EMPTY',
+        available: true,
+        degradedReason: null,
+        tenantScopeViolation: false,
+      },
     };
   } else if (input.rpmCompletenessLabel != null) {
     tripInput = {

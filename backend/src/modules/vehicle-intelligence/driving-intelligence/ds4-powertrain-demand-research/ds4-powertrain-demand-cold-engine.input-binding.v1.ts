@@ -27,6 +27,9 @@ const FALLBACK_CADENCE = {
   sequenceMaxGapSeconds: 2,
 } as const;
 
+/** Upstream ClickHouse HF RPM read statuses that admit a documented zero-point trip. */
+export const DS4_COLD_ENGINE_ZERO_RPM_CLICKHOUSE_ALLOWED_STATUSES = ['EMPTY'] as const;
+
 export type Ds4ColdEngineBindingResultV1 =
   | {
       ok: true;
@@ -61,8 +64,23 @@ function validateZeroRpmPathFailClosed(
   const { tripInput } = input;
   const ch = tripInput.clickHouseRead;
 
-  if (ch.status === 'QUERY_FAILED') reasonCodes.push('HF_CLICKHOUSE_QUERY_FAILED');
-  if (ch.status === 'UNAVAILABLE' || !ch.available) reasonCodes.push('HF_CLICKHOUSE_UNAVAILABLE');
+  if (ch.status === 'TENANT_SCOPE_VIOLATION') {
+    reasonCodes.push('TENANT_SCOPE_VIOLATION');
+  }
+
+  const allowed = DS4_COLD_ENGINE_ZERO_RPM_CLICKHOUSE_ALLOWED_STATUSES as readonly string[];
+  if (!allowed.includes(ch.status)) {
+    if (ch.status === 'QUERY_FAILED') {
+      reasonCodes.push('HF_CLICKHOUSE_QUERY_FAILED');
+    } else if (ch.status === 'UNAVAILABLE') {
+      reasonCodes.push('HF_CLICKHOUSE_UNAVAILABLE');
+    } else if (ch.status !== 'TENANT_SCOPE_VIOLATION') {
+      reasonCodes.push('HF_CLICKHOUSE_READ_STATUS_NOT_ALLOWED');
+    }
+  } else if (!ch.available) {
+    reasonCodes.push('HF_CLICKHOUSE_READ_STATUS_NOT_ALLOWED');
+  }
+
   if (ch.degradedReason != null && String(ch.degradedReason).trim().length > 0) {
     reasonCodes.push('HF_CLICKHOUSE_DEGRADED');
   }

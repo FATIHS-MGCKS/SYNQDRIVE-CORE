@@ -73,6 +73,50 @@ describe('ds4-powertrain-demand cold-engine P2-B2 adversarial', () => {
     return buildColdEngineBoundInput({ multichannelObservations: grid });
   }
 
+  it('TENANT_SCOPE_VIOLATION status abstains even when tenantScopeViolation flag is false', () => {
+    const input = zeroRpmColdLoadInput();
+    input.tripInput.clickHouseRead = {
+      ...input.tripInput.clickHouseRead,
+      status: 'TENANT_SCOPE_VIOLATION',
+      tenantScopeViolation: false,
+      available: false,
+    };
+    const out = computeDs4PowertrainDemandColdEngineResearchV1(input);
+    expect(out.status).toBe('ABSTAINED');
+    expect(out.abstainReasons).toContain('TENANT_SCOPE_VIOLATION');
+  });
+
+  it('unknown ClickHouse read status abstains on zero-RPM path', () => {
+    const input = zeroRpmColdLoadInput();
+    input.tripInput.clickHouseRead = {
+      ...input.tripInput.clickHouseRead,
+      status: 'SUCCESS',
+      available: true,
+    };
+    const out = computeDs4PowertrainDemandColdEngineResearchV1(input);
+    expect(out.abstainReasons).toContain('HF_CLICKHOUSE_READ_STATUS_NOT_ALLOWED');
+  });
+
+  it('EMPTY status with available=false is contradictory and abstains', () => {
+    const input = zeroRpmColdLoadInput();
+    input.tripInput.clickHouseRead = {
+      ...input.tripInput.clickHouseRead,
+      status: 'EMPTY',
+      available: false,
+    };
+    const out = computeDs4PowertrainDemandColdEngineResearchV1(input);
+    expect(out.abstainReasons).toContain('HF_CLICKHOUSE_READ_STATUS_NOT_ALLOWED');
+  });
+
+  it('valid upstream EMPTY ClickHouse read admits genuine empty cold load', () => {
+    const input = zeroRpmColdLoadInput();
+    expect(input.tripInput.clickHouseRead.status).toBe('EMPTY');
+    expect(input.tripInput.clickHouseRead.available).toBe(true);
+    const out = computeDs4PowertrainDemandColdEngineResearchV1(input);
+    expect(out.status).toBe('COMPUTED');
+    expect(out.abstainReasons).toHaveLength(0);
+  });
+
   it('QUERY_FAILED with EMPTY semantics abstains on zero-RPM path', () => {
     const input = zeroRpmColdLoadInput();
     input.tripInput.clickHouseRead = {
