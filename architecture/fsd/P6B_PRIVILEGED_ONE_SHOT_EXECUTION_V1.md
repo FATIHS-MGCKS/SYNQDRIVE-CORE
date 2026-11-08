@@ -24,11 +24,12 @@ Provide a minimal, auditable, explicitly authorized **one-shot** entrypoint for 
 
 1. **Host attestation** — `FSD3_ONE_SHOT_HOST_ATTESTATION=1` in the operator shell (not owner approval).
 2. **Platform operator** — ACTIVE `MASTER_ADMIN` with org/vehicle/link binding (`DimoSourceLinkOperatorAuthorizationService`).
-3. **Owner L2 approval** — signed envelope `FSD3_LIVE_OWNER_APPROVAL_V1` (Ed25519 over canonical payload) binding: **git-attested** executable release SHA, org, vehicle, source link, discovery request key, `liveProvider`, budget cap, validity window. Trusted public keys via `FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON` or `FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_FILE`. Sign off-repo with `scripts/ops/fsd3-live-owner-approval-sign.ts` + `FSD3_OWNER_L2_SIGNING_KEY_PEM_FILE`.
+3. **Owner L2 approval** — signed envelope `FSD3_LIVE_OWNER_APPROVAL_V1` (Ed25519 over canonical payload) binding: **git-attested** executable release SHA, org, vehicle, source link, discovery request key, `liveProvider`, budget cap, validity window. **Live `dimo_live` EXECUTE:** root-owned trust file only under `/etc/synqdrive` or `/var/lib/synqdrive` (no env prefix override, no relaxed anchor, no inline/test trust). Non-live mock paths may use isolated test trust in CI only. Sign off-repo with `scripts/ops/fsd3-live-owner-approval-sign.ts` + `FSD3_OWNER_L2_SIGNING_KEY_PEM_FILE`.
 4. **Executable SHA attestation** — `resolveFsd3OneShotExecutableReleaseShaV1()` uses `git rev-parse HEAD` + clean tree (no `--executable-release-sha` CLI override).
-5. **Execution capability** — HMAC-bound token minted only after preflight + verified approval in-process; execution rejects forged preflight/approvalReference passthrough.
-6. **Process-scoped FSD3 gates** — CLI builds orchestration config with FSD3 enabled for **one** vehicle and `providerExecutionEnabled=true`. Does **not** read PM2 replica env. FSD4 remains default-off for the process.
-7. **P5B fences** — `assertActiveSourceLinkForDispatch` and persistence invalidation semantics unchanged.
+5. **Preflight ticket** — HMAC ticket minted **once** per authoritative `runAuthorizedReadOnlyPreflight` binding (consumes in-memory binding; re-mint requires fresh preflight). Verifier checks MAC + scope + TTL; does not by itself block capability replay.
+6. **Execution capability** — HMAC-bound token minted only after verified Ed25519 approval + valid preflight ticket. **Replay safety:** duplicate execute with the **same** capability + same `discoveryRequestKey` is absorbed by existing FSD3 persistence idempotency (no second provider dispatch). A **new** capability still requires a **new** authoritative preflight ticket mint.
+7. **Process-scoped FSD3 gates** — CLI builds orchestration config with FSD3 enabled for **one** vehicle and `providerExecutionEnabled=true`. Does **not** read PM2 replica env. FSD4 remains default-off for the process.
+8. **P5B fences** — `assertActiveSourceLinkForDispatch` and persistence invalidation semantics unchanged.
 
 Empty `FSD3_LIVE_ACTIVATION_BLOCKERS_V1` in orchestration config is **not** used as the authorization decision for this CLI.
 

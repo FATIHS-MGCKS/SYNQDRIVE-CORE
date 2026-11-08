@@ -7,7 +7,11 @@
   - **`FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_FILE`** only — anchored under `/etc/synqdrive` or `/var/lib/synqdrive` (prefix override: `FSD3_LIVE_OWNER_APPROVAL_TRUST_FILE_ROOT_PREFIXES`).
   - Inline `FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON` is **rejected** for operator contexts (fail-closed anti-replacement).
   - Trust file must not be group/world-writable; optional `FSD3_ONE_SHOT_TRUST_REQUIRE_ROOT_OWNER=1` enforces uid 0.
-- Isolated CI/tests: `FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE=1` + explicit `TEST_ISOLATED_INLINE` trust context only (never for `dimo_live` EXECUTE).
+- **Live `dimo_live` EXECUTE (mandatory):**
+  - Trust file path: `FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_FILE` under `/etc/synqdrive` or `/var/lib/synqdrive` only.
+  - File and parent directories: **root-owned**, not group/world-writable; no symlink escape.
+  - Rejects: `FSD3_ONE_SHOT_TRUST_ANCHOR_RELAXED`, `FSD3_LIVE_OWNER_APPROVAL_TRUST_FILE_ROOT_PREFIXES`, inline JSON, `FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE`.
+- Isolated CI/tests: `FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE=1` + explicit `TEST_ISOLATED_INLINE` trust context for **mock** paths only.
 - Schema: `FSD3_LIVE_OWNER_APPROVAL_TRUST_SCHEMA_V1`
 - Duplicate `keyId` and invalid `notBeforeIso` / `notAfterIso` windows are rejected fail-closed.
 - Revocation: `revokedKeyIds` list in the same store.

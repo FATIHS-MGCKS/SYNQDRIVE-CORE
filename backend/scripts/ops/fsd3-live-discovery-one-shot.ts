@@ -99,7 +99,7 @@ function resolveCliTrustContext(input: {
     if (process.env.FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE === '1') {
       throw new Error('FSD3_L2_TRUST_LIVE_INLINE_FORBIDDEN');
     }
-    return { mode: 'OPERATOR_FILE_ANCHORED' };
+    return { mode: 'OPERATOR_FILE_ANCHORED', liveDimoExecute: true };
   }
   const inline = process.env.FSD3_LIVE_OWNER_APPROVAL_TRUST_KEYS_JSON?.trim();
   if (process.env.FSD3_ONE_SHOT_ALLOW_TEST_TRUST_INLINE === '1' && inline) {

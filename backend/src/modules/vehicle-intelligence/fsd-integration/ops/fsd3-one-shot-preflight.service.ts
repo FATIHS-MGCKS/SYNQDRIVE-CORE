@@ -148,9 +148,14 @@ export class Fsd3OneShotPreflightService implements OnModuleInit {
     liveProvider: Fsd3OneShotLiveProviderV1;
     trustContext?: Fsd3OwnerApprovalTrustLoadContextV1;
   }): string {
+    const trustContext: Fsd3OwnerApprovalTrustLoadContextV1 =
+      input.liveProvider === 'dimo_live'
+        ? { mode: 'OPERATOR_FILE_ANCHORED', liveDimoExecute: true }
+        : (input.trustContext ?? { mode: 'OPERATOR_FILE_ANCHORED' });
+
     const approval = verifyFsd3LiveOwnerApprovalEnvelopeV1({
       envelope: input.verifiedOwnerApprovalEnvelope,
-      trustContext: input.trustContext,
+      trustContext,
     });
     assertFsd3LiveOwnerApprovalMatchesScope({
       approval,

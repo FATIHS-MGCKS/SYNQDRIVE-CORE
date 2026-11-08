@@ -345,4 +345,46 @@ async function seedDimoBinding(prisma: PrismaClient) {
     expect(second.runId).toBe(first.runId);
     expect(second.terminalStatus).toBe(first.terminalStatus);
   });
+
+  it('replayed execution capability does not double-dispatch provider', async () => {
+    const seed = await seedDimoBinding(prisma);
+    const actorUserId = randomUUID();
+    await ensurePlatformUser(prisma, actorUserId, 'MASTER_ADMIN', 'ACTIVE');
+    const discoveryRequestKey = randomUUID();
+    const scope = {
+      organizationId: seed.organizationId,
+      vehicleId: seed.vehicleId,
+      providerSourceLinkId: seed.linkId,
+      discoveryRequestKey,
+      executableReleaseSha: attestedSha(),
+    };
+    const { preflight, execution } = services();
+    await preflight.runAuthorizedReadOnlyPreflight({ actorUserId, scope });
+    const envelope = signFsd3LiveOwnerApprovalTestEnvelopeV1({
+      privateKey: signing.privateKey,
+      keyId: signing.keyId,
+      payload: approvalFor(scope),
+    });
+    const provider = createFsd3MockDiscoveryProvider({ mode: 'TESLA_REFERENCE_26' });
+    const capability = preflight.issueExecutionCapability({
+      scope,
+      verifiedOwnerApprovalEnvelope: envelope,
+      preflightTicket: preflight.mintAuthorizedPreflightTicket({ scope, actorUserId }),
+      actorUserId,
+      liveProvider: 'mock',
+      trustContext: { mode: 'TEST_ISOLATED_INLINE', trustStoreJson: signing.trustStoreJson },
+    });
+    const first = await execution.executeAuthorizedOneShot({
+      executionCapability: capability,
+      provider,
+      expectedLiveProvider: 'mock',
+    });
+    const replayed = await execution.executeAuthorizedOneShot({
+      executionCapability: capability,
+      provider,
+      expectedLiveProvider: 'mock',
+    });
+    expect(replayed.runId).toBe(first.runId);
+    expect(replayed.terminalStatus).toBe(first.terminalStatus);
+  });
 });

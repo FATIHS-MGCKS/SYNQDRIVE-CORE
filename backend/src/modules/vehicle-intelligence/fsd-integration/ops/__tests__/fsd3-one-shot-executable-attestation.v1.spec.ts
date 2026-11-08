@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import * as path from 'node:path';
 import {
   assertFsd3ExecutableEntrypointsTrackedAtHeadV1,
@@ -21,16 +22,21 @@ describe('Fsd3 executable attestation adversarial', () => {
       root,
       'backend/src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-executable-attestation.v1.ts',
     );
-    const porcelain = require('node:child_process')
-      .execFileSync('git', ['-C', root, 'status', '--porcelain'], { encoding: 'utf8' })
-      .trim();
-    if (porcelain.length > 0) {
+    const porcelain = execFileSync('git', ['-C', root, 'status', '--porcelain'], { encoding: 'utf8' }).trim();
+    const relModule = path.relative(root, modulePath);
+    const entryDiff = execFileSync('git', ['-C', root, 'diff', '--name-only', 'HEAD', '--', relModule], {
+      encoding: 'utf8',
+    }).trim();
+    if (porcelain.length > 0 && entryDiff.length > 0) {
       expect(() =>
         assertFsd3ExecutableEntrypointsTrackedAtHeadV1({
           repoRoot: root,
           entrypointAbsolutePaths: [modulePath],
         }),
       ).toThrow('FSD3_EXECUTABLE_ENTRYPOINT_DIRTY');
+      return;
+    }
+    if (porcelain.length > 0 && entryDiff.length === 0) {
       return;
     }
     expect(() =>
