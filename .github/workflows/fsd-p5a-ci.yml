@@ -15,6 +15,10 @@ on:
       - 'backend/src/modules/dimo/provider/dimo-provider-http-classifier.spec.ts'
       - 'backend/scripts/test/fsd2-persistence-postgres-ci.sh'
       - 'backend/scripts/ops/fsd-lifecycle-deactivate-dimo-source-link.ts'
+      - 'backend/scripts/ops/fsd3-live-discovery-one-shot.ts'
+      - 'backend/scripts/ops/fsd3-discovery-run-inspector.ts'
+      - 'architecture/fsd/P6B_*'
+      - 'architecture/fsd/P6C_*'
       - 'architecture/fsd/P5B_*'
       - 'backend/src/modules/vehicle-onboarding/services/vehicle-offboarding.service.ts'
       - 'backend/src/modules/vehicle-onboarding/vehicle-onboarding.module.ts'
@@ -100,7 +104,7 @@ jobs:
         run: |
           npx jest \
             --runInBand \
-            --testPathPatterns='full-signal-discovery|dimo-telemetry\.service\.spec' \
+            --testPathPatterns='full-signal-discovery|fsd-integration/ops|dimo-telemetry\.service\.spec' \
             --testPathIgnorePatterns='postgres\.integration'
 
       - name: FSD PostgreSQL integration (disposable DB)
