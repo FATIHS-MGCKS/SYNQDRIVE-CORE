@@ -427,6 +427,73 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
     expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.maxAdjacentLabelGapMs).toBe(10_000);
     expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.idleRpmBandMaxExclusive).toBe(1200);
     expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.shortIdleMaxResearchLabelSpanMs).toBe(120_000);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.defaultIdleRpm).toBe(800);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.defaultIdleRpm).toBe(800);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.minObservations).toBe(3);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.minResearchLabelSpanMs).toBe(3000);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.rpmEntryThreshold).toBe(2000);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.rpmContinueThreshold).toBe(1440);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.minObservations).toBe(4);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.minResearchLabelSpanMs).toBe(180_000);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.idleRpmBandMinExclusive).toBe(320);
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.idleRpmBandMaxExclusive).toBe(1200);
+  });
+
+  describe('assessability coherence closeout', () => {
+    it('P1_01 missing speed at 100s splits Facet B opportunity (two sub-180s runs)', () => {
+      const idle = buildObservationSeries('2026-01-01T10:00:01.000Z', 201, 1, (i) => ({
+        speedKmh: i === 100 ? null : 0,
+        rpm: 850,
+      }));
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: idle, tripId: TRIP }),
+      );
+      expect(out.revvingIdle.facetB.assessability).toBe('NOT_ASSESSABLE');
+      expect(out.revvingIdle.facetB.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
+      expect(out.revvingIdle.facetB.coverageDiagnostics.maxQualifyingCoherentResearchLabelSpanMs).toBe(0);
+    });
+
+    it('P1_01 missing RPM at 100s splits Facet B opportunity', () => {
+      const idle = buildObservationSeries('2026-01-01T10:00:01.000Z', 201, 1, (i) => ({
+        speedKmh: 0,
+        rpm: i === 100 ? null : 850,
+      }));
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: idle, tripId: TRIP }),
+      );
+      expect(out.revvingIdle.facetB.assessability).toBe('NOT_ASSESSABLE');
+      expect(out.revvingIdle.facetB.tripEvidenceClassification).not.toBe('NOT_OBSERVED');
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
+    });
+
+    it('P1_02 dense 100s run plus 190s coarse run: Facet B assessable via second run only', () => {
+      const dense = buildObservationSeries('2026-01-01T10:00:01.000Z', 101, 1, () => ({
+        speedKmh: 0,
+        rpm: 850,
+      }));
+      const coarse = buildObservationSeries('2026-01-01T10:01:56.000Z', 19, 10, () => ({
+        speedKmh: 0,
+        rpm: 850,
+      }));
+      const grid = [...dense, ...coarse];
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
+      );
+      expect(out.revvingIdle.facetB.assessability).toBe('ASSESSABLE');
+      expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(1);
+      expect(out.revvingIdle.facetB.coverageDiagnostics.longestCoherentRunLabelCount).toBeGreaterThan(100);
+      expect(out.revvingIdle.facetB.coverageDiagnostics.maxQualifyingCoherentResearchLabelSpanMs).toBeGreaterThanOrEqual(
+        180_000,
+      );
+
+      const reversed = [...grid].reverse();
+      const outRev = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: reversed, tripId: TRIP }),
+      );
+      expect(outRev.revvingIdle.facetB.assessability).toBe('ASSESSABLE');
+      expect(outRev.revvingIdle.facetB.candidates[0]?.episodeKey).toBe(out.revvingIdle.facetB.candidates[0]?.episodeKey);
+    });
   });
 
   it('24 P2-B1 kickdown regression positive control', () => {

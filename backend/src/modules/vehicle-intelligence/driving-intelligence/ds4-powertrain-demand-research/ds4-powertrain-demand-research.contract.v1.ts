@@ -413,16 +413,20 @@ export type Ds4RevvingIdleFacetAssessabilityReasonV1 =
   | 'INTEGRITY_NOT_ADMITTED'
   | 'RPM_SPEED_CO_OBSERVATION_UNAVAILABLE'
   | 'INSUFFICIENT_CO_LABEL_COUNT'
-  | 'INSUFFICIENT_LABEL_SPAN_OPPORTUNITY'
-  | 'INSUFFICIENT_COHERENT_GAP_COVERAGE';
+  | 'INSUFFICIENT_LABEL_SPAN_OPPORTUNITY';
 
 export type Ds4RevvingIdleFacetCoverageDiagnosticsV1 = {
   rpmSpeedCoObservedLabelCount: number;
   rpmMissingRequiredChannelCount: number;
   speedMissingRequiredChannelCount: number;
+  /** Max label count within any single coherent rpm+speed run (not merged across runs). */
   longestCoherentRunLabelCount: number;
+  /** Max research label span within any single coherent rpm+speed run. */
   longestCoherentResearchLabelSpanMs: number;
+  /** Max adjacent gap inside the run that achieved longestCoherentResearchLabelSpanMs. */
   longestCoherentMaxAdjacentGapMs: number;
+  /** Max span among runs that meet both facet min label count and min span admission. */
+  maxQualifyingCoherentResearchLabelSpanMs: number;
   assessabilityReasonCodes: readonly Ds4RevvingIdleFacetAssessabilityReasonV1[];
 };
 

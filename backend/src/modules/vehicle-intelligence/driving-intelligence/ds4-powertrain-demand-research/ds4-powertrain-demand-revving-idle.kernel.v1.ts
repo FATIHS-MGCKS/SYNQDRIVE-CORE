@@ -55,6 +55,7 @@ const UNTRUSTED_FACET_DIAGNOSTICS: Ds4RevvingIdleFacetCoverageDiagnosticsV1 = {
   longestCoherentRunLabelCount: 0,
   longestCoherentResearchLabelSpanMs: 0,
   longestCoherentMaxAdjacentGapMs: 0,
+  maxQualifyingCoherentResearchLabelSpanMs: 0,
   assessabilityReasonCodes: ['INTEGRITY_NOT_ADMITTED'],
 };
 
@@ -172,7 +173,6 @@ export function computeDs4PowertrainDemandRevvingIdleResearchV1(
 
   const facetATripEvidence = classifyFacetATripEvidenceAfterDetection({
     assessable: facetAAssess.assessable,
-    assessabilityReasonCodes: facetAAssess.diagnostics.assessabilityReasonCodes,
     candidateCount: detect.facetA.candidates.length,
     entryLabelCount: detect.facetA.entryLabelCount,
     longestRunLabelCount: detect.facetA.longestRunLabelCount,

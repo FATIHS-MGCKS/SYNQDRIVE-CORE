@@ -18,66 +18,70 @@ export type Ds4RevvingIdleFacetAssessabilityVerdictV1 = {
   diagnostics: Ds4RevvingIdleFacetCoverageDiagnosticsV1;
 };
 
-function coRpmSpeedBuckets(canon: Ds4MultichannelCanonicalizeResultV1): Ds4CanonicalMultichannelBucketV1[] {
-  return [...canon.buckets]
-    .filter((b) => b.rpm != null && b.speedKmh != null)
-    .sort((a, b) => a.recordedAtMs - b.recordedAtMs);
-}
-
 type CoherentRun = {
   labelCount: number;
   spanMs: number;
   maxAdjacentGapMs: number;
 };
 
-/** Longest chain of rpm+speed co-labelled buckets with adjacent gaps <= maxAdjacentGapMs. */
-export function findLongestCoherentCoRpmSpeedRun(
-  buckets: readonly Ds4CanonicalMultichannelBucketV1[],
-  maxAdjacentGapMs: number,
-): CoherentRun {
-  if (buckets.length === 0) {
-    return { labelCount: 0, spanMs: 0, maxAdjacentGapMs: 0 };
-  }
-
-  let best: CoherentRun = { labelCount: 0, spanMs: 0, maxAdjacentGapMs: 0 };
-  let runStart = 0;
-
-  const flushRun = (runEnd: number) => {
-    const slice = buckets.slice(runStart, runEnd + 1);
-    if (slice.length === 0) return;
-    let maxGap = 0;
-    for (let i = 1; i < slice.length; i += 1) {
-      maxGap = Math.max(maxGap, slice[i]!.recordedAtMs - slice[i - 1]!.recordedAtMs);
-    }
-    const span = slice[slice.length - 1]!.recordedAtMs - slice[0]!.recordedAtMs;
-    const candidate: CoherentRun = {
-      labelCount: slice.length,
-      spanMs: span,
-      maxAdjacentGapMs: maxGap,
-    };
-    const better =
-      candidate.labelCount > best.labelCount ||
-      (candidate.labelCount === best.labelCount && candidate.spanMs > best.spanMs);
-    if (better) best = candidate;
-  };
-
-  for (let i = 1; i < buckets.length; i += 1) {
-    const gap = buckets[i]!.recordedAtMs - buckets[i - 1]!.recordedAtMs;
-    if (gap > maxAdjacentGapMs) {
-      flushRun(i - 1);
-      runStart = i;
-    }
-  }
-  flushRun(buckets.length - 1);
-  return best;
+function sortedCanonicalBuckets(canon: Ds4MultichannelCanonicalizeResultV1): Ds4CanonicalMultichannelBucketV1[] {
+  return [...canon.buckets].sort((a, b) => a.recordedAtMs - b.recordedAtMs);
 }
 
-function baseDiagnostics(canon: Ds4MultichannelCanonicalizeResultV1): Omit<
+/**
+ * Walk the full chronological canonical grid. Missing rpm or speed flushes the active run
+ * (no interpolation or bridging across invalid buckets).
+ */
+export function enumerateCoherentCoRpmSpeedRuns(
+  sortedGridBuckets: readonly Ds4CanonicalMultichannelBucketV1[],
+  maxAdjacentGapMs: number,
+): CoherentRun[] {
+  const runs: CoherentRun[] = [];
+  let active: Ds4CanonicalMultichannelBucketV1[] = [];
+
+  const flush = () => {
+    if (active.length === 0) return;
+    let maxGap = 0;
+    for (let i = 1; i < active.length; i += 1) {
+      maxGap = Math.max(maxGap, active[i]!.recordedAtMs - active[i - 1]!.recordedAtMs);
+    }
+    const span = active[active.length - 1]!.recordedAtMs - active[0]!.recordedAtMs;
+    runs.push({
+      labelCount: active.length,
+      spanMs: span,
+      maxAdjacentGapMs: maxGap,
+    });
+    active = [];
+  };
+
+  for (const bucket of sortedGridBuckets) {
+    if (bucket.rpm == null || bucket.speedKmh == null) {
+      flush();
+      continue;
+    }
+    if (active.length > 0) {
+      const gap = bucket.recordedAtMs - active[active.length - 1]!.recordedAtMs;
+      if (gap > maxAdjacentGapMs) {
+        flush();
+      }
+    }
+    active.push(bucket);
+  }
+  flush();
+  return runs;
+}
+
+function runWithMaxSpan(runs: readonly CoherentRun[]): CoherentRun | null {
+  if (runs.length === 0) return null;
+  return runs.reduce((best, run) => (run.spanMs > best.spanMs ? run : best));
+}
+
+function baseDiagnostics(canon: Ds4MultichannelCanonicalizeResultV1): Pick<
   Ds4RevvingIdleFacetCoverageDiagnosticsV1,
-  'longestCoherentRunLabelCount' | 'longestCoherentResearchLabelSpanMs' | 'longestCoherentMaxAdjacentGapMs' | 'assessabilityReasonCodes'
+  'rpmSpeedCoObservedLabelCount' | 'rpmMissingRequiredChannelCount' | 'speedMissingRequiredChannelCount'
 > {
   return {
-    rpmSpeedCoObservedLabelCount: coRpmSpeedBuckets(canon).length,
+    rpmSpeedCoObservedLabelCount: canon.buckets.filter((b) => b.rpm != null && b.speedKmh != null).length,
     rpmMissingRequiredChannelCount: canon.buckets.filter((b) => b.rpm == null).length,
     speedMissingRequiredChannelCount: canon.buckets.filter((b) => b.speedKmh == null).length,
   };
@@ -90,10 +94,10 @@ function evaluateFacetOpportunity(input: {
   maxAdjacentGapMs: number;
 }): Ds4RevvingIdleFacetAssessabilityVerdictV1 {
   const base = baseDiagnostics(input.canon);
-  const co = coRpmSpeedBuckets(input.canon);
+  const sorted = sortedCanonicalBuckets(input.canon);
   const reasons: Ds4RevvingIdleFacetAssessabilityReasonV1[] = [];
 
-  if (co.length === 0) {
+  if (base.rpmSpeedCoObservedLabelCount === 0) {
     reasons.push('RPM_SPEED_CO_OBSERVATION_UNAVAILABLE');
     return {
       assessable: false,
@@ -102,31 +106,38 @@ function evaluateFacetOpportunity(input: {
         longestCoherentRunLabelCount: 0,
         longestCoherentResearchLabelSpanMs: 0,
         longestCoherentMaxAdjacentGapMs: 0,
+        maxQualifyingCoherentResearchLabelSpanMs: 0,
         assessabilityReasonCodes: reasons,
       },
     };
   }
 
-  const longest = findLongestCoherentCoRpmSpeedRun(co, input.maxAdjacentGapMs);
+  const runs = enumerateCoherentCoRpmSpeedRuns(sorted, input.maxAdjacentGapMs);
+  const qualifying = runs.filter((r) => r.labelCount >= input.minLabels && r.spanMs >= input.minSpanMs);
+  const maxLabelCount = runs.reduce((m, r) => Math.max(m, r.labelCount), 0);
+  const maxSpan = runs.reduce((m, r) => Math.max(m, r.spanMs), 0);
+  const maxQualifyingSpan = qualifying.reduce((m, r) => Math.max(m, r.spanMs), 0);
+  const spanChampion = runWithMaxSpan(runs);
+
   const diagnostics: Ds4RevvingIdleFacetCoverageDiagnosticsV1 = {
     ...base,
-    longestCoherentRunLabelCount: longest.labelCount,
-    longestCoherentResearchLabelSpanMs: longest.spanMs,
-    longestCoherentMaxAdjacentGapMs: longest.maxAdjacentGapMs,
+    longestCoherentRunLabelCount: maxLabelCount,
+    longestCoherentResearchLabelSpanMs: maxSpan,
+    longestCoherentMaxAdjacentGapMs: spanChampion?.maxAdjacentGapMs ?? 0,
+    maxQualifyingCoherentResearchLabelSpanMs: maxQualifyingSpan,
     assessabilityReasonCodes: [],
   };
 
-  if (longest.labelCount < input.minLabels) {
-    reasons.push('INSUFFICIENT_CO_LABEL_COUNT');
-  }
-  if (longest.spanMs < input.minSpanMs) {
-    reasons.push('INSUFFICIENT_LABEL_SPAN_OPPORTUNITY');
-  }
-  if (longest.labelCount >= 2 && longest.maxAdjacentGapMs > input.maxAdjacentGapMs) {
-    reasons.push('INSUFFICIENT_COHERENT_GAP_COVERAGE');
-  }
-
-  if (reasons.length > 0) {
+  if (qualifying.length === 0) {
+    if (maxLabelCount < input.minLabels) {
+      reasons.push('INSUFFICIENT_CO_LABEL_COUNT');
+    }
+    if (maxSpan < input.minSpanMs) {
+      reasons.push('INSUFFICIENT_LABEL_SPAN_OPPORTUNITY');
+    }
+    if (reasons.length === 0) {
+      reasons.push('INSUFFICIENT_LABEL_SPAN_OPPORTUNITY');
+    }
     diagnostics.assessabilityReasonCodes = reasons;
     return { assessable: false, diagnostics };
   }
@@ -159,7 +170,6 @@ export function evaluateRevvingIdleFacetBAssessability(
 
 export function classifyFacetATripEvidenceAfterDetection(input: {
   assessable: boolean;
-  assessabilityReasonCodes: readonly Ds4RevvingIdleFacetAssessabilityReasonV1[];
   candidateCount: number;
   entryLabelCount: number;
   longestRunLabelCount: number;
