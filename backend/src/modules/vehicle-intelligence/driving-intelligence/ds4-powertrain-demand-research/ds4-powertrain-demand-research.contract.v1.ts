@@ -126,7 +126,8 @@ export type Ds4PowertrainDemandBindingAbstainReason =
   | 'FORGED_INDEPENDENT_ATTESTATION'
   | 'OFFLINE_SOURCE_ATTESTATION_NOT_VERIFIED'
   | 'INSUFFICIENT_LOCAL_CANDIDATE_WINDOW'
-  | 'PHEV_ICE_NOT_CONFIRMED_IN_WINDOW';
+  | 'PHEV_ICE_NOT_CONFIRMED_IN_WINDOW'
+  | 'NO_MOVING_OPPORTUNITY_EVIDENCE';
 
 export type Ds4PowertrainDemandResearchInputV1 = {
   contractVersion: typeof DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION;
@@ -203,12 +204,20 @@ export type Ds4PowertrainDemandKickdownResultV1 = {
     deduplicatedCandidateCount: number;
     candidates: Ds4KickdownLikeCandidateV1[];
     coverageEvidence: {
-      /** V1B RPM trip window coverage — not multichannel completeness. */
+      /** V1B RPM trip window coverage — diagnostic only; not an admission floor. */
       rpmTripCoverage: number | null;
-      /** Share of observed grid buckets with all required channels present. */
+      /** Share of all observed grid buckets with required channels (diagnostic). */
       multichannelObservedGridCoverage: number | null;
-      requiredChannelCompleteness: number | null;
+      /** Required-channel completeness over observed moving buckets only (admission). */
+      movementObservedCompleteness: number | null;
+      localCoverageScope: 'OBSERVED_MOVING_BUCKETS_ONLY' | null;
+      /** Full-trip wall-clock movement exposure is not independently verified. */
+      fullTripMovementCoverageVerdict: 'UNKNOWN' | null;
+      observedMovingBucketCount: number;
+      observedStationaryBucketCount: number;
+      unknownSpeedBucketCount: number;
       eligibleObservationCount: number;
+      eligibleMovingObservationCount: number;
     };
   };
   unsupportedScientificClaims: string[];

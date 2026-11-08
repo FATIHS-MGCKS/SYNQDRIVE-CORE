@@ -23,6 +23,11 @@ import {
   canonicalizeMultichannelObservations,
   verifyMultichannelRpmParityWithV1a,
 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
+import {
+  computeMovementScopedCoverageEvidence,
+  DS4_POWERTRAIN_MOVING_CHANNEL_COVERAGE_MIN,
+  DS4_POWERTRAIN_MOVING_OBSERVATION_MIN,
+} from './ds4-powertrain-demand-movement-coverage.v1';
 
 const ELIGIBLE_ANALYSIS_MODES = new Set(['HIGH_RESOLUTION', 'CADENCE_AWARE']);
 
@@ -36,7 +41,7 @@ export type Ds4PowertrainDemandBindingResultV1 =
       recomputedV1bFingerprint: string;
       recomputedMultichannelFingerprint: string;
       rpmTripCoverage: number;
-      multichannelObservedGridCoverage: number;
+      movementCoverage: ReturnType<typeof computeMovementScopedCoverageEvidence>;
     }
   | { ok: false; reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[] };
 
@@ -88,24 +93,6 @@ export function computeMultichannelContentFingerprint(input: {
     })),
   };
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
-}
-
-function requiredChannelCoverage(
-  buckets: ReturnType<typeof canonicalizeMultichannelObservations>['buckets'],
-): number {
-  if (buckets.length === 0) return 0;
-  let complete = 0;
-  for (const b of buckets) {
-    if (
-      b.throttlePct != null &&
-      b.speedKmh != null &&
-      b.rpm != null &&
-      b.loadPct != null
-    ) {
-      complete += 1;
-    }
-  }
-  return complete / buckets.length;
 }
 
 function buildManifestChannelExpectations(
@@ -358,9 +345,16 @@ export function validateDs4PowertrainDemandResearchInputBinding(
     reasonCodes.push('COVERAGE_EVIDENCE_NULL');
   }
 
-  const multichannelObservedGridCoverage = requiredChannelCoverage(canon.buckets);
-  if (multichannelObservedGridCoverage < 0.7) reasonCodes.push('CHANNEL_COVERAGE_BELOW_MINIMUM');
-  if (canon.buckets.length < 8) reasonCodes.push('INSUFFICIENT_ELIGIBLE_OBSERVATIONS');
+  const movementCoverage = computeMovementScopedCoverageEvidence(canon.buckets);
+  if (movementCoverage.observedMovingBucketCount === 0) {
+    reasonCodes.push('NO_MOVING_OPPORTUNITY_EVIDENCE');
+  }
+  if (movementCoverage.observedMovingBucketCount < DS4_POWERTRAIN_MOVING_OBSERVATION_MIN) {
+    reasonCodes.push('INSUFFICIENT_ELIGIBLE_OBSERVATIONS');
+  }
+  if (movementCoverage.movementObservedCompleteness < DS4_POWERTRAIN_MOVING_CHANNEL_COVERAGE_MIN) {
+    reasonCodes.push('CHANNEL_COVERAGE_BELOW_MINIMUM');
+  }
 
   if (input.isEvPowertrain) reasonCodes.push('POWERTRAIN_NOT_APPLICABLE');
 
@@ -397,6 +391,6 @@ export function validateDs4PowertrainDemandResearchInputBinding(
     recomputedV1bFingerprint: fp.expected,
     recomputedMultichannelFingerprint: expectedMcFp,
     rpmTripCoverage: rpmTripCoverage!,
-    multichannelObservedGridCoverage,
+    movementCoverage,
   };
 }

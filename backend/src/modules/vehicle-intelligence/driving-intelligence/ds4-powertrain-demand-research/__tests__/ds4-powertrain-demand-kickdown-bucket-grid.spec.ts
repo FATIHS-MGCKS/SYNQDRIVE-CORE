@@ -26,8 +26,7 @@ describe('kickdown bucket grid', () => {
       canon,
       sequenceMaxGapSeconds: 3,
       nominalCadenceMs: 1000,
-      multichannelObservedGridCoverage: 1,
-      rpmTripCoverage: 1,
+      movementObservedCompleteness: 1,
       r1HistoricalObdRecordTimeUncertain: false,
       fuelType: 'GASOLINE',
     });
@@ -59,8 +58,7 @@ describe('kickdown bucket grid', () => {
       canon,
       sequenceMaxGapSeconds: 5,
       nominalCadenceMs: 1000,
-      multichannelObservedGridCoverage: 1,
-      rpmTripCoverage: 1,
+      movementObservedCompleteness: 1,
       r1HistoricalObdRecordTimeUncertain: false,
       fuelType: 'GASOLINE',
     });

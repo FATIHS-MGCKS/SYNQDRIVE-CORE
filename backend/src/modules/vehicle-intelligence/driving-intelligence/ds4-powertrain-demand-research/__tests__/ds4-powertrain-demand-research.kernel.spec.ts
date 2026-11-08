@@ -156,7 +156,9 @@ describe('ds4-powertrain-demand-research kernel', () => {
     expect(out.provenance.sourceProvenanceVerified).toBe(false);
     expect(out.provenance.independentFieldValidation).toBe(false);
     expect(out.kickdown.coverageEvidence.rpmTripCoverage).not.toBeNull();
-    expect(out.kickdown.coverageEvidence.multichannelObservedGridCoverage).not.toBeNull();
+    expect(out.kickdown.coverageEvidence.movementObservedCompleteness).not.toBeNull();
+    expect(out.kickdown.coverageEvidence.localCoverageScope).toBe('OBSERVED_MOVING_BUCKETS_ONLY');
+    expect(out.kickdown.coverageEvidence.fullTripMovementCoverageVerdict).toBe('UNKNOWN');
   });
 
   it('shuffled input ordering is deterministic', () => {

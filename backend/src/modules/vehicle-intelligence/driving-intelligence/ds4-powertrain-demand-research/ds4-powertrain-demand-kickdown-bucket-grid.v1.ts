@@ -14,6 +14,7 @@ import type {
   Ds4KickdownCandidateSupportTier,
   Ds4KickdownLikeCandidateV1,
 } from './ds4-powertrain-demand-research.contract.v1';
+import { resolveKickdownCandidateSupportTier } from './ds4-powertrain-demand-movement-coverage.v1';
 import { DS4_KICKDOWN_BUCKET_GRID_RESEARCH_POLICY_VERSION } from './ds4-powertrain-demand-research.contract.v1';
 
 /** P38 v1 thresholds — read-only ownership reference. */
@@ -213,32 +214,13 @@ function dedupeByBucketIndex(raw: RawWindow[]): RawWindow[] {
   return out;
 }
 
-function supportTier(input: {
-  classification: Ds4KickdownCandidateClassification;
-  multichannelObservedGridCoverage: number;
-  rpmTripCoverage: number;
-  r1Historical: boolean;
-}): Ds4KickdownCandidateSupportTier {
-  if (input.classification !== 'KICKDOWN_LIKE_PROXY_CANDIDATE') return 'WEAK';
-  if (input.rpmTripCoverage < 0.5 && input.multichannelObservedGridCoverage >= 0.85) {
-    return 'WEAK';
-  }
-  if (input.r1Historical) {
-    return input.multichannelObservedGridCoverage >= 0.85 ? 'MODERATE' : 'WEAK';
-  }
-  if (input.multichannelObservedGridCoverage >= 0.85) return 'STRONG';
-  if (input.multichannelObservedGridCoverage >= 0.7) return 'MODERATE';
-  return 'WEAK';
-}
-
 export function detectKickdownBucketGridCandidates(input: {
   tripId: string;
   providerSourceLinkId: string;
   canon: Ds4MultichannelCanonicalizeResultV1;
   sequenceMaxGapSeconds: number;
   nominalCadenceMs: number;
-  multichannelObservedGridCoverage: number;
-  rpmTripCoverage: number;
+  movementObservedCompleteness: number;
   r1HistoricalObdRecordTimeUncertain: boolean;
   fuelType: string | null;
 }): {
@@ -277,10 +259,9 @@ export function detectKickdownBucketGridCandidates(input: {
     return {
       episodeKey,
       classification: w.classification,
-      candidateSupportTier: supportTier({
+      candidateSupportTier: resolveKickdownCandidateSupportTier({
         classification: w.classification,
-        multichannelObservedGridCoverage: input.multichannelObservedGridCoverage,
-        rpmTripCoverage: input.rpmTripCoverage,
+        movementObservedCompleteness: input.movementObservedCompleteness,
         r1Historical: input.r1HistoricalObdRecordTimeUncertain,
       }),
       providerBucketLabelStartIso: startIso,

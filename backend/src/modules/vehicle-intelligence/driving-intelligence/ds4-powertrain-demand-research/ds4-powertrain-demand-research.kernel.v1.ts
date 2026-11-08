@@ -14,9 +14,30 @@ import {
 import {
   canonicalizeMultichannelObservations,
 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
+import type { Ds4MovementScopedCoverageEvidenceV1 } from './ds4-powertrain-demand-movement-coverage.v1';
 
 const R1_OBD_RECORD_TIME_UNCERTAIN = 'R1_HISTORICAL_OBD_RECORD_TIME_UNCERTAIN';
 const SYNTHETIC_PROVENANCE_LIMITATION = 'SYNTHETIC_FIXTURE_NOT_SOURCE_ATTESTED';
+const LOCAL_COVERAGE_NOT_TRIP_REPRESENTATIVE = 'LOCAL_COVERAGE_NOT_FULL_TRIP_REPRESENTATIVE';
+
+function buildCoverageEvidence(
+  mc: Ds4MovementScopedCoverageEvidenceV1,
+  rpmTripCoverage: number,
+  gridBucketCount: number,
+): Ds4PowertrainDemandKickdownResultV1['kickdown']['coverageEvidence'] {
+  return {
+    rpmTripCoverage,
+    multichannelObservedGridCoverage: mc.multichannelObservedGridCoverage,
+    movementObservedCompleteness: mc.movementObservedCompleteness,
+    localCoverageScope: mc.localCoverageScope,
+    fullTripMovementCoverageVerdict: mc.fullTripMovementCoverageVerdict,
+    observedMovingBucketCount: mc.observedMovingBucketCount,
+    observedStationaryBucketCount: mc.observedStationaryBucketCount,
+    unknownSpeedBucketCount: mc.unknownSpeedBucketCount,
+    eligibleObservationCount: gridBucketCount,
+    eligibleMovingObservationCount: mc.eligibleMovingObservationCount,
+  };
+}
 
 function buildAbstained(
   input: Ds4PowertrainDemandResearchInputV1,
@@ -55,8 +76,14 @@ function buildAbstained(
       coverageEvidence: {
         rpmTripCoverage: null,
         multichannelObservedGridCoverage: null,
-        requiredChannelCompleteness: null,
+        movementObservedCompleteness: null,
+        localCoverageScope: null,
+        fullTripMovementCoverageVerdict: null,
+        observedMovingBucketCount: 0,
+        observedStationaryBucketCount: 0,
+        unknownSpeedBucketCount: 0,
         eligibleObservationCount: 0,
+        eligibleMovingObservationCount: 0,
       },
     },
     unsupportedScientificClaims: [...DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS],
@@ -90,10 +117,9 @@ export function computeDs4PowertrainDemandResearchV1(
     canon,
     sequenceMaxGapSeconds: cadence.sequenceMaxGapSeconds,
     nominalCadenceMs: nominalMs,
-    multichannelObservedGridCoverage: binding.multichannelObservedGridCoverage,
+    movementObservedCompleteness: binding.movementCoverage.movementObservedCompleteness,
     r1HistoricalObdRecordTimeUncertain: hasUncertainHistoricalObdRecordTime(binding.telemetrySourceFamily),
     fuelType: input.fuelType,
-    rpmTripCoverage: binding.rpmTripCoverage,
   });
 
   const kickdownCandidates = detect.candidates.filter(
@@ -107,6 +133,8 @@ export function computeDs4PowertrainDemandResearchV1(
     'BUCKET_LABEL_UNVERIFIED',
     'BUCKET_CO_OBSERVED_NOT_SYNCHRONIZED',
     'SOURCE_ATTESTATION_NOT_INDEPENDENTLY_VERIFIED',
+    'MOVEMENT_COVERAGE_OBSERVED_BUCKETS_ONLY',
+    'FULL_TRIP_MOVEMENT_COVERAGE_UNKNOWN',
   ];
   if (input.evidenceOrigin === 'SYNTHETIC_FIXTURE') {
     claims.push('SYNTHETIC_FIXTURE_SUCCESS_NOT_FIELD_VALIDATION');
@@ -114,6 +142,11 @@ export function computeDs4PowertrainDemandResearchV1(
   }
   if (hasUncertainHistoricalObdRecordTime(binding.telemetrySourceFamily)) {
     claims.push(R1_OBD_RECORD_TIME_UNCERTAIN);
+  }
+
+  const status = kickdownCandidates.length > 0 ? 'COMPUTED' : 'NOT_OBSERVED';
+  if (status === 'COMPUTED' && binding.rpmTripCoverage < 0.15) {
+    claims.push(LOCAL_COVERAGE_NOT_TRIP_REPRESENTATIVE);
   }
 
   return {
@@ -124,7 +157,7 @@ export function computeDs4PowertrainDemandResearchV1(
     temporalMode: 'MODE_A',
     misuseEligibility: 'NOT_EVALUATED_BY_DESIGN',
     evidenceOrigin: input.evidenceOrigin,
-    status: kickdownCandidates.length > 0 ? 'COMPUTED' : 'NOT_OBSERVED',
+    status,
     abstainReasons: [],
     provenance: {
       contentConsistencyVerified: true,
@@ -145,12 +178,11 @@ export function computeDs4PowertrainDemandResearchV1(
       rawWindowCount: detect.rawWindowCount,
       deduplicatedCandidateCount: kickdownCandidates.length,
       candidates: kickdownCandidates,
-      coverageEvidence: {
-        rpmTripCoverage: binding.rpmTripCoverage,
-        multichannelObservedGridCoverage: binding.multichannelObservedGridCoverage,
-        requiredChannelCompleteness: binding.multichannelObservedGridCoverage,
-        eligibleObservationCount: canon.buckets.length,
-      },
+      coverageEvidence: buildCoverageEvidence(
+        binding.movementCoverage,
+        binding.rpmTripCoverage,
+        canon.buckets.length,
+      ),
     },
     unsupportedScientificClaims: claims,
     r1HistoricalObdRecordTimeUncertain: hasUncertainHistoricalObdRecordTime(binding.telemetrySourceFamily),
