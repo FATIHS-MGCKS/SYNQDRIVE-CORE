@@ -8,6 +8,9 @@ const SOURCE_FILES = [
   'ds4-powertrain-demand-research.input-binding.v1.ts',
   'ds4-powertrain-demand-research.kernel.v1.ts',
   'ds4-powertrain-demand-kickdown-bucket-grid.v1.ts',
+  'ds4-powertrain-demand-cold-engine.kernel.v1.ts',
+  'ds4-powertrain-demand-cold-engine-bucket-grid.v1.ts',
+  'ds4-powertrain-demand-cold-engine.input-binding.v1.ts',
   'ds4-powertrain-demand-multichannel-canonicalize.v1.ts',
 ];
 
