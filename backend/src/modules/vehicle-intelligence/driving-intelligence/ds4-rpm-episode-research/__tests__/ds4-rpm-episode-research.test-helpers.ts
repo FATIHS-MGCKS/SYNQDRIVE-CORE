@@ -13,9 +13,7 @@ import type { Ds4RpmEpisodeResearchInputV1 } from '../ds4-rpm-episode-research.c
 import { DS4_RPM_EPISODE_RESEARCH_CONTRACT_VERSION } from '../ds4-rpm-episode-research.contract.v1';
 
 const API_SYNTHETIC_DIMO = {
-  synthetic: {
-    manufacturer: 'Tesla',
-  },
+  syntheticDevice: { id: 'fixture-synthetic-device' },
 };
 
 const R1_DIMO = {

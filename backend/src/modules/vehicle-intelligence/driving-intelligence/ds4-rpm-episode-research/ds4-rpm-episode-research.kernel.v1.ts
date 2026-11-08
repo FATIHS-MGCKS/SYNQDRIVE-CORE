@@ -1,3 +1,4 @@
+import { parseHfRpmValueFloat } from '@modules/clickhouse/hf-rpm-value-parse.util';
 import { R1_OBD_RECORD_TIME_UNCERTAIN } from '../../r1-temporal-containment';
 import {
   hasUncertainHistoricalObdRecordTime,
@@ -10,7 +11,9 @@ import type { Ds4RpmHfV1bTemporalCadenceProfile } from '../rpm-hf-v1b/ds4-rpm-hf
 import type { Ds4RpmRealDataOfflineInputBundleV1 } from '../ds4-rpm-real-data-replay/ds4-rpm-real-data-replay.contract.v1';
 import {
   DS4_RPM_EPISODE_RESEARCH_CONTRACT_VERSION,
+  DS4_RPM_EPISODE_RESEARCH_EXCEEDANCE_GRID_MAX_THRESHOLDS,
   DS4_RPM_EPISODE_RESEARCH_EXCEEDANCE_GRID_RPM,
+  type Ds4RpmEpisodeResearchHighCoreAboveReferenceMaxStatus,
   DS4_RPM_EPISODE_RESEARCH_HIGH_ENTRY_U,
   DS4_RPM_EPISODE_RESEARCH_HIGH_EXIT_U,
   DS4_RPM_EPISODE_RESEARCH_ICE_RPM_ROTATING_MIN,
@@ -99,6 +102,7 @@ function buildAbstainedResult(
       identicalDuplicateCollapsedCount: 0,
       conflictingDuplicateLabelCount: 0,
       invalidTimestampOrRpmCount: 0,
+      negativeOrNonFiniteRpmExcludedCount: 0,
       echoes: {
         tripWindowDurationSeconds: null,
         labelHoldSecondsEcho: null,
@@ -117,6 +121,9 @@ function buildAbstainedResult(
         max: null,
       },
       exceedanceCounts250: [],
+      exceedanceGridMaxThresholds: DS4_RPM_EPISODE_RESEARCH_EXCEEDANCE_GRID_MAX_THRESHOLDS,
+      exceedanceGridTruncated: false,
+      exceedanceGridTruncationReason: null,
       ambiguousLabelsExcluded: false,
     },
     referenceContext: {
@@ -154,30 +161,40 @@ function canonicalizePoints(
   identicalDuplicateCollapsedCount: number;
   conflictingDuplicateLabelCount: number;
   invalidTimestampOrRpmCount: number;
+  negativeOrNonFiniteRpmExcludedCount: number;
   hasConflictingDuplicates: boolean;
 } {
   let invalidTimestampOrRpmCount = 0;
-  const valid: { recordedAtIso: string; valueRpm: number; recordedAtMs: number }[] = [];
+  let negativeOrNonFiniteRpmExcludedCount = 0;
+  const valid: { valueRpm: number; recordedAtMs: number }[] = [];
   for (const p of raw) {
     const ms = Date.parse(p.recordedAtIso);
-    if (!Number.isFinite(ms) || !Number.isFinite(p.valueRpm)) {
+    if (!Number.isFinite(ms)) {
       invalidTimestampOrRpmCount += 1;
       continue;
     }
-    valid.push({ recordedAtIso: p.recordedAtIso, valueRpm: p.valueRpm, recordedAtMs: ms });
+    const rpm = parseHfRpmValueFloat(p.valueRpm);
+    if (rpm == null) {
+      if (typeof p.valueRpm === 'number' && p.valueRpm < 0) {
+        negativeOrNonFiniteRpmExcludedCount += 1;
+      } else {
+        invalidTimestampOrRpmCount += 1;
+      }
+      continue;
+    }
+    valid.push({ valueRpm: rpm, recordedAtMs: ms });
   }
 
   valid.sort((a, b) => {
-    const t = a.recordedAtIso.localeCompare(b.recordedAtIso);
-    if (t !== 0) return t;
+    if (a.recordedAtMs !== b.recordedAtMs) return a.recordedAtMs - b.recordedAtMs;
     return a.valueRpm - b.valueRpm;
   });
 
-  const byLabel = new Map<string, number[]>();
+  const byEpoch = new Map<number, number[]>();
   for (const p of valid) {
-    const arr = byLabel.get(p.recordedAtIso) ?? [];
+    const arr = byEpoch.get(p.recordedAtMs) ?? [];
     arr.push(p.valueRpm);
-    byLabel.set(p.recordedAtIso, arr);
+    byEpoch.set(p.recordedAtMs, arr);
   }
 
   let identicalDuplicateCollapsedCount = 0;
@@ -185,9 +202,9 @@ function canonicalizePoints(
   let hasConflictingDuplicates = false;
   const points: CanonPoint[] = [];
   let globalIdx = 0;
-  const labels = [...byLabel.keys()].sort((a, b) => a.localeCompare(b));
-  for (const label of labels) {
-    const values = byLabel.get(label)!;
+  const epochs = [...byEpoch.keys()].sort((a, b) => a - b);
+  for (const recordedAtMs of epochs) {
+    const values = byEpoch.get(recordedAtMs)!;
     const unique = [...new Set(values)];
     if (unique.length > 1) {
       conflictingDuplicateLabelCount += 1;
@@ -199,8 +216,8 @@ function canonicalizePoints(
     }
     const rpm = unique[0]!;
     points.push({
-      recordedAtIso: label,
-      recordedAtMs: Date.parse(label),
+      recordedAtIso: new Date(recordedAtMs).toISOString(),
+      recordedAtMs,
       valueRpm: rpm,
       globalIdx: globalIdx++,
     });
@@ -211,8 +228,72 @@ function canonicalizePoints(
     identicalDuplicateCollapsedCount,
     conflictingDuplicateLabelCount,
     invalidTimestampOrRpmCount,
+    negativeOrNonFiniteRpmExcludedCount,
     hasConflictingDuplicates,
   };
+}
+
+function lowerBound(sorted: number[], value: number): number {
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid]! < value) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function buildBoundedExceedanceCounts(sorted: number[]): {
+  exceedanceCounts250: { thresholdRpm: number; labelCount: number }[];
+  exceedanceGridTruncated: boolean;
+  exceedanceGridTruncationReason: string | null;
+} {
+  if (sorted.length === 0) {
+    return { exceedanceCounts250: [], exceedanceGridTruncated: false, exceedanceGridTruncationReason: null };
+  }
+  const maxRpm = sorted[sorted.length - 1]!;
+  const step = DS4_RPM_EPISODE_RESEARCH_EXCEEDANCE_GRID_RPM;
+  const cap = DS4_RPM_EPISODE_RESEARCH_EXCEEDANCE_GRID_MAX_THRESHOLDS;
+  const exceedanceCounts250: { thresholdRpm: number; labelCount: number }[] = [];
+  const maxRepresentableThreshold = cap * step;
+  let exceedanceGridTruncated = false;
+  let exceedanceGridTruncationReason: string | null = null;
+
+  for (let i = 1; i <= cap; i += 1) {
+    const t = i * step;
+    if (t > maxRpm + step) break;
+    const count = sorted.length - lowerBound(sorted, t);
+    exceedanceCounts250.push({ thresholdRpm: t, labelCount: count });
+  }
+
+  if (maxRpm > maxRepresentableThreshold) {
+    exceedanceGridTruncated = true;
+    exceedanceGridTruncationReason = 'OBSERVED_MAX_RPM_EXCEEDS_EXCEEDANCE_GRID_CAP';
+  }
+
+  return { exceedanceCounts250, exceedanceGridTruncated, exceedanceGridTruncationReason };
+}
+
+function resolveHighCoreAboveReferenceMaxStatus(input: {
+  labelsAboveMax: number;
+  eligibleHighCore: number;
+}): Ds4RpmEpisodeResearchHighCoreAboveReferenceMaxStatus {
+  if (input.labelsAboveMax <= 0) return 'NOT_APPLICABLE';
+  return input.eligibleHighCore >= input.labelsAboveMax ? 'SATISFIED' : 'VIOLATED';
+}
+
+function verifyHighEpisodeIndexDisjointness(runs: EpisodeRun[]): boolean {
+  const admitted = runs.filter((r) => r.admitted);
+  for (let i = 0; i < admitted.length; i += 1) {
+    for (let j = i + 1; j < admitted.length; j += 1) {
+      const a = admitted[i]!;
+      const b = admitted[j]!;
+      if (a.sequenceIndex !== b.sequenceIndex) continue;
+      if (!(a.endIdx < b.startIdx || b.endIdx < a.startIdx)) return false;
+    }
+  }
+  return true;
 }
 
 function splitSequences(
@@ -376,7 +457,11 @@ function computeMassAccounting(
     },
     nearMaxCorePointsWithoutHighCandidate: uncoveredNearCore,
     i4Satisfied: uncoveredNearCore === 0,
-    highCoreIncludesAboveReferenceMax: eligibleHighCore >= labelsAboveMax && labelsAboveMax > 0,
+    highCoreAboveReferenceMaxStatus: resolveHighCoreAboveReferenceMaxStatus({
+      labelsAboveMax,
+      eligibleHighCore,
+    }),
+    i3SameCategoryEpisodeRangesDisjoint: verifyHighEpisodeIndexDisjointness(highRuns),
   };
 }
 
@@ -391,6 +476,33 @@ function mergeCensoredCountRange(admitted: EpisodeRun[], sequences: CanonPoint[]
     if (last?.rightCensored && first?.leftCensored) merges += 1;
   }
   return { min: Math.max(0, max - merges), max };
+}
+
+function buildNotApplicableResult(
+  input: Ds4RpmEpisodeResearchInputV1,
+  binding: Extract<
+    ReturnType<typeof validateDs4RpmEpisodeResearchInputBinding>,
+    { ok: true }
+  >,
+): Ds4RpmEpisodeResearchResultV1 {
+  const v1b = input.v1bResult!;
+  return {
+    ...buildAbstainedResult(input, ['ICE_RPM_NOT_APPLICABLE'], binding.telemetrySourceFamily),
+    status: 'NOT_APPLICABLE',
+    abstainReasons: ['ICE_RPM_NOT_APPLICABLE'],
+    bindings: {
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      tripId: input.tripId,
+      providerSourceLinkId: input.providerSourceLinkId,
+      v1bInputFingerprint: binding.recomputedFingerprint,
+      v1bEngineVersion: v1b.engineVersion,
+      sourceBundleId: input.sourceBundleId,
+      telemetrySourceFamily: binding.telemetrySourceFamily,
+      cadenceTier: v1b.tierEvidence?.tier ?? null,
+      analysisMode: v1b.tierEvidence?.analysisMode ?? null,
+    },
+  };
 }
 
 export function projectDs4RpmEpisodeResearchInputFromB2Bundle(
@@ -417,17 +529,13 @@ export function computeDs4RpmEpisodeResearchV1(
 ): Ds4RpmEpisodeResearchResultV1 {
   const familyPreview = resolveTelemetrySourceFamily(input.dimoVehicleRawJson);
 
-  if (input.reference.iceRpmApplicability === 'NOT_APPLICABLE') {
-    return {
-      ...buildAbstainedResult(input, ['ICE_RPM_NOT_APPLICABLE'], familyPreview),
-      status: 'NOT_APPLICABLE',
-      abstainReasons: ['ICE_RPM_NOT_APPLICABLE'],
-    };
-  }
-
   const binding = validateDs4RpmEpisodeResearchInputBinding(input);
   if (!binding.ok) {
     return buildAbstainedResult(input, binding.reasonCodes, familyPreview);
+  }
+
+  if (input.reference.iceRpmApplicability === 'NOT_APPLICABLE') {
+    return buildNotApplicableResult(input, binding);
   }
 
   const { telemetrySourceFamily, cadenceProfile, recomputedFingerprint } = binding;
@@ -457,16 +565,7 @@ export function computeDs4RpmEpisodeResearchV1(
       ? 'PARTIAL'
       : 'COMPLETE';
 
-  const exceedance: { thresholdRpm: number; labelCount: number }[] = [];
-  if (distributionRpms.length > 0) {
-    const maxRpm = distributionRpms[distributionRpms.length - 1]!;
-    for (let t = DS4_RPM_EPISODE_RESEARCH_EXCEEDANCE_GRID_RPM; t <= maxRpm + DS4_RPM_EPISODE_RESEARCH_EXCEEDANCE_GRID_RPM; t += DS4_RPM_EPISODE_RESEARCH_EXCEEDANCE_GRID_RPM) {
-      exceedance.push({
-        thresholdRpm: t,
-        labelCount: distributionRpms.filter((v) => v >= t).length,
-      });
-    }
-  }
+  const exceedanceResult = buildBoundedExceedanceCounts(distributionRpms);
 
   const qualityExposure = buildDs4RpmHfV1bAdmissionQualityExposure({
     shadowVariant: 'tier-aware',
@@ -624,6 +723,7 @@ export function computeDs4RpmEpisodeResearchV1(
       identicalDuplicateCollapsedCount: canon.identicalDuplicateCollapsedCount,
       conflictingDuplicateLabelCount: canon.conflictingDuplicateLabelCount,
       invalidTimestampOrRpmCount: canon.invalidTimestampOrRpmCount,
+      negativeOrNonFiniteRpmExcludedCount: canon.negativeOrNonFiniteRpmExcludedCount,
       echoes: {
         tripWindowDurationSeconds: Number.isFinite(tripDuration) ? tripDuration : null,
         labelHoldSecondsEcho: ri.metrics?.timeWeightedExposure.totalEligibleWeightedSeconds ?? null,
@@ -641,7 +741,10 @@ export function computeDs4RpmEpisodeResearchV1(
         q99: nearestRankQuantile(distributionRpms, 0.99),
         max: distributionRpms.length > 0 ? distributionRpms[distributionRpms.length - 1]! : null,
       },
-      exceedanceCounts250: exceedance,
+      exceedanceCounts250: exceedanceResult.exceedanceCounts250,
+      exceedanceGridMaxThresholds: DS4_RPM_EPISODE_RESEARCH_EXCEEDANCE_GRID_MAX_THRESHOLDS,
+      exceedanceGridTruncated: exceedanceResult.exceedanceGridTruncated,
+      exceedanceGridTruncationReason: exceedanceResult.exceedanceGridTruncationReason,
       ambiguousLabelsExcluded,
     },
     referenceContext: {

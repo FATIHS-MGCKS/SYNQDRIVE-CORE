@@ -2960,4 +2960,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | WHY | Opus independent design gate approved narrowed P2-A1 after Fable architecture; no τ/DS4/dynamics/misuse path |
 | VALIDATION | `npx jest --testPathPatterns ds4-rpm-episode-research` (19); V1B/RefIntel/DBI/B2 regression suites unchanged; import-boundary spec |
 | NON_EFFECTS | No Nest provider, no production persistence, Phase 1 W0/W1C/D8/F04 untouched, no misuse-cases imports |
+| REMEDIATION (2026-11-08, Opus audit PR #2361) | P1: binding before NOT_APPLICABLE; epoch-ms dedupe + canonical UTC ISO; exceedance grid cap 128 with truncation flag. P2: syntheticDevice fixture; parseHfRpmValueFloat exclusion; I5 tri-state. +14 focused tests |
 

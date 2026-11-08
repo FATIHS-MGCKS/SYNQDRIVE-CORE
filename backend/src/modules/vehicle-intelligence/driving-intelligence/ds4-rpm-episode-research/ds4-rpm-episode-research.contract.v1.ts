@@ -11,6 +11,13 @@ export const DS4_RPM_EPISODE_RESEARCH_ICE_RPM_ROTATING_MIN = 400;
 export const DS4_RPM_EPISODE_RESEARCH_MIN_ROTATING_LABELS = 3;
 export const DS4_RPM_EPISODE_RESEARCH_MIN_CORE_POINTS = 3;
 export const DS4_RPM_EPISODE_RESEARCH_EXCEEDANCE_GRID_RPM = 250;
+/** Maximum 250-rpm exceedance thresholds emitted per trip (research contract v1). */
+export const DS4_RPM_EPISODE_RESEARCH_EXCEEDANCE_GRID_MAX_THRESHOLDS = 128;
+
+export type Ds4RpmEpisodeResearchHighCoreAboveReferenceMaxStatus =
+  | 'NOT_APPLICABLE'
+  | 'SATISFIED'
+  | 'VIOLATED';
 export const DS4_RPM_EPISODE_RESEARCH_REFERENCE_CONFLICT_MIN_LABELS_ABOVE_MAX = 3;
 
 /** Research-only normalized thresholds — aligned with Reference Intelligence band edges. */
@@ -107,8 +114,9 @@ export type Ds4RpmEpisodeResearchMassAccountingV1 = {
   /** I4: each NEAR_MAX core index is covered by a HIGH candidate. */
   nearMaxCorePointsWithoutHighCandidate: number;
   i4Satisfied: boolean;
-  /** I5: HIGH eligible core includes u > 1 */
-  highCoreIncludesAboveReferenceMax: boolean;
+  /** I5: HIGH eligible core includes all u > 1 labels when present */
+  highCoreAboveReferenceMaxStatus: Ds4RpmEpisodeResearchHighCoreAboveReferenceMaxStatus;
+  i3SameCategoryEpisodeRangesDisjoint: boolean;
 };
 
 export type Ds4RpmEpisodeResearchSemanticGuardV1 = {
@@ -149,6 +157,7 @@ export type Ds4RpmEpisodeResearchResultV1 = {
     identicalDuplicateCollapsedCount: number;
     conflictingDuplicateLabelCount: number;
     invalidTimestampOrRpmCount: number;
+    negativeOrNonFiniteRpmExcludedCount: number;
     echoes: {
       tripWindowDurationSeconds: number | null;
       labelHoldSecondsEcho: number | null;
@@ -167,6 +176,9 @@ export type Ds4RpmEpisodeResearchResultV1 = {
       max: number | null;
     };
     exceedanceCounts250: ReadonlyArray<{ thresholdRpm: number; labelCount: number }>;
+    exceedanceGridMaxThresholds: number;
+    exceedanceGridTruncated: boolean;
+    exceedanceGridTruncationReason: string | null;
     ambiguousLabelsExcluded: boolean;
   };
   referenceContext: {
