@@ -1,5 +1,8 @@
 import { createHash } from 'crypto';
-import { isPhevFuelType } from '../../shadow-detector/detectors/cold-engine-shadow.policy';
+import {
+  COLD_ENGINE_SHADOW_POLICY,
+  isPhevFuelType,
+} from '../../shadow-detector/detectors/cold-engine-shadow.policy';
 import type {
   Ds4GapAwareSustainedLoadCandidateV1,
   Ds4SustainedLoadEntryBranchV1,
@@ -7,16 +10,9 @@ import type {
 } from './ds4-powertrain-demand-research.contract.v1';
 import type { Ds4CanonicalMultichannelBucketV1 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
 import type { Ds4MultichannelCanonicalizeResultV1 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
+import { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from './ds4-powertrain-demand-sustained-load-reference.v1';
 
-export const DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY = {
-  highEngineLoadEntryPct: 75,
-  highEngineLoadContinuePct: 70,
-  minRpm: 1_800,
-  highThrottlePct: 65,
-  minObservations: 5,
-  minResearchLabelSpanMs: 20_000,
-  maxAdjacentLabelGapMs: 5_000,
-} as const;
+export { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from './ds4-powertrain-demand-sustained-load-reference.v1';
 
 const BASE_LIMITATIONS = [
   'BUCKET_LABEL_UNVERIFIED',
@@ -31,7 +27,9 @@ type SequenceSlice = {
   entryBranch: Ds4SustainedLoadEntryBranchV1;
 };
 
-function resolveEntryBranch(bucket: Ds4CanonicalMultichannelBucketV1): Ds4SustainedLoadEntryBranchV1 | null {
+export function resolveSustainedLoadEntryBranch(
+  bucket: Ds4CanonicalMultichannelBucketV1,
+): Ds4SustainedLoadEntryBranchV1 | null {
   const load = bucket.loadPct;
   if (load == null || load < DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.highEngineLoadEntryPct) {
     return null;
@@ -49,8 +47,17 @@ function continuesHighLoad(bucket: Ds4CanonicalMultichannelBucketV1): boolean {
   return bucket.loadPct != null && bucket.loadPct >= DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.highEngineLoadContinuePct;
 }
 
-function phevWindowHasLocalRpmEvidence(slice: readonly Ds4CanonicalMultichannelBucketV1[]): boolean {
-  return slice.some((b) => b.rpm != null && b.rpm > 0);
+/** PHEV: RPM-only local ICE confirmation within the admitted candidate sequence (P2-B2 parity). */
+function resolvePhevIceConfirmedInCandidateSequence(
+  slice: readonly Ds4CanonicalMultichannelBucketV1[],
+): boolean {
+  let rpmIceSamples = 0;
+  for (const b of slice) {
+    if (b.rpm != null && b.rpm >= COLD_ENGINE_SHADOW_POLICY.iceRpmMin) {
+      rpmIceSamples += 1;
+    }
+  }
+  return rpmIceSamples >= COLD_ENGINE_SHADOW_POLICY.iceConfirmationMinSamples;
 }
 
 function sequenceMeetsAdmission(
@@ -74,7 +81,7 @@ function sequenceMeetsAdmission(
       return { ok: false, maxGapMs, peakLoad: 0 };
     }
   }
-  if (isPhevFuelType(fuelType) && !phevWindowHasLocalRpmEvidence(buckets)) {
+  if (isPhevFuelType(fuelType) && !resolvePhevIceConfirmedInCandidateSequence(buckets)) {
     return { ok: false, maxGapMs, peakLoad: 0 };
   }
   const peakLoad = Math.max(...buckets.map((b) => b.loadPct ?? 0));
@@ -97,8 +104,18 @@ export function detectGapAwareSustainedLoadCandidates(input: {
   const candidates: Ds4GapAwareSustainedLoadCandidateV1[] = [];
   let entryLabelCount = 0;
   let longestRunLabelCount = 0;
+  const countedEntryLabelMs = new Set<number>();
 
   let active: SequenceSlice | null = null;
+
+  const countEntryLabelIfNew = (bucket: Ds4CanonicalMultichannelBucketV1): Ds4SustainedLoadEntryBranchV1 | null => {
+    const entry = resolveSustainedLoadEntryBranch(bucket);
+    if (entry != null && !countedEntryLabelMs.has(bucket.recordedAtMs)) {
+      countedEntryLabelMs.add(bucket.recordedAtMs);
+      entryLabelCount += 1;
+    }
+    return entry;
+  };
 
   const flush = () => {
     if (!active || active.buckets.length === 0) {
@@ -146,7 +163,7 @@ export function detectGapAwareSustainedLoadCandidates(input: {
       continue;
     }
 
-    const entry = resolveEntryBranch(bucket);
+    const entry = countEntryLabelIfNew(bucket);
 
     if (active) {
       const prev = active.buckets[active.buckets.length - 1]!;
@@ -160,7 +177,6 @@ export function detectGapAwareSustainedLoadCandidates(input: {
     }
 
     if (entry) {
-      entryLabelCount += 1;
       active = { buckets: [bucket], entryBranch: entry };
     }
   }

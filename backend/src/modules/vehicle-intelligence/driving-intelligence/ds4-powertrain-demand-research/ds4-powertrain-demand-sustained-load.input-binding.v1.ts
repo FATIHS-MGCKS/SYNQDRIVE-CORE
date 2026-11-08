@@ -15,7 +15,7 @@ import {
 } from './ds4-powertrain-demand-binding-shared.v1';
 import { multichannelHasRpmLabels, validateZeroRpmPathFailClosed } from './ds4-powertrain-demand-cold-engine.input-binding.v1';
 import { canonicalizeMultichannelObservations, verifyMultichannelRpmParityWithV1a } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
-import { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from './ds4-powertrain-demand-sustained-load-gap-aware.v1';
+import { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from './ds4-powertrain-demand-sustained-load-reference.v1';
 
 export { DS4_COLD_ENGINE_ZERO_RPM_CLICKHOUSE_ALLOWED_STATUSES as DS4_SUSTAINED_LOAD_ZERO_RPM_CLICKHOUSE_ALLOWED_STATUSES } from './ds4-powertrain-demand-cold-engine.input-binding.v1';
 
@@ -134,8 +134,10 @@ export function validateDs4PowertrainDemandSustainedLoadInputBinding(
       if (hfIdx >= 0) reasonCodes.splice(hfIdx, 1);
     }
     validateZeroRpmPathFailClosed(input, reasonCodes);
-    const fp = fingerprintsMatch(input);
-    if (!fp.ok) reasonCodes.push('V1B_INPUT_FINGERPRINT_MISMATCH');
+    if (v1bResult != null) {
+      const fp = fingerprintsMatch(input);
+      if (!fp.ok) reasonCodes.push('V1B_INPUT_FINGERPRINT_MISMATCH');
+    }
   }
 
   const loadPresentCount = canonPreview.buckets.filter((b) => b.loadPct != null).length;

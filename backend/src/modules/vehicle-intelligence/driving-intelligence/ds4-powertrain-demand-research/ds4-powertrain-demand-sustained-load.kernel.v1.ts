@@ -13,18 +13,23 @@ import {
   classifySustainedLoadTripEvidence,
   detectGapAwareSustainedLoadCandidates,
 } from './ds4-powertrain-demand-sustained-load-gap-aware.v1';
+import { canonicalizeMultichannelObservations } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
 import { validateDs4PowertrainDemandSustainedLoadInputBinding } from './ds4-powertrain-demand-sustained-load.input-binding.v1';
 
 const SYNTHETIC_PROVENANCE_LIMITATION = 'SYNTHETIC_FIXTURE_NOT_SOURCE_ATTESTED';
 
 function tripEvidenceForAbstain(
   reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[],
+  loadPresentBucketCount: number,
 ): Ds4PowertrainDemandSustainedLoadResultV1['sustainedLoad']['tripEvidenceClassification'] {
-  if (
-    reasonCodes.includes('LOAD_CHANNEL_UNAVAILABLE') ||
-    reasonCodes.includes('INSUFFICIENT_LOAD_LABEL_OBSERVATIONS')
-  ) {
+  if (reasonCodes.includes('LOAD_CHANNEL_UNAVAILABLE')) {
     return 'NOT_ASSESSABLE';
+  }
+  if (
+    reasonCodes.includes('INSUFFICIENT_LOAD_LABEL_OBSERVATIONS') &&
+    loadPresentBucketCount > 0
+  ) {
+    return 'INSUFFICIENT_OBSERVATIONS';
   }
   if (reasonCodes.includes('POWERTRAIN_NOT_APPLICABLE')) {
     return 'NOT_ASSESSABLE';
@@ -36,6 +41,13 @@ function buildAbstained(
   input: Ds4SustainedLoadResearchInputV1,
   reasonCodes: readonly Ds4PowertrainDemandBindingAbstainReason[],
   familyPreview: ReturnType<typeof resolveTelemetrySourceFamily>,
+  coverage: {
+    loadPresentBucketCount: number;
+    loadMissingBucketCount: number;
+    gridBucketCount: number;
+    distinctMsLabelsInTrip: number;
+    identicalDuplicateCollapsedCount: number;
+  },
 ): Ds4PowertrainDemandSustainedLoadResultV1 {
   return {
     contractVersion: DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION,
@@ -63,17 +75,17 @@ function buildAbstained(
       sourceBundleId: input.sourceBundleId,
     },
     sustainedLoad: {
-      canonicalRowsFullKey: 0,
-      distinctMsLabelsInTrip: 0,
-      identicalDuplicateCollapsedCount: 0,
+      canonicalRowsFullKey: coverage.gridBucketCount,
+      distinctMsLabelsInTrip: coverage.distinctMsLabelsInTrip,
+      identicalDuplicateCollapsedCount: coverage.identicalDuplicateCollapsedCount,
       entryLabelCount: 0,
       deduplicatedCandidateCount: 0,
       candidates: [],
-      tripEvidenceClassification: tripEvidenceForAbstain(reasonCodes),
+      tripEvidenceClassification: tripEvidenceForAbstain(reasonCodes, coverage.loadPresentBucketCount),
       coverageEvidence: {
-        loadPresentBucketCount: 0,
-        loadMissingBucketCount: 0,
-        gridBucketCount: 0,
+        loadPresentBucketCount: coverage.loadPresentBucketCount,
+        loadMissingBucketCount: coverage.loadMissingBucketCount,
+        gridBucketCount: coverage.gridBucketCount,
       },
     },
     unsupportedScientificClaims: [...DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS],
@@ -89,7 +101,15 @@ export function computeDs4PowertrainDemandSustainedLoadResearchV1(
   const familyPreview = resolveTelemetrySourceFamily(input.dimoVehicleRawJson);
   const binding = validateDs4PowertrainDemandSustainedLoadInputBinding(input);
   if (!binding.ok) {
-    const out = buildAbstained(input, binding.reasonCodes, familyPreview);
+    const canonAbstain = canonicalizeMultichannelObservations(input.multichannelObservations);
+    const loadPresentAbstain = canonAbstain.buckets.filter((b) => b.loadPct != null).length;
+  const out = buildAbstained(input, binding.reasonCodes, familyPreview, {
+      gridBucketCount: canonAbstain.buckets.length,
+      loadPresentBucketCount: loadPresentAbstain,
+      loadMissingBucketCount: canonAbstain.buckets.length - loadPresentAbstain,
+      distinctMsLabelsInTrip: new Set(canonAbstain.buckets.map((b) => b.recordedAtMs)).size,
+      identicalDuplicateCollapsedCount: canonAbstain.identicalDuplicateCollapsedCount,
+    });
     if (input.evidenceOrigin === 'SYNTHETIC_FIXTURE') {
       return {
         ...out,
