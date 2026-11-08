@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "FSD_P6C_FLEET_MANIFEST_V1",
+  "organizationId": "00000000-0000-4000-8000-00000000p6c0",
+  "historicalWindow": {
+    "fromUtc": "2026-11-04T04:32:00.000Z",
+    "toUtc": "2026-11-04T04:57:37.477Z"
+  },
+  "budget": {
+    "maxRequestsPerRun": 12,
+    "maxHistoricalWindowSeconds": 3600,
+    "maxSnapshotFieldsPerDocument": 26,
+    "maxHistoricalFloatFieldsPerChunk": 8,
+    "maxResponseBytes": 524288
+  },
+  "fleetPlannedRequestDisclosureCap": 80,
+  "vehicles": [
+    {
+      "label": "tesla_model_3",
+      "vehicleId": "00000000-0000-4000-8000-00000000p6c1",
+      "providerSourceLinkId": "00000000-0000-4000-8000-00000000p6c2",
+      "discoveryRequestKey": "p6c-offline-tesla-model-3-discovery",
+      "historicalRequestKey": "p6c-offline-tesla-model-3-historical",
+      "declaredFieldNames": []
+    },
+    {
+      "label": "vw_tiguan",
+      "vehicleId": "00000000-0000-4000-8000-00000000p6c3",
+      "providerSourceLinkId": "00000000-0000-4000-8000-00000000p6c4",
+      "discoveryRequestKey": "p6c-offline-vw-tiguan-discovery",
+      "historicalRequestKey": "p6c-offline-vw-tiguan-historical",
+      "declaredFieldNames": []
+    },
+    {
+      "label": "audi_a4",
+      "vehicleId": "00000000-0000-4000-8000-00000000p6c5",
+      "providerSourceLinkId": "00000000-0000-4000-8000-00000000p6c6",
+      "discoveryRequestKey": "p6c-offline-audi-a4-discovery",
+      "historicalRequestKey": "p6c-offline-audi-a4-historical",
+      "declaredFieldNames": []
+    },
+    {
+      "label": "vw_arteon",
+      "vehicleId": "00000000-0000-4000-8000-00000000p6c7",
+      "providerSourceLinkId": "00000000-0000-4000-8000-00000000p6c8",
+      "discoveryRequestKey": "p6c-offline-vw-arteon-discovery",
+      "historicalRequestKey": "p6c-offline-vw-arteon-historical",
+      "declaredFieldNames": []
+    }
+  ]
+}

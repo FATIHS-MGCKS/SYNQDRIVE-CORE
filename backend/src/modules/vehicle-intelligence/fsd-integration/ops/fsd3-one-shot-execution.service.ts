@@ -6,6 +6,7 @@ import type { Fsd3DiscoveryProviderPortV1 } from '@modules/vehicle-intelligence/
 import { buildFsd3DiscoveryRequestRunKeyV1 } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-discovery-request.v1';
 import { buildFsd3OneShotCliOrchestrationConfigV1 } from './fsd3-one-shot-cli-fsd3-config.v1';
 import { p6bCliDiscoveryBudget } from './fsd3-one-shot-cli-budget.v1';
+import type { FsdBudgetConfigV1 } from '@modules/vehicle-intelligence/full-signal-discovery/fsd-budget.contract.v1';
 import type { Fsd3OneShotCliScopeV1, Fsd3OneShotLiveProviderV1 } from './fsd3-one-shot-types.v1';
 import type { Fsd3OneShotPreflightResultV1 } from './fsd3-one-shot-preflight.service';
 import { resolveFsd3OneShotReleaseShaForAuditV1 } from './fsd3-one-shot-types.v1';
@@ -41,6 +42,8 @@ export class Fsd3OneShotExecutionService {
     liveProvider: Fsd3OneShotLiveProviderV1;
     provider: Fsd3DiscoveryProviderPortV1;
     releaseSha?: string;
+    /** P6C full discovery — when omitted, P6B hard cap (2 requests) applies. */
+    budget?: FsdBudgetConfigV1;
   }): Promise<Fsd3OneShotExecutionResultV1> {
     if (input.liveProvider === 'dimo_live' && input.provider.providerKind !== 'live') {
       throw new Error('FSD3_EXECUTION_PROVIDER_KIND_MISMATCH');
@@ -97,7 +100,7 @@ export class Fsd3OneShotExecutionService {
       discoveryRequestKey: input.scope.discoveryRequestKey,
       leaseOwner,
       leaseExpiresAt,
-      budget: p6bCliDiscoveryBudget(),
+      budget: input.budget ?? p6bCliDiscoveryBudget(),
     };
 
     const waitStarted = Date.now();

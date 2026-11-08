@@ -4,6 +4,8 @@ import { FsdDiscoveryPersistenceRepository } from '@modules/vehicle-intelligence
 import { DimoSourceLinkOperatorAuthorizationService } from '@modules/vehicle-onboarding/services/dimo-source-link-operator-authorization.service';
 import { Fsd3OneShotPreflightService } from './fsd3-one-shot-preflight.service';
 import { Fsd3OneShotExecutionService } from './fsd3-one-shot-execution.service';
+import { Fsd4OneShotExecutionService } from './fsd4-one-shot-execution.service';
+import { FsdP6cFleetDiscoveryService } from './fsd-p6c-fleet-discovery.service';
 import { Fsd3DiscoveryRunInspectorService } from './fsd3-discovery-run-inspector.service';
 
 /**
@@ -16,6 +18,8 @@ import { Fsd3DiscoveryRunInspectorService } from './fsd3-discovery-run-inspector
     DimoSourceLinkOperatorAuthorizationService,
     Fsd3OneShotPreflightService,
     Fsd3OneShotExecutionService,
+    Fsd4OneShotExecutionService,
+    FsdP6cFleetDiscoveryService,
     Fsd3DiscoveryRunInspectorService,
   ],
   exports: [
@@ -23,6 +27,8 @@ import { Fsd3DiscoveryRunInspectorService } from './fsd3-discovery-run-inspector
     DimoSourceLinkOperatorAuthorizationService,
     Fsd3OneShotPreflightService,
     Fsd3OneShotExecutionService,
+    Fsd4OneShotExecutionService,
+    FsdP6cFleetDiscoveryService,
     Fsd3DiscoveryRunInspectorService,
   ],
 })
