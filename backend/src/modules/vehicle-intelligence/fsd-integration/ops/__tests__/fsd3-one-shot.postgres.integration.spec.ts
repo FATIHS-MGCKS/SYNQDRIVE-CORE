@@ -327,6 +327,7 @@ async function seedDimoBinding(prisma: PrismaClient) {
       provider,
       expectedLiveProvider: 'mock',
     });
+    await preflight.runAuthorizedReadOnlyPreflight({ actorUserId, scope });
     const cap2 = preflight.issueExecutionCapability({
       scope,
       verifiedOwnerApprovalEnvelope: envelope,
