@@ -1,3 +1,6 @@
+/** Fail-closed recursion cap for adversarial deeply nested candidate payloads. */
+export const DBI_P2C3_CANONICAL_MAX_DEPTH = 64;
+
 export type DbiP2c3CanonicalJsonFailureReasonV1 =
   | 'UNDEFINED'
   | 'NON_FINITE_NUMBER'
@@ -24,7 +27,11 @@ function isPlainRecord(value: object): boolean {
 export function tryCanonicalizeJsonValue(
   value: unknown,
   ancestors: Set<object> = new Set(),
+  depth = 0,
 ): DbiP2c3CanonicalJsonResultV1 {
+  if (depth > DBI_P2C3_CANONICAL_MAX_DEPTH) {
+    return { ok: false, reason: 'UNSUPPORTED_OBJECT' };
+  }
   if (value === undefined) {
     return { ok: false, reason: 'UNDEFINED' };
   }
@@ -62,7 +69,7 @@ export function tryCanonicalizeJsonValue(
       if (Array.isArray(value)) {
         const canonical: unknown[] = [];
         for (const entry of value) {
-          const next = tryCanonicalizeJsonValue(entry, ancestors);
+          const next = tryCanonicalizeJsonValue(entry, ancestors, depth + 1);
           if (!next.ok) return next;
           canonical.push(next.canonical);
         }
@@ -76,7 +83,7 @@ export function tryCanonicalizeJsonValue(
         if (field === undefined) {
           return { ok: false, reason: 'UNDEFINED' };
         }
-        const next = tryCanonicalizeJsonValue(field, ancestors);
+        const next = tryCanonicalizeJsonValue(field, ancestors, depth + 1);
         if (!next.ok) return next;
         canonical[key] = next.canonical;
       }

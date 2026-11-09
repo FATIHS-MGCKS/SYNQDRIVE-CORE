@@ -52,7 +52,7 @@ P1-04 forged abstain + duplicate positives remains fail-closed (`PARTICIPANT_CON
 | A-8 malformed | Clone + canonical fail-closed (no throw) | `BUNDLE_INPUT_ISOLATION_FAILED`, `CANDIDATE_PAYLOAD_CANONICAL_INVALID` | AUD-11..14 |
 | A-9 extra B2 subtype | Unknown subtype keys rejected | `B2_SUBTYPE_ASSESSABILITY_EXTRA_KEY` | AUD-17 |
 
-Full replay: `dbi-p2c3-reconciliation.w2-opus-remediation.spec.ts` (33 probes).
+Full replay: `dbi-p2c3-reconciliation.w2-opus-remediation.spec.ts` (33 probes; AUD-16/20/22/41/42 non-vacuous oracles; canonical depth cap 64).
 
 ## Limitations
 

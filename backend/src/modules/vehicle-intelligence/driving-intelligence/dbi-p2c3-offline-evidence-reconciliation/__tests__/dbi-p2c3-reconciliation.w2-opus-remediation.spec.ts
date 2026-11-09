@@ -44,6 +44,21 @@ function expectControlledReject(id: string, bundle: unknown) {
   expect(r.out?.ok).toBe(false);
 }
 
+function requirePositiveKickdownCandidate(plane: ReturnType<typeof cloneMutablePlane>) {
+  const pos = plane.candidates.find((c) => c.originalClassification === 'KICKDOWN_LIKE_PROXY_CANDIDATE');
+  expect(pos).toBeDefined();
+  if (!pos) throw new Error('precondition: expected KICKDOWN_LIKE_PROXY_CANDIDATE in S01 B1 plane');
+  return pos;
+}
+
+function nestPlainObjectDepth(depth: number): Record<string, unknown> {
+  let node: Record<string, unknown> = { marker: 'leaf' };
+  for (let i = 0; i < depth; i += 1) {
+    node = { [`level_${i}`]: node };
+  }
+  return node;
+}
+
 function forgeB1Classification(cls: string, status: 'ABSTAINED' | 'NOT_OBSERVED' | 'COMPUTED') {
   const plane = cloneMutablePlane(adaptKickdownPlaneFromScenario());
   const base = plane.candidates[0]!;
@@ -53,6 +68,50 @@ function forgeB1Classification(cls: string, status: 'ABSTAINED' | 'NOT_OBSERVED'
   plane.candidates = [forged, structuredClone(forged)];
   plane.participant = { ...plane.participant, originalKernelStatus: status, adapterClaimsPositiveEvidence: false };
   return plane;
+}
+
+function syntheticB3(tripClass: string, status: string, nCands: number) {
+  const plane = cloneMutablePlane(adaptSustainedLoadPlaneFromS11());
+  const cand = {
+    sourceModule: 'P2-B3',
+    sourceEpisodeKey: 'audit-b3-ep',
+    originalClassification: 'GAP_AWARE_SUSTAINED_PROXY_CANDIDATE',
+    originalCandidate: {
+      episodeKey: 'audit-b3-ep',
+      classification: 'GAP_AWARE_SUSTAINED_PROXY_CANDIDATE',
+      providerBucketLabelStartIso: '2026-01-01T10:00:00.000Z',
+      providerBucketLabelEndIso: '2026-01-01T10:00:30.000Z',
+    },
+  };
+  plane.candidates = Array.from({ length: nCands }, () => structuredClone(cand)) as never;
+  plane.participant = {
+    ...plane.participant,
+    originalKernelStatus: status as never,
+    originalAbstainReasons: [],
+    tripEvidenceClassification: tripClass as never,
+    adapterClaimsPositiveEvidence: status === 'COMPUTED' && nCands > 0,
+  } as never;
+  return plane;
+}
+
+function alignedA1(): NonNullable<ReturnType<typeof adaptA1DescriptivePlaneFromS14>> & { participant: Record<string, unknown> } {
+  const d = adaptA1DescriptivePlaneFromS14()!;
+  const b1 = adaptKickdownPlaneFromScenario();
+  const id = b1.participant.identity;
+  return {
+    ...d,
+    participant: {
+      ...d.participant,
+      identity: {
+        ...d.participant.identity,
+        organizationId: id.organizationId,
+        vehicleId: id.vehicleId,
+        tripId: id.tripId,
+        providerSourceLinkId: id.providerSourceLinkId,
+        v1bInputFingerprint: id.v1bInputFingerprint,
+      },
+    },
+  } as never;
 }
 
 describe('INDEPENDENT REAUDIT — W2 adversarial', () => {
@@ -212,12 +271,7 @@ describe('INDEPENDENT REAUDIT — W2 adversarial', () => {
 
   it('AUD-15 TOCTOU: stateful getter cannot forge positive duplicate edges', () => {
     const clean = cloneMutablePlane(adaptKickdownPlaneFromScenario());
-    const pos = clean.candidates.find((c) => c.originalClassification === 'KICKDOWN_LIKE_PROXY_CANDIDATE');
-    if (!pos) {
-       
-      console.log('[AUDIT] AUD-15 skipped: no positive B1 candidate in fixture');
-      return;
-    }
+    const pos = requirePositiveKickdownCandidate(clean);
     const safe = { ...clean, candidates: [] as typeof clean.candidates };
     safe.participant = { ...clean.participant, adapterClaimsPositiveEvidence: false, originalKernelStatus: 'ABSTAINED' };
     const forged = [structuredClone(pos), structuredClone(pos)];
@@ -236,19 +290,42 @@ describe('INDEPENDENT REAUDIT — W2 adversarial', () => {
     const probe = build(null);
     run(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [probe.plane as never] }));
     const total = probe.count();
+    expect(total).toBeGreaterThan(0);
     const attack = build(total);
     const r = run(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [attack.plane as never] }));
     report(`AUD-15 (getter accesses=${total})`, r);
+    expect(r.thrown).toBeUndefined();
     expect(sameSourceEdges(r)).toBe(0);
     expect(r.out?.ok).toBe(false);
+    const fail = r.out;
+    if (fail && !fail.ok) {
+      expect(
+        fail.diagnosticCodes.some((c) =>
+          [
+            'CANDIDATE_INVENTORY_UNDER_ABSTAINED_KERNEL',
+            'PARTICIPANT_CONTRADICTORY_POSITIVE_UNDER_ABSTAIN',
+            'BUNDLE_INPUT_ISOLATION_FAILED',
+          ].includes(c),
+        ),
+      ).toBe(true);
+    }
   });
 
-  it('AUD-16 B3 positive candidates with non-positive non-blocking trip class (MULTI_LABEL_HIGH_LOAD_RUN)', () => {
-    const plane = cloneMutablePlane(adaptSustainedLoadPlaneFromS11());
-    const p = plane.participant;
-    if (p.sourceModule !== 'P2-B3') throw new Error('b3');
-     
-    console.log(`[AUDIT] AUD-16 fixture status=${p.originalKernelStatus} tripClass=${p.tripEvidenceClassification} cands=${plane.candidates.length}`);
+  it('AUD-16 B3 forged positive with MULTI_LABEL trip class fails bidirectional parity (A-4)', () => {
+    const r = run(
+      assembleP2c2Bundle({
+        descriptive: null,
+        powertrainProxies: [syntheticB3('MULTI_LABEL_HIGH_LOAD_RUN', 'COMPUTED', 1)],
+      }),
+    );
+    report('AUD-16', r);
+    expect(r.thrown).toBeUndefined();
+    expect(r.out?.ok).toBe(false);
+    const fail = r.out;
+    if (fail && !fail.ok) {
+      expect(fail.diagnosticCodes).toContain('B3_PARTICIPANT_TRIP_CLASSIFICATION_CONTRADICTION');
+    }
+    expect(sameSourceEdges(r)).toBe(0);
   });
 
   it('AUD-17 B2 extra unknown subtype key accepted?', () => {
@@ -282,17 +359,6 @@ describe('INDEPENDENT REAUDIT — W2 adversarial', () => {
     expect(r.out?.ok).toBe(false);
   });
 
-  it('AUD-20 A1 with episodes but kernel NOT_APPLICABLE', () => {
-    const d = adaptA1DescriptivePlaneFromS14()!;
-     
-    console.log(`[AUDIT] AUD-20 fixture A1 status=${d.participant.originalKernelStatus} high=${d.participant.moduleAssessability.highEpisodesStatus} episodes=${d.episodes.length}`);
-    if (d.episodes.length === 0) return;
-    const tampered = { ...d, participant: { ...d.participant, originalKernelStatus: 'NOT_APPLICABLE' as never } };
-    const r = run(assembleP2c2Bundle({ descriptive: tampered, powertrainProxies: [adaptKickdownPlaneFromScenario()] }));
-    report('AUD-20', r);
-    expect(r.out?.ok).toBe(false);
-  });
-
   it('AUD-21 A1 v1b fingerprint mismatch vs proxy rejected', () => {
     const d = adaptA1DescriptivePlaneFromS14()!;
     const tampered = { ...d, participant: { ...d.participant, identity: { ...d.participant.identity, v1bInputFingerprint: 'forged-fp' } } };
@@ -301,26 +367,6 @@ describe('INDEPENDENT REAUDIT — W2 adversarial', () => {
     const blocked = !r.out?.ok || r.out.identityAdmission.verdict !== 'ADMITTED';
     expect(blocked).toBe(true);
   });
-
-  function alignedA1(): NonNullable<ReturnType<typeof adaptA1DescriptivePlaneFromS14>> & { participant: Record<string, unknown> } {
-    const d = adaptA1DescriptivePlaneFromS14()!;
-    const b1 = adaptKickdownPlaneFromScenario();
-    const id = b1.participant.identity;
-    return {
-      ...d,
-      participant: {
-        ...d.participant,
-        identity: {
-          ...d.participant.identity,
-          organizationId: id.organizationId,
-          vehicleId: id.vehicleId,
-          tripId: id.tripId,
-          providerSourceLinkId: id.providerSourceLinkId,
-          v1bInputFingerprint: id.v1bInputFingerprint,
-        },
-      },
-    } as never;
-  }
 
   it('AUD-30 aligned legit A1 + B1 accepted; A1 never in edges', () => {
     const r = run(assembleP2c2Bundle({ descriptive: alignedA1() as never, powertrainProxies: [adaptKickdownPlaneFromScenario()] }));
@@ -349,12 +395,18 @@ describe('INDEPENDENT REAUDIT — W2 adversarial', () => {
     expect(r.out?.ok).toBe(false);
   });
 
-  it('AUD-32 aligned A1 NOT_APPLICABLE kernel status with descriptive episodes', () => {
+  it('AUD-20/32 aligned A1 NOT_APPLICABLE with nonempty episodes rejected (A-6)', () => {
     const d = alignedA1();
+    expect(d.episodes.length).toBeGreaterThan(0);
     const t = { ...d, participant: { ...d.participant, originalKernelStatus: 'NOT_APPLICABLE' } };
     const r = run(assembleP2c2Bundle({ descriptive: t as never, powertrainProxies: [adaptKickdownPlaneFromScenario()] }));
     report(`AUD-32 (episodes=${d.episodes.length})`, r);
+    expect(r.thrown).toBeUndefined();
     expect(r.out?.ok).toBe(false);
+    const fail = r.out;
+    if (fail && !fail.ok) {
+      expect(fail.diagnosticCodes).toContain('A1_NOT_APPLICABLE_WITH_EPISODES');
+    }
   });
 
   it('AUD-33 aligned A1 claims positive evidence / guard false rejected', () => {
@@ -365,40 +417,10 @@ describe('INDEPENDENT REAUDIT — W2 adversarial', () => {
     expect(r.out?.ok).toBe(false);
   });
 
-  function syntheticB3(tripClass: string, status: string, nCands: number) {
-    const plane = cloneMutablePlane(adaptSustainedLoadPlaneFromS11());
-    const cand = {
-      sourceModule: 'P2-B3',
-      sourceEpisodeKey: 'audit-b3-ep',
-      originalClassification: 'GAP_AWARE_SUSTAINED_PROXY_CANDIDATE',
-      originalCandidate: {
-        episodeKey: 'audit-b3-ep',
-        classification: 'GAP_AWARE_SUSTAINED_PROXY_CANDIDATE',
-        providerBucketLabelStartIso: '2026-01-01T10:00:00.000Z',
-        providerBucketLabelEndIso: '2026-01-01T10:00:30.000Z',
-      },
-    };
-    plane.candidates = Array.from({ length: nCands }, () => structuredClone(cand)) as never;
-    plane.participant = {
-      ...plane.participant,
-      originalKernelStatus: status as never,
-      originalAbstainReasons: [],
-      tripEvidenceClassification: tripClass as never,
-      adapterClaimsPositiveEvidence: status === 'COMPUTED' && nCands > 0,
-    } as never;
-    return plane;
-  }
-
   it('AUD-34 B3 COMPUTED + positive + trip class GAP_AWARE accepted (control)', () => {
     const r = run(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [syntheticB3('GAP_AWARE_SUSTAINED_PROXY_CANDIDATE', 'COMPUTED', 1)] }));
     report('AUD-34', r);
     expect(r.out?.ok).toBe(true);
-  });
-
-  it('AUD-35 B3 positive candidates with trip class MULTI_LABEL_HIGH_LOAD_RUN (kernel impossible)', () => {
-    const r = run(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [syntheticB3('MULTI_LABEL_HIGH_LOAD_RUN', 'COMPUTED', 1)] }));
-    report('AUD-35', r);
-    expect(r.out?.ok).toBe(false);
   });
 
   it('AUD-36 B3 positive candidates with forged unknown trip class', () => {
@@ -455,8 +477,54 @@ describe('INDEPENDENT REAUDIT — W2 adversarial', () => {
     expect(r.out?.ok).toBe(false);
   });
 
-  it('AUD-22 NOT_OBSERVED + duplicate non-positive candidates', () => {
-    const r = run(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [forgeB1Classification('THROTTLE_STEP_OBSERVED', 'NOT_OBSERVED')] }));
+  it('AUD-22 NOT_OBSERVED + duplicate non-positive retains inventory without positive duplicate edge', () => {
+    const r = run(
+      assembleP2c2Bundle({ descriptive: null, powertrainProxies: [forgeB1Classification('THROTTLE_STEP_OBSERVED', 'NOT_OBSERVED')] }),
+    );
     report('AUD-22', r);
+    expect(r.thrown).toBeUndefined();
+    expect(r.out?.ok).toBe(true);
+    if (r.out?.ok) {
+      expect(r.out.candidateInventory).toHaveLength(2);
+      expect(sameSourceEdges(r)).toBe(0);
+      expect(r.out.pairwiseDecisions.every((d) => d.relationshipDecision !== 'SAME_SOURCE_DUPLICATE')).toBe(true);
+      const duplicatePair = r.out.pairwiseDecisions.find((d) => d.leftSourceModule === 'P2-B1' && d.rightSourceModule === 'P2-B1');
+      expect(duplicatePair).toBeDefined();
+      expect(duplicatePair!.relationshipDecision).toBe('INSUFFICIENT_ALIGNMENT_EVIDENCE');
+      expect(duplicatePair!.decisionRationaleCodes).toContain('NON_POSITIVE_DUPLICATE_NOT_AUTHORIZED_V1_EDGE');
+    }
+  });
+
+  it('AUD-41 deeply nested originalCandidate fails closed without RangeError (A-8 depth)', () => {
+    const plane = cloneMutablePlane(adaptKickdownPlaneFromScenario());
+    const c = structuredClone(plane.candidates[0]!);
+    (c.originalCandidate as Record<string, unknown>).nestedAudit = nestPlainObjectDepth(80);
+    plane.candidates = [c];
+    expectControlledReject('AUD-41', assembleP2c2Bundle({ descriptive: null, powertrainProxies: [plane] }));
+    const r = run(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [plane] }));
+    const fail = r.out;
+    if (fail && !fail.ok) {
+      expect(
+        fail.diagnosticCodes.some((c) =>
+          ['CANDIDATE_PAYLOAD_CANONICAL_INVALID', 'BUNDLE_NESTED_SHAPE_INVALID'].includes(c),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('AUD-42 oversized limitationCodes array fails closed without stack overflow (A-8 breadth)', () => {
+    const plane = cloneMutablePlane(adaptKickdownPlaneFromScenario());
+    const c = structuredClone(plane.candidates[0]!);
+    const kick = c.originalCandidate as { limitationCodes: string[] };
+    kick.limitationCodes = Array.from({ length: 600 }, (_, i) => `CODE_${i}`);
+    plane.candidates = [c];
+    const r = run(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [plane] }));
+    report('AUD-42', r);
+    expect(r.thrown).toBeUndefined();
+    expect(r.out?.ok).toBe(false);
+    const fail = r.out;
+    if (fail && !fail.ok) {
+      expect(fail.diagnosticCodes).toContain('BUNDLE_NESTED_SHAPE_INVALID');
+    }
   });
 });
