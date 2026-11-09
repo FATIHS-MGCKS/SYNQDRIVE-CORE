@@ -32,7 +32,22 @@ Each scenario exposes `DbiP2c15SyntheticIdentityEnvelopeV1`:
 - `v1bInputFingerprint`, `multichannelFingerprint` (null for A1-only scenarios)
 - `sourceProvenanceVerified: false` (mandatory)
 
-## Frozen scenario matrix (S01–S16)
+## Scenario package shape (P2-C1.5 closeout)
+
+`buildDbiP2c15ScenarioPackage(id)` returns:
+
+- `envelope` — synthetic identity + derived fingerprints
+- `payload` — discriminated union:
+  - `POWERTRAIN_INPUT` — shared kickdown binding validator input
+  - `MODULE_SPECIFIC_SCENARIO` — B2/B3/B4 kernel inputs (+ optional subVariant)
+  - `A1_INPUT` — RPM episode research input
+  - `CANONICAL_ORDER_PAIR` — forward/reversed inputs + raw observation grids
+- `expectation` — **pinned** in `dbi-p2c15-binding-envelope.expectations.v1.ts` (not derived from validator at build time)
+- `scientificNotes`
+
+Inputs are `structuredClone` copies — independent factory calls do not share mutable state.
+
+## Frozen scenario matrix (S01–S16 + S13 subvariants)
 
 | ID | Intent |
 |----|--------|
@@ -40,14 +55,21 @@ Each scenario exposes `DbiP2c15SyntheticIdentityEnvelopeV1`:
 | S02–S05 | Identity mismatch (org / vehicle / trip / link) |
 | S06–S07 | Fingerprint tamper (v1b / multichannel) |
 | S08 | Conflicting duplicate label |
-| S09 | Missing RPM/speed/load in controlled window |
+| S09 | Missing RPM/speed/load in controlled window (B2 kernel) |
 | S10 | Insufficient moving opportunity (stationary grid) |
 | S11 | B3 sole insufficient load (partial trusted counts) |
 | S12 | B4 zero assessable facets |
-| S13 | BEV fail-closed |
+| S13_POWERTRAIN_BEV_FAIL_CLOSED | ELECTRIC + `isEvPowertrain` — bind-layer fail |
+| S13_POWERTRAIN_UNKNOWN_FAIL_CLOSED | `fuelType=null` — B3 `ICE_OPERATION_NOT_CONFIRMED` |
+| S13_POWERTRAIN_CONTRADICTORY_FAIL_CLOSED | GASOLINE + `isEvPowertrain` — bind-layer fail |
 | S14 | A1 descriptive-only |
 | S15 | Offline bundle without attestation |
-| S16 | Canonical order invariance |
+| S16 | Canonical order invariance (bucket + fingerprint + B1 status) |
+
+## Import boundary
+
+- Forward: fixture sources must not import production misuse/detector paths (existing spec).
+- Reverse: no non-test runtime module under `driving-intelligence/` may import `dbi-p2c15-binding-envelope-fixtures` (dedicated spec).
 
 ## Trust invariants (mandatory)
 

@@ -1,5 +1,9 @@
-import type { Ds4PowertrainDemandBindingAbstainReason } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
-import type { Ds4RpmEpisodeResearchBindingAbstainReason } from '../ds4-rpm-episode-research/ds4-rpm-episode-research.contract.v1';
+import type {
+  Ds4MultichannelBucketObservationV1,
+  Ds4PowertrainDemandResearchInputV1,
+} from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
+import type { Ds4RpmEpisodeResearchInputV1 } from '../ds4-rpm-episode-research/ds4-rpm-episode-research.contract.v1';
+import type { DbiP2c15IndependentExpectationV1 } from './dbi-p2c15-binding-envelope.expectations.v1';
 
 /** Frozen P2-C1.5 scenario identifiers (offline reconciliation preflight only). */
 export type DbiP2c15ScenarioIdV1 =
@@ -15,7 +19,9 @@ export type DbiP2c15ScenarioIdV1 =
   | 'S10_INSUFFICIENT_OBSERVATIONS'
   | 'S11_B3_SOLE_INSUFFICIENT_LOAD'
   | 'S12_B4_ZERO_ASSESSABLE_FACETS'
-  | 'S13_POWERTRAIN_FAIL_CLOSED'
+  | 'S13_POWERTRAIN_BEV_FAIL_CLOSED'
+  | 'S13_POWERTRAIN_UNKNOWN_FAIL_CLOSED'
+  | 'S13_POWERTRAIN_CONTRADICTORY_FAIL_CLOSED'
   | 'S14_A1_DESCRIPTIVE_ONLY'
   | 'S15_OFFLINE_UNATTESTED_NEGATIVE'
   | 'S16_CANONICAL_ORDER_INVARIANCE';
@@ -36,25 +42,36 @@ export type DbiP2c15SyntheticIdentityEnvelopeV1 = {
   readonly sourceProvenanceVerified: false;
 };
 
-export type DbiP2c15BindingExpectationV1 =
+export type DbiP2c15PowertrainSubVariantV1 = 'BEV' | 'UNKNOWN' | 'CONTRADICTORY';
+
+export type DbiP2c15ScenarioPayloadV1 =
   | {
-      readonly kind: 'POWERTRAIN_BINDING';
-      readonly bindingOk: boolean;
-      readonly abstainReasons?: readonly Ds4PowertrainDemandBindingAbstainReason[];
+      readonly kind: 'POWERTRAIN_INPUT';
+      readonly input: Ds4PowertrainDemandResearchInputV1;
+      readonly bindingValidator: 'SHARED_KICKDOWN_BINDING';
     }
   | {
-      readonly kind: 'A1_BINDING';
-      readonly bindingOk: boolean;
-      readonly abstainReasons?: readonly Ds4RpmEpisodeResearchBindingAbstainReason[];
+      readonly kind: 'A1_INPUT';
+      readonly input: Ds4RpmEpisodeResearchInputV1;
     }
   | {
-      readonly kind: 'CANONICAL_INVARIANCE';
-      readonly fingerprintsMatchForwardAndReversed: true;
+      readonly kind: 'CANONICAL_ORDER_PAIR';
+      readonly forwardInput: Ds4PowertrainDemandResearchInputV1;
+      readonly reversedInput: Ds4PowertrainDemandResearchInputV1;
+      readonly forwardObservations: readonly Ds4MultichannelBucketObservationV1[];
+      readonly reversedObservations: readonly Ds4MultichannelBucketObservationV1[];
+    }
+  | {
+      readonly kind: 'MODULE_SPECIFIC_SCENARIO';
+      readonly input: Ds4PowertrainDemandResearchInputV1;
+      readonly researchModule: 'B2' | 'B3' | 'B4';
+      readonly subVariant?: DbiP2c15PowertrainSubVariantV1;
     };
 
 export type DbiP2c15ScenarioPackageV1 = {
   readonly scenarioId: DbiP2c15ScenarioIdV1;
   readonly envelope: DbiP2c15SyntheticIdentityEnvelopeV1;
-  readonly expectation: DbiP2c15BindingExpectationV1;
+  readonly payload: DbiP2c15ScenarioPayloadV1;
+  readonly expectation: DbiP2c15IndependentExpectationV1;
   readonly scientificNotes: readonly string[];
 };

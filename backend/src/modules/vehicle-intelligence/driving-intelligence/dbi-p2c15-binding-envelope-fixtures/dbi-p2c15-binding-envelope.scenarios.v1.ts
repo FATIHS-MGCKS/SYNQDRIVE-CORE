@@ -1,11 +1,8 @@
-import { validateDs4RpmEpisodeResearchInputBinding } from '../ds4-rpm-episode-research/ds4-rpm-episode-research.input-binding.v1';
 import {
   buildBoundResearchInput,
   rpmAtU,
 } from '../ds4-rpm-episode-research/__tests__/ds4-rpm-episode-research.test-helpers';
 import type { Ds4PowertrainDemandResearchInputV1 } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
-import { validateDs4PowertrainDemandResearchInputBinding } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.input-binding.v1';
-import { canonicalizeMultichannelObservations } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-multichannel-canonicalize.v1';
 import {
   buildBoundPowertrainInput,
   buildColdEngineBoundInput,
@@ -13,23 +10,23 @@ import {
   positiveKickdownGrid,
 } from '../ds4-powertrain-demand-research/__tests__/ds4-powertrain-demand-research.test-helpers';
 import { buildRpmPointsEverySeconds } from '../rpm-hf-v1b/__tests__/ds4-rpm-hf-v1b-tier-fixtures';
-import {
-  DBI_P2C15_GRID_START_ISO,
-  DBI_P2C15_LINK_ALT,
-  DBI_P2C15_LINK_BASELINE,
-  DBI_P2C15_ORG_ALT,
-  DBI_P2C15_ORG_BASELINE,
-  DBI_P2C15_TRIP_ALT,
-  DBI_P2C15_TRIP_BASELINE,
-  DBI_P2C15_VEHICLE_ALT,
-  DBI_P2C15_VEHICLE_BASELINE,
-} from './dbi-p2c15-binding-envelope.identity.v1';
+import { cloneA1FixtureInput, clonePowertrainFixtureInput } from './dbi-p2c15-binding-envelope.clone.v1';
+import { DBI_P2C15_PINNED_EXPECTATIONS } from './dbi-p2c15-binding-envelope.expectations.v1';
 import {
   assertEnvelopeFingerprintsDeriveFromData,
   envelopeFromA1Input,
   envelopeFromPowertrainInput,
   recomputeMultichannelFingerprintForInput,
 } from './dbi-p2c15-binding-envelope.factories.v1';
+import {
+  DBI_P2C15_GRID_START_ISO,
+  DBI_P2C15_LINK_ALT,
+  DBI_P2C15_LINK_BASELINE,
+  DBI_P2C15_ORG_ALT,
+  DBI_P2C15_TRIP_ALT,
+  DBI_P2C15_TRIP_BASELINE,
+  DBI_P2C15_VEHICLE_ALT,
+} from './dbi-p2c15-binding-envelope.identity.v1';
 import type {
   DbiP2c15ScenarioIdV1,
   DbiP2c15ScenarioPackageV1,
@@ -48,7 +45,9 @@ export const DBI_P2C15_SCENARIO_IDS: readonly DbiP2c15ScenarioIdV1[] = [
   'S10_INSUFFICIENT_OBSERVATIONS',
   'S11_B3_SOLE_INSUFFICIENT_LOAD',
   'S12_B4_ZERO_ASSESSABLE_FACETS',
-  'S13_POWERTRAIN_FAIL_CLOSED',
+  'S13_POWERTRAIN_BEV_FAIL_CLOSED',
+  'S13_POWERTRAIN_UNKNOWN_FAIL_CLOSED',
+  'S13_POWERTRAIN_CONTRADICTORY_FAIL_CLOSED',
   'S14_A1_DESCRIPTIVE_ONLY',
   'S15_OFFLINE_UNATTESTED_NEGATIVE',
   'S16_CANONICAL_ORDER_INVARIANCE',
@@ -65,74 +64,91 @@ function baselineBoundIceInput(
   });
 }
 
-function bindingPackage(
-  scenarioId: DbiP2c15ScenarioIdV1,
-  input: Ds4PowertrainDemandResearchInputV1,
-  scientificNotes: string[],
-  tamperAllowsMismatch?: boolean,
-): DbiP2c15ScenarioPackageV1 {
-  if (!tamperAllowsMismatch) {
-    assertEnvelopeFingerprintsDeriveFromData(input);
-  }
-  expectSyntheticProvenance(input);
-  const binding = validateDs4PowertrainDemandResearchInputBinding(input);
-  return {
-    scenarioId,
-    envelope: envelopeFromPowertrainInput(scenarioId, input),
-    expectation: {
-      kind: 'POWERTRAIN_BINDING',
-      bindingOk: binding.ok,
-      abstainReasons: binding.ok ? undefined : binding.reasonCodes,
-    },
-    scientificNotes,
-  };
-}
-
 function expectSyntheticProvenance(input: Ds4PowertrainDemandResearchInputV1): void {
   if (input.evidenceOrigin !== 'SYNTHETIC_FIXTURE' && input.evidenceOrigin !== 'OFFLINE_SEALED_BUNDLE') {
     throw new Error('P2-C1.5 fixtures require SYNTHETIC_FIXTURE or OFFLINE_SEALED_BUNDLE');
   }
 }
 
+function finalizePowertrainPackage(
+  scenarioId: DbiP2c15ScenarioIdV1,
+  raw: Ds4PowertrainDemandResearchInputV1,
+  scientificNotes: readonly string[],
+  tamperAllowsMismatch?: boolean,
+): DbiP2c15ScenarioPackageV1 {
+  const input = clonePowertrainFixtureInput(raw);
+  if (!tamperAllowsMismatch) {
+    assertEnvelopeFingerprintsDeriveFromData(input);
+  }
+  expectSyntheticProvenance(input);
+  return {
+    scenarioId,
+    envelope: envelopeFromPowertrainInput(scenarioId, input),
+    payload: { kind: 'POWERTRAIN_INPUT', input, bindingValidator: 'SHARED_KICKDOWN_BINDING' },
+    expectation: DBI_P2C15_PINNED_EXPECTATIONS[scenarioId],
+    scientificNotes,
+  };
+}
+
+function finalizeModulePackage(
+  scenarioId: DbiP2c15ScenarioIdV1,
+  raw: Ds4PowertrainDemandResearchInputV1,
+  researchModule: 'B2' | 'B3' | 'B4',
+  scientificNotes: readonly string[],
+  subVariant?: 'BEV' | 'UNKNOWN' | 'CONTRADICTORY',
+  tamperAllowsMismatch?: boolean,
+): DbiP2c15ScenarioPackageV1 {
+  const input = clonePowertrainFixtureInput(raw);
+  if (!tamperAllowsMismatch) {
+    assertEnvelopeFingerprintsDeriveFromData(input);
+  }
+  expectSyntheticProvenance(input);
+  return {
+    scenarioId,
+    envelope: envelopeFromPowertrainInput(scenarioId, input),
+    payload: { kind: 'MODULE_SPECIFIC_SCENARIO', input, researchModule, subVariant },
+    expectation: DBI_P2C15_PINNED_EXPECTATIONS[scenarioId],
+    scientificNotes,
+  };
+}
+
 export function buildDbiP2c15ScenarioPackage(scenarioId: DbiP2c15ScenarioIdV1): DbiP2c15ScenarioPackageV1 {
   switch (scenarioId) {
-    case 'S01_VALID_ICE_BASELINE': {
-      const input = baselineBoundIceInput();
-      return bindingPackage(scenarioId, input, [
+    case 'S01_VALID_ICE_BASELINE':
+      return finalizePowertrainPackage(scenarioId, baselineBoundIceInput(), [
         'Consistent tenant/trip/link and derived v1b + multichannel fingerprints.',
       ]);
-    }
     case 'S02_DIFFERENT_ORGANIZATION': {
-      const input = baselineBoundIceInput();
-      input.organizationId = DBI_P2C15_ORG_ALT;
-      return bindingPackage(scenarioId, input, ['Root org disagrees with tripInput/v1b org.'], true);
+      const raw = baselineBoundIceInput();
+      raw.organizationId = DBI_P2C15_ORG_ALT;
+      return finalizePowertrainPackage(scenarioId, raw, ['Root org disagrees with tripInput/v1b org.'], true);
     }
     case 'S03_DIFFERENT_VEHICLE': {
-      const input = baselineBoundIceInput();
-      input.vehicleId = DBI_P2C15_VEHICLE_ALT;
-      return bindingPackage(scenarioId, input, ['Root vehicle disagrees with tripInput/v1b vehicle.'], true);
+      const raw = baselineBoundIceInput();
+      raw.vehicleId = DBI_P2C15_VEHICLE_ALT;
+      return finalizePowertrainPackage(scenarioId, raw, ['Root vehicle disagrees with tripInput/v1b vehicle.'], true);
     }
     case 'S04_DIFFERENT_TRIP': {
-      const input = baselineBoundIceInput();
-      input.tripId = DBI_P2C15_TRIP_ALT;
-      return bindingPackage(scenarioId, input, ['Root trip disagrees with tier/v1b trip id.'], true);
+      const raw = baselineBoundIceInput();
+      raw.tripId = DBI_P2C15_TRIP_ALT;
+      return finalizePowertrainPackage(scenarioId, raw, ['Root trip disagrees with tier/v1b trip id.'], true);
     }
     case 'S05_DIFFERENT_SOURCE_LINK': {
-      const input = baselineBoundIceInput();
-      input.providerSourceLinkId = DBI_P2C15_LINK_ALT;
-      return bindingPackage(scenarioId, input, ['Root link disagrees with tripInput link.'], true);
+      const raw = baselineBoundIceInput();
+      raw.providerSourceLinkId = DBI_P2C15_LINK_ALT;
+      return finalizePowertrainPackage(scenarioId, raw, ['Root link disagrees with tripInput link.'], true);
     }
     case 'S06_V1B_FINGERPRINT_TAMPER': {
-      const input = baselineBoundIceInput();
-      assertEnvelopeFingerprintsDeriveFromData(input);
-      input.v1bResult!.inputFingerprint = 'p2c15-deadbeef-v1b-tamper';
-      return bindingPackage(scenarioId, input, ['Tampered v1b fingerprint without recomputing away tamper.'], true);
+      const raw = baselineBoundIceInput();
+      assertEnvelopeFingerprintsDeriveFromData(raw);
+      raw.v1bResult!.inputFingerprint = 'p2c15-deadbeef-v1b-tamper';
+      return finalizePowertrainPackage(scenarioId, raw, ['Tampered v1b fingerprint without recomputing away tamper.'], true);
     }
     case 'S07_MULTICHANNEL_FINGERPRINT_TAMPER': {
-      const input = baselineBoundIceInput();
-      assertEnvelopeFingerprintsDeriveFromData(input);
-      input.multichannelFingerprint = 'p2c15-forged-multichannel';
-      return bindingPackage(scenarioId, input, ['Tampered multichannel fingerprint; data unchanged.'], true);
+      const raw = baselineBoundIceInput();
+      assertEnvelopeFingerprintsDeriveFromData(raw);
+      raw.multichannelFingerprint = 'p2c15-forged-multichannel';
+      return finalizePowertrainPackage(scenarioId, raw, ['Tampered multichannel fingerprint; data unchanged.'], true);
     }
     case 'S08_CONFLICTING_DUPLICATE_LABEL': {
       const iso = positiveKickdownGrid()[2]!.recordedAtIso;
@@ -141,13 +157,13 @@ export function buildDbiP2c15ScenarioPackage(scenarioId: DbiP2c15ScenarioIdV1): 
         { recordedAtIso: iso, rpm: 1111, speedKmh: 10, throttlePct: 10, loadPct: 10 },
         { recordedAtIso: iso, rpm: 2222, speedKmh: 20, throttlePct: 20, loadPct: 20 },
       ];
-      const input = buildBoundPowertrainInput({
+      const raw = buildBoundPowertrainInput({
         multichannelObservations: grid,
         tripId: DBI_P2C15_TRIP_BASELINE,
         linkId: DBI_P2C15_LINK_BASELINE,
       });
-      input.multichannelFingerprint = recomputeMultichannelFingerprintForInput(input);
-      return bindingPackage(scenarioId, input, ['Conflicting duplicate epoch labels in multichannel grid.']);
+      raw.multichannelFingerprint = recomputeMultichannelFingerprintForInput(raw);
+      return finalizePowertrainPackage(scenarioId, raw, ['Conflicting duplicate epoch labels in multichannel grid.']);
     }
     case 'S09_MISSING_REQUIRED_CHANNELS': {
       const grid = buildObservationSeries(DBI_P2C15_GRID_START_ISO, 12, 1, () => ({
@@ -157,12 +173,12 @@ export function buildDbiP2c15ScenarioPackage(scenarioId: DbiP2c15ScenarioIdV1): 
         loadPct: null,
         coolantC: 40,
       }));
-      const input = buildColdEngineBoundInput({
+      const raw = buildColdEngineBoundInput({
         multichannelObservations: grid,
         tripId: DBI_P2C15_TRIP_BASELINE,
         linkId: DBI_P2C15_LINK_BASELINE,
-      });
-      return bindingPackage(scenarioId, input, [
+      }) as Ds4PowertrainDemandResearchInputV1;
+      return finalizeModulePackage(scenarioId, raw, 'B2', [
         'ECT-only window — RPM/speed/load absent; no invented RPM for admission.',
       ]);
     }
@@ -173,12 +189,12 @@ export function buildDbiP2c15ScenarioPackage(scenarioId: DbiP2c15ScenarioIdV1): 
         throttlePct: 10,
         loadPct: 12,
       }));
-      const input = buildBoundPowertrainInput({
+      const raw = buildBoundPowertrainInput({
         multichannelObservations: grid,
         tripId: DBI_P2C15_TRIP_BASELINE,
         linkId: DBI_P2C15_LINK_BASELINE,
       });
-      return bindingPackage(scenarioId, input, ['Binding-adjacent grid below moving observation minimums.']);
+      return finalizePowertrainPackage(scenarioId, raw, ['Stationary grid — no moving opportunity at bind layer.']);
     }
     case 'S11_B3_SOLE_INSUFFICIENT_LOAD': {
       const grid = buildObservationSeries(DBI_P2C15_GRID_START_ISO, 12, 1, (i) => ({
@@ -187,12 +203,12 @@ export function buildDbiP2c15ScenarioPackage(scenarioId: DbiP2c15ScenarioIdV1): 
         throttlePct: 40,
         loadPct: i < 3 ? 80 : null,
       }));
-      const input = buildBoundPowertrainInput({
+      const raw = buildBoundPowertrainInput({
         multichannelObservations: grid,
         tripId: DBI_P2C15_TRIP_BASELINE,
         linkId: DBI_P2C15_LINK_BASELINE,
       });
-      return bindingPackage(scenarioId, input, [
+      return finalizeModulePackage(scenarioId, raw, 'B3', [
         'Partial trusted load counts — sole INSUFFICIENT_LOAD_LABEL_OBSERVATIONS at kernel layer.',
       ]);
     }
@@ -202,74 +218,85 @@ export function buildDbiP2c15ScenarioPackage(scenarioId: DbiP2c15ScenarioIdV1): 
         rpm: null,
         loadPct: 20,
       }));
-      const input = buildColdEngineBoundInput({
+      const raw = buildColdEngineBoundInput({
         multichannelObservations: grid,
         tripId: DBI_P2C15_TRIP_BASELINE,
         linkId: DBI_P2C15_LINK_BASELINE,
       }) as Ds4PowertrainDemandResearchInputV1;
-      return bindingPackage(scenarioId, input, [
+      return finalizeModulePackage(scenarioId, raw, 'B4', [
         'COMPUTED with both facets NOT_ASSESSABLE — not a positive rev/idle verdict.',
       ]);
     }
-    case 'S13_POWERTRAIN_FAIL_CLOSED': {
-      const input = baselineBoundIceInput({ isEvPowertrain: true });
-      return bindingPackage(scenarioId, input, ['BEV path — no invented ICE combustion evidence.']);
+    case 'S13_POWERTRAIN_BEV_FAIL_CLOSED': {
+      const raw = baselineBoundIceInput({ fuelType: 'ELECTRIC', isEvPowertrain: true });
+      return finalizePowertrainPackage(scenarioId, raw, ['BEV — ELECTRIC + isEvPowertrain.']);
+    }
+    case 'S13_POWERTRAIN_UNKNOWN_FAIL_CLOSED': {
+      const raw = baselineBoundIceInput();
+      raw.fuelType = null;
+      raw.isEvPowertrain = false;
+      return finalizeModulePackage(scenarioId, raw, 'B3', ['Unknown fuel context — no ICE confirmation.'], 'UNKNOWN');
+    }
+    case 'S13_POWERTRAIN_CONTRADICTORY_FAIL_CLOSED': {
+      const raw = baselineBoundIceInput({ fuelType: 'GASOLINE', isEvPowertrain: true });
+      return finalizePowertrainPackage(scenarioId, raw, ['Contradictory GASOLINE + EV flag.']);
     }
     case 'S14_A1_DESCRIPTIVE_ONLY': {
       const rpmPoints = buildRpmPointsEverySeconds(DBI_P2C15_GRID_START_ISO, 8, 1).map((p) => ({
         recordedAtIso: p.recordedAtIso,
         valueRpm: rpmAtU(0.7),
       }));
-      const input = buildBoundResearchInput({
+      const raw = buildBoundResearchInput({
         rpmPoints,
         tripId: DBI_P2C15_TRIP_BASELINE,
         linkId: DBI_P2C15_LINK_BASELINE,
       });
-      const binding = validateDs4RpmEpisodeResearchInputBinding(input);
+      const input = cloneA1FixtureInput(raw);
       return {
         scenarioId,
         envelope: envelopeFromA1Input(scenarioId, input),
-        expectation: {
-          kind: 'A1_BINDING',
-          bindingOk: binding.ok,
-          abstainReasons: binding.ok ? undefined : binding.reasonCodes,
-        },
+        payload: { kind: 'A1_INPUT', input },
+        expectation: DBI_P2C15_PINNED_EXPECTATIONS[scenarioId],
         scientificNotes: [
           'A1 descriptive episodes — labelsNotForCrossDomainJoin; not a B1–B4 event participant.',
         ],
       };
     }
     case 'S15_OFFLINE_UNATTESTED_NEGATIVE': {
-      const input = baselineBoundIceInput({ evidenceOrigin: 'OFFLINE_SEALED_BUNDLE' });
-      input.multichannelManifest = null;
-      return bindingPackage(scenarioId, input, [
+      const raw = baselineBoundIceInput({ evidenceOrigin: 'OFFLINE_SEALED_BUNDLE' });
+      raw.multichannelManifest = null;
+      return finalizePowertrainPackage(scenarioId, raw, [
         'OFFLINE_SEALED_BUNDLE without manifest — fail closed; no forged positive attestation.',
       ]);
     }
     case 'S16_CANONICAL_ORDER_INVARIANCE': {
-      const forward = positiveKickdownGrid();
-      const reversed = [...forward].reverse();
-      const forwardInput = buildBoundPowertrainInput({
-        multichannelObservations: forward,
+      const forwardObservations = positiveKickdownGrid();
+      const reversedObservations = [...forwardObservations].reverse();
+      const forwardRaw = buildBoundPowertrainInput({
+        multichannelObservations: forwardObservations,
         tripId: DBI_P2C15_TRIP_BASELINE,
         linkId: DBI_P2C15_LINK_BASELINE,
       });
-      const reversedInput = buildBoundPowertrainInput({
-        multichannelObservations: reversed,
+      const reversedRaw = buildBoundPowertrainInput({
+        multichannelObservations: reversedObservations,
         tripId: DBI_P2C15_TRIP_BASELINE,
         linkId: DBI_P2C15_LINK_BASELINE,
       });
-      const forwardCanon = canonicalizeMultichannelObservations(forward);
-      const reversedCanon = canonicalizeMultichannelObservations(reversed);
-      const fpForward = forwardInput.multichannelFingerprint;
-      const fpReversed = reversedInput.multichannelFingerprint;
-      if (fpForward !== fpReversed) {
-        throw new Error('S16 invariant failed: order should not change canonical fingerprint');
-      }
+      const forwardInput = clonePowertrainFixtureInput(forwardRaw);
+      const reversedInput = clonePowertrainFixtureInput(reversedRaw);
+      assertEnvelopeFingerprintsDeriveFromData(forwardInput);
+      assertEnvelopeFingerprintsDeriveFromData(reversedInput);
       return {
         scenarioId,
         envelope: envelopeFromPowertrainInput(scenarioId, forwardInput),
-        expectation: { kind: 'CANONICAL_INVARIANCE', fingerprintsMatchForwardAndReversed: true },
+        payload: {
+          kind: 'CANONICAL_ORDER_PAIR',
+          forwardInput,
+          reversedInput,
+          forwardObservations,
+          reversedObservations,
+        },
+        expectation: DBI_P2C15_PINNED_EXPECTATIONS[scenarioId],
         scientificNotes: [
           'Raw observation order reversed — canonical buckets and multichannel fingerprint stable.',
         ],
