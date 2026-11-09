@@ -384,6 +384,58 @@ jobs:
           REDIS_HOST: ${{ env.REDIS_HOST }}
           REDIS_PORT: ${{ env.REDIS_PORT }}
 
+  release-isolation-proof:
+    name: Release isolation proof (exact head SHA)
+    needs: install-lockfile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact commit (not PR merge ref)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify git HEAD and tree SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_SHA="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          TREE_SHA="$(git rev-parse HEAD^{tree})"
+          echo "EXPECTED_SHA=${EXPECTED_SHA}"
+          echo "HEAD_SHA=${HEAD_SHA}"
+          echo "TREE_SHA=${TREE_SHA}"
+          if [[ "${HEAD_SHA}" != "${EXPECTED_SHA}" ]]; then
+            echo "ABORT: checkout HEAD does not match expected commit"
+            exit 1
+          fi
+      - name: Shell syntax (ops release paths)
+        run: |
+          set -euo pipefail
+          bash -n backend/scripts/ops/lib/vps-production-replica.lib.sh
+          bash -n backend/scripts/ops/vps-production-replica-topology.config.sh
+          bash -n backend/scripts/ops/vps-replica-post-deploy-verify.selftest.sh
+          bash -n backend/scripts/ops/vps-multi-replica-deploy.selftest.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Ops shell contract selftests
+        run: |
+          set -euo pipefail
+          bash backend/scripts/ops/vps-replica-post-deploy-verify.selftest.sh
+          bash backend/scripts/ops/vps-multi-replica-deploy.selftest.sh
+      - name: Multi-replica deploy util regression (node)
+        run: node --test backend/scripts/ops/vps-multi-replica-deploy.util.test.mjs
+      - name: Production build on isolated tree (backend)
+        run: npm ci && npx prisma generate && npm run build
+        working-directory: backend
+      - name: Production build on isolated tree (frontend)
+        run: npm ci && npm run build
+        working-directory: frontend
+
   security-scan:
     name: Security / dependency scan
     needs: install-lockfile
@@ -419,5 +471,6 @@ jobs:
       - production-build
       - nest-boot-check
       - security-scan
+      - release-isolation-proof
     steps:
       - run: echo "All critical vehicle-detail CI gates passed."
