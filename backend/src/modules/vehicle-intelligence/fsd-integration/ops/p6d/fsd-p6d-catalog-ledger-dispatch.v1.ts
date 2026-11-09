@@ -4,11 +4,8 @@ import { createDefaultFsdBudgetConfigV1 } from '@modules/vehicle-intelligence/fu
 import type { Fsd3OneShotExecutionService } from '../fsd3-one-shot-execution.service';
 import type { Fsd3OneShotPreflightResultV1 } from '../fsd3-one-shot-preflight.service';
 import type { PrismaService } from '@shared/database/prisma.service';
-import {
-  assertFsdP6dAuthoritativePersistedCatalogV1,
-  parsePersistedCatalogCheckpointV1,
-} from './fsd-p6d-catalog-provenance-authority.v1';
 import type { Fsd3OneShotLiveProviderV1 } from '../fsd3-one-shot-types.v1';
+import { verifyFsdP6dCatalogOnlyLedgerDispatchV1 } from './fsd-p6d-catalog-only-outcome.v1';
 
 export const FSD_P6D_CATALOG_PREP_REQUEST_PREFIX_V1 = 'p6d-catalog-prep' as const;
 
@@ -20,6 +17,13 @@ export function buildFsdP6dCatalogPrepDiscoveryRequestKeyV1(discoveryRequestKey:
 export function buildFsdP6dCatalogOnlyBudgetV1(base?: FsdBudgetConfigV1): FsdBudgetConfigV1 {
   const normalized = base ?? createDefaultFsdBudgetConfigV1();
   return { ...normalized, maxRequestsPerRun: 1 };
+}
+
+function readCatalogProviderCallCount(
+  provider: Fsd3DiscoveryProviderPortV1,
+): number | null {
+  const maybe = provider as Fsd3DiscoveryProviderPortV1 & { getCatalogCallCount?: () => number };
+  return typeof maybe.getCatalogCallCount === 'function' ? maybe.getCatalogCallCount() : null;
 }
 
 export async function dispatchFsdP6dCatalogWithLedgerV1(input: {
@@ -43,7 +47,12 @@ export async function dispatchFsdP6dCatalogWithLedgerV1(input: {
   declaredCatalogFingerprint: string;
   persistedRunId: string;
   httpStatus: number;
+  clientTerminalStatus: string;
+  ledgerCatalogAttemptsSucceeded: number;
+  ledgerReplayed: boolean;
 }> {
+  const catalogCallsBefore = readCatalogProviderCallCount(input.provider);
+
   const catalogRequestKey = buildFsdP6dCatalogPrepDiscoveryRequestKeyV1(input.scope.discoveryRequestKey);
   const result = await input.executionSvc.executeOneShot({
     scope: {
@@ -59,49 +68,37 @@ export async function dispatchFsdP6dCatalogWithLedgerV1(input: {
     releaseSha: input.releaseSha,
   });
 
-  if (result.terminalStatus !== 'COMPLETED') {
-    throw new Error(`FSD_P6D_CATALOG_LEDGER_DISPATCH_FAILED:${result.terminalStatus}`);
-  }
-
-  const run = await input.prisma.fsdDiscoveryRun.findUnique({
-    where: { id: result.runId },
-    include: {
-      stages: { where: { stageType: 'CATALOG', status: 'SUCCEEDED' }, take: 1 },
-    },
-  });
-  if (!run?.stages[0]) {
-    throw new Error('FSD_P6D_CATALOG_LEDGER_RUN_STAGE_MISSING');
-  }
-
-  const checkpoint = parsePersistedCatalogCheckpointV1(run.stages[0].checkpointJson);
-  if (!checkpoint) {
-    throw new Error('FSD_P6D_CATALOG_LEDGER_CHECKPOINT_MISSING');
-  }
-
-  const authoritative = assertFsdP6dAuthoritativePersistedCatalogV1({
+  const verified = await verifyFsdP6dCatalogOnlyLedgerDispatchV1({
+    prisma: input.prisma,
     env: input.env,
-    context: {
-      runId: run.id,
-      runKey: run.runKey,
-      organizationId: run.organizationId,
-      vehicleId: run.vehicleId,
-      providerSourceLinkId: run.providerSourceLinkId,
-      dimoTokenId: run.dimoTokenId ?? input.preflight.dimoTokenId!,
-      connectionIdentityFingerprint:
-        run.connectionIdentityFingerprint ?? input.preflight.connectionIdentityFingerprint!,
-      invalidatedAt: run.invalidatedAt,
-      checkpoint,
-      stageHttpStatus: run.stages[0].lastHttpStatus,
+    organizationId: input.scope.organizationId,
+    oneShotResult: result,
+    preflight: {
+      dimoTokenId: input.preflight.dimoTokenId!,
+      connectionIdentityFingerprint: input.preflight.connectionIdentityFingerprint!,
     },
   });
 
-  const httpStatus = checkpoint.catalogFetch?.httpStatus ?? run.stages[0].lastHttpStatus ?? 200;
+  if (!verified.verdict.accepted) {
+    throw new Error(verified.verdict.reason);
+  }
+  const accepted = verified as Extract<typeof verified, { verdict: { accepted: true } }>;
+
+  const catalogCallsAfter = readCatalogProviderCallCount(input.provider);
+  const ledgerReplayed =
+    catalogCallsBefore != null &&
+    catalogCallsAfter != null &&
+    catalogCallsAfter === catalogCallsBefore &&
+    accepted.verdict.ledgerCatalogAttemptsSucceeded === 1;
 
   return {
-    runId: run.id,
-    persistedRunId: run.id,
-    availableSignals: authoritative.availableSignals,
-    declaredCatalogFingerprint: authoritative.declaredCatalogFingerprint,
-    httpStatus,
+    runId: accepted.persistedRunId,
+    persistedRunId: accepted.persistedRunId,
+    availableSignals: accepted.availableSignals,
+    declaredCatalogFingerprint: accepted.declaredCatalogFingerprint,
+    httpStatus: accepted.httpStatus,
+    clientTerminalStatus: accepted.verdict.runTerminalClientStatus,
+    ledgerCatalogAttemptsSucceeded: accepted.verdict.ledgerCatalogAttemptsSucceeded,
+    ledgerReplayed,
   };
 }

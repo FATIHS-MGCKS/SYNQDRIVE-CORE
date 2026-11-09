@@ -62,6 +62,12 @@ import {
   type FsdP6dFleetPrepareVehicleBindingV1,
 } from './p6d/fsd-p6d-fleet-prepare-artifact.v1';
 import { assertFsdP6dFsd3RunCatalogConsistencyV1 } from './p6d/fsd-p6d-fsd3-catalog-consistency.v1';
+import {
+  buildInitialFsdP6dFleetProviderAccountingV1,
+  recordFsdP6dPrepareCatalogDispatchAccountingV1,
+  summarizeFsdP6dTotalProviderExposureV1,
+} from './p6d/fsd-p6d-fleet-provider-accounting.v1';
+import { assertFsdP6dTenantScopedCatalogBindingV1 } from './p6d/fsd-p6d-tenant-scoped-catalog-binding.v1';
 
 export type FsdP6dFleetLivePrepareReportV1 = {
   status: 'LIVE_FLEET_PREPARED';
@@ -104,11 +110,27 @@ export class FsdP6dFleetLiveExecutorService {
   }
 
   private async loadVerifiedCatalogEvidenceByRunId(input: {
-    runId: string;
+    organizationId: string;
+    binding: FsdP6dFleetPrepareVehicleBindingV1;
     env?: NodeJS.ProcessEnv;
   }): Promise<FsdP6dVerifiedCatalogEvidenceV1> {
-    const run = await this.prisma.fsdDiscoveryRun.findUnique({
-      where: { id: input.runId },
+    await assertFsdP6dTenantScopedCatalogBindingV1({
+      prisma: this.prisma,
+      organizationId: input.organizationId,
+      binding: input.binding,
+      env: input.env,
+    });
+
+    const runId = input.binding.catalogPersistedRunId!;
+    const run = await this.prisma.fsdDiscoveryRun.findFirst({
+      where: {
+        id: runId,
+        organizationId: input.organizationId,
+        vehicleId: input.binding.vehicleId,
+        providerSourceLinkId: input.binding.providerSourceLinkId,
+        status: 'COMPLETED',
+        invalidatedAt: null,
+      },
       include: { stages: { where: { stageType: 'CATALOG', status: 'SUCCEEDED' }, take: 1 } },
     });
     if (!run?.stages[0]) {
@@ -267,6 +289,11 @@ export class FsdP6dFleetLiveExecutorService {
       architectureReviewCleared: resolveFsdP6cArchitectureReviewClearedV1(env),
     });
 
+    let fleetProviderAccounting = buildInitialFsdP6dFleetProviderAccountingV1({
+      manifest: input.manifest,
+      executePlannedFleetCumulativeRequests: planReport.fleetCumulativePlannedProviderRequests,
+    });
+
     if (input.allowLiveCatalogDispatch && input.liveCatalogProvider) {
       assertFsdP6dProviderPreDispatchGateV1({
         env,
@@ -309,6 +336,11 @@ export class FsdP6dFleetLiveExecutorService {
           provider: input.liveCatalogProvider,
           releaseSha: input.releaseSha,
           budget,
+        });
+        fleetProviderAccounting = recordFsdP6dPrepareCatalogDispatchAccountingV1({
+          accounting: fleetProviderAccounting,
+          ledgerAttemptsSucceeded: dispatch.ledgerCatalogAttemptsSucceeded,
+          replayed: dispatch.ledgerReplayed,
         });
         const evidence: FsdP6dVerifiedCatalogEvidenceV1 = {
           source: 'LIVE_CATALOG_LEDGER',
@@ -356,6 +388,16 @@ export class FsdP6dFleetLiveExecutorService {
         tokenIdByVehicleId: tokenMap,
         allowCatalogPending: false,
       });
+
+      fleetProviderAccounting = {
+        ...fleetProviderAccounting,
+        executePlannedFleetCumulativeRequests: planReport.fleetCumulativePlannedProviderRequests,
+      };
+    } else {
+      fleetProviderAccounting = {
+        ...fleetProviderAccounting,
+        executePlannedFleetCumulativeRequests: planReport.fleetCumulativePlannedProviderRequests,
+      };
     }
 
     const providerBudgetGuard = evaluateFsdP6cProviderBudgetGuardV1(planReport);
@@ -399,15 +441,19 @@ export class FsdP6dFleetLiveExecutorService {
         });
       });
 
-    const prepareArtifact = finalizeFsdP6dFleetPrepareArtifactV1({
-      schemaVersion: 'FSD_P6D_FLEET_PREPARE_ARTIFACT_V1',
-      fleetPrepareRequestKey: input.fleetPrepareRequestKey,
-      releaseSha: input.releaseSha,
-      organizationId: input.manifest.organizationId,
-      preparedAtUtc: new Date().toISOString(),
-      providerBudgetFleetPlanned: planReport.fleetCumulativePlannedProviderRequests,
-      vehicles: artifactVehicles,
-    });
+    const prepareArtifact = finalizeFsdP6dFleetPrepareArtifactV1(
+      {
+        schemaVersion: 'FSD_P6D_FLEET_PREPARE_ARTIFACT_V1',
+        fleetPrepareRequestKey: input.fleetPrepareRequestKey,
+        releaseSha: input.releaseSha,
+        organizationId: input.manifest.organizationId,
+        preparedAtUtc: new Date().toISOString(),
+        providerBudgetFleetPlanned: planReport.fleetCumulativePlannedProviderRequests,
+        providerAccounting: fleetProviderAccounting,
+        vehicles: artifactVehicles,
+      },
+      env,
+    );
 
     return {
       status: 'LIVE_FLEET_PREPARED',
@@ -445,7 +491,15 @@ export class FsdP6dFleetLiveExecutorService {
       manifest: input.manifest,
       releaseSha: input.releaseSha,
       fleetPrepareRequestKey: input.fleetPrepareRequestKey,
+      env,
     });
+
+    const providerExposure = summarizeFsdP6dTotalProviderExposureV1(input.prepareArtifact);
+    if (input.manifest.fleetPlannedRequestDisclosureCap != null) {
+      if (providerExposure.totalPlanned > input.manifest.fleetPlannedRequestDisclosureCap) {
+        throw new Error('FSD_P6D_EXECUTE_PROVIDER_ACCOUNTING_CAP_EXCEEDED');
+      }
+    }
 
     const tokenMap = new Map<string, number>();
     const fields = new Map<string, readonly string[]>();
@@ -455,7 +509,8 @@ export class FsdP6dFleetLiveExecutorService {
     for (const binding of input.prepareArtifact.vehicles) {
       tokenMap.set(binding.vehicleId, binding.dimoTokenId);
       const evidence = await this.loadVerifiedCatalogEvidenceByRunId({
-        runId: binding.catalogPersistedRunId!,
+        organizationId: input.manifest.organizationId,
+        binding,
         env,
       });
       fields.set(binding.vehicleId, evidence.availableSignals);

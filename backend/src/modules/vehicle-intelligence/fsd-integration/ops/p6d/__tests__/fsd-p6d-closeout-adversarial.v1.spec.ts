@@ -13,6 +13,8 @@ import { SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED } from '../../fsd3-one-sh
 import { SYNQDRIVE_FSD_P6C_ARCHITECTURE_REVIEW_CLEARED } from '../../p6c/fsd-p6c-go-no-go.v1';
 import { SYNQDRIVE_FSD_P6D_LIVE_CATALOG_DISPATCH_AUTHORIZED } from '../fsd-p6d-live-fleet-gate.v1';
 import { finalizeFsdP6dFleetPrepareArtifactV1, assertFsdP6dFleetPrepareArtifactForExecuteV1 } from '../fsd-p6d-fleet-prepare-artifact.v1';
+import { FSD_P6D_FLEET_PREPARE_ARTIFACT_HMAC_SECRET_ENV } from '../fsd-p6d-fleet-prepare-artifact-auth.v1';
+import { buildInitialFsdP6dFleetProviderAccountingV1 } from '../fsd-p6d-fleet-provider-accounting.v1';
 
 describe('FSD P6D final closeout adversarial', () => {
   it('Blocker A: rejects persisted catalog without providerKind', () => {
@@ -135,14 +137,22 @@ describe('FSD P6D final closeout adversarial', () => {
 
   it('Blocker D/G: execute rejects stale prepare artifact releaseSha', () => {
     const { manifest } = productionGoNoGoFixture();
-    const artifact = finalizeFsdP6dFleetPrepareArtifactV1({
-      schemaVersion: 'FSD_P6D_FLEET_PREPARE_ARTIFACT_V1',
-      fleetPrepareRequestKey: 'prep-1',
-      releaseSha: 'sha-old',
-      organizationId: manifest.organizationId,
-      preparedAtUtc: new Date().toISOString(),
-      providerBudgetFleetPlanned: 1,
-      vehicles: manifest.vehicles.map((v) => ({
+    const testEnv = {
+      [FSD_P6D_FLEET_PREPARE_ARTIFACT_HMAC_SECRET_ENV]: 'adversarial-hmac-secret',
+    } as NodeJS.ProcessEnv;
+    const artifact = finalizeFsdP6dFleetPrepareArtifactV1(
+      {
+        schemaVersion: 'FSD_P6D_FLEET_PREPARE_ARTIFACT_V1',
+        fleetPrepareRequestKey: 'prep-1',
+        releaseSha: 'sha-old',
+        organizationId: manifest.organizationId,
+        preparedAtUtc: new Date().toISOString(),
+        providerBudgetFleetPlanned: 1,
+        providerAccounting: buildInitialFsdP6dFleetProviderAccountingV1({
+          manifest,
+          executePlannedFleetCumulativeRequests: 1,
+        }),
+        vehicles: manifest.vehicles.map((v) => ({
         label: v.label,
         vehicleId: v.vehicleId,
         providerSourceLinkId: v.providerSourceLinkId,
@@ -154,15 +164,66 @@ describe('FSD P6D final closeout adversarial', () => {
         declaredCatalogFingerprint: 'cfp',
         catalogPersistedRunId: 'run-1',
         catalogEvidenceSource: 'PERSISTED_FSD3_RUN',
-      })),
-    });
+        })),
+      },
+      testEnv,
+    );
     expect(() =>
       assertFsdP6dFleetPrepareArtifactForExecuteV1({
         artifact,
         manifest,
         releaseSha: 'sha-new',
         fleetPrepareRequestKey: 'prep-1',
+        env: testEnv,
       }),
     ).toThrow(/FSD_P6D_PREPARE_ARTIFACT_RELEASE_SHA_MISMATCH/);
+  });
+
+  it('Blocker D: HMAC authentication rejects tampered artifact fields', () => {
+    const { manifest } = productionGoNoGoFixture();
+    const testEnv = {
+      [FSD_P6D_FLEET_PREPARE_ARTIFACT_HMAC_SECRET_ENV]: 'adversarial-hmac-secret',
+    } as NodeJS.ProcessEnv;
+    const artifact = finalizeFsdP6dFleetPrepareArtifactV1(
+      {
+        schemaVersion: 'FSD_P6D_FLEET_PREPARE_ARTIFACT_V1',
+        fleetPrepareRequestKey: 'prep-1',
+        releaseSha: 'sha-a',
+        organizationId: manifest.organizationId,
+        preparedAtUtc: new Date().toISOString(),
+        providerBudgetFleetPlanned: 1,
+        providerAccounting: buildInitialFsdP6dFleetProviderAccountingV1({
+          manifest,
+          executePlannedFleetCumulativeRequests: 1,
+        }),
+        vehicles: manifest.vehicles.map((v) => ({
+          label: v.label,
+          vehicleId: v.vehicleId,
+          providerSourceLinkId: v.providerSourceLinkId,
+          discoveryRequestKey: v.discoveryRequestKey,
+          historicalRequestKey: v.historicalRequestKey,
+          historicalWindow: manifest.historicalWindow,
+          dimoTokenId: 1,
+          connectionIdentityFingerprint: 'fp',
+          declaredCatalogFingerprint: 'cfp',
+          catalogPersistedRunId: 'run-1',
+          catalogEvidenceSource: 'PERSISTED_FSD3_RUN',
+        })),
+      },
+      testEnv,
+    );
+    const tampered = {
+      ...artifact,
+      releaseSha: 'sha-b',
+    };
+    expect(() =>
+      assertFsdP6dFleetPrepareArtifactForExecuteV1({
+        artifact: tampered,
+        manifest,
+        releaseSha: 'sha-b',
+        fleetPrepareRequestKey: 'prep-1',
+        env: testEnv,
+      }),
+    ).toThrow(/FSD_P6D_PREPARE_ARTIFACT_AUTHENTICATION_FAILED/);
   });
 });

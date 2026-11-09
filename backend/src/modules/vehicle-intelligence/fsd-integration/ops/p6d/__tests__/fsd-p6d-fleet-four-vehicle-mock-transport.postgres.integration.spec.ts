@@ -41,7 +41,11 @@ import {
   FSD_P6D_FORCE_MOCK_TRANSPORT,
   FSD_P6D_LIVE_FLEET_AUTHORIZED_RELEASE_SHA,
   SYNQDRIVE_FSD_P6D_LIVE_FLEET_EXECUTE_AUTHORIZED,
+  SYNQDRIVE_FSD_P6D_LIVE_CATALOG_DISPATCH_AUTHORIZED,
 } from '../fsd-p6d-live-fleet-gate.v1';
+import { FSD_P6D_FLEET_PREPARE_ARTIFACT_HMAC_SECRET_ENV } from '../fsd-p6d-fleet-prepare-artifact-auth.v1';
+import { createFsd3MockDiscoveryProvider } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-mock-provider.v1';
+import { FSD_TESLA_P2E_DECLARED_FIELDS_V1 } from '@modules/vehicle-intelligence/full-signal-discovery/__fixtures__/fsd-p2e-tesla.fixture.v1';
 
 const LIVE = process.env.FSD_DISCOVERY_PERSISTENCE_PG === '1';
 
@@ -122,17 +126,84 @@ async function seedFourVehicleFleetManifest(prisma: PrismaClient) {
     });
   }
 
+  return { actorUserId, manifest: buildManifestFromVehicles(organizationId, manifestVehicles) };
+}
+
+function buildManifestFromVehicles(
+  organizationId: string,
+  manifestVehicles: FsdP6cFleetVehicleManifestEntryV1[],
+): FsdP6cFleetManifestV1 {
   return {
-    actorUserId,
-    manifest: {
       schemaVersion: 'FSD_P6C_FLEET_MANIFEST_V1',
       productionManifest: true,
       organizationId,
       historicalWindow: FSD_P2E_HISTORICAL_WINDOW_V1,
       budget: createDefaultFsdBudgetConfigV1(),
       vehicles: manifestVehicles,
-    } satisfies FsdP6cFleetManifestV1,
   };
+}
+
+async function seedFourVehicleFleetCatalogPending(prisma: PrismaClient) {
+  const organizationId = randomUUID();
+  const actorUserId = randomUUID();
+  await ensurePlatformUser(prisma, actorUserId);
+  await prisma.organization.create({
+    data: { id: organizationId, companyName: 'P6D Fleet Catalog Pending', businessType: BusinessType.FLEET },
+  });
+  await ensureOrganizationProductEntitlement(prisma, organizationId, ProductSlug.FLEET);
+
+  const manifestVehicles: FsdP6cFleetVehicleManifestEntryV1[] = [];
+  for (const label of FSD_P6C_FLEET_VEHICLE_LABELS_V1) {
+    const vehicleId = randomUUID();
+    const linkId = randomUUID();
+    const dimoVehicleId = randomUUID();
+    const tokenId = Math.floor(Math.random() * 1_000_000) + 6_000_000;
+    await prisma.vehicle.create({
+      data: {
+        id: vehicleId,
+        organizationId,
+        vin: `VIN${randomUUID().replace(/-/g, '').slice(0, 14)}`,
+        make: 'Test',
+        model: label,
+        year: 2022,
+        fuelType: FuelType.ELECTRIC,
+        status: VehicleStatus.AVAILABLE,
+        healthStatus: HealthStatus.GOOD,
+        driveType: DriveType.RWD,
+      },
+    });
+    await prisma.dimoVehicle.create({
+      data: {
+        id: dimoVehicleId,
+        externalId: `0x${randomUUID().replace(/-/g, '')}`,
+        tokenId,
+        make: 'Test',
+        model: label,
+        year: 2022,
+        fuelType: 'ELECTRIC',
+      },
+    });
+    await prisma.vehicleDataSourceLink.create({
+      data: {
+        id: linkId,
+        vehicleId,
+        provider: 'DIMO',
+        sourceType: 'DIMO',
+        dimoVehicleId,
+        isActive: true,
+      },
+    });
+    manifestVehicles.push({
+      label,
+      vehicleId,
+      providerSourceLinkId: linkId,
+      discoveryRequestKey: randomUUID(),
+      historicalRequestKey: randomUUID(),
+      declaredFieldNames: [],
+    });
+  }
+
+  return { actorUserId, manifest: buildManifestFromVehicles(organizationId, manifestVehicles) };
 }
 
 function buildServices(prisma: PrismaClient) {
@@ -191,6 +262,7 @@ function buildServices(prisma: PrismaClient) {
       [SYNQDRIVE_FSD_P6D_LIVE_FLEET_EXECUTE_AUTHORIZED]: '1',
       [FSD_P6D_LIVE_FLEET_AUTHORIZED_RELEASE_SHA]: releaseSha,
       [FSD_P6D_FORCE_MOCK_TRANSPORT]: '1',
+      [FSD_P6D_FLEET_PREPARE_ARTIFACT_HMAC_SECRET_ENV]: 'p6d-four-vehicle-hmac',
       NODE_ENV: 'test',
     } as NodeJS.ProcessEnv;
 
@@ -243,6 +315,7 @@ function buildServices(prisma: PrismaClient) {
       [SYNQDRIVE_FSD_P6D_LIVE_FLEET_EXECUTE_AUTHORIZED]: '1',
       [FSD_P6D_LIVE_FLEET_AUTHORIZED_RELEASE_SHA]: releaseSha,
       [FSD_P6D_FORCE_MOCK_TRANSPORT]: '1',
+      [FSD_P6D_FLEET_PREPARE_ARTIFACT_HMAC_SECRET_ENV]: 'p6d-four-vehicle-hmac',
       NODE_ENV: 'test',
     } as NodeJS.ProcessEnv;
 
@@ -282,5 +355,69 @@ function buildServices(prisma: PrismaClient) {
     expect(result.fleetStopped).toBe(true);
     expect(result.vehicles).toHaveLength(2);
     expect(result.stopReason).toMatch(/FSD_P6C_FSD4_BLOCKED_FSD3_FAILED/);
+  });
+
+  it('prepare live catalog dispatch for four vehicles records provider accounting', async () => {
+    const { manifest, actorUserId } = await seedFourVehicleFleetCatalogPending(prisma);
+    const { p6d } = buildServices(prisma);
+    const releaseSha = 'p6d-pg-catalog-only-four';
+    const fleetPrepareRequestKey = randomUUID();
+    const catalogProvider = createFsd3MockDiscoveryProvider({
+      mode: 'TESLA_REFERENCE_26',
+      catalogSignals: [...FSD_TESLA_P2E_DECLARED_FIELDS_V1],
+    });
+
+    const env = {
+      ...process.env,
+      FSD3_ONE_SHOT_HOST_ATTESTATION: '1',
+      [SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED]: '1',
+      [SYNQDRIVE_FSD_P6C_ARCHITECTURE_REVIEW_CLEARED]: '1',
+      [SYNQDRIVE_FSD_P6D_LIVE_FLEET_EXECUTE_AUTHORIZED]: '1',
+      [SYNQDRIVE_FSD_P6D_LIVE_CATALOG_DISPATCH_AUTHORIZED]: '1',
+      [FSD_P6D_LIVE_FLEET_AUTHORIZED_RELEASE_SHA]: releaseSha,
+      [FSD_P6D_FORCE_MOCK_TRANSPORT]: '1',
+      [FSD_P6D_FLEET_PREPARE_ARTIFACT_HMAC_SECRET_ENV]: 'p6d-four-vehicle-hmac',
+      NODE_ENV: 'test',
+    } as NodeJS.ProcessEnv;
+
+    const prepared = await p6d.prepareLiveFleetExecution({
+      manifest,
+      actorUserId,
+      releaseSha,
+      fleetPrepareRequestKey,
+      env,
+      allowLiveCatalogDispatch: true,
+      liveCatalogProvider: catalogProvider,
+    });
+
+    expect(prepared.prepareArtifact.vehicles).toHaveLength(4);
+    expect(prepared.prepareArtifact.providerAccounting.prepareCatalogDispatches).toBe(4);
+    expect(prepared.prepareArtifact.providerAccounting.prepareCatalogLedgerAttemptsActual).toBe(4);
+    expect(prepared.prepareArtifact.providerAccounting.prepareCatalogLedgerReplays).toBe(0);
+    expect(prepared.prepareArtifact.artifactAuthenticationTag).toMatch(/^[a-f0-9]{64}$/);
+
+    const manifestWithFields = {
+      ...manifest,
+      vehicles: manifest.vehicles.map((v) => ({
+        ...v,
+        declaredFieldNames: prepared.prepareArtifact.vehicles.find((a) => a.vehicleId === v.vehicleId)!
+          .catalogPersistedRunId ?
+          [...FSD_TESLA_P2E_DECLARED_FIELDS_V1]
+        : [],
+        catalogProvenance: 'VERIFIED_LIVE_CATALOG' as const,
+      })),
+    };
+
+    const executed = await p6d.executeFleetSequentialLive({
+      manifest: manifestWithFields,
+      actorUserId,
+      releaseSha,
+      fleetPrepareRequestKey,
+      prepareArtifact: prepared.prepareArtifact,
+      env,
+    });
+
+    expect(executed.fleetStopped).toBe(false);
+    expect(executed.vehicles).toHaveLength(4);
   });
 });
