@@ -128,8 +128,77 @@ export function arteonFixtureServiceInfo(): ServiceInfoStatus {
   } as unknown as ServiceInfoStatus;
 }
 
-/** Mercedes-like: history present, no forecast payload. */
+export const MERCEDES_HISTORY_FIXTURE: ServiceInfoStatus['serviceHistory'] = [
+  {
+    id: 'mh-2025-full',
+    eventType: 'FULL_SERVICE',
+    date: '2025-06-15T10:00:00.000Z',
+    odometerKm: 42000,
+    workshopName: 'Mercedes-Benz Service Berlin',
+    notes: 'Service A mit Ölwechsel',
+    origin: 'ONEAUTO',
+    provider: 'OneAuto',
+    providerServiceType: 'Service A',
+    performedActions: ['Oil filter', 'Inspection'],
+    externalSource: true,
+  },
+  {
+    id: 'mh-2025-same-day',
+    eventType: 'REPAIR',
+    date: '2025-06-15T14:30:00.000Z',
+    odometerKm: 42010,
+    workshopName: 'Mercedes-Benz Service Berlin',
+    notes: null,
+    origin: 'MANUAL',
+    provider: null,
+    providerServiceType: null,
+    performedActions: ['Wheel alignment check'],
+    externalSource: false,
+  },
+  {
+    id: 'mh-2024-inspection',
+    eventType: 'GENERAL_INSPECTION',
+    date: '2024-03-02T09:00:00.000Z',
+    odometerKm: 28500,
+    workshopName: 'Stern Partner Hamburg',
+    notes: 'HU/AU',
+    origin: 'WORKSHOP_DOCUMENT',
+    provider: 'Workshop OCR',
+    providerServiceType: 'General inspection',
+    performedActions: ['Brake check'],
+    externalSource: false,
+  },
+  {
+    id: 'mh-2023-oil',
+    eventType: 'OIL_CHANGE',
+    date: '2023-11-08T11:00:00.000Z',
+    odometerKm: 19800,
+    workshopName: null,
+    notes: null,
+    origin: 'AI_UPLOAD',
+    provider: null,
+    providerServiceType: null,
+    performedActions: [],
+    externalSource: false,
+  },
+  {
+    id: 'mh-2022-minimal',
+    eventType: 'OTHER',
+    date: 'invalid-iso',
+    odometerKm: null,
+    workshopName: null,
+    notes: null,
+    origin: undefined,
+    provider: null,
+    providerServiceType: null,
+    performedActions: undefined,
+    externalSource: false,
+  },
+];
+
+/** Mercedes-like: history-rich, no forecast payload (pagination fixture). */
 export function mercedesNoForecastServiceInfo(): ServiceInfoStatus {
+  const initial = MERCEDES_HISTORY_FIXTURE.slice(0, 3);
   return {
     hasServiceHistory: true,
     hasServiceBaseline: true,
@@ -140,5 +209,52 @@ export function mercedesNoForecastServiceInfo(): ServiceInfoStatus {
     serviceDueImminently: false,
     tuvOverdue: false,
     bokraftOverdue: false,
+    serviceHistory: initial,
+    serviceHistoryTotalCount: MERCEDES_HISTORY_FIXTURE.length,
+    serviceHistoryHasMore: true,
+    serviceHistoryNextCursor: 'fixture-cursor-2',
   } as unknown as ServiceInfoStatus;
+}
+
+export function mercedesHistoryPage2(): ServiceInfoStatus['serviceHistory'] {
+  return MERCEDES_HISTORY_FIXTURE.slice(1);
+}
+
+/** Arteon-like with mixed plan + short history. */
+export function arteonFixtureWithHistory(): ServiceInfoStatus {
+  const base = arteonFixtureServiceInfo();
+  return {
+    ...base,
+    serviceHistory: [
+      {
+        id: 'art-2026',
+        eventType: 'OIL_CHANGE',
+        date: '2026-01-10T08:00:00.000Z',
+        odometerKm: 47000,
+        workshopName: 'VW Zentrum',
+        notes: 'Nach OneAuto-Plan',
+        origin: 'ONEAUTO',
+        provider: 'OneAuto',
+        providerServiceType: 'Oil service',
+        performedActions: ['Engine oil'],
+        externalSource: true,
+      },
+      {
+        id: 'art-2025',
+        eventType: 'FULL_SERVICE',
+        date: '2025-08-01T12:00:00.000Z',
+        odometerKm: 41000,
+        workshopName: 'Independent Garage',
+        notes: null,
+        origin: 'MANUAL',
+        provider: null,
+        providerServiceType: null,
+        performedActions: ['Filter set'],
+        externalSource: false,
+      },
+    ],
+    serviceHistoryHasMore: false,
+    serviceHistoryNextCursor: null,
+    serviceHistoryTotalCount: 2,
+  } as ServiceInfoStatus;
 }

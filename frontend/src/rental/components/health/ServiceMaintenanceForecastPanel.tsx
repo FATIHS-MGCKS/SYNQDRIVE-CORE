@@ -30,6 +30,8 @@ export interface ServiceMaintenanceForecastPanelProps {
   onChanged?: () => void | Promise<void>;
   /** Compact mode hides per-position detail and keeps only headline + actions. */
   compact?: boolean;
+  /** When set with `compact=false`, splits overview vs plan for tabbed V3 navigation. */
+  surface?: 'full' | 'overview' | 'plan';
   className?: string;
 }
 
@@ -439,6 +441,7 @@ export function ServiceMaintenanceForecastPanel({
   onUploadProof,
   onChanged,
   compact = false,
+  surface = 'full',
   className = '',
 }: ServiceMaintenanceForecastPanelProps) {
   const { t, formattingLocale } = useLanguage();
@@ -479,7 +482,11 @@ export function ServiceMaintenanceForecastPanel({
   const unscheduled = forecast?.unscheduledPositions ?? [];
   const totalPlanRows = planPositions.length + unscheduled.length;
 
-  const showPlanSections = !compact && !loading && !error && forecast != null;
+  const showHero = !compact && (surface === 'full' || surface === 'overview');
+  const showInfoCards = showHero;
+  const showPlanSections =
+    !compact && !loading && !error && forecast != null && (surface === 'full' || surface === 'plan');
+  const showFlagsAndActions = !compact && (surface === 'full' || surface === 'overview');
 
   const emptyPlanHint = useMemo(() => {
     if (!forecast || totalPlanRows > 0) return null;
@@ -497,12 +504,13 @@ export function ServiceMaintenanceForecastPanel({
 
   return (
     <div className={`min-w-0 space-y-4 ${className}`}>
-      {!compact && (
+      {!compact && surface !== 'plan' && (
         <h2 id={pageTitleId} className="text-base font-semibold tracking-tight text-foreground">
           {t('health.serviceInfo.v3.pageTitle')}
         </h2>
       )}
 
+      {showHero && (
       <section aria-labelledby={heroHeadingId} className={calmHeroShellClass(display.tone)}>
         <div className="flex flex-wrap items-center gap-2">
           <p id={heroHeadingId} className={`text-sm font-semibold ${nextServiceToneClass(display.tone)}`}>
@@ -570,8 +578,9 @@ export function ServiceMaintenanceForecastPanel({
           </div>
         )}
       </section>
+      )}
 
-      {!compact && !loading && !error && (
+      {showInfoCards && !loading && !error && (
         <>
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
             <InfoCard>
@@ -614,27 +623,34 @@ export function ServiceMaintenanceForecastPanel({
             </InfoCard>
           </div>
 
-          {showPlanSections && (
-            <div className="min-w-0 space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">{t('health.serviceInfo.v3.plan.title')}</h3>
-              {PLAN_GROUP_ORDER.map((groupKey) => (
-                <PlanGroupSection
-                  key={groupKey}
-                  groupKey={groupKey}
-                  positions={grouped[groupKey]}
-                  unscheduled={unscheduled}
-                  t={t}
-                  fmtLocale={formattingLocale}
-                  scopeId={scopeId}
-                  headlineId={headlineId}
-                />
-              ))}
-              {emptyPlanHint && (
-                <p className="text-xs leading-relaxed text-muted-foreground">{emptyPlanHint}</p>
-              )}
-            </div>
-          )}
+        </>
+      )}
 
+      {surface === 'plan' && !loading && !error && !forecast && (
+        <p className="text-xs leading-relaxed text-muted-foreground">{t('health.serviceInfo.v3.plan.empty')}</p>
+      )}
+
+      {showPlanSections && (
+        <div className="min-w-0 space-y-3">
+          <h3 className="text-sm font-semibold text-foreground">{t('health.serviceInfo.v3.plan.title')}</h3>
+          {PLAN_GROUP_ORDER.map((groupKey) => (
+            <PlanGroupSection
+              key={groupKey}
+              groupKey={groupKey}
+              positions={grouped[groupKey]}
+              unscheduled={unscheduled}
+              t={t}
+              fmtLocale={formattingLocale}
+              scopeId={scopeId}
+              headlineId={headlineId}
+            />
+          ))}
+          {emptyPlanHint && <p className="text-xs leading-relaxed text-muted-foreground">{emptyPlanHint}</p>}
+        </div>
+      )}
+
+      {showFlagsAndActions && !loading && !error && (
+        <>
           <FlagList flags={flags} t={t} />
 
           <div className="border-t border-border pt-4">
