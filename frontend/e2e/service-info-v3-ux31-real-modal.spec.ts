@@ -5,6 +5,13 @@ import {
   openHealthErrorsServiceModalHarness,
   serviceModalRoot,
 } from './health-errors-service-modal-e2e-fixtures';
+import {
+  assertNoFocusInsideHiddenTabPanels,
+  countNaiveModalFocusables,
+  countVisibleModalFocusables,
+  runForwardTabCycle,
+  runReverseTabCycle,
+} from './portal-modal-focus-cycle';
 
 /**
  * UX-3.1 — real HealthErrorsView portal modal (mocked API). Not the DEV fixture shell.
@@ -45,17 +52,56 @@ test.describe('Service Info V3 UX-3.1 — real HealthErrorsView service modal', 
     await expect(serviceModalRoot(page)).toHaveCount(0, { timeout: 5_000 });
   });
 
-  test('Tab focus stays inside modal shell', async ({ page }) => {
+  test('full forward Tab cycle (Übersicht): hidden tab descendants excluded', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     const modal = await openHealthErrorsServiceModalHarness(page);
-    for (let i = 0; i < 6; i += 1) {
-      await page.keyboard.press('Tab');
-      const focused = await page.evaluate(() => {
-        const modalEl = document.querySelector('[data-testid="service-info-v3-modal"]');
-        const active = document.activeElement;
-        return Boolean(modalEl && active && modalEl.contains(active));
-      });
-      expect(focused).toBe(true);
+    await expect(modal.getByRole('tab', { name: 'Übersicht' })).toHaveAttribute('aria-selected', 'true');
+    const visibleCount = await countVisibleModalFocusables(modal);
+    const naiveCount = await countNaiveModalFocusables(modal);
+    expect(visibleCount).toBeGreaterThan(2);
+    expect(visibleCount).toBeLessThan(naiveCount);
+
+    const { steps, visited } = await runForwardTabCycle(page);
+    expect(steps).toBeGreaterThan(2);
+    expect(steps).toBeLessThanOrEqual(visibleCount);
+    expect(new Set(visited).size).toBe(steps);
+    await assertNoFocusInsideHiddenTabPanels(modal);
+  });
+
+  test('full reverse Shift+Tab cycle (Übersicht)', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const modal = await openHealthErrorsServiceModalHarness(page);
+    const visibleCount = await countVisibleModalFocusables(modal);
+    const { steps, visited } = await runReverseTabCycle(page);
+    expect(steps).toBeGreaterThan(2);
+    expect(steps).toBeLessThanOrEqual(visibleCount);
+    expect(new Set(visited).size).toBe(steps);
+    await assertNoFocusInsideHiddenTabPanels(modal);
+  });
+
+  test('full Tab cycles after switching Übersicht → Wartungsplan → Servicehistorie', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const modal = await openHealthErrorsServiceModalHarness(page);
+
+    for (const tabName of ['Wartungsplan', 'Servicehistorie', 'Übersicht'] as const) {
+      await modal.getByRole('tab', { name: tabName }).click();
+      await expect(modal.getByRole('tab', { name: tabName })).toHaveAttribute('aria-selected', 'true');
+      const visibleCount = await countVisibleModalFocusables(modal);
+      const naiveCount = await countNaiveModalFocusables(modal);
+      expect(visibleCount).toBeLessThan(naiveCount);
+      expect(visibleCount).toBeGreaterThan(2);
+
+      const forward = await runForwardTabCycle(page);
+      expect(forward.steps).toBeGreaterThan(2);
+      expect(forward.steps).toBeLessThanOrEqual(visibleCount);
+      expect(new Set(forward.visited).size).toBe(forward.steps);
+      await assertNoFocusInsideHiddenTabPanels(modal);
+
+      const reverse = await runReverseTabCycle(page);
+      expect(reverse.steps).toBeGreaterThan(2);
+      expect(reverse.steps).toBeLessThanOrEqual(visibleCount);
+      expect(new Set(reverse.visited).size).toBe(reverse.steps);
+      await assertNoFocusInsideHiddenTabPanels(modal);
     }
   });
 

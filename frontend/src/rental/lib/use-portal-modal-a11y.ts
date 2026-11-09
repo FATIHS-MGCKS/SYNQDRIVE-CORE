@@ -3,12 +3,34 @@ import { useEffect, useRef, type RefObject } from 'react';
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/** Ancestors (below boundary) that hide content from the accessibility / focus order. */
+export function isUnderNonFocusableAncestor(el: HTMLElement, boundary: HTMLElement): boolean {
+  let node: HTMLElement | null = el;
+  while (node && node !== boundary) {
+    if (node.hasAttribute('hidden') || node.hidden) return true;
+    if (node.hasAttribute('inert')) return true;
+    if (node.getAttribute('aria-hidden') === 'true') return true;
+    const style = window.getComputedStyle(node);
+    if (style.display === 'none' || style.visibility === 'hidden') return true;
+    node = node.parentElement;
+  }
+  return false;
+}
+
+function isDirectlyFocusableVisible(el: HTMLElement): boolean {
+  if (el.hasAttribute('disabled')) return false;
+  if (el.getAttribute('aria-hidden') === 'true') return false;
+  const style = window.getComputedStyle(el);
+  if (style.visibility === 'hidden' || style.display === 'none') return false;
+  return true;
+}
+
 export function getFocusableElements(root: HTMLElement): HTMLElement[] {
   const nodes = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
   return nodes.filter((el) => {
-    if (el.hasAttribute('disabled') || el.getAttribute('aria-hidden') === 'true') return false;
-    const style = window.getComputedStyle(el);
-    return style.visibility !== 'hidden' && style.display !== 'none';
+    if (!isDirectlyFocusableVisible(el)) return false;
+    if (isUnderNonFocusableAncestor(el, root)) return false;
+    return true;
   });
 }
 
@@ -125,13 +147,14 @@ export function usePortalModalA11y({
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
       const current = document.activeElement as HTMLElement | null;
+      const idx = current ? focusables.indexOf(current) : -1;
 
       if (event.shiftKey) {
-        if (current === first || (current && !container.contains(current))) {
+        if (idx <= 0) {
           event.preventDefault();
           last.focus();
         }
-      } else if (current === last) {
+      } else if (idx === focusables.length - 1 || idx === -1) {
         event.preventDefault();
         first.focus();
       }

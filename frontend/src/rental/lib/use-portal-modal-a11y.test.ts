@@ -3,7 +3,12 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 import { createElement, useRef, type RefObject } from 'react';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
-import { getFocusableElements, isRadixDialogOpen, usePortalModalA11y } from './use-portal-modal-a11y';
+import {
+  getFocusableElements,
+  isRadixDialogOpen,
+  isUnderNonFocusableAncestor,
+  usePortalModalA11y,
+} from './use-portal-modal-a11y';
 
 function Harness({
   active,
@@ -42,6 +47,46 @@ describe('use-portal-modal-a11y', () => {
     const root = document.createElement('div');
     root.innerHTML = '<button id="a">A</button><a href="/x">B</a>';
     expect(getFocusableElements(root).length).toBe(2);
+  });
+
+  it('excludes focusables inside hidden tab panels', () => {
+    const root = document.createElement('div');
+    root.innerHTML = `
+      <button id="close">Close</button>
+      <div role="tablist">
+        <button role="tab">Übersicht</button>
+        <button role="tab">Plan</button>
+      </div>
+      <div role="tabpanel" id="panel-overview" tabindex="0">
+        <button id="visible">Visible</button>
+      </div>
+      <div role="tabpanel" id="panel-plan" hidden tabindex="0" class="hidden">
+        <button id="hidden-plan">Hidden plan action</button>
+      </div>
+      <div role="tabpanel" id="panel-history" hidden tabindex="0">
+        <button id="hidden-history">Hidden history</button>
+      </div>
+    `;
+    const focusables = getFocusableElements(root);
+    const ids = focusables.map((el) => el.id).filter(Boolean);
+    expect(ids).toContain('close');
+    expect(ids).toContain('visible');
+    expect(ids).not.toContain('hidden-plan');
+    expect(ids).not.toContain('hidden-history');
+    expect(focusables.some((el) => el.id === 'panel-plan')).toBe(false);
+    expect(focusables.some((el) => el.id === 'panel-history')).toBe(false);
+  });
+
+  it('isUnderNonFocusableAncestor respects inert and aria-hidden', () => {
+    const root = document.createElement('div');
+    const inertHost = document.createElement('div');
+    inertHost.setAttribute('inert', '');
+    const btn = document.createElement('button');
+    inertHost.appendChild(btn);
+    root.appendChild(inertHost);
+    document.body.appendChild(root);
+    expect(isUnderNonFocusableAncestor(btn, root)).toBe(true);
+    document.body.removeChild(root);
   });
 
   it('detects radix dialog sentinel', () => {
