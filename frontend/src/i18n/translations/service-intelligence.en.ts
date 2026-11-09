@@ -164,4 +164,6 @@ export const serviceIntelligenceEn = {
   'health.serviceInfo.v3.details.eventSource': 'Baseline source: {source}',
   'health.serviceInfo.v3.details.odometerSource': 'Odometer source: {source}',
   'health.serviceInfo.v3.details.baselineMissing': 'No proven baseline for this position',
+  'health.serviceInfo.v3.devFixture.title': 'Service Info V3 — DEV fixture',
+  'health.serviceInfo.v3.devFixture.subtitle': 'Arteon full plan + Mercedes without forecast payload',
 } as const;

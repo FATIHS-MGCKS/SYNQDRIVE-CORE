@@ -164,4 +164,6 @@ export const serviceIntelligencePl = {
   'health.serviceInfo.v3.details.eventSource': 'Źródło punktu wyjścia: {source}',
   'health.serviceInfo.v3.details.odometerSource': 'Źródło licznika: {source}',
   'health.serviceInfo.v3.details.baselineMissing': 'Brak udokumentowanego punktu wyjścia dla tej pozycji',
+  'health.serviceInfo.v3.devFixture.title': 'Service Info V3 — fixture DEV',
+  'health.serviceInfo.v3.devFixture.subtitle': 'Arteon pełny plan + Mercedes bez payloadu prognozy',
 } as const;

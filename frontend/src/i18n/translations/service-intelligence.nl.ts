@@ -164,4 +164,6 @@ export const serviceIntelligenceNl = {
   'health.serviceInfo.v3.details.eventSource': 'Bron uitgangspunt: {source}',
   'health.serviceInfo.v3.details.odometerSource': 'Bron kilometerstand: {source}',
   'health.serviceInfo.v3.details.baselineMissing': 'Geen bewezen uitgangspunt voor deze positie',
+  'health.serviceInfo.v3.devFixture.title': 'Service Info V3 — DEV-fixture',
+  'health.serviceInfo.v3.devFixture.subtitle': 'Arteon volledig schema + Mercedes zonder forecast-payload',
 } as const;

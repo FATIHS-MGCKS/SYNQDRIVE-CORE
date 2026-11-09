@@ -164,4 +164,6 @@ export const serviceIntelligenceTr = {
   'health.serviceInfo.v3.details.eventSource': 'Başlangıç noktası kaynağı: {source}',
   'health.serviceInfo.v3.details.odometerSource': 'Kilometre kaynağı: {source}',
   'health.serviceInfo.v3.details.baselineMissing': 'Bu kalem için belgelenmiş başlangıç noktası yok',
+  'health.serviceInfo.v3.devFixture.title': 'Service Info V3 — DEV demi verisi',
+  'health.serviceInfo.v3.devFixture.subtitle': 'Arteon tam plan + Mercedes tahmin payloadu yok',
 } as const;

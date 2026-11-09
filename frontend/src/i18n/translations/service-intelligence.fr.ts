@@ -164,4 +164,6 @@ export const serviceIntelligenceFr = {
   'health.serviceInfo.v3.details.eventSource': 'Source du point de départ : {source}',
   'health.serviceInfo.v3.details.odometerSource': 'Source du compteur : {source}',
   'health.serviceInfo.v3.details.baselineMissing': 'Aucun point de départ justifié pour cette position',
+  'health.serviceInfo.v3.devFixture.title': 'Service Info V3 — fixture DEV',
+  'health.serviceInfo.v3.devFixture.subtitle': 'Arteon plan complet + Mercedes sans payload de prévision',
 } as const;

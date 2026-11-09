@@ -164,4 +164,6 @@ export const serviceIntelligenceCs = {
   'health.serviceInfo.v3.details.eventSource': 'Zdroj výchozího bodu: {source}',
   'health.serviceInfo.v3.details.odometerSource': 'Zdroj tachometru: {source}',
   'health.serviceInfo.v3.details.baselineMissing': 'Žádný doložený výchozí bod pro tuto položku',
+  'health.serviceInfo.v3.devFixture.title': 'Service Info V3 — DEV fixture',
+  'health.serviceInfo.v3.devFixture.subtitle': 'Arteon plný plán + Mercedes bez forecast payloadu',
 } as const;

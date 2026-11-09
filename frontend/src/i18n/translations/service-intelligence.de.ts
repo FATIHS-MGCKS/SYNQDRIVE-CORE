@@ -164,4 +164,6 @@ export const serviceIntelligenceDe = {
   'health.serviceInfo.v3.details.eventSource': 'Ausgangspunkt-Quelle: {source}',
   'health.serviceInfo.v3.details.odometerSource': 'Kilometerstand-Quelle: {source}',
   'health.serviceInfo.v3.details.baselineMissing': 'Kein nachgewiesener Ausgangspunkt für diese Position',
+  'health.serviceInfo.v3.devFixture.title': 'Service Info V3 — DEV-Fixture',
+  'health.serviceInfo.v3.devFixture.subtitle': 'Arteon vollständiger Plan + Mercedes ohne Forecast-Payload',
 } as const;
