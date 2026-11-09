@@ -42,4 +42,6 @@ if ! declare -F vps_replica_rollback >/dev/null; then
   exit 1
 fi
 
+bash "${SCRIPT_DIR}/vps-replica-post-deploy-verify.selftest.sh"
+
 echo "vps-multi-replica-deploy selftest: OK"

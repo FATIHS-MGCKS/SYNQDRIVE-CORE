@@ -36,7 +36,18 @@ vps_replica_pm2_exists() {
 
 vps_replica_port_listening() {
   local port=$1
-  ss -tlnp 2>/dev/null | grep -q ":${port} " || ss -tlnp 2>/dev/null | grep -q ":${port}\b"
+  local listening_lines
+  local ss_rc=0
+  # Capture ss output once — avoids `ss | grep -q` SIGPIPE + `set -o pipefail` false negatives.
+  # Fail closed on non-zero ss exit even when partial stdout contained a matching line.
+  listening_lines="$(ss -tlnp 2>/dev/null)" || ss_rc=$?
+  if [[ "$ss_rc" -ne 0 ]]; then
+    return 1
+  fi
+  if [[ -z "${listening_lines//[[:space:]]/}" ]]; then
+    return 1
+  fi
+  grep -qE ":${port}([^0-9]|$)" <<<"$listening_lines"
 }
 
 vps_replica_release_sha() {
@@ -62,14 +73,14 @@ vps_replica_curl_health_ok() {
   local port=$1
   local body
   body=$(curl -sf "http://127.0.0.1:${port}/api/v1/health" 2>/dev/null || true)
-  [[ -n "$body" ]] && echo "$body" | grep -q '"status":"ok"'
+  [[ -n "$body" ]] && grep -q '"status":"ok"' <<<"$body"
 }
 
 vps_replica_curl_readiness_ok() {
   local port=$1
   local body
   body=$(curl -sf "http://127.0.0.1:${port}/api/v1/health/readiness" 2>/dev/null || true)
-  [[ -n "$body" ]] && echo "$body" | grep -q '"status":"ok"'
+  [[ -n "$body" ]] && grep -q '"status":"ok"' <<<"$body"
 }
 
 vps_replica_readiness_role() {
@@ -316,6 +327,38 @@ vps_replica_nginx_dual_upstream_ok() {
   return 1
 }
 
+# Bounded post-deploy probes for port / health / readiness (does not relax SHA, PM2, or uptime gates).
+vps_replica_verify_runtime_probes_bounded() {
+  local name=$1
+  local port=$2
+  local attempt=0
+  local max_attempts="${SYNQDRIVE_POST_DEPLOY_RUNTIME_VERIFY_RETRIES}"
+  local delay="${SYNQDRIVE_POST_DEPLOY_RUNTIME_VERIFY_DELAY_SEC}"
+
+  while [[ "$attempt" -lt "$max_attempts" ]]; do
+    attempt=$((attempt + 1))
+    if vps_replica_port_listening "$port" \
+      && vps_replica_curl_health_ok "$port" \
+      && vps_replica_curl_readiness_ok "$port"; then
+      return 0
+    fi
+    if [[ "$attempt" -lt "$max_attempts" ]]; then
+      sleep "$delay"
+    fi
+  done
+
+  if ! vps_replica_port_listening "$port"; then
+    vps_replica_log "ABORT: ${name} port ${port} not listening"
+    return 1
+  fi
+  if ! vps_replica_curl_health_ok "$port"; then
+    vps_replica_log "ABORT: ${name} health failed on port ${port}"
+    return 1
+  fi
+  vps_replica_log "ABORT: ${name} readiness failed on port ${port}"
+  return 1
+}
+
 # Runtime identity + replica health without post-deploy uptime freshness (P4B16 reconcile path).
 vps_replica_verify_runtime_identity_no_uptime() {
   local target_sha=$1
@@ -341,18 +384,7 @@ vps_replica_verify_runtime_identity_no_uptime() {
       vps_replica_log "ABORT: required replica ${name} not registered in PM2"
       return 1
     fi
-    if ! vps_replica_port_listening "$port"; then
-      vps_replica_log "ABORT: ${name} port ${port} not listening"
-      return 1
-    fi
-    if ! vps_replica_curl_health_ok "$port"; then
-      vps_replica_log "ABORT: ${name} health failed on port ${port}"
-      return 1
-    fi
-    if ! vps_replica_curl_readiness_ok "$port"; then
-      vps_replica_log "ABORT: ${name} readiness failed on port ${port}"
-      return 1
-    fi
+    vps_replica_verify_runtime_probes_bounded "$name" "$port" || return 1
   done
 
   vps_replica_log "SHA invariant OK: all replicas on ${target_sha} (no uptime gate)"
