@@ -221,6 +221,20 @@ export function mercedesHistoryPage2(): ServiceInfoStatus['serviceHistory'] {
 }
 
 /** Arteon-like with mixed plan + short history. */
+/** Arteon modal QA: overdue advisory plus blocking TÜV for compliance presentation. */
+export function arteonFixtureModalPresentation(): ServiceInfoStatus {
+  const base = arteonFixtureWithHistory();
+  return {
+    ...base,
+    tuvValidTill: '2025-08-01T00:00:00.000Z',
+    tuvRemainingDays: -12,
+    tuvOverdue: true,
+    bokraftValidTill: '2027-04-15T00:00:00.000Z',
+    bokraftRemainingDays: 120,
+    bokraftOverdue: false,
+  } as unknown as ServiceInfoStatus;
+}
+
 export function arteonFixtureWithHistory(): ServiceInfoStatus {
   const base = arteonFixtureServiceInfo();
   return {

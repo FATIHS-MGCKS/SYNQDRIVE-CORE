@@ -16,7 +16,8 @@ import {
   nextServiceToneClass,
 } from '../lib/service-info-display';
 import { ServiceInfoV3Panel } from './health/ServiceInfoV3Panel';
-import { ComplianceTaskActions } from './ComplianceTaskActions';
+import { ServiceInfoV3ComplianceCards } from './health/ServiceInfoV3ComplianceCards';
+import { ServiceInfoV3OperationalSection } from './health/ServiceInfoV3OperationalSection';
 import { DashboardWarningLightsPanel } from './DashboardWarningLightsPanel';
 import { isBatteryTelltaleActive } from '../lib/dashboard-warning-lights-display';
 import {
@@ -2367,90 +2368,56 @@ export function HealthErrorsView({
 
       {/* ─── Service Modal ─── */}
       {showService && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => closeModal(setShowService)}>
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+          onClick={() => closeModal(setShowService)}
+        >
           <div className="absolute inset-0 overlay-scrim transition-opacity duration-500 ease-out" style={{ opacity: isModalAnimating ? 1 : 0 }} />
-          <div onClick={(e) => e.stopPropagation()} className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto p-5 transition-all duration-500 ease-out surface-premium`} style={{ transform: isModalAnimating ? 'scale(1) translateY(0)' : 'scale(0.9) translateY(30px)', opacity: isModalAnimating ? 1 : 0 }}>
-            <button onClick={() => closeModal(setShowService)} className={`absolute top-5 right-5 p-1 rounded-full transition-colors z-10 ${'text-muted-foreground hover:text-foreground hover:bg-muted'}`}><Icon name="x" className="w-5 h-5" /></button>
-            <h2 className={`text-sm font-semibold tracking-tight mb-5 text-foreground`}>Service & Compliance</h2>
-
-            <ServiceInfoV3Panel
-              className="mb-5"
-              serviceInfo={serviceInfo}
-              loading={serviceInfoLoading}
-              error={serviceInfoError}
-              vehicleId={vehicleId}
-              orgId={orgId}
-              onUploadProof={vehicleId ? openHealthDocumentIntake : undefined}
-              onChanged={refreshServiceInfo}
-              onRetryServiceInfo={() => void refreshServiceInfo()}
-              historySyncEpoch={serviceInfoSyncEpoch}
-            />
-
-            {vehicleId && serviceInfo?.taskSignals && serviceInfo.taskSignals.length > 0 && (
-              <div className="mb-5">
-                <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">
-                  Aufgaben & Vorschläge
-                </p>
-                <ComplianceTaskActions vehicleId={vehicleId} signals={serviceInfo.taskSignals} />
-              </div>
-            )}
-
-            {/* Active auto-tasks (V4.7.59) — materialized by the Insight→Task bridge */}
-            {serviceAutoTasks.length > 0 && (
-              <div className="rounded-lg p-4 mb-5 border border-amber-300/50 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10">
-                <div className="flex items-center gap-2 mb-2.5">
-                  <Icon name="list-todo" className="w-4 h-4 text-amber-600 dark:text-amber-300" />
-                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
-                    Automatisch erzeugte Tasks ({serviceAutoTasks.length})
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  {serviceAutoTasks.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between gap-3">
-                      <span className="text-xs text-amber-900 dark:text-amber-100 truncate">{t.title}</span>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${t.priority === 'URGENT' ? 'bg-red-500/15 text-red-600 dark:text-red-300' : 'bg-amber-500/20 text-amber-700 dark:text-amber-300'}`}>
-                        {t.priority === 'URGENT' ? 'Überfällig' : 'Bald fällig'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[10px] mt-2.5 text-amber-700/80 dark:text-amber-300/70">
-                  Sichtbar unter Task Management — wird automatisch geschlossen, sobald der Termin erledigt ist.
-                </p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-              {(() => {
-                const tuv = buildTuvComplianceDisplay(serviceInfo);
-                return (
-                  <div className={`rounded-lg p-4 border bg-muted border-border`}>
-                    <h3 className="text-sm font-semibold mb-3 text-foreground">TÜV</h3>
-                    <p className={`text-lg font-bold ${nextServiceToneClass(tuv.tone)}`}>{tuv.label}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Gültig bis: {tuv.validTill ?? '—'}</p>
-                    <p className={`text-xs mt-1 font-medium ${nextServiceToneClass(tuv.tone)}`}>{tuv.detail}</p>
-                    {tuv.blocksRentalHint && (
-                      <p className="text-xs mt-2 font-bold text-red-600 dark:text-red-400">Nicht vermieten — TÜV abgelaufen</p>
-                    )}
-                  </div>
-                );
-              })()}
-              {(() => {
-                const bok = buildBokraftComplianceDisplay(serviceInfo);
-                return (
-                  <div className={`rounded-lg p-4 border bg-muted border-border`}>
-                    <h3 className="text-sm font-semibold mb-3 text-foreground">BOKraft</h3>
-                    <p className={`text-lg font-bold ${nextServiceToneClass(bok.tone)}`}>{bok.label}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Gültig bis: {bok.validTill ?? '—'}</p>
-                    <p className={`text-xs mt-1 font-medium ${nextServiceToneClass(bok.tone)}`}>{bok.detail}</p>
-                    {bok.blocksRentalHint && (
-                      <p className="text-xs mt-2 font-bold text-red-600 dark:text-red-400">Nicht vermieten — BOKraft abgelaufen</p>
-                    )}
-                  </div>
-                );
-              })()}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="service-info-v3-modal-title"
+            onClick={(e) => e.stopPropagation()}
+            className="relative flex max-h-[min(90vh,100dvh)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-border surface-premium shadow-xl transition-all duration-500 ease-out sm:rounded-2xl"
+            style={{ transform: isModalAnimating ? 'scale(1) translateY(0)' : 'scale(0.98) translateY(12px)', opacity: isModalAnimating ? 1 : 0 }}
+            data-testid="service-info-v3-modal"
+          >
+            <div className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-5 sm:py-4">
+              <h2 id="service-info-v3-modal-title" className="pr-8 text-base font-semibold tracking-tight text-foreground">
+                {t('health.serviceInfo.v3.pageTitle')}
+              </h2>
+              <button
+                type="button"
+                onClick={() => closeModal(setShowService)}
+                aria-label={t('common.close')}
+                className="absolute right-3 top-3 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:right-4 sm:top-4"
+              >
+                <Icon name="x" className="h-5 w-5" aria-hidden />
+              </button>
             </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+              <ServiceInfoV3Panel
+                presentation="modal"
+                className="mb-5"
+                serviceInfo={serviceInfo}
+                loading={serviceInfoLoading}
+                error={serviceInfoError}
+                vehicleId={vehicleId}
+                orgId={orgId}
+                onUploadProof={vehicleId ? openHealthDocumentIntake : undefined}
+                onChanged={refreshServiceInfo}
+                onRetryServiceInfo={() => void refreshServiceInfo()}
+                historySyncEpoch={serviceInfoSyncEpoch}
+              />
 
+              <ServiceInfoV3ComplianceCards serviceInfo={serviceInfo} className="mb-5" />
+
+              <ServiceInfoV3OperationalSection
+                vehicleId={vehicleId}
+                taskSignals={serviceInfo?.taskSignals}
+                autoTasks={serviceAutoTasks}
+              />
+            </div>
           </div>
         </div>,
         document.body
