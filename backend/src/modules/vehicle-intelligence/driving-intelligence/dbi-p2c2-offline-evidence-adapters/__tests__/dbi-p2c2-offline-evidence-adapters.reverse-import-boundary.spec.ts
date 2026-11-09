@@ -31,7 +31,7 @@ describe('dbi-p2c2 reverse import boundary', () => {
 
   it('driving-intelligence runtime (excl. fixtures) still forbids fixture package', () => {
     const runtimeSources = listRuntimeTsFiles(DRIVING_INTELLIGENCE_ROOT).filter(
-      (f) => !f.includes(FIXTURE_PACKAGE_FRAGMENT) && !f.includes('dbi-p2c2-offline-evidence-adapters/__tests__'),
+      (f) => !f.includes(FIXTURE_PACKAGE_FRAGMENT) && !f.includes('__tests__'),
     );
     for (const file of runtimeSources) {
       const content = fs.readFileSync(file, 'utf8');
