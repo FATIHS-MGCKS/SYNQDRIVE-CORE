@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigType } from '@nestjs/config';
 import dimoConfig from '@config/dimo.config';
+import redisConfig from '@config/redis.config';
 import { RedisService } from '@shared/redis/redis.service';
 import dimoProviderLimiterConfig from '@config/dimo-provider-limiter.config';
 import { RedisModule } from '@shared/redis/redis.module';
@@ -24,6 +25,7 @@ import { Registry } from 'prom-client';
   imports: [
     FsdDiscoveryOpsModule,
     RedisModule,
+    ConfigModule.forFeature(redisConfig),
     ConfigModule.forFeature(dimoConfig),
     ConfigModule.forFeature(dimoProviderLimiterConfig),
     ConfigModule.forFeature(dimoProviderBudgetConfig),
