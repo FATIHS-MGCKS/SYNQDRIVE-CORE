@@ -14,7 +14,10 @@ import {
   DS4_REVIVING_IDLE_DUAL_FACET_POLICY,
   detectRevvingIdleDualFacetCandidates,
 } from '../ds4-powertrain-demand-revving-idle-dual-facet.v1';
-import { evaluateRevvingIdleFacetAAssessability } from '../ds4-powertrain-demand-revving-idle-assessability.v1';
+import {
+  evaluateRevvingIdleFacetAAssessability,
+  evaluateRevvingIdleFacetBAssessability,
+} from '../ds4-powertrain-demand-revving-idle-assessability.v1';
 import { computeDs4PowertrainDemandRevvingIdleResearchV1 } from '../ds4-powertrain-demand-revving-idle.kernel.v1';
 import { canonicalizeMultichannelObservations } from '../ds4-powertrain-demand-multichannel-canonicalize.v1';
 import { computeMultichannelContentFingerprint } from '../ds4-powertrain-demand-research.input-binding.v1';
@@ -729,11 +732,20 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
       expect(verdict.diagnostics.assessabilityReasonCodes).toContain(
         'NO_SINGLE_COHERENT_RUN_MEETS_LABEL_AND_SPAN',
       );
-      expect(verdict.diagnostics.labelsInMaxSpanRun).toBeGreaterThan(0);
-      expect(verdict.diagnostics.spanMsInMaxLabelCountRun).toBeGreaterThan(0);
+      expect(verdict.diagnostics).toMatchObject({
+        longestCoherentRunLabelCount: 3,
+        spanMsInMaxLabelCountRun: 2000,
+        longestCoherentResearchLabelSpanMs: 4000,
+        labelsInMaxSpanRun: 2,
+        maxQualifyingCoherentResearchLabelSpanMs: 0,
+      });
+      const reversed = evaluateRevvingIdleFacetAAssessability(
+        canonicalizeMultichannelObservations([...grid].reverse()),
+      );
+      expect(reversed.diagnostics).toEqual(verdict.diagnostics);
     });
 
-    it('paired diagnostics on mixed runs expose independent maxima', () => {
+    it('C paired diagnostics on dense+coarse Facet B (exact pins, order-stable)', () => {
       const dense = buildObservationSeries('2026-01-01T10:00:01.000Z', 101, 1, () => ({
         speedKmh: 0,
         rpm: 850,
@@ -742,12 +754,19 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
         speedKmh: 0,
         rpm: 850,
       }));
-      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
-        buildBoundPowertrainInput({ multichannelObservations: [...dense, ...coarse], tripId: TRIP }),
+      const grid = [...dense, ...coarse];
+      const forward = evaluateRevvingIdleFacetBAssessability(canonicalizeMultichannelObservations(grid));
+      const reversed = evaluateRevvingIdleFacetBAssessability(
+        canonicalizeMultichannelObservations([...grid].reverse()),
       );
-      const d = out.revvingIdle.facetB.coverageDiagnostics;
-      expect(d.longestCoherentRunLabelCount).toBeGreaterThan(d.labelsInMaxSpanRun);
-      expect(d.longestCoherentResearchLabelSpanMs).toBeGreaterThan(d.spanMsInMaxLabelCountRun);
+      expect(forward.diagnostics).toMatchObject({
+        longestCoherentRunLabelCount: 101,
+        spanMsInMaxLabelCountRun: 100_000,
+        longestCoherentResearchLabelSpanMs: 180_000,
+        labelsInMaxSpanRun: 19,
+        maxQualifyingCoherentResearchLabelSpanMs: 180_000,
+      });
+      expect(reversed.diagnostics).toEqual(forward.diagnostics);
     });
 
     describe('Facet A boundary matrix', () => {

@@ -70,6 +70,11 @@ export type Ds4RpmEpisodeResearchInputV1 = {
   reference: Ds4RpmReferenceIntelligenceV1ComputeInput['reference'];
 };
 
+/**
+ * Binding / applicability gate — not descriptive episode support.
+ * highEpisodes.status carries SUPPORTED_DESCRIPTIVE | NOT_OBSERVED | NOT_ASSESSABLE.
+ * semanticGuards.notEvidenceCandidate=true — episodes are not proxy misuse candidates.
+ */
 export type Ds4RpmEpisodeResearchResultStatus = 'COMPUTED' | 'ABSTAINED' | 'NOT_APPLICABLE';
 
 export type Ds4RpmEpisodeResearchEpisodeCategoryStatus =
