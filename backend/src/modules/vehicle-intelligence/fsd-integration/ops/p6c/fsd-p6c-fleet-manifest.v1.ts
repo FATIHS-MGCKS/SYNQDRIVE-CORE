@@ -25,6 +25,8 @@ export type FsdP6cFleetVehicleManifestEntryV1 = {
   declaredFieldNames: readonly string[];
   discoveryRequestKey: string;
   historicalRequestKey: string;
+  /** Optional per-vehicle historical window; falls back to manifest historicalWindow. */
+  historicalWindow?: FsdHistoricalWindowV1;
   /** Production manifests require VERIFIED_LIVE_CATALOG — non-empty fields alone are insufficient. */
   catalogProvenance?: FsdP6cCatalogProvenanceV1;
 };
@@ -115,6 +117,9 @@ function parseVehicleEntry(raw: unknown, index: number): FsdP6cFleetVehicleManif
   const catalogProvenance =
     raw.catalogProvenance === 'VERIFIED_LIVE_CATALOG' ? 'VERIFIED_LIVE_CATALOG' : undefined;
 
+  const historicalWindow =
+    raw.historicalWindow != null ? parseHistoricalWindow(raw.historicalWindow) : undefined;
+
   return {
     label: parseVehicleLabel(raw.label),
     vehicleId: vehicleId.trim(),
@@ -122,6 +127,7 @@ function parseVehicleEntry(raw: unknown, index: number): FsdP6cFleetVehicleManif
     declaredFieldNames: fields,
     discoveryRequestKey: discoveryRequestKey.trim(),
     historicalRequestKey: historicalRequestKey.trim(),
+    historicalWindow,
     catalogProvenance,
   };
 }
