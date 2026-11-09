@@ -187,6 +187,12 @@ export type Ds4KickdownCandidateClassification =
 
 export type Ds4KickdownCandidateSupportTier = 'STRONG' | 'MODERATE' | 'WEAK';
 
+/**
+ * Research trip outcome after binding — NOT opportunity or absence verdict.
+ * Consumers MUST combine with module-specific assessability / tripEvidence / episode status.
+ * COMPUTED does not imply any facet or subtype was ASSESSABLE (see DBI_P2C_CROSS_KERNEL_CONSUMER_GLOSSARY.md).
+ * NOT_OBSERVED means no positive proxy candidate in scope; not confirmed absence outside observations.
+ */
 export type Ds4PowertrainDemandTripStatus = 'COMPUTED' | 'NOT_OBSERVED' | 'ABSTAINED';
 
 export type Ds4KickdownLikeCandidateV1 = {
@@ -520,6 +526,10 @@ export type Ds4PowertrainDemandRevvingIdleResultV1 = {
       candidates: Ds4ExcessiveStationaryLikeSpanProxyCandidateV1[];
       tripEvidenceClassification: Ds4RevvingIdleFacetBTripEvidenceClassificationV1;
     };
+    /**
+     * Canonical six-field grid coverage (success and abstain paths must expose exactly these keys).
+     * Trip-level distinctMsLabelsInTrip / identicalDuplicateCollapsedCount live on revvingIdle root.
+     */
     coverageEvidence: {
       gridBucketCount: number;
       rpmAndSpeedPresentBucketCount: number;

@@ -61,6 +61,19 @@ const UNTRUSTED_FACET_DIAGNOSTICS: Ds4RevvingIdleFacetCoverageDiagnosticsV1 = {
   assessabilityReasonCodes: ['INTEGRITY_NOT_ADMITTED'],
 };
 
+function projectRevvingIdlePublicCoverageEvidence(
+  global: Ds4RevvingIdleGlobalCoverageV1,
+): Ds4PowertrainDemandRevvingIdleResultV1['revvingIdle']['coverageEvidence'] {
+  return {
+    gridBucketCount: global.gridBucketCount,
+    rpmAndSpeedPresentBucketCount: global.rpmAndSpeedPresentBucketCount,
+    rpmMissingBucketCount: global.rpmMissingBucketCount,
+    speedMissingBucketCount: global.speedMissingBucketCount,
+    loadPresentBucketCount: global.loadPresentBucketCount,
+    coolantPresentBucketCount: global.coolantPresentBucketCount,
+  };
+}
+
 function buildGlobalCoverageFromCanon(
   canon: ReturnType<typeof canonicalizeMultichannelObservations>,
 ): Ds4RevvingIdleGlobalCoverageV1 {
@@ -128,7 +141,7 @@ function buildAbstained(
         candidates: [],
         tripEvidenceClassification: 'NOT_ASSESSABLE',
       },
-      coverageEvidence: { ...UNTRUSTED_GLOBAL_COVERAGE },
+      coverageEvidence: projectRevvingIdlePublicCoverageEvidence(UNTRUSTED_GLOBAL_COVERAGE),
       scientificLimitationCodes: [...DS4_REVIVING_IDLE_SCIENTIFIC_LIMITATION_CODES],
     },
     unsupportedScientificClaims: [...DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS],
@@ -247,14 +260,7 @@ export function computeDs4PowertrainDemandRevvingIdleResearchV1(
         candidates: detect.facetB.candidates,
         tripEvidenceClassification: facetBTripEvidence,
       },
-      coverageEvidence: {
-        gridBucketCount: globalCoverage.gridBucketCount,
-        rpmAndSpeedPresentBucketCount: globalCoverage.rpmAndSpeedPresentBucketCount,
-        rpmMissingBucketCount: globalCoverage.rpmMissingBucketCount,
-        speedMissingBucketCount: globalCoverage.speedMissingBucketCount,
-        loadPresentBucketCount: globalCoverage.loadPresentBucketCount,
-        coolantPresentBucketCount: globalCoverage.coolantPresentBucketCount,
-      },
+      coverageEvidence: projectRevvingIdlePublicCoverageEvidence(globalCoverage),
       scientificLimitationCodes: [...DS4_REVIVING_IDLE_SCIENTIFIC_LIMITATION_CODES],
     },
     unsupportedScientificClaims,
