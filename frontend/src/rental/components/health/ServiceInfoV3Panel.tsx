@@ -53,7 +53,7 @@ export function ServiceInfoV3Panel({
 
   const activateTab = useCallback((next: ServiceInfoV3Tab) => {
     setTab(next);
-    requestAnimationFrame(() => tabRefs.current[next]?.focus());
+    queueMicrotask(() => tabRefs.current[next]?.focus());
   }, []);
 
   const onTabListKeyDown = useCallback(

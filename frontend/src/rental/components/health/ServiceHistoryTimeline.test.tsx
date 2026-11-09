@@ -80,6 +80,11 @@ describe('ServiceHistoryTimeline', () => {
   afterEach(() => {
     cleanup?.();
     cleanup = undefined;
+    pageResolvers.length = 0;
+    serviceHistoryPage.mockReset();
+    serviceHistoryPage.mockImplementation(() => new Promise((resolve, reject) => {
+      pageResolvers.push({ resolve, reject });
+    }));
   });
 
   it('renders chronological grouped rows with km unit and expands details', () => {
