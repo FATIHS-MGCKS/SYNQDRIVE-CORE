@@ -7,7 +7,9 @@ export function isCanonicalProviderBucketLabelIso(label: string): boolean {
   if (!label || typeof label !== 'string') return false;
   if (!CANONICAL_UTC_ISO_MS.test(label)) return false;
   const ms = Date.parse(label);
-  return Number.isFinite(ms);
+  if (!Number.isFinite(ms)) return false;
+  const roundTrip = new Date(ms).toISOString();
+  return roundTrip === label;
 }
 
 export function parseCanonicalBucketLabelMs(label: string): number | null {

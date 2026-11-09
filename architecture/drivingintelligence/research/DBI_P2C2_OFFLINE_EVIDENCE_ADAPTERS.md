@@ -39,10 +39,10 @@ Each adapter emits a versioned participant header preserving: bindings, fingerpr
 
 ## Integrity closeout (P1)
 
-- **Contradiction gates:** B1/B2/B3 fail-closed on `NOT_OBSERVED` or `ABSTAINED` with positive proxy classifications; B3 sole-insufficient-load `ABSTAINED` without positives remains admissible; B4 facet assessability vs candidate presence and trip classification coherence; A1 descriptive episodes vs `ABSTAINED` / non-`SUPPORTED_DESCRIPTIVE` status.
+- **Contradiction gates:** B1/B2/B3 fail-closed on `NOT_OBSERVED` or `ABSTAINED` with positive proxy classifications; B2 per-`proxyKind` subtype assessability vs positive candidates; B3 sole-insufficient-load `ABSTAINED` without positives remains admissible; B4 trip-level status plus facet assessability, trip classification, and facet-specific candidate classification coherence; A1 descriptive episodes vs `ABSTAINED` / non-`SUPPORTED_DESCRIPTIVE` status.
 - **Memory isolation:** `deepIsolate` (`structuredClone`) on all nested projections; dedicated per-adapter mutation regression.
 - **Scientific fidelity:** Expanded participant metadata (A1 denominators/thresholds/mass accounting; B1 full movement coverage; B2 ECT coverage; B3 canonical counts; B4 module `scientificLimitationCodes` vs candidate limitations).
-- **Temporal:** Canonical `YYYY-MM-DDTHH:mm:ss.sssZ` labels; reject end-before-start and inverted bucket indices.
+- **Temporal:** Canonical `YYYY-MM-DDTHH:mm:ss.sssZ` labels with `Date#toISOString()` round-trip equality (rejects normalized invalid dates such as Feb 30); reject end-before-start and inverted bucket indices.
 - **Determinism:** JSON canonical `orderingDigest` with ordinal + key (NUL-safe facet keys for B4).
 
 ## Tests

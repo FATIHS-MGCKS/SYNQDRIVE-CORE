@@ -2987,4 +2987,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | P2-C1.5 typed payload final closeout (2026-11-09, PR #2374) | MODULE_B2/B3/B4 typed payloads; B2 compile-time negative spec; pinned `expectedStatus` kernel matrix; S16 episodeKey invariance; expectation clone isolation; S09 missing-ECT negative |
 | P2-C2 offline evidence adapters (2026-11-09, draft) | `dbi-p2c2-offline-evidence-adapters/` — versioned read-only contract; A1 descriptive plane vs B1–B4 proxy plane; provenance NOT_REPORTED on A1; fail-closed diagnostics; P2-C1.5-driven specs; `DBI_P2C2_OFFLINE_EVIDENCE_ADAPTERS.md`; no reconciliation |
 | P2-C2 evidence integrity closeout (2026-11-09, PR #2375) | Contradiction gates (B1–B4, A1); `deepIsolate` projection memory; canonical ISO temporal validation; expanded scientific metadata; JSON ordering digest; non-vacuous adversarial/memory-isolation specs |
+| P2-C2 final semantic integrity closeout (2026-11-09, PR #2375) | B4 global trip status vs positives; facet candidate classification pins; B2 subtype-kind consistency; ISO round-trip; expanded B2/B4/temporal adversarial matrix |
 

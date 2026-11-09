@@ -1,6 +1,7 @@
 import type { Ds4PowertrainDemandColdEngineResultV1 } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
 import {
   checkAbstainedWithPositiveCandidates,
+  checkB2ColdEngineSubtypeConsistency,
   checkNotObservedWithPositiveCandidates,
 } from './dbi-p2c2-evidence-adapter.consistency.v1';
 import {
@@ -46,6 +47,7 @@ export function adaptDs4ColdEngineResearchToP2c2Evidence(
   if (notObserved) diagnostics.push(notObserved);
   const abstained = checkAbstainedWithPositiveCandidates(source.status, classifications);
   if (abstained) diagnostics.push(abstained);
+  diagnostics.push(...checkB2ColdEngineSubtypeConsistency(source));
 
   if (diagnostics.length > 0) {
     return { ok: false, sourceModule: 'P2-B2', diagnosticCodes: diagnostics };
