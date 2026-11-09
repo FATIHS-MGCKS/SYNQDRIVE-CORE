@@ -8,7 +8,7 @@ import type {
   Prisma,
 } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
-import type { PrismaService } from '@shared/database/prisma.service';
+import { PrismaService } from '@shared/database/prisma.service';
 import { acquirePgAdvisoryXactLock64 } from '@shared/database/pg-advisory-lock.util';
 import {
   buildEffectiveEvidenceStateV1,
