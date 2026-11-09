@@ -2981,4 +2981,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | P2-B4 assessability coherence closeout (2026-11-09, PR #2371) | Full-grid chronological coherent runs; missing rpm/speed flushes runs (no bridge); ANY qualifying run admission; maxQualifyingCoherentResearchLabelSpanMs diagnostic; removed unreachable gap reason code |
 | P2-B4 Opus semantic closeout (2026-11-09, PR #2371) | ASSESSABLE facets return NOT_OBSERVED when candidate-free; RPM_SPEED unavailable => NOT_ASSESSABLE; `NO_SINGLE_COHERENT_RUN_MEETS_LABEL_AND_SPAN`; paired diagnostics labelsInMaxSpanRun / spanMsInMaxLabelCountRun; boundary tests J/K/L + Facet A/B edges |
 | P2-C1 contract preflight hardening (2026-11-09) | B4 abstain coverageEvidence six-key projection; `DBI_P2C_CROSS_KERNEL_CONSUMER_GLOSSARY.md`; consumer-gating spec; paired diagnostic exact pins J/C; contract status comments |
+| P2-C1 A1 cross-domain authority closeout (2026-11-09, PR #2373) | Glossary: A1 descriptive-only in P2-C; no B1–B4 event edges; fingerprints do not override labelsNotForCrossDomainJoin |
 

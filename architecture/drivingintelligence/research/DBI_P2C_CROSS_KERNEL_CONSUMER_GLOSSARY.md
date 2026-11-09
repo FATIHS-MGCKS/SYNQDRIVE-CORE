@@ -26,6 +26,18 @@
 | Intervals | `startIdx`/`endIdx`, `pointCount` | v1a RPM sequence indices |
 | Trust | No multichannel fingerprint | `semanticGuards.labelsNotForCrossDomainJoin=true` |
 
+#### P2-A1 cross-domain authority (P2-C)
+
+P2-A1 RPM episodes are **descriptive research outputs only**.
+
+In P2-C, A1 episodes **MUST NOT** participate in cross-domain temporal overlap or event relationship edges with B1–B4.
+
+Matching V1A/V1B fingerprints, source identity, or timestamp labels **do not** override `semanticGuards.labelsNotForCrossDomainJoin=true`.
+
+A future cross-domain alignment policy requires separate scientific review, contract revision, and explicit architect approval.
+
+A1 may appear as a **descriptive participant** in a reconciliation bundle **without** event edges.
+
 ### P2-B1 Kickdown
 
 | Layer | Field | Meaning |
@@ -67,7 +79,7 @@
 
 ## P2-C2/C3 design constraints (not implemented in P2-C1)
 
-- No A1 cross-domain label joins without v1a/multichannel parity proof.
+- P2-A1 episodes: descriptive only; no cross-domain event edges to B1–B4 in P2-C (see **P2-A1 cross-domain authority** above).
 - No physical event overlap inference from label timestamps alone.
 - No `overlapLabelCount` without concrete shared label sets.
 - Identity mismatch (tenant/trip/source link/fingerprint) ⇒ **reject reconciliation**, not `UNRELATED`.
