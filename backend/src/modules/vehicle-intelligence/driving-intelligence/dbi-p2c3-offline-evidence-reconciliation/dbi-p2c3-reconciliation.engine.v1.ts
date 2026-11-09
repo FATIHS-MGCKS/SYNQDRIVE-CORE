@@ -23,10 +23,11 @@ import {
   projectA1ModuleAssessability,
   projectProxyModuleAssessability,
 } from './dbi-p2c3-reconciliation.assessability.v1';
-import { canonicalJsonStringify } from './dbi-p2c3-reconciliation.canonical-json.v1';
 import { buildReconciliationResultDigest } from './dbi-p2c3-reconciliation.digest.v1';
 import { evaluateProxyIdentityAdmission } from './dbi-p2c3-reconciliation.identity.v1';
-import { deepIsolate } from './dbi-p2c3-reconciliation.isolation.v1';
+import { deepIsolate, tryDeepIsolate } from './dbi-p2c3-reconciliation.isolation.v1';
+import { buildCanonicalParticipantIdentity } from './dbi-p2c3-reconciliation.identity-canon.v1';
+import { tryCanonicalJsonStringify } from './dbi-p2c3-reconciliation.canonical-json.v1';
 import { computePairwiseReconciliation } from './dbi-p2c3-reconciliation.pairwise.v1';
 import { validateBundleInputShape } from './dbi-p2c3-reconciliation.bundle-shape.v1';
 import { validateParticipantEvidenceIntegrity } from './dbi-p2c3-reconciliation.participant-integrity.v1';
@@ -67,30 +68,34 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
     return buildFailure(['BUDGET_OPTION_INVALID']);
   }
 
-  const shapeDiagnostics = validateBundleInputShape(bundleInput);
+  const isolated = tryDeepIsolate(bundleInput);
+  if (!isolated.ok) {
+    return buildFailure([isolated.code]);
+  }
+  const bundle = isolated.value;
+
+  const shapeDiagnostics = validateBundleInputShape(bundle);
   if (shapeDiagnostics.length > 0) {
     return buildFailure(shapeDiagnostics);
   }
 
-  const structureDiagnostics = validateBundleAndParticipants(bundleInput);
+  const structureDiagnostics = validateBundleAndParticipants(bundle);
   if (structureDiagnostics.length > 0) {
     return buildFailure(structureDiagnostics);
   }
 
-  const integrityDiagnostics = validateParticipantEvidenceIntegrity(bundleInput);
+  const integrityDiagnostics = validateParticipantEvidenceIntegrity(bundle);
   if (integrityDiagnostics.length > 0) {
     return buildFailure(integrityDiagnostics);
   }
 
-  const footprint = countBundleFootprint(bundleInput);
+  const footprint = countBundleFootprint(bundle);
   if (footprint.participantCount > budget.maxParticipants) {
     return buildFailure(['BUDGET_PARTICIPANT_COUNT_EXCEEDED']);
   }
   if (footprint.pairCount === null || footprint.pairCount > budget.maxCandidatePairs) {
     return buildFailure(['BUDGET_CANDIDATE_PAIR_COUNT_EXCEEDED']);
   }
-
-  const bundle = deepIsolate(bundleInput);
 
   const participantReferences: DbiP2c3ParticipantReferenceV1[] = [];
   const moduleAssessabilitySummary: DbiP2c3ModuleAssessabilitySummaryV1[] = [];
@@ -132,9 +137,12 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
       MODULE_ORDER.indexOf(m) >= 0 ? MODULE_ORDER.indexOf(m) : 99;
     const moduleCmp = order(a.participant.sourceModule) - order(b.participant.sourceModule);
     if (moduleCmp !== 0) return moduleCmp;
-    return canonicalJsonStringify(a.participant.identity).localeCompare(
-      canonicalJsonStringify(b.participant.identity),
-    );
+    const leftId = tryCanonicalJsonStringify(buildCanonicalParticipantIdentity(a.participant.identity));
+    const rightId = tryCanonicalJsonStringify(buildCanonicalParticipantIdentity(b.participant.identity));
+    if (!leftId.ok || !rightId.ok) {
+      return 0;
+    }
+    return leftId.json.localeCompare(rightId.json);
   });
 
   for (let planeIndex = 0; planeIndex < planesSorted.length; planeIndex++) {

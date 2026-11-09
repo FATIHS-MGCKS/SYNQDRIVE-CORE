@@ -20,7 +20,9 @@ import {
 } from '../dbi-p2c2-offline-evidence-adapters/dbi-p2c2-evidence-adapter.shared.v1';
 import type { Ds4PowertrainDemandTripStatus } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
 import type { DbiP2c3ReconciliationDiagnosticCodeV1 } from './dbi-p2c3-reconciliation.contract.v1';
-import { canonicalJsonStringify } from './dbi-p2c3-reconciliation.canonical-json.v1';
+import { participantPlaneIdentityKey } from './dbi-p2c3-reconciliation.identity-canon.v1';
+import { validateCandidateInventoryEligibility } from './dbi-p2c3-reconciliation.candidate-eligibility.v1';
+import { validateParticipantRuntimeEnums } from './dbi-p2c3-reconciliation.participant-enums.v1';
 import {
   isKnownPowertrainKernelStatus,
   validateA1KernelStatus,
@@ -63,6 +65,10 @@ function validateSharedPowertrainParticipant(
   const status = tripStatus(participant);
   if (status === null) {
     return codes;
+  }
+
+  if (status === 'ABSTAINED' && candidates.length > 0) {
+    codes.push('CANDIDATE_INVENTORY_UNDER_ABSTAINED_KERNEL');
   }
 
   const abstained = mapAdapterConsistencyCode(checkAbstainedWithPositiveCandidates(status, classifications));
@@ -115,6 +121,13 @@ function validateB3Plane(plane: DbiP2c2PowertrainProxyCandidatesPlaneV1): DbiP2c
   }
   if (tripClass === B3_POSITIVE_CLASS && positives.length === 0) {
     codes.push('B3_PARTICIPANT_TRIP_CLASSIFICATION_CONTRADICTION');
+  }
+  if (positives.length > 0 && tripClass !== B3_POSITIVE_CLASS) {
+    codes.push('B3_PARTICIPANT_TRIP_CLASSIFICATION_CONTRADICTION');
+  }
+  const kernelStatus = tripStatus(participant);
+  if (kernelStatus === 'NOT_OBSERVED' && tripClass !== 'NOT_OBSERVED') {
+    codes.push('B3_PARTICIPANT_STATUS_TRIP_CLASS_CONTRADICTION');
   }
   return codes;
 }
@@ -235,6 +248,9 @@ function validateA1Descriptive(descriptive: DbiP2c2DescriptiveRpmEpisodesPlaneV1
   ) {
     codes.push('A1_PARTICIPANT_DESCRIPTIVE_INVENTORY_CONTRADICTION');
   }
+  if (episodeCount > 0 && part.originalKernelStatus === 'NOT_APPLICABLE') {
+    codes.push('A1_NOT_APPLICABLE_WITH_EPISODES');
+  }
   return codes;
 }
 
@@ -262,12 +278,13 @@ function validateA1ProxyBindingCoherence(bundle: DbiP2c2OfflineEvidenceBundleV1)
   return codes;
 }
 
-function participantPlaneIdentityKey(plane: DbiP2c2PowertrainProxyCandidatesPlaneV1): string {
+function participantPlaneIdentityKeyForPlane(plane: DbiP2c2PowertrainProxyCandidatesPlaneV1): string | null {
   const part = plane.participant;
-  return canonicalJsonStringify({
+  const key = participantPlaneIdentityKey({
     sourceModule: part.sourceModule,
     identity: part.identity,
   });
+  return key.ok ? key.key : null;
 }
 
 function validateDuplicateParticipantPlanes(
@@ -276,7 +293,11 @@ function validateDuplicateParticipantPlanes(
   const seen = new Set<string>();
   const codes: DbiP2c3ReconciliationDiagnosticCodeV1[] = [];
   for (const plane of bundle.powertrainProxies) {
-    const key = participantPlaneIdentityKey(plane);
+    const key = participantPlaneIdentityKeyForPlane(plane);
+    if (key === null) {
+      codes.push('CANDIDATE_PAYLOAD_CANONICAL_INVALID');
+      continue;
+    }
     if (seen.has(key)) {
       codes.push('DUPLICATE_PARTICIPANT_PLANE_IDENTITY');
     }
@@ -295,6 +316,8 @@ export function validateParticipantEvidenceIntegrity(
   }
   codes.push(...validateA1ProxyBindingCoherence(bundle));
   codes.push(...validateDuplicateParticipantPlanes(bundle));
+  codes.push(...validateParticipantRuntimeEnums(bundle));
+  codes.push(...validateCandidateInventoryEligibility(bundle));
 
   for (const plane of bundle.powertrainProxies) {
     const module = plane.participant.sourceModule;

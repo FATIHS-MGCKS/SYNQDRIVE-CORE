@@ -35,6 +35,25 @@ P1-04 forged abstain + duplicate positives remains fail-closed (`PARTICIPANT_CON
 | B2 three-subtype map completeness | `B2_SUBTYPE_ASSESSABILITY_INCOMPLETE` | same |
 | B2 forged subtype status | `B2_SUBTYPE_STATUS_INVALID` | same |
 
+## Opus independent re-audit remediation (A-1..A-9)
+
+**Audit base:** `6f78f901943e2b4711dd6121cbf7f64e73092f38`  
+**Branch:** `cursor/dbi-p2c4-w2-opus-remediation-2c57`
+
+| Finding | Control | Diagnostic(s) | Oracle |
+|---------|---------|---------------|--------|
+| A-1 TOCTOU | Isolate via `tryDeepIsolate` before all validation; same snapshot for validate + reconcile | `BUNDLE_INPUT_ISOLATION_FAILED` | `w2-opus-remediation.spec.ts` AUD-15 |
+| A-2 relationship eligibility | Reject any candidate under `ABSTAINED`; module classification enum; positive-only `SAME_SOURCE_DUPLICATE` | `CANDIDATE_INVENTORY_UNDER_ABSTAINED_KERNEL`, `CANDIDATE_CLASSIFICATION_INVALID` | AUD-03..05, pairwise |
+| A-3 B2 parity | Classification must match `proxyKind`; subtype gate uses classification-resolved kind | `B2_CANDIDATE_CLASSIFICATION_PROXY_KIND_MISMATCH` | AUD-06, AUD-40 |
+| A-4 B3 bidirectional | Status/trip class parity + positive ↔ `GAP_AWARE` | `B3_PARTICIPANT_TRIP_CLASSIFICATION_CONTRADICTION`, `B3_PARTICIPANT_STATUS_TRIP_CLASS_CONTRADICTION` | AUD-35..38 |
+| A-5 runtime enums | A1/B3/B4 trip/facet status sets | `PARTICIPANT_ENUM_VALUE_INVALID` | AUD-07,08,31 |
+| A-6 A1 NOT_APPLICABLE | Episodes forbidden when `NOT_APPLICABLE` | `A1_NOT_APPLICABLE_WITH_EPISODES` | AUD-32 |
+| A-7 identity canon | Declared identity keys only; canonical duplicate key | `PARTICIPANT_IDENTITY_EXTRA_FIELD` | AUD-10,11 |
+| A-8 malformed | Clone + canonical fail-closed (no throw) | `BUNDLE_INPUT_ISOLATION_FAILED`, `CANDIDATE_PAYLOAD_CANONICAL_INVALID` | AUD-11..14 |
+| A-9 extra B2 subtype | Unknown subtype keys rejected | `B2_SUBTYPE_ASSESSABILITY_EXTRA_KEY` | AUD-17 |
+
+Full replay: `dbi-p2c3-reconciliation.w2-opus-remediation.spec.ts` (33 probes).
+
 ## Limitations
 
 - Integrity validates **adapter-reported** fields only; it does not re-run DS4 kernels or attest sources.

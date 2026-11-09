@@ -69,9 +69,28 @@ export function validateB2SubtypeAssessabilityCompleteness(
     validateSubtypeEntry(entry, codes);
   }
 
+  for (const key of Object.keys(map)) {
+    if (!(REQUIRED_B2_SUBTYPES as readonly string[]).includes(key)) {
+      codes.push('B2_SUBTYPE_ASSESSABILITY_EXTRA_KEY');
+    }
+  }
+
+  const positiveClassToKind: Record<string, Ds4ColdEngineProxyKindV1> = {
+    COLD_ENGINE_HIGH_LOAD_PROXY_CANDIDATE: 'COLD_ENGINE_HIGH_LOAD',
+    COLD_ENGINE_HIGH_RPM_PROXY_CANDIDATE: 'COLD_ENGINE_HIGH_RPM',
+    COLD_ENGINE_FULL_THROTTLE_PROXY_CANDIDATE: 'COLD_ENGINE_FULL_THROTTLE',
+  };
+
   for (const cand of plane.candidates) {
     if (cand.sourceModule !== 'P2-B2') continue;
-    const kind = cand.proxyKind;
+    const resolveSubtypeKind = (): Ds4ColdEngineProxyKindV1 => {
+      if (classificationIsPositiveProxy(cand.originalClassification)) {
+        const fromClass = positiveClassToKind[cand.originalClassification];
+        if (fromClass) return fromClass;
+      }
+      return cand.proxyKind;
+    };
+    const kind = resolveSubtypeKind();
     const entry = (map as Record<string, unknown>)[kind];
     if (entry === undefined) {
       codes.push('B2_SUBTYPE_ASSESSABILITY_INCOMPLETE');

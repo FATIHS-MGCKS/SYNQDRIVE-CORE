@@ -6,6 +6,7 @@ import {
 } from '../dbi-p2c2-offline-evidence-adapters/dbi-p2c2-evidence-adapter.contract.v1';
 import type { DbiP2c3ReconciliationDiagnosticCodeV1 } from './dbi-p2c3-reconciliation.contract.v1';
 import { tryBuildCandidateEnvelopeIdentityPayload } from './dbi-p2c3-reconciliation.canonical.v1';
+import { validateParticipantIdentityShape } from './dbi-p2c3-reconciliation.identity-canon.v1';
 
 const B4_FACET_A_CLASSIFICATION = 'HIGH_RPM_STATIONARY_LIKE_PROXY_CANDIDATE' as const;
 const B4_FACET_B_CLASSIFICATION = 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY_CANDIDATE' as const;
@@ -50,6 +51,7 @@ export function validateBundleAndParticipants(
           codes.push('REQUIRED_CORE_BINDING_EMPTY');
         }
       }
+      validateParticipantIdentityShape(part.identity, codes);
     }
   }
 
@@ -78,6 +80,7 @@ export function validateBundleAndParticipants(
         codes.push('REQUIRED_CORE_BINDING_EMPTY');
       }
     }
+    validateParticipantIdentityShape(part.identity, codes);
 
     for (const cand of plane.candidates) {
       if (cand.sourceModule !== part.sourceModule) {

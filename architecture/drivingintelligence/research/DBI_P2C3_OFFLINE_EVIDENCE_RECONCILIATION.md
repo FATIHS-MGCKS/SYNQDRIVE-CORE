@@ -82,7 +82,8 @@ Original kernel statuses and module assessability summaries are carried forward 
 - Stable sorts for participants, candidates, pairwise decisions, diagnostics.
 - Candidate ties: `sourceEpisodeKey` → canonical payload → `sourceCandidateIndex`.
 - Canonical candidate identity uses recursive JSON canonicalization (`canonicalJsonStringify`): lexically sorted object keys, stable array order, deterministic primitives, explicit unsupported-value sentinel (no property-insertion-order dependence).
-- Budget options validated (finite safe integers, hard caps) **before** deep cloning or pairwise traversal.
+- Input isolated via `tryDeepIsolate` **before** shape/structure/integrity validation (TOCTOU-safe single snapshot).
+- Budget options validated (finite safe integers, hard caps) before pairwise traversal.
 - Footprint check uses array lengths and theoretical pair count prior to isolation.
 - Default budgets: 6 participants, 4096 candidate pairs; hard caps 32 / 65536 — fail-closed `BUDGET_*_EXCEEDED`.
 - `resultDigest`: canonical JSON summary (identity, rationale codes, candidate payload fingerprints, module assessability including abstain reasons / adapterClaims / projections, provenance limitations); **not** cryptographic attestation.
@@ -96,8 +97,11 @@ Before identity admission or pairwise work, P2-C3 re-validates adapted participa
 - B2 subtype assessability, B3 `tripEvidenceClassification`, B4 facet assessability/classification constraints mirror P2-C2 consistency (no kernel re-run).
 - A1 descriptive inventory vs `highEpisodesStatus` / episode plane multiplicity.
 - A1 `providerSourceLinkId` and reported `v1bInputFingerprint` cross-checked against proxy participants when A1 reports them.
-- Duplicate proxy participant planes with identical canonical identity → `DUPLICATE_PARTICIPANT_PLANE_IDENTITY`.
-- Malformed bundle roots → `BUNDLE_INPUT_SHAPE_INVALID` (stable failure, no `TypeError`).
+- Duplicate proxy participant planes with identical canonical identity → `DUPLICATE_PARTICIPANT_PLANE_IDENTITY` (declared binding fields only; extra identity keys → `PARTICIPANT_IDENTITY_EXTRA_FIELD`).
+- Any candidate inventory under `ABSTAINED` kernel status → `CANDIDATE_INVENTORY_UNDER_ABSTAINED_KERNEL`.
+- Module-specific candidate classification enum + B2 `proxyKind` parity; positive-only `SAME_SOURCE_DUPLICATE` pairwise edges.
+- Runtime enums: A1 high-episode status, B3 trip class, B4 facet trip classes → `PARTICIPANT_ENUM_VALUE_INVALID`.
+- Malformed bundle roots / non-cloneable input → stable diagnostics (`BUNDLE_INPUT_ISOLATION_FAILED`, `BUNDLE_INPUT_SHAPE_INVALID`, `CANDIDATE_PAYLOAD_CANONICAL_INVALID`; no uncaught `TypeError`).
 
 Failure returns `ok: false`, sorted diagnostic codes only — **no** inventory, identity admission, pairwise edges, or digest.
 
@@ -117,4 +121,4 @@ No Nest module, API, worker, Prisma, ClickHouse, DIMO, scoring, DS4 motion fusio
 
 ## Tests
 
-Adversarial matrix `01–22` in `dbi-p2c3-reconciliation.adversarial.spec.ts` using P2-C1.5 scenarios → kernels → P2-C2 adapters → P2-C3 engine. Integrity closeout and `canonical-closeout` specs cover identity/budget gates, canonical JSON duplicates, module validation, assessability mirroring, and digest fidelity. Runtime import boundary excludes P2-C1.5 fixture package (tests only).
+Adversarial matrix `01–22` in `dbi-p2c3-reconciliation.adversarial.spec.ts` using P2-C1.5 scenarios → kernels → P2-C2 adapters → P2-C3 engine. Integrity closeout and `canonical-closeout` specs cover identity/budget gates, canonical JSON duplicates, module validation, assessability mirroring, and digest fidelity. Opus re-audit replay `w2-opus-remediation.spec.ts` (AUD-01..40). Runtime import boundary excludes P2-C1.5 fixture package (tests only).
