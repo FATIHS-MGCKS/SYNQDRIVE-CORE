@@ -2997,4 +2997,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | DBI P2-C4 W1 assessability closeout (2026-11-09, PR #2380) | B3 load-present run respects `maxAdjacentLabelGapMs`; B2 subtype assessability scoped to channel evidence within eligible cold triple; extended Opus closeout regressions |
 | DBI P2-C4 W1 B2 detector assessability parity (2026-11-09, PR #2380) | HIGH_RPM + FULL_THROTTLE require all-three-bucket channel presence in eligible cold triple; HIGH_LOAD unchanged (any bucket) |
 | DBI P2-C4 W2 P2-C3 reconciliation integrity (2026-11-09) | Forged-bundle participant integrity gate (P1-04), A1 binding cross-check, duplicate-plane policy, bundle shape safety; W2 adversarial matrix 01–18 |
+| DBI P2-C4 W2 closeout (2026-11-09, PR #2381) | Deep nested bundle shape, kernel status enum gate, status-independent duplicate planes, A1/B4 metadata coherence |
 

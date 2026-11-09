@@ -3,7 +3,7 @@
 Significant defects discovered during the 2026-08-30 → 2026-09-06 workstream.  
 **Rejected hypotheses are NOT defects** — see `HYPOTHESIS_REGISTER.md`.
 
-**Summary:** TOTAL=**29** | FIXED=**25** (DI-DEF-003–017, 019 production-validated; DI-DEF-021–029 W1/W2) | OPEN=**4** (DI-DEF-001, 002, 018, 020)
+**Summary:** TOTAL=**31** | FIXED=**27** (DI-DEF-003–017, 019 production-validated; DI-DEF-021–031 W1/W2) | OPEN=**4** (DI-DEF-001, 002, 018, 020)
 
 | ID | Phase | Symptom | Cause | Risk | Fix | Tests | Status |
 |----|-------|---------|-------|------|-----|-------|--------|
@@ -36,3 +36,5 @@ Significant defects discovered during the 2026-08-30 → 2026-09-06 workstream.
 | DI-DEF-027 | B2 detector parity | HIGH_RPM/FULL_THROTTLE assessable with 1-of-3 channel in triple | Assessability looser than 3-bucket detector | False ASSESSABLE → NOT_OBSERVED | Require channel on all three triple labels | `detector-assessability.spec.ts` | FIXED |
 | DI-DEF-028 | P2-C3 P1-04 | ABSTAINED B1 + forged positive duplicates → SAME_SOURCE_DUPLICATE | No participant re-validation before pairwise | Forged positive edges under abstain | `validateParticipantEvidenceIntegrity` pre-pairwise gate | `w2-integrity.spec.ts` #01 | FIXED |
 | DI-DEF-029 | P2-C3 integrity | Malformed bundle / duplicate planes / A1 binding drift | Shape + integrity after structural-only validation | TypeError or silent admission | `bundle-shape` + `participant-integrity` + A1 identity cross-check | `w2-integrity.spec.ts` | FIXED |
+| DI-DEF-030 | W2 closeout P1-01 | Nested missing fields bypassed structural checks | Outer-only shape validation | TypeError / false pairwise | Deep `bundle-shape` nested schema | `w2-closeout.spec.ts` | FIXED |
+| DI-DEF-031 | W2 closeout P1-02/P2 | Cast-trusted kernel status; status in dup key | TS cast + status-scoped identity | Forged `UNRECOGNIZED_STATUS` positives; dup bypass | `kernel-status.v1` + identity key without status | `w2-closeout.spec.ts` | FIXED |

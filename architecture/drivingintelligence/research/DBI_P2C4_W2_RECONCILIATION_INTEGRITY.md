@@ -15,6 +15,18 @@
 | Duplicate planes | Two identical participant identities | `DUPLICATE_PARTICIPANT_PLANE_IDENTITY` | #15 | canonical identity key |
 | Malformed input | Uncaught `TypeError` on `null` bundle | `BUNDLE_INPUT_SHAPE_INVALID` | #17 | `bundle-shape.v1.ts` |
 
+## W2 closeout (P1-01 / P1-02 / P2-01 / P2-02)
+
+| Control | Diagnostic | Tests |
+|---------|------------|-------|
+| Deep nested bundle shape | `BUNDLE_NESTED_SHAPE_INVALID` | `w2-closeout.spec.ts` |
+| Kernel status enum | `PARTICIPANT_KERNEL_STATUS_INVALID` | closeout unknown-status |
+| Duplicate plane (status-independent) | `DUPLICATE_PARTICIPANT_PLANE_IDENTITY` | closeout #08–#09 |
+| A1 meta status agreement | `A1_METADATA_STATUS_MISMATCH` | closeout |
+| B4 facet inventory counts | `B4_FACET_CANDIDATE_COUNT_MISMATCH` | closeout |
+
+P1-04 forged abstain + duplicate positives remains fail-closed (`PARTICIPANT_CONTRADICTORY_POSITIVE_UNDER_ABSTAIN`).
+
 ## Limitations
 
 - Integrity validates **adapter-reported** fields only; it does not re-run DS4 kernels or attest sources.

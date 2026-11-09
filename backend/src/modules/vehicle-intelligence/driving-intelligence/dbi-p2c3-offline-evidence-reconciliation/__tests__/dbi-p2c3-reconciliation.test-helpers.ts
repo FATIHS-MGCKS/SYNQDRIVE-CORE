@@ -177,12 +177,19 @@ export function adaptRevvingIdleB4DualFacetPlaneFromS01(): DbiP2c2PowertrainProx
     participantA.originalKernelStatus === 'COMPUTED' || participantB.originalKernelStatus === 'COMPUTED'
       ? 'COMPUTED'
       : participantA.originalKernelStatus;
+  const facetACount = facetA.candidates.filter(
+    (c) => c.sourceModule === 'P2-B4' && 'facet' in c && c.facet === 'HIGH_RPM_STATIONARY_LIKE_PROXY',
+  ).length;
+  const facetBCount = facetB.candidates.filter(
+    (c) => c.sourceModule === 'P2-B4' && 'facet' in c && c.facet === 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY',
+  ).length;
   return {
     evidencePlane: 'POWERTRAIN_PROXY_CANDIDATES',
     participant: {
       ...participantA,
       originalKernelStatus: tripStatus,
-      facetB: participantB.facetB,
+      facetA: { ...participantA.facetA, deduplicatedCandidateCount: facetACount },
+      facetB: { ...participantB.facetB, deduplicatedCandidateCount: facetBCount },
       coverageEvidence: {
         ...participantA.coverageEvidence,
         gridBucketCount: Math.max(

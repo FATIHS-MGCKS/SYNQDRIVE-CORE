@@ -21,6 +21,11 @@ import {
 import type { Ds4PowertrainDemandTripStatus } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
 import type { DbiP2c3ReconciliationDiagnosticCodeV1 } from './dbi-p2c3-reconciliation.contract.v1';
 import { canonicalJsonStringify } from './dbi-p2c3-reconciliation.canonical-json.v1';
+import {
+  isKnownPowertrainKernelStatus,
+  validateA1KernelStatus,
+  validatePowertrainKernelStatus,
+} from './dbi-p2c3-reconciliation.kernel-status.v1';
 
 const FACET_A_POSITIVE_CLASS = 'HIGH_RPM_STATIONARY_LIKE_PROXY_CANDIDATE' as const;
 const FACET_B_POSITIVE_CLASS = 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY_CANDIDATE' as const;
@@ -30,8 +35,9 @@ function classificationsFromCandidates(candidates: readonly DbiP2c2ProxyCandidat
   return candidates.map((c) => c.originalClassification);
 }
 
-function tripStatus(participant: DbiP2c2PowertrainProxyParticipantV1): Ds4PowertrainDemandTripStatus {
-  return participant.originalKernelStatus as Ds4PowertrainDemandTripStatus;
+function tripStatus(participant: DbiP2c2PowertrainProxyParticipantV1): Ds4PowertrainDemandTripStatus | null {
+  if (!isKnownPowertrainKernelStatus(participant.originalKernelStatus)) return null;
+  return participant.originalKernelStatus;
 }
 
 function mapAdapterConsistencyCode(
@@ -54,6 +60,9 @@ function validateSharedPowertrainParticipant(
   const codes: DbiP2c3ReconciliationDiagnosticCodeV1[] = [];
   const classifications = classificationsFromCandidates(candidates);
   const status = tripStatus(participant);
+  if (status === null) {
+    return codes;
+  }
 
   const abstained = mapAdapterConsistencyCode(checkAbstainedWithPositiveCandidates(status, classifications));
   if (abstained) codes.push(abstained);
@@ -182,10 +191,37 @@ function validateB4Plane(plane: DbiP2c2PowertrainProxyCandidatesPlaneV1): DbiP2c
   return codes;
 }
 
+function validateB4FacetInventoryCounts(
+  plane: DbiP2c2PowertrainProxyCandidatesPlaneV1,
+): DbiP2c3ReconciliationDiagnosticCodeV1[] {
+  const participant = plane.participant;
+  if (participant.sourceModule !== 'P2-B4') return [];
+  const b4 = participant as DbiP2c2B4EvidenceParticipantV1;
+  const codes: DbiP2c3ReconciliationDiagnosticCodeV1[] = [];
+  const facetACount = plane.candidates.filter(
+    (c) => c.sourceModule === 'P2-B4' && 'facet' in c && c.facet === 'HIGH_RPM_STATIONARY_LIKE_PROXY',
+  ).length;
+  const facetBCount = plane.candidates.filter(
+    (c) => c.sourceModule === 'P2-B4' && 'facet' in c && c.facet === 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY',
+  ).length;
+  if (facetACount !== b4.facetA.deduplicatedCandidateCount) {
+    codes.push('B4_FACET_CANDIDATE_COUNT_MISMATCH');
+  }
+  if (facetBCount !== b4.facetB.deduplicatedCandidateCount) {
+    codes.push('B4_FACET_CANDIDATE_COUNT_MISMATCH');
+  }
+  return codes;
+}
+
 function validateA1Descriptive(descriptive: DbiP2c2DescriptiveRpmEpisodesPlaneV1): DbiP2c3ReconciliationDiagnosticCodeV1[] {
   const codes: DbiP2c3ReconciliationDiagnosticCodeV1[] = [];
   const part = descriptive.participant as DbiP2c2A1EvidenceParticipantV1;
   const episodeCount = descriptive.episodes.length;
+
+  codes.push(...validateA1KernelStatus(part));
+  if (part.highEpisodesMeta.status !== part.moduleAssessability.highEpisodesStatus) {
+    codes.push('A1_METADATA_STATUS_MISMATCH');
+  }
 
   if (episodeCount > 0 && part.originalKernelStatus === 'ABSTAINED') {
     codes.push('A1_PARTICIPANT_DESCRIPTIVE_INVENTORY_CONTRADICTION');
@@ -232,12 +268,10 @@ function validateA1ProxyBindingCoherence(bundle: DbiP2c2OfflineEvidenceBundleV1)
 
 function participantPlaneIdentityKey(plane: DbiP2c2PowertrainProxyCandidatesPlaneV1): string {
   const part = plane.participant;
-  const identity = canonicalJsonStringify({
+  return canonicalJsonStringify({
     sourceModule: part.sourceModule,
     identity: part.identity,
-    originalKernelStatus: part.originalKernelStatus,
   });
-  return identity;
 }
 
 function validateDuplicateParticipantPlanes(
@@ -268,6 +302,7 @@ export function validateParticipantEvidenceIntegrity(
 
   for (const plane of bundle.powertrainProxies) {
     const module = plane.participant.sourceModule;
+    codes.push(...validatePowertrainKernelStatus(plane.participant));
     const shared = validateSharedPowertrainParticipant(plane.participant, plane.candidates);
     codes.push(...shared);
 
@@ -282,6 +317,7 @@ export function validateParticipantEvidenceIntegrity(
         break;
       case 'P2-B4':
         codes.push(...validateB4Plane(plane));
+        codes.push(...validateB4FacetInventoryCounts(plane));
         break;
       default:
         break;
