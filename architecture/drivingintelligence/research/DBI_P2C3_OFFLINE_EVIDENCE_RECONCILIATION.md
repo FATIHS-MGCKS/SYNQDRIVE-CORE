@@ -85,7 +85,7 @@ Original kernel statuses and module assessability summaries are carried forward 
 - Budget options validated (finite safe integers, hard caps) **before** deep cloning or pairwise traversal.
 - Footprint check uses array lengths and theoretical pair count prior to isolation.
 - Default budgets: 6 participants, 4096 candidate pairs; hard caps 32 / 65536 — fail-closed `BUDGET_*_EXCEEDED`.
-- `resultDigest`: canonical JSON summary (identity, rationale codes, candidate payload fingerprints, full module assessability projections); **not** cryptographic attestation.
+- `resultDigest`: canonical JSON summary (identity, rationale codes, candidate payload fingerprints, module assessability including abstain reasons / adapterClaims / projections, provenance limitations); **not** cryptographic attestation.
 
 ## Bundle validation
 
@@ -94,6 +94,8 @@ Fail-closed on adapter contract version mismatch, non-`researchOnly` participant
 - Powertrain proxy participants must be `P2-B1`–`P2-B4` only (`PROXY_PLANE_INVALID_SOURCE_MODULE` otherwise).
 - `P2-A1` in a powertrain proxy plane → `A1_IN_POWERTRAIN_PROXY_PLANE`.
 - Candidate envelopes must be coherent with their parent participant module (`CANDIDATE_ENVELOPE_INCOHERENT` / `CANDIDATE_SOURCE_MODULE_MISMATCH`).
+- Module-specific envelope checks: episode key + classification alignment; B1 support tier; B2 `proxyKind`; B4 facet shape vs candidate classification family.
+- Candidate identity canonicalization is fail-closed (`CANDIDATE_PAYLOAD_CANONICAL_INVALID`) — no silent `undefined`→`null`, non-finite numbers, bigint, or exotic objects.
 
 ## Non-goals
 

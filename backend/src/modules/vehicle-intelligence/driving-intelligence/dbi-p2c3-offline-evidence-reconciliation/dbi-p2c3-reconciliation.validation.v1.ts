@@ -5,6 +5,7 @@ import {
   type DbiP2c2SourceModuleV1,
 } from '../dbi-p2c2-offline-evidence-adapters/dbi-p2c2-evidence-adapter.contract.v1';
 import type { DbiP2c3ReconciliationDiagnosticCodeV1 } from './dbi-p2c3-reconciliation.contract.v1';
+import { tryBuildCandidateEnvelopeIdentityPayload } from './dbi-p2c3-reconciliation.canonical.v1';
 
 const CORE_BINDING_KEYS = ['organizationId', 'vehicleId', 'tripId', 'providerSourceLinkId'] as const;
 
@@ -79,8 +80,11 @@ export function validateBundleAndParticipants(
       if (cand.sourceModule !== part.sourceModule) {
         codes.push('CANDIDATE_SOURCE_MODULE_MISMATCH');
       }
-      if (!candidateEnvelopeCoherent(cand, part.sourceModule)) {
+      if (!candidateEnvelopeCoherent(cand)) {
         codes.push('CANDIDATE_ENVELOPE_INCOHERENT');
+      }
+      if (!tryBuildCandidateEnvelopeIdentityPayload(cand).ok) {
+        codes.push('CANDIDATE_PAYLOAD_CANONICAL_INVALID');
       }
     }
   }
@@ -92,36 +96,29 @@ function nonemptyString(value: string): boolean {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function candidateEnvelopeCoherent(
-  cand: DbiP2c2ProxyCandidateEnvelopeV1,
-  parentModule: DbiP2c2SourceModuleV1,
-): boolean {
-  switch (parentModule) {
+function candidateEnvelopeCoherent(cand: DbiP2c2ProxyCandidateEnvelopeV1): boolean {
+  if (cand.originalCandidate.episodeKey !== cand.sourceEpisodeKey) {
+    return false;
+  }
+  if (cand.originalClassification !== cand.originalCandidate.classification) {
+    return false;
+  }
+  switch (cand.sourceModule) {
     case 'P2-B1':
-      return (
-        cand.sourceModule === 'P2-B1' &&
-        cand.originalCandidate.episodeKey === cand.sourceEpisodeKey &&
-        'originalCandidateSupportTier' in cand
-      );
+      return cand.originalCandidateSupportTier === cand.originalCandidate.candidateSupportTier;
     case 'P2-B2':
-      return (
-        cand.sourceModule === 'P2-B2' &&
-        cand.originalCandidate.episodeKey === cand.sourceEpisodeKey &&
-        'proxyKind' in cand &&
-        cand.proxyKind === cand.originalCandidate.proxyKind
-      );
+      return cand.proxyKind === cand.originalCandidate.proxyKind;
     case 'P2-B3':
-      return (
-        cand.sourceModule === 'P2-B3' &&
-        cand.originalCandidate.episodeKey === cand.sourceEpisodeKey
-      );
-    case 'P2-B4':
-      return (
-        cand.sourceModule === 'P2-B4' &&
-        cand.originalCandidate.episodeKey === cand.sourceEpisodeKey &&
-        'facet' in cand &&
-        cand.originalClassification === cand.originalClassification
-      );
+      return true;
+    case 'P2-B4': {
+      if (cand.facet === 'HIGH_RPM_STATIONARY_LIKE_PROXY') {
+        return 'peakObservedRpm' in cand.originalCandidate && !('meanObservedRpmInBand' in cand.originalCandidate);
+      }
+      if (cand.facet === 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY') {
+        return 'meanObservedRpmInBand' in cand.originalCandidate && !('peakObservedRpm' in cand.originalCandidate);
+      }
+      return false;
+    }
     default:
       return false;
   }

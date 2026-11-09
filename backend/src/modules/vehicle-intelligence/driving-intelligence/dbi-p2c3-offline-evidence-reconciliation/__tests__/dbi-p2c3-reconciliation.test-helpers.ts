@@ -10,7 +10,9 @@ import {
   DBI_P2C15_VEHICLE_BASELINE,
 } from '../../dbi-p2c15-binding-envelope-fixtures/dbi-p2c15-binding-envelope.identity.v1';
 import {
+  buildBoundPowertrainInput,
   buildColdEngineBoundInput,
+  buildObservationSeries,
   coldEctGrid,
 } from '../../ds4-powertrain-demand-research/__tests__/ds4-powertrain-demand-research.test-helpers';
 import { computeDs4PowertrainDemandColdEngineResearchV1 } from '../../ds4-powertrain-demand-research/ds4-powertrain-demand-cold-engine.kernel.v1';
@@ -100,6 +102,75 @@ export type MutableProxyPlane = {
 
 export function cloneMutablePlane(plane: DbiP2c2PowertrainProxyCandidatesPlaneV1): MutableProxyPlane {
   return structuredClone(plane) as MutableProxyPlane;
+}
+
+export function adaptRevvingIdleB4FacetAPlaneFromS01(): DbiP2c2PowertrainProxyCandidatesPlaneV1 {
+  const v1bPrefix = buildObservationSeries('2026-01-01T10:00:01.000Z', 8, 1, () => ({
+    rpm: 850,
+    speedKmh: 2,
+    throttlePct: 8,
+    loadPct: 12,
+  }));
+  const facetARev = buildObservationSeries('2026-01-01T10:00:12.000Z', 4, 1, (i) => ({
+    speedKmh: 0,
+    rpm: 2000 + i * 50,
+  }));
+  const kernel = computeDs4PowertrainDemandRevvingIdleResearchV1(
+    buildBoundPowertrainInput({
+      multichannelObservations: [...v1bPrefix, ...facetARev],
+      tripId: DBI_P2C15_TRIP_BASELINE,
+      linkId: DBI_P2C15_LINK_BASELINE,
+    }),
+  );
+  const out = adaptDs4RevvingIdleResearchToP2c2Evidence(kernel);
+  if (!out.ok) throw new Error(`B4 facet A adapter failed: ${out.diagnosticCodes.join(',')}`);
+  if (
+    !out.plane.candidates.some(
+      (c) => c.sourceModule === 'P2-B4' && c.facet === 'HIGH_RPM_STATIONARY_LIKE_PROXY',
+    )
+  ) {
+    throw new Error('expected B4 facet A candidate');
+  }
+  return out.plane;
+}
+
+export function adaptRevvingIdleB4FacetBPlaneFromS01(): DbiP2c2PowertrainProxyCandidatesPlaneV1 {
+  const v1bPrefix = buildObservationSeries('2026-01-01T10:00:01.000Z', 8, 1, () => ({
+    rpm: 850,
+    speedKmh: 2,
+    throttlePct: 8,
+    loadPct: 12,
+  }));
+  const facetBIdle = buildObservationSeries('2026-01-01T10:00:12.000Z', 201, 1, () => ({
+    speedKmh: 0,
+    rpm: 850,
+  }));
+  const kernel = computeDs4PowertrainDemandRevvingIdleResearchV1(
+    buildBoundPowertrainInput({
+      multichannelObservations: [...v1bPrefix, ...facetBIdle],
+      tripId: DBI_P2C15_TRIP_BASELINE,
+      linkId: DBI_P2C15_LINK_BASELINE,
+    }),
+  );
+  const out = adaptDs4RevvingIdleResearchToP2c2Evidence(kernel);
+  if (!out.ok) throw new Error(`B4 facet B adapter failed: ${out.diagnosticCodes.join(',')}`);
+  if (
+    !out.plane.candidates.some(
+      (c) => c.sourceModule === 'P2-B4' && c.facet === 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY',
+    )
+  ) {
+    throw new Error('expected B4 facet B candidate');
+  }
+  return out.plane;
+}
+
+export function adaptRevvingIdleB4DualFacetPlaneFromS01(): DbiP2c2PowertrainProxyCandidatesPlaneV1 {
+  const facetA = adaptRevvingIdleB4FacetAPlaneFromS01();
+  const facetB = adaptRevvingIdleB4FacetBPlaneFromS01();
+  return {
+    ...facetA,
+    candidates: [...facetA.candidates, ...facetB.candidates],
+  };
 }
 
 export function adaptSustainedLoadPlaneFromS11(): DbiP2c2PowertrainProxyCandidatesPlaneV1 {

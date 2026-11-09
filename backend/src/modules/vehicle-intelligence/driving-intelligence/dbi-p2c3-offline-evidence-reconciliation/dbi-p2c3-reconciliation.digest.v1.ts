@@ -18,7 +18,16 @@ export function buildReconciliationResultDigest(result: Omit<DbiP2c3Reconciliati
       ref: m.participantRef,
       module: m.sourceModule,
       status: m.originalKernelStatus,
+      abstainReasons: [...m.originalAbstainReasons].sort(),
+      adapterClaimsPositiveEvidence: m.adapterClaimsPositiveEvidence,
+      descriptiveOnly: m.descriptiveOnly,
       projection: m.moduleProjection,
+    })),
+    provenanceLimitations: result.provenanceLimitations.map((p) => ({
+      ref: p.participantRef,
+      module: p.sourceModule,
+      carriedAsReported: p.provenanceCarriedAsReported,
+      attestationNotEstablished: p.attestationNotEstablishedByReconciliation,
     })),
     participantRefs: result.participantReferences.map((p) => p.participantRef).sort(),
     candidateIdentity: result.candidateInventory
