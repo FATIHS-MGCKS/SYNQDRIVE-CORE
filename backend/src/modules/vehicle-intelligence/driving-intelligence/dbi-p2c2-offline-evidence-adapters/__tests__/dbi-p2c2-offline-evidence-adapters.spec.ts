@@ -9,6 +9,7 @@ import {
 } from '../../dbi-p2c15-binding-envelope-fixtures/dbi-p2c15-binding-envelope.scenarios.v1';
 import {
   buildBoundPowertrainInput,
+  buildObservationSeries,
   positiveKickdownGrid,
 } from '../../ds4-powertrain-demand-research/__tests__/ds4-powertrain-demand-research.test-helpers';
 import { DBI_P2C15_TRIP_BASELINE, DBI_P2C15_LINK_BASELINE } from '../../dbi-p2c15-binding-envelope-fixtures/dbi-p2c15-binding-envelope.identity.v1';
@@ -185,49 +186,82 @@ describe('dbi-p2c2 offline evidence adapters', () => {
     expect(out.diagnosticCodes).toContain('A1_SEMANTIC_GUARD_NOT_EVIDENCE_CANDIDATE');
   });
 
-  it('B4 facet candidates are tagged independently when candidates exist', () => {
-    const input = buildBoundPowertrainInput({
-      multichannelObservations: positiveKickdownGrid(),
-      tripId: DBI_P2C15_TRIP_BASELINE,
-      linkId: DBI_P2C15_LINK_BASELINE,
-    });
-    const kernel = computeDs4PowertrainDemandRevvingIdleResearchV1(input);
-    const out = adaptDs4RevvingIdleResearchToP2c2Evidence(kernel);
-    expect(out.ok).toBe(true);
-    if (!out.ok) return;
+  it('B4 facet A and facet B positives preserve classification, keys and facet tags', () => {
+    const v1bPrefix = buildObservationSeries('2026-01-01T10:00:01.000Z', 8, 1, () => ({
+      rpm: 850,
+      speedKmh: 2,
+      throttlePct: 8,
+      loadPct: 12,
+    }));
+    const facetARev = buildObservationSeries('2026-01-01T10:00:12.000Z', 4, 1, (i) => ({
+      speedKmh: 0,
+      rpm: 2000 + i * 50,
+    }));
+    const kernelA = computeDs4PowertrainDemandRevvingIdleResearchV1(
+      buildBoundPowertrainInput({
+        multichannelObservations: [...v1bPrefix, ...facetARev],
+        tripId: DBI_P2C15_TRIP_BASELINE,
+        linkId: DBI_P2C15_LINK_BASELINE,
+      }),
+    );
+    expect(kernelA.revvingIdle.facetA.deduplicatedCandidateCount).toBeGreaterThanOrEqual(1);
+    const outA = adaptDs4RevvingIdleResearchToP2c2Evidence(kernelA);
+    expect(outA.ok).toBe(true);
+    if (!outA.ok) return;
+    const aPositives = outA.plane.candidates.filter(
+      (c) => c.sourceModule === 'P2-B4' && c.facet === 'HIGH_RPM_STATIONARY_LIKE_PROXY',
+    );
+    expect(aPositives.length).toBeGreaterThanOrEqual(1);
+    expect(aPositives[0]!.originalClassification).toBe('HIGH_RPM_STATIONARY_LIKE_PROXY_CANDIDATE');
+    expect(aPositives[0]!.sourceEpisodeKey).toBe(kernelA.revvingIdle.facetA.candidates[0]!.episodeKey);
 
-    if (out.plane.candidates.length > 0) {
-      for (const c of out.plane.candidates) {
-        expect(c.sourceModule).toBe('P2-B4');
-        if (c.sourceModule === 'P2-B4') {
-          expect(['HIGH_RPM_STATIONARY_LIKE_PROXY', 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY']).toContain(c.facet);
-        }
-      }
-    }
-    expect(out.plane.participant.sourceModule).toBe('P2-B4');
-    const b4 = out.plane.participant as DbiP2c2B4EvidenceParticipantV1;
-    expect(b4.facetA.facet).toBe('HIGH_RPM_STATIONARY_LIKE_PROXY');
-    expect(b4.facetB.facet).toBe('EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY');
+    const facetBIdle = buildObservationSeries('2026-01-01T10:00:12.000Z', 201, 1, () => ({
+      speedKmh: 0,
+      rpm: 850,
+    }));
+    const kernelB = computeDs4PowertrainDemandRevvingIdleResearchV1(
+      buildBoundPowertrainInput({
+        multichannelObservations: [...v1bPrefix, ...facetBIdle],
+        tripId: DBI_P2C15_TRIP_BASELINE,
+        linkId: DBI_P2C15_LINK_BASELINE,
+      }),
+    );
+    expect(kernelB.revvingIdle.facetB.deduplicatedCandidateCount).toBeGreaterThanOrEqual(1);
+    const outB = adaptDs4RevvingIdleResearchToP2c2Evidence(kernelB);
+    expect(outB.ok).toBe(true);
+    if (!outB.ok) return;
+    const bPositives = outB.plane.candidates.filter(
+      (c) => c.sourceModule === 'P2-B4' && c.facet === 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY',
+    );
+    expect(bPositives.length).toBeGreaterThanOrEqual(1);
+    expect(bPositives[0]!.originalClassification).toBe('EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY_CANDIDATE');
+    expect(bPositives[0]!.sourceEpisodeKey).toBe(kernelB.revvingIdle.facetB.candidates[0]!.episodeKey);
   });
 
-  it('synthetic duplicate episode keys: both preserved without deduplication', () => {
+  it('synthetic duplicate episode keys: exact source multiplicity preserved', () => {
     const pack = buildDbiP2c15ScenarioPackage('S01_VALID_ICE_BASELINE');
     if (pack.payload.kind !== 'POWERTRAIN_INPUT') throw new Error('expected powertrain');
     const kernel = computeDs4PowertrainDemandResearchV1(pack.payload.input);
     const tampered = structuredClone(kernel);
-    if (tampered.kickdown.candidates.length >= 2) {
-      tampered.kickdown.candidates[1] = {
-        ...tampered.kickdown.candidates[1],
-        episodeKey: tampered.kickdown.candidates[0].episodeKey,
-      };
-    }
+    const base = tampered.kickdown.candidates[0];
+    if (!base) throw new Error('S01 must expose at least one kickdown candidate');
+    const sharedKey = 'duplicate-episode-key-x';
+    tampered.kickdown.candidates = [
+      { ...structuredClone(base), episodeKey: sharedKey },
+      {
+        ...structuredClone(base),
+        episodeKey: sharedKey,
+        startBucketIndex: base.startBucketIndex + 1,
+        endBucketIndex: base.endBucketIndex + 1,
+      },
+    ];
+    expect(tampered.kickdown.candidates).toHaveLength(2);
     const out = adaptDs4KickdownResearchToP2c2Evidence(tampered);
     expect(out.ok).toBe(true);
     if (!out.ok) return;
-    const keys = out.plane.candidates.map((c) => c.sourceEpisodeKey);
-    const dupes = keys.filter((k, i) => keys.indexOf(k) !== i);
-    expect(dupes.length).toBeGreaterThanOrEqual(0);
-    expect(out.plane.candidates.length).toBe(tampered.kickdown.candidates.length);
+    expect(out.plane.candidates).toHaveLength(2);
+    expect(out.plane.candidates[0]!.sourceEpisodeKey).toBe(sharedKey);
+    expect(out.plane.candidates[1]!.sourceEpisodeKey).toBe(sharedKey);
   });
 
   it.each(['S01_VALID_ICE_BASELINE', 'S10_INSUFFICIENT_OBSERVATIONS', 'S15_OFFLINE_UNATTESTED_NEGATIVE'] as const)(
@@ -251,16 +285,31 @@ describe('dbi-p2c2 offline evidence adapters', () => {
     expect(out.plane.participant.adapterClaimsPositiveEvidence).toBe(false);
   });
 
-  it('extra synthetic multi-candidate kickdown grid', () => {
+  it('extra synthetic multi-candidate kickdown grid preserves identities', () => {
     const input = buildBoundPowertrainInput({
       multichannelObservations: positiveKickdownGrid(),
       tripId: DBI_P2C15_TRIP_BASELINE,
       linkId: DBI_P2C15_LINK_BASELINE,
     });
     const kernel = computeDs4PowertrainDemandResearchV1(input);
-    const out = adaptDs4KickdownResearchToP2c2Evidence(kernel);
+    const source = structuredClone(kernel);
+    const base = source.kickdown.candidates[0];
+    if (!base) throw new Error('expected at least one kickdown candidate');
+    if (source.kickdown.candidates.length < 2) {
+      source.kickdown.candidates.push({
+        ...structuredClone(base),
+        episodeKey: `${base.episodeKey}-secondary`,
+        startBucketIndex: base.startBucketIndex + 2,
+        endBucketIndex: base.endBucketIndex + 2,
+      });
+    }
+    expect(source.kickdown.candidates.length).toBeGreaterThanOrEqual(2);
+    const out = adaptDs4KickdownResearchToP2c2Evidence(source);
     expect(out.ok).toBe(true);
     if (!out.ok) return;
-    expect(out.plane.candidates.length).toBe(kernel.kickdown.candidates.length);
+    expect(out.plane.candidates.length).toBe(source.kickdown.candidates.length);
+    const sourceKeys = [...source.kickdown.candidates.map((c) => c.episodeKey)].sort();
+    const adaptedKeys = [...out.plane.candidates.map((c) => c.sourceEpisodeKey)].sort();
+    expect(adaptedKeys).toEqual(sourceKeys);
   });
 });

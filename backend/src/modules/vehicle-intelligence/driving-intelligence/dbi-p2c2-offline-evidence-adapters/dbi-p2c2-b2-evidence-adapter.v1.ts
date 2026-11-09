@@ -1,13 +1,19 @@
 import type { Ds4PowertrainDemandColdEngineResultV1 } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
 import {
+  checkAbstainedWithPositiveCandidates,
+  checkNotObservedWithPositiveCandidates,
+} from './dbi-p2c2-evidence-adapter.consistency.v1';
+import {
   DBI_P2C2_EVIDENCE_ADAPTER_CONTRACT_VERSION,
+  type DbiP2c2AdapterDiagnosticCodeV1,
   type DbiP2c2AdapterOutcomeV1,
   type DbiP2c2PowertrainProxyCandidatesPlaneV1,
   type DbiP2c2ProxyCandidateEnvelopeV1,
 } from './dbi-p2c2-evidence-adapter.contract.v1';
+import { deepIsolate } from './dbi-p2c2-evidence-adapter.isolation.v1';
 import {
   buildOrderingDigest,
-  collectInvalidBucketLabels,
+  collectTemporalDiagnostics,
   computeAdapterClaimsPositiveEvidence,
   projectPowertrainProvenance,
 } from './dbi-p2c2-evidence-adapter.shared.v1';
@@ -15,27 +21,39 @@ import {
 export function adaptDs4ColdEngineResearchToP2c2Evidence(
   source: Ds4PowertrainDemandColdEngineResultV1,
 ): DbiP2c2AdapterOutcomeV1<DbiP2c2PowertrainProxyCandidatesPlaneV1> {
-  const diagnostics: import('./dbi-p2c2-evidence-adapter.contract.v1').DbiP2c2AdapterDiagnosticCodeV1[] = [];
+  const diagnostics: DbiP2c2AdapterDiagnosticCodeV1[] = [];
   if (!source.researchOnly) diagnostics.push('SOURCE_NOT_RESEARCH_ONLY');
-
-  const labels = source.coldEngine.candidates.flatMap((c) => [
-    c.providerBucketLabelStartIso,
-    c.providerBucketLabelEndIso,
-  ]);
-  diagnostics.push(...collectInvalidBucketLabels(labels));
-  if (diagnostics.length > 0) {
-    return { ok: false, sourceModule: 'P2-B2', diagnosticCodes: diagnostics };
-  }
 
   const sorted = [...source.coldEngine.candidates].sort((a, b) => {
     if (a.proxyKind !== b.proxyKind) return a.proxyKind.localeCompare(b.proxyKind);
     if (a.startBucketIndex !== b.startBucketIndex) return a.startBucketIndex - b.startBucketIndex;
     return a.episodeKey.localeCompare(b.episodeKey);
   });
+  const classifications = sorted.map((c) => c.classification);
+
+  diagnostics.push(
+    ...collectTemporalDiagnostics(
+      sorted.map((c) => ({
+        startIso: c.providerBucketLabelStartIso,
+        endIso: c.providerBucketLabelEndIso,
+        startBucketIndex: c.startBucketIndex,
+        endBucketIndex: c.endBucketIndex,
+      })),
+    ),
+  );
+
+  const notObserved = checkNotObservedWithPositiveCandidates(source.status, classifications);
+  if (notObserved) diagnostics.push(notObserved);
+  const abstained = checkAbstainedWithPositiveCandidates(source.status, classifications);
+  if (abstained) diagnostics.push(abstained);
+
+  if (diagnostics.length > 0) {
+    return { ok: false, sourceModule: 'P2-B2', diagnosticCodes: diagnostics };
+  }
 
   const candidates: DbiP2c2ProxyCandidateEnvelopeV1[] = sorted.map((originalCandidate) => ({
     sourceModule: 'P2-B2',
-    originalCandidate,
+    originalCandidate: deepIsolate(originalCandidate),
     originalClassification: originalCandidate.classification,
     proxyKind: originalCandidate.proxyKind,
     sourceEpisodeKey: originalCandidate.episodeKey,
@@ -43,9 +61,10 @@ export function adaptDs4ColdEngineResearchToP2c2Evidence(
 
   const adapterClaimsPositiveEvidence = computeAdapterClaimsPositiveEvidence({
     tripStatus: source.status,
-    classifications: candidates.map((c) => c.originalClassification),
+    classifications,
   });
 
+  const cov = source.coldEngine.coverageEvidence;
   const participant = {
     contractVersion: DBI_P2C2_EVIDENCE_ADAPTER_CONTRACT_VERSION,
     sourceModule: 'P2-B2' as const,
@@ -57,7 +76,7 @@ export function adaptDs4ColdEngineResearchToP2c2Evidence(
     evidenceOrigin: source.evidenceOrigin,
     timeAuthority: source.timeAuthority,
     temporalMode: source.temporalMode,
-    identity: {
+    identity: deepIsolate({
       organizationId: source.bindings.organizationId,
       vehicleId: source.bindings.vehicleId,
       tripId: source.bindings.tripId,
@@ -65,18 +84,27 @@ export function adaptDs4ColdEngineResearchToP2c2Evidence(
       v1bInputFingerprint: source.bindings.v1bInputFingerprint,
       multichannelFingerprint: source.bindings.multichannelFingerprint,
       sourceBundleId: source.bindings.sourceBundleId,
-    },
+    }),
     provenance: projectPowertrainProvenance(source.provenance),
     unsupportedScientificClaims: [...source.unsupportedScientificClaims],
-    scientificLimitationCodes: sorted.flatMap((c) => c.limitationCodes),
+    moduleScientificLimitationCodes: [],
+    candidateLimitationCodes: sorted.flatMap((c) => c.limitationCodes),
     adapterClaimsPositiveEvidence,
-    subtypeAssessability: { ...source.coldEngine.subtypeAssessability },
-    moduleCoverage: {
-      localCoverageScope: source.coldEngine.coverageEvidence.localCoverageScope,
-      fullTripColdStateCoverageVerdict: source.coldEngine.coverageEvidence.fullTripColdStateCoverageVerdict,
+    subtypeAssessability: deepIsolate(source.coldEngine.subtypeAssessability),
+    moduleCoverage: deepIsolate({
+      rpmTripCoverage: cov.rpmTripCoverage,
+      localCoverageScope: cov.localCoverageScope,
+      fullTripColdStateCoverageVerdict: cov.fullTripColdStateCoverageVerdict,
+      ectPresentBucketCount: cov.ectPresentBucketCount,
+      ectMissingBucketCount: cov.ectMissingBucketCount,
+      ectColdObservedBucketCount: cov.ectColdObservedBucketCount,
+      ectWarmObservedBucketCount: cov.ectWarmObservedBucketCount,
+      gridBucketCount: cov.gridBucketCount,
       referenceTrustTier: source.bindings.highRpmReferenceTrustTier,
-      vehicleRpmReferenceBinding: source.bindings.vehicleRpmReferenceBinding,
-    },
+      vehicleRpmReferenceBinding: source.bindings.vehicleRpmReferenceBinding
+        ? deepIsolate(source.bindings.vehicleRpmReferenceBinding)
+        : null,
+    }),
   };
 
   const plane: DbiP2c2PowertrainProxyCandidatesPlaneV1 = {
@@ -88,6 +116,8 @@ export function adaptDs4ColdEngineResearchToP2c2Evidence(
   return {
     ok: true,
     plane,
-    orderingDigest: buildOrderingDigest(candidates.map((c) => c.sourceEpisodeKey)),
+    orderingDigest: buildOrderingDigest(
+      candidates.map((c, ordinal) => ({ ordinal, key: c.sourceEpisodeKey })),
+    ),
   };
 }

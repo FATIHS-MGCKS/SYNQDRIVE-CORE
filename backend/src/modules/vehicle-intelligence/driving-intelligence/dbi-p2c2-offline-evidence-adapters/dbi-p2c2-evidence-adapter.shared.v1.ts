@@ -8,16 +8,17 @@ import {
   type DbiP2c2ProvenanceProjectionV1,
   type DbiP2c2TriStateProvenanceFlag,
 } from './dbi-p2c2-evidence-adapter.contract.v1';
+import {
+  collectTemporalViolations,
+  type DbiP2c2TemporalIntervalV1,
+} from './dbi-p2c2-evidence-adapter.temporal.v1';
 
-export function isValidProviderBucketLabelIso(label: string): boolean {
-  if (!label || typeof label !== 'string') return false;
-  const ms = Date.parse(label);
-  return Number.isFinite(ms);
-}
+export { isCanonicalProviderBucketLabelIso as isValidProviderBucketLabelIso } from './dbi-p2c2-evidence-adapter.temporal.v1';
 
-export function collectInvalidBucketLabels(labels: readonly string[]): DbiP2c2AdapterDiagnosticCodeV1[] {
-  const invalid = labels.filter((l) => !isValidProviderBucketLabelIso(l));
-  return invalid.length > 0 ? ['INVALID_PROVIDER_BUCKET_LABEL'] : [];
+export function collectTemporalDiagnostics(
+  intervals: readonly DbiP2c2TemporalIntervalV1[],
+): DbiP2c2AdapterDiagnosticCodeV1[] {
+  return collectTemporalViolations(intervals);
 }
 
 export function projectPowertrainProvenance(
@@ -40,7 +41,7 @@ export function projectA1ProvenanceNotReported(): DbiP2c2ProvenanceProjectionV1 
 }
 
 export function powertrainStatusBlocksPositiveEvidence(status: Ds4PowertrainDemandTripStatus): boolean {
-  return status === 'ABSTAINED';
+  return status === 'ABSTAINED' || status === 'NOT_OBSERVED';
 }
 
 const POSITIVE_PROXY_CLASSIFICATION_MARKERS = [
@@ -68,8 +69,15 @@ export function computeAdapterClaimsPositiveEvidence(input: {
   return input.classifications.some(classificationIsPositiveProxy);
 }
 
-export function buildOrderingDigest(keys: readonly string[]): string {
-  return [...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).join('|');
+export type DbiP2c2OrderingEntryV1 = { readonly ordinal: number; readonly key: string };
+
+/** Canonical JSON digest — avoids ambiguous delimiter collisions in episode keys. */
+export function buildOrderingDigest(entries: readonly DbiP2c2OrderingEntryV1[]): string {
+  const sorted = [...entries].sort((a, b) => {
+    if (a.ordinal !== b.ordinal) return a.ordinal - b.ordinal;
+    return a.key.localeCompare(b.key);
+  });
+  return JSON.stringify(sorted.map((e) => ({ o: e.ordinal, k: e.key })));
 }
 
 export function buildA1AdapterLocalReference(sequenceIndex: number): string {

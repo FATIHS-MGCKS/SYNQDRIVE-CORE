@@ -37,10 +37,18 @@ Each adapter emits a versioned participant header preserving: bindings, fingerpr
 - `NOT_OBSERVED` ≠ confirmed absence
 - `ABSTAINED` ≠ tampering; never sets `adapterClaimsPositiveEvidence`
 
+## Integrity closeout (P1)
+
+- **Contradiction gates:** B1/B2/B3 fail-closed on `NOT_OBSERVED` or `ABSTAINED` with positive proxy classifications; B3 sole-insufficient-load `ABSTAINED` without positives remains admissible; B4 facet assessability vs candidate presence and trip classification coherence; A1 descriptive episodes vs `ABSTAINED` / non-`SUPPORTED_DESCRIPTIVE` status.
+- **Memory isolation:** `deepIsolate` (`structuredClone`) on all nested projections; dedicated per-adapter mutation regression.
+- **Scientific fidelity:** Expanded participant metadata (A1 denominators/thresholds/mass accounting; B1 full movement coverage; B2 ECT coverage; B3 canonical counts; B4 module `scientificLimitationCodes` vs candidate limitations).
+- **Temporal:** Canonical `YYYY-MM-DDTHH:mm:ss.sssZ` labels; reject end-before-start and inverted bucket indices.
+- **Determinism:** JSON canonical `orderingDigest` with ordinal + key (NUL-safe facet keys for B4).
+
 ## Tests
 
 - Reuses merged P2-C1.5 `buildDbiP2c15ScenarioPackage` (test imports only)
-- Scenarios S01, S09, S11, S12, S14, S16, S13-B3, adversarial invalid labels / A1 guard violation
+- Scenarios S01, S09, S11, S12, S14, S16, S13-B3; contradiction + memory-isolation suites; B4 facet A/B synthetic positives from kernel spec grids
 
 ## Import boundary
 

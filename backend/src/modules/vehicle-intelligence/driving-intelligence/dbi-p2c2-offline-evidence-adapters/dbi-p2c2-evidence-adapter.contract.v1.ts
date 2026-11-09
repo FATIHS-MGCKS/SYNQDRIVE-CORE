@@ -25,6 +25,7 @@ import type {
   Ds4RpmEpisodeResearchEpisodeCategoryStatus,
   Ds4RpmEpisodeResearchEpisodeItemV1,
   Ds4RpmEpisodeResearchEvidenceOrigin,
+  Ds4RpmEpisodeResearchMassAccountingV1,
   Ds4RpmEpisodeResearchResultStatus,
   Ds4RpmEpisodeResearchSemanticGuardV1,
   Ds4RpmEpisodeResearchTimeAuthority,
@@ -72,7 +73,8 @@ export type DbiP2c2ParticipantHeaderV1 = {
   readonly identity: DbiP2c2ParticipantIdentityV1;
   readonly provenance: DbiP2c2ProvenanceProjectionV1;
   readonly unsupportedScientificClaims: readonly string[];
-  readonly scientificLimitationCodes: readonly string[];
+  readonly moduleScientificLimitationCodes: readonly string[];
+  readonly candidateLimitationCodes: readonly string[];
   /**
    * Adapter-local gate — never true when source trip status is ABSTAINED or when no positive
    * proxy classifications are present (B4: both facets NOT_ASSESSABLE).
@@ -93,6 +95,24 @@ export type DbiP2c2A1ModuleAssessabilityV1 = {
   readonly semanticGuards: Ds4RpmEpisodeResearchSemanticGuardV1;
 };
 
+export type DbiP2c2A1DenominatorsV1 = {
+  readonly observedUniqueLabelCount: number;
+  readonly eligibleSequencePointCount: number;
+  readonly runningLabelCount: number;
+  readonly engineNotRotatingLabelCount: number;
+  readonly identicalDuplicateCollapsedCount: number;
+  readonly conflictingDuplicateLabelCount: number;
+  readonly invalidTimestampOrRpmCount: number;
+  readonly negativeOrNonFiniteRpmExcludedCount: number;
+};
+
+export type DbiP2c2A1HighEpisodeThresholdsV1 = {
+  readonly highEntryU: number;
+  readonly highExitU: number;
+  readonly nearMaxEntryU: number;
+  readonly nearMaxExitU: number;
+};
+
 export type DbiP2c2A1EvidenceParticipantV1 = DbiP2c2ParticipantHeaderV1 & {
   readonly sourceModule: 'P2-A1';
   readonly sourceContractVersion: typeof DS4_RPM_EPISODE_RESEARCH_CONTRACT_VERSION;
@@ -101,18 +121,19 @@ export type DbiP2c2A1EvidenceParticipantV1 = DbiP2c2ParticipantHeaderV1 & {
     readonly trustTier: string | null;
     readonly idleRpmProvenance: string | null;
     readonly maxRpmProvenance: string | null;
+    readonly normalizedEpisodesEligible: boolean;
     readonly referenceObservationConflict: boolean;
     readonly riAvailability: string | null;
     readonly riReasonCodes: readonly string[];
   };
-  readonly highEpisodesMassAccounting: Ds4RpmEpisodeResearchResultV1HighEpisodesMetaV1;
-};
-
-/** Slim mirror of A1 high-episodes meta without re-importing full result type in consumers. */
-export type Ds4RpmEpisodeResearchResultV1HighEpisodesMetaV1 = {
-  readonly status: Ds4RpmEpisodeResearchEpisodeCategoryStatus;
-  readonly rejectedCandidateCount: number;
-  readonly countRange: { readonly min: number; readonly max: number | null };
+  readonly highEpisodesMeta: {
+    readonly status: Ds4RpmEpisodeResearchEpisodeCategoryStatus;
+    readonly rejectedCandidateCount: number;
+    readonly countRange: { readonly min: number; readonly max: number };
+    readonly thresholds: DbiP2c2A1HighEpisodeThresholdsV1;
+    readonly massAccounting: Ds4RpmEpisodeResearchMassAccountingV1 | null;
+  };
+  readonly denominators: DbiP2c2A1DenominatorsV1;
 };
 
 export type DbiP2c2DescriptiveRpmEpisodesPlaneV1 = {
@@ -153,11 +174,16 @@ export type DbiP2c2ProxyCandidateEnvelopeV1 =
     };
 
 export type DbiP2c2B1ModuleCoverageV1 = {
+  readonly rpmTripCoverage: number | null;
+  readonly multichannelObservedGridCoverage: number | null;
   readonly movementObservedCompleteness: number | null;
   readonly fullTripMovementCoverageVerdict: 'UNKNOWN' | null;
   readonly localCoverageScope: 'OBSERVED_MOVING_BUCKETS_ONLY' | null;
   readonly observedMovingBucketCount: number;
+  readonly observedStationaryBucketCount: number;
   readonly unknownSpeedBucketCount: number;
+  readonly eligibleObservationCount: number;
+  readonly eligibleMovingObservationCount: number;
 };
 
 export type DbiP2c2B1EvidenceParticipantV1 = DbiP2c2ParticipantHeaderV1 & {
@@ -172,8 +198,14 @@ export type DbiP2c2B2SubtypeAssessabilityV1 = Record<
 >;
 
 export type DbiP2c2B2ModuleCoverageV1 = {
+  readonly rpmTripCoverage: number | null;
   readonly localCoverageScope: 'ECT_LABELLED_BUCKETS_ONLY' | null;
   readonly fullTripColdStateCoverageVerdict: 'UNKNOWN' | null;
+  readonly ectPresentBucketCount: number;
+  readonly ectMissingBucketCount: number;
+  readonly ectColdObservedBucketCount: number;
+  readonly ectWarmObservedBucketCount: number;
+  readonly gridBucketCount: number;
   readonly referenceTrustTier:
     | 'SYNTHETIC_FIXTURE_ONLY'
     | 'DOWNGRADED_ESTIMATE'
@@ -194,11 +226,13 @@ export type DbiP2c2B3EvidenceParticipantV1 = DbiP2c2ParticipantHeaderV1 & {
   readonly originalKernelStatus: Ds4PowertrainDemandTripStatus;
   readonly tripEvidenceClassification: Ds4SustainedLoadTripEvidenceClassificationV1;
   readonly partialCoverage: {
+    readonly canonicalRowsFullKey: number;
+    readonly distinctMsLabelsInTrip: number;
+    readonly identicalDuplicateCollapsedCount: number;
     readonly loadPresentBucketCount: number;
     readonly loadMissingBucketCount: number;
     readonly gridBucketCount: number;
     readonly entryLabelCount: number;
-    readonly distinctMsLabelsInTrip: number;
   };
 };
 
@@ -226,6 +260,8 @@ export type DbiP2c2B4CoverageEvidenceV1 = {
 export type DbiP2c2B4EvidenceParticipantV1 = DbiP2c2ParticipantHeaderV1 & {
   readonly sourceModule: 'P2-B4';
   readonly originalKernelStatus: Ds4PowertrainDemandTripStatus;
+  readonly distinctMsLabelsInTrip: number;
+  readonly identicalDuplicateCollapsedCount: number;
   readonly facetA: DbiP2c2B4FacetProjectionV1;
   readonly facetB: DbiP2c2B4FacetProjectionV1;
   readonly coverageEvidence: DbiP2c2B4CoverageEvidenceV1;
@@ -247,8 +283,20 @@ export type DbiP2c2AdapterDiagnosticCodeV1 =
   | 'SOURCE_NOT_RESEARCH_ONLY'
   | 'A1_SEMANTIC_GUARD_NOT_EVIDENCE_CANDIDATE'
   | 'A1_SEMANTIC_GUARD_LABELS_NOT_FOR_CROSS_DOMAIN_JOIN'
+  | 'A1_CONTRADICTORY_DESCRIPTIVE_EPISODES_UNDER_ABSTAIN'
+  | 'A1_CONTRADICTORY_DESCRIPTIVE_EPISODES_UNDER_NOT_ASSESSABLE'
+  | 'A1_CONTRADICTORY_DESCRIPTIVE_EPISODES_UNDER_NOT_OBSERVED'
+  | 'A1_CONTRADICTORY_DESCRIPTIVE_EPISODES_STATUS'
   | 'INVALID_PROVIDER_BUCKET_LABEL'
-  | 'CONTRADICTORY_POSITIVE_EVIDENCE_UNDER_ABSTAIN';
+  | 'INVALID_TEMPORAL_INTERVAL_ORDER'
+  | 'INVALID_BUCKET_INDEX_ORDER'
+  | 'CONTRADICTORY_POSITIVE_CANDIDATES_UNDER_NOT_OBSERVED'
+  | 'CONTRADICTORY_POSITIVE_CANDIDATES_UNDER_ABSTAIN'
+  | 'B4_CONTRADICTORY_POSITIVE_UNDER_DUAL_NOT_ASSESSABLE'
+  | 'B4_CONTRADICTORY_POSITIVE_UNDER_UNASSESSABLE_FACET_A'
+  | 'B4_CONTRADICTORY_POSITIVE_UNDER_UNASSESSABLE_FACET_B'
+  | 'B4_CONTRADICTORY_FACET_A_TRIP_CLASSIFICATION'
+  | 'B4_CONTRADICTORY_FACET_B_TRIP_CLASSIFICATION';
 
 export type DbiP2c2AdapterFailureV1 = {
   readonly ok: false;

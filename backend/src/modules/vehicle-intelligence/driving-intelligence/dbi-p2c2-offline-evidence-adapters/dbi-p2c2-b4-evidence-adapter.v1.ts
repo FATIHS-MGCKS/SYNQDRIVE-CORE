@@ -1,13 +1,16 @@
 import type { Ds4PowertrainDemandRevvingIdleResultV1 } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
+import { checkB4RevvingIdleConsistency } from './dbi-p2c2-evidence-adapter.consistency.v1';
 import {
   DBI_P2C2_EVIDENCE_ADAPTER_CONTRACT_VERSION,
+  type DbiP2c2AdapterDiagnosticCodeV1,
   type DbiP2c2AdapterOutcomeV1,
   type DbiP2c2PowertrainProxyCandidatesPlaneV1,
   type DbiP2c2ProxyCandidateEnvelopeV1,
 } from './dbi-p2c2-evidence-adapter.contract.v1';
+import { deepIsolate } from './dbi-p2c2-evidence-adapter.isolation.v1';
 import {
   buildOrderingDigest,
-  collectInvalidBucketLabels,
+  collectTemporalDiagnostics,
   computeAdapterClaimsPositiveEvidence,
   projectPowertrainProvenance,
 } from './dbi-p2c2-evidence-adapter.shared.v1';
@@ -25,7 +28,7 @@ function facetCandidatesToEnvelopes(
   return sorted.map((originalCandidate) => ({
     sourceModule: 'P2-B4' as const,
     facet,
-    originalCandidate,
+    originalCandidate: deepIsolate(originalCandidate),
     originalClassification: originalCandidate.classification,
     sourceEpisodeKey: originalCandidate.episodeKey,
   }));
@@ -34,20 +37,20 @@ function facetCandidatesToEnvelopes(
 export function adaptDs4RevvingIdleResearchToP2c2Evidence(
   source: Ds4PowertrainDemandRevvingIdleResultV1,
 ): DbiP2c2AdapterOutcomeV1<DbiP2c2PowertrainProxyCandidatesPlaneV1> {
-  const diagnostics: import('./dbi-p2c2-evidence-adapter.contract.v1').DbiP2c2AdapterDiagnosticCodeV1[] = [];
+  const diagnostics: DbiP2c2AdapterDiagnosticCodeV1[] = [];
   if (!source.researchOnly) diagnostics.push('SOURCE_NOT_RESEARCH_ONLY');
 
-  const labels = [
-    ...source.revvingIdle.facetA.candidates.flatMap((c) => [
-      c.startProviderBucketLabelIso,
-      c.endProviderBucketLabelIso,
-    ]),
-    ...source.revvingIdle.facetB.candidates.flatMap((c) => [
-      c.startProviderBucketLabelIso,
-      c.endProviderBucketLabelIso,
-    ]),
-  ];
-  diagnostics.push(...collectInvalidBucketLabels(labels));
+  const allCandidates = [...source.revvingIdle.facetA.candidates, ...source.revvingIdle.facetB.candidates];
+  diagnostics.push(
+    ...collectTemporalDiagnostics(
+      allCandidates.map((c) => ({
+        startIso: c.startProviderBucketLabelIso,
+        endIso: c.endProviderBucketLabelIso,
+      })),
+    ),
+  );
+  diagnostics.push(...checkB4RevvingIdleConsistency(source));
+
   if (diagnostics.length > 0) {
     return { ok: false, sourceModule: 'P2-B4', diagnosticCodes: diagnostics };
   }
@@ -61,6 +64,7 @@ export function adaptDs4RevvingIdleResearchToP2c2Evidence(
     source.revvingIdle.facetB.candidates,
   );
   const candidates = [...facetAEnvelopes, ...facetBEnvelopes];
+  const classifications = candidates.map((c) => c.originalClassification);
 
   const bothFacetsNotAssessable =
     source.revvingIdle.facetA.assessability === 'NOT_ASSESSABLE' &&
@@ -68,18 +72,11 @@ export function adaptDs4RevvingIdleResearchToP2c2Evidence(
 
   const adapterClaimsPositiveEvidence = computeAdapterClaimsPositiveEvidence({
     tripStatus: source.status,
-    classifications: candidates.map((c) => c.originalClassification),
+    classifications,
     extraBlock: bothFacetsNotAssessable,
   });
 
-  const limitationCodes = [
-    ...facetAEnvelopes.flatMap((c) =>
-      'limitationCodes' in c.originalCandidate ? c.originalCandidate.limitationCodes : [],
-    ),
-    ...facetBEnvelopes.flatMap((c) =>
-      'limitationCodes' in c.originalCandidate ? c.originalCandidate.limitationCodes : [],
-    ),
-  ];
+  const candidateLimitationCodes = allCandidates.flatMap((c) => c.limitationCodes);
 
   const participant = {
     contractVersion: DBI_P2C2_EVIDENCE_ADAPTER_CONTRACT_VERSION,
@@ -92,7 +89,7 @@ export function adaptDs4RevvingIdleResearchToP2c2Evidence(
     evidenceOrigin: source.evidenceOrigin,
     timeAuthority: source.timeAuthority,
     temporalMode: source.temporalMode,
-    identity: {
+    identity: deepIsolate({
       organizationId: source.bindings.organizationId,
       vehicleId: source.bindings.vehicleId,
       tripId: source.bindings.tripId,
@@ -100,17 +97,20 @@ export function adaptDs4RevvingIdleResearchToP2c2Evidence(
       v1bInputFingerprint: source.bindings.v1bInputFingerprint,
       multichannelFingerprint: source.bindings.multichannelFingerprint,
       sourceBundleId: source.bindings.sourceBundleId,
-    },
+    }),
     provenance: projectPowertrainProvenance(source.provenance),
     unsupportedScientificClaims: [...source.unsupportedScientificClaims],
-    scientificLimitationCodes: limitationCodes,
+    moduleScientificLimitationCodes: [...source.revvingIdle.scientificLimitationCodes],
+    candidateLimitationCodes: [...candidateLimitationCodes],
     adapterClaimsPositiveEvidence,
+    distinctMsLabelsInTrip: source.revvingIdle.distinctMsLabelsInTrip,
+    identicalDuplicateCollapsedCount: source.revvingIdle.identicalDuplicateCollapsedCount,
     facetA: {
       facet: 'HIGH_RPM_STATIONARY_LIKE_PROXY' as const,
       assessability: source.revvingIdle.facetA.assessability,
       tripEvidenceClassification: source.revvingIdle.facetA.tripEvidenceClassification,
       assessabilityReasonCodes: [...source.revvingIdle.facetA.coverageDiagnostics.assessabilityReasonCodes],
-      coverageDiagnostics: source.revvingIdle.facetA.coverageDiagnostics,
+      coverageDiagnostics: deepIsolate(source.revvingIdle.facetA.coverageDiagnostics),
       entryLabelCount: source.revvingIdle.facetA.entryLabelCount,
       deduplicatedCandidateCount: source.revvingIdle.facetA.deduplicatedCandidateCount,
     },
@@ -119,11 +119,11 @@ export function adaptDs4RevvingIdleResearchToP2c2Evidence(
       assessability: source.revvingIdle.facetB.assessability,
       tripEvidenceClassification: source.revvingIdle.facetB.tripEvidenceClassification,
       assessabilityReasonCodes: [...source.revvingIdle.facetB.coverageDiagnostics.assessabilityReasonCodes],
-      coverageDiagnostics: source.revvingIdle.facetB.coverageDiagnostics,
+      coverageDiagnostics: deepIsolate(source.revvingIdle.facetB.coverageDiagnostics),
       entryLabelCount: source.revvingIdle.facetB.entryLabelCount,
       deduplicatedCandidateCount: source.revvingIdle.facetB.deduplicatedCandidateCount,
     },
-    coverageEvidence: { ...source.revvingIdle.coverageEvidence },
+    coverageEvidence: deepIsolate(source.revvingIdle.coverageEvidence),
   };
 
   const plane: DbiP2c2PowertrainProxyCandidatesPlaneV1 = {
@@ -136,9 +136,10 @@ export function adaptDs4RevvingIdleResearchToP2c2Evidence(
     ok: true,
     plane,
     orderingDigest: buildOrderingDigest(
-      candidates.map((c) =>
-        c.sourceModule === 'P2-B4' ? `${c.facet}:${c.sourceEpisodeKey}` : c.sourceEpisodeKey,
-      ),
+      candidates.map((c, ordinal) => ({
+        ordinal,
+        key: c.sourceModule === 'P2-B4' ? `${c.facet}\u0000${c.sourceEpisodeKey}` : c.sourceEpisodeKey,
+      })),
     ),
   };
 }
