@@ -6,8 +6,6 @@ import {
   type DbiP2c2SourceModuleV1,
 } from '../dbi-p2c2-offline-evidence-adapters/dbi-p2c2-evidence-adapter.contract.v1';
 import {
-  DBI_P2C3_DEFAULT_MAX_CANDIDATE_PAIRS,
-  DBI_P2C3_DEFAULT_MAX_PARTICIPANTS,
   DBI_P2C3_RECONCILIATION_CONTRACT_VERSION,
   type DbiP2c3CandidateInventoryRecordV1,
   type DbiP2c3ModuleAssessabilitySummaryV1,
@@ -17,11 +15,15 @@ import {
   type DbiP2c3ReconciliationOptionsV1,
   type DbiP2c3ReconciliationOutcomeV1,
   type DbiP2c3ReconciliationSuccessV1,
+  type DbiP2c3RelationshipReconciliationStatusV1,
 } from './dbi-p2c3-reconciliation.contract.v1';
+import { countBundleFootprint, resolveReconciliationBudget } from './dbi-p2c3-reconciliation.budget.v1';
+import { buildCandidateEnvelopeIdentityPayload } from './dbi-p2c3-reconciliation.canonical.v1';
 import { buildReconciliationResultDigest } from './dbi-p2c3-reconciliation.digest.v1';
 import { evaluateProxyIdentityAdmission } from './dbi-p2c3-reconciliation.identity.v1';
 import { deepIsolate } from './dbi-p2c3-reconciliation.isolation.v1';
 import { computePairwiseReconciliation } from './dbi-p2c3-reconciliation.pairwise.v1';
+import { validateBundleAndParticipants } from './dbi-p2c3-reconciliation.validation.v1';
 
 const MODULE_ORDER: readonly DbiP2c2SourceModuleV1[] = ['P2-A1', 'P2-B1', 'P2-B2', 'P2-B3', 'P2-B4'] as const;
 
@@ -53,9 +55,25 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
   bundleInput: DbiP2c2OfflineEvidenceBundleV1,
   options: DbiP2c3ReconciliationOptionsV1 = {},
 ): DbiP2c3ReconciliationOutcomeV1 {
+  const budget = resolveReconciliationBudget(options);
+  if (!budget.ok) {
+    return buildFailure(['BUDGET_OPTION_INVALID']);
+  }
+
+  const structureDiagnostics = validateBundleAndParticipants(bundleInput);
+  if (structureDiagnostics.length > 0) {
+    return buildFailure(structureDiagnostics);
+  }
+
+  const footprint = countBundleFootprint(bundleInput);
+  if (footprint.participantCount > budget.maxParticipants) {
+    return buildFailure(['BUDGET_PARTICIPANT_COUNT_EXCEEDED']);
+  }
+  if (footprint.pairCount === null || footprint.pairCount > budget.maxCandidatePairs) {
+    return buildFailure(['BUDGET_CANDIDATE_PAIR_COUNT_EXCEEDED']);
+  }
+
   const bundle = deepIsolate(bundleInput);
-  const maxParticipants = options.maxParticipants ?? DBI_P2C3_DEFAULT_MAX_PARTICIPANTS;
-  const maxCandidatePairs = options.maxCandidatePairs ?? DBI_P2C3_DEFAULT_MAX_CANDIDATE_PAIRS;
 
   const participantReferences: DbiP2c3ParticipantReferenceV1[] = [];
   const moduleAssessabilitySummary: DbiP2c3ModuleAssessabilitySummaryV1[] = [];
@@ -67,13 +85,7 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
 
   if (bundle.descriptive) {
     const part = bundle.descriptive.participant;
-    if (!part || part.sourceModule !== 'P2-A1') {
-      return buildFailure(['INVALID_PARTICIPANT_PLANE', 'MISSING_PARTICIPANT_HEADER']);
-    }
-  a1Participant = part;
-    if (!part.moduleAssessability.semanticGuards.notEvidenceCandidate) {
-      return buildFailure(['A1_DESCRIPTIVE_AUTHORITY_VIOLATION']);
-    }
+    a1Participant = part;
     participantReferences.push({
       participantRef: participantRef('P2-A1', 0),
       sourceModule: 'P2-A1',
@@ -110,14 +122,7 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
 
   for (let planeIndex = 0; planeIndex < planesSorted.length; planeIndex++) {
     const plane = planesSorted[planeIndex]!;
-    if (!isPowertrainPlane(plane)) {
-      return buildFailure(['INVALID_PARTICIPANT_PLANE']);
-    }
     const part = plane.participant;
-    if (!part?.sourceModule || !part.identity) {
-      return buildFailure(['MISSING_PARTICIPANT_HEADER', 'INVALID_PARTICIPANT_PLANE']);
-    }
-
     participantReferences.push({
       participantRef: participantRef(part.sourceModule, planeIndex),
       sourceModule: part.sourceModule,
@@ -143,12 +148,18 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
 
     proxyParticipants.push(part);
 
-    const candidatesSorted = [...plane.candidates].map((c, originalIdx) => ({ c, originalIdx })).sort((a, b) => {
-      if (a.c.sourceEpisodeKey !== b.c.sourceEpisodeKey) {
-        return a.c.sourceEpisodeKey.localeCompare(b.c.sourceEpisodeKey);
-      }
-      return a.originalIdx - b.originalIdx;
-    });
+    const candidatesSorted = [...plane.candidates]
+      .map((c, originalIdx) => ({ c, originalIdx }))
+      .sort((a, b) => {
+        if (a.c.sourceEpisodeKey !== b.c.sourceEpisodeKey) {
+          return a.c.sourceEpisodeKey.localeCompare(b.c.sourceEpisodeKey);
+        }
+        const payloadCmp = buildCandidateEnvelopeIdentityPayload(a.c).localeCompare(
+          buildCandidateEnvelopeIdentityPayload(b.c),
+        );
+        if (payloadCmp !== 0) return payloadCmp;
+        return a.originalIdx - b.originalIdx;
+      });
 
     for (let candidateIndex = 0; candidateIndex < candidatesSorted.length; candidateIndex++) {
       const entry = candidatesSorted[candidateIndex]!;
@@ -173,11 +184,6 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
 
   moduleAssessabilitySummary.sort((a, b) => a.participantRef.localeCompare(b.participantRef));
 
-  const participantCount = participantReferences.length;
-  if (participantCount > maxParticipants) {
-    return buildFailure(['BUDGET_PARTICIPANT_COUNT_EXCEEDED']);
-  }
-
   const identityAdmission = evaluateProxyIdentityAdmission({
     proxyParticipants,
     a1CoreBindings: a1Participant
@@ -195,24 +201,41 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
     }
   }
 
-  const pairwise = computePairwiseReconciliation({
-    candidates: candidateInventory,
-    maxPairs: maxCandidatePairs,
-  });
+  let relationshipReconciliation: DbiP2c3RelationshipReconciliationStatusV1;
+  let pairwiseDecisions: DbiP2c3ReconciliationSuccessV1['pairwiseDecisions'] = [];
+  let unresolvedRelationships: DbiP2c3ReconciliationSuccessV1['unresolvedRelationships'] = [];
 
-  if (pairwise.budgetExceeded) {
-    return buildFailure(['BUDGET_CANDIDATE_PAIR_COUNT_EXCEEDED']);
+  if (identityAdmission.verdict === 'ADMITTED') {
+    if (candidateInventory.length < 2) {
+      relationshipReconciliation = {
+        performed: false,
+        skipReason: 'NO_PROXY_CANDIDATES_FOR_RELATIONSHIP_PASS',
+      };
+    } else {
+      const pairwise = computePairwiseReconciliation({
+        candidates: candidateInventory,
+        maxPairs: budget.maxCandidatePairs,
+      });
+      if (pairwise.budgetExceeded) {
+        return buildFailure(['BUDGET_CANDIDATE_PAIR_COUNT_EXCEEDED']);
+      }
+      pairwiseDecisions = pairwise.pairwiseDecisions;
+      unresolvedRelationships = pairwise.unresolvedRelationships;
+      relationshipReconciliation = { performed: true };
+    }
+  } else if (identityAdmission.verdict === 'REJECTED') {
+    relationshipReconciliation = { performed: false, skipReason: 'IDENTITY_REJECTED' };
+  } else {
+    relationshipReconciliation = { performed: false, skipReason: 'IDENTITY_INCONCLUSIVE' };
+    unresolvedRelationships = [
+      {
+        kind: 'IDENTITY_ALIGNMENT_UNRESOLVED',
+        detailCodes: [...identityAdmission.inconclusiveFields],
+      },
+    ];
   }
 
-  const unresolved = [...pairwise.unresolvedRelationships];
-  if (identityAdmission.verdict === 'INCONCLUSIVE') {
-    unresolved.push({
-      kind: 'IDENTITY_ALIGNMENT_UNRESOLVED',
-      detailCodes: [...identityAdmission.inconclusiveFields],
-    });
-  }
-
-  unresolved.sort((a, b) => {
+  unresolvedRelationships = [...unresolvedRelationships].sort((a, b) => {
     if (a.kind !== b.kind) return a.kind.localeCompare(b.kind);
     return JSON.stringify(a).localeCompare(JSON.stringify(b));
   });
@@ -232,12 +255,13 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
     candidateInventory: [...candidateInventory].sort((a, b) =>
       a.internalCandidateRef.localeCompare(b.internalCandidateRef),
     ),
-    pairwiseDecisions: [...pairwise.pairwiseDecisions].sort((a, b) =>
+    pairwiseDecisions: [...pairwiseDecisions].sort((a, b) =>
       `${a.leftCandidateRef}:${a.rightCandidateRef}`.localeCompare(
         `${b.leftCandidateRef}:${b.rightCandidateRef}`,
       ),
     ),
-    unresolvedRelationships: unresolved,
+    unresolvedRelationships,
+    relationshipReconciliation,
     scientificLimitationCodes,
   };
 

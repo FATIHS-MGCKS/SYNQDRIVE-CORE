@@ -7,18 +7,17 @@ import {
 import type {
   DbiP2c3IdentityAdmissionDetailV1,
   DbiP2c3IdentityAdmissionVerdictV1,
+  DbiP2c3RequiredBindingAssessmentV1,
 } from './dbi-p2c3-reconciliation.contract.v1';
 
-type OptionalIdentityField =
-  | 'v1bInputFingerprint'
-  | 'multichannelFingerprint'
-  | 'sourceBundleId';
+type RequiredFingerprintField = 'v1bInputFingerprint' | 'multichannelFingerprint';
 
-const OPTIONAL_IDENTITY_FIELDS: readonly OptionalIdentityField[] = [
+const REQUIRED_FINGERPRINT_FIELDS: readonly RequiredFingerprintField[] = [
   'v1bInputFingerprint',
   'multichannelFingerprint',
-  'sourceBundleId',
 ] as const;
+
+const OPTIONAL_IDENTITY_FIELDS = ['sourceBundleId'] as const;
 
 const CORE_BINDING_FIELDS: readonly (keyof DbiP2c2ParticipantIdentityV1)[] = [
   'organizationId',
@@ -27,24 +26,35 @@ const CORE_BINDING_FIELDS: readonly (keyof DbiP2c2ParticipantIdentityV1)[] = [
   'providerSourceLinkId',
 ] as const;
 
-function isOptionalFieldReported(
-  field: OptionalIdentityField,
+function isRequiredFingerprintReported(
+  field: RequiredFingerprintField,
   value: string | null | DbiP2c2NotReported,
 ): boolean {
   if (field === 'multichannelFingerprint') {
     if (value === DBI_P2C2_NOT_REPORTED || value === null) return false;
-    return typeof value === 'string' && value.length > 0;
+    return typeof value === 'string' && value.trim().length > 0;
   }
   if (value === null) return false;
-  return typeof value === 'string' && value.length > 0;
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
-function normalizeOptionalValue(
-  field: OptionalIdentityField,
-  value: string | null | DbiP2c2NotReported,
-): string | null {
-  if (!isOptionalFieldReported(field, value)) return null;
-  return value as string;
+function isSourceBundleReported(value: string | null): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function assessRequiredBindings(identities: readonly DbiP2c2ParticipantIdentityV1[]): DbiP2c3RequiredBindingAssessmentV1 {
+  const coreBindingsSatisfied = identities.every((id) =>
+    CORE_BINDING_FIELDS.every((f) => typeof id[f] === 'string' && id[f].trim().length > 0),
+  );
+  const requiredFingerprintsSatisfied = identities.every((id) =>
+    REQUIRED_FINGERPRINT_FIELDS.every((f) => isRequiredFingerprintReported(f, id[f])),
+  );
+  const optionalSourceBundleConsistentlyAbsent = identities.every((id) => !isSourceBundleReported(id.sourceBundleId));
+  return {
+    coreBindingsSatisfied,
+    requiredFingerprintsSatisfied,
+    optionalSourceBundleConsistentlyAbsent,
+  };
 }
 
 export function evaluateProxyIdentityAdmission(input: {
@@ -59,6 +69,8 @@ export function evaluateProxyIdentityAdmission(input: {
   const limitationCodes: string[] = [
     'MATCHING_FINGERPRINTS_DO_NOT_ESTABLISH_SOURCE_ATTESTATION',
     'MISSING_OR_UNREPORTED_BINDINGS_ARE_NOT_EQUALITY',
+    'V1B_AND_MULTICHANNEL_FINGERPRINTS_REQUIRED_FOR_PROXY_ADMISSION',
+    'SOURCE_BUNDLE_ID_OPTIONAL_WHEN_CONSISTENTLY_ABSENT',
   ];
 
   if (input.proxyParticipants.length === 0) {
@@ -67,21 +79,30 @@ export function evaluateProxyIdentityAdmission(input: {
       contradictionFields,
       inconclusiveFields: ['NO_PROXY_PARTICIPANTS'],
       limitationCodes: [...limitationCodes, 'NO_B1_B4_PROXY_PARTICIPANTS'],
+      requiredBindingAssessment: {
+        coreBindingsSatisfied: false,
+        requiredFingerprintsSatisfied: false,
+        optionalSourceBundleConsistentlyAbsent: true,
+      },
     };
   }
 
   const identities = input.proxyParticipants.map((p) => p.identity);
+  const requiredBindingAssessment = assessRequiredBindings(identities);
 
   for (const field of CORE_BINDING_FIELDS) {
     const values = [...new Set(identities.map((id) => id[field]))];
     if (values.length > 1) {
       contradictionFields.push(field);
     }
+    if (values.some((v) => typeof v !== 'string' || v.trim().length === 0)) {
+      contradictionFields.push(`REQUIRED_CORE_${field}`);
+    }
   }
 
-  for (const field of OPTIONAL_IDENTITY_FIELDS) {
+  for (const field of REQUIRED_FINGERPRINT_FIELDS) {
     const reported = identities
-      .map((id) => normalizeOptionalValue(field, id[field]))
+      .map((id) => (isRequiredFingerprintReported(field, id[field]) ? (id[field] as string) : null))
       .filter((v): v is string => v !== null);
     const uniqueReported = [...new Set(reported)];
     if (uniqueReported.length > 1) {
@@ -89,7 +110,30 @@ export function evaluateProxyIdentityAdmission(input: {
       continue;
     }
     const anyReported = reported.length > 0;
-    const anyUnreported = identities.some((id) => !isOptionalFieldReported(field, id[field]));
+    const anyUnreported = identities.some((id) => !isRequiredFingerprintReported(field, id[field]));
+    if (anyUnreported) {
+      inconclusiveFields.push(field);
+      if (identities.length === 1) {
+        inconclusiveFields.push(`SINGLE_PARTICIPANT_MISSING_${field}`);
+      } else if (anyReported && anyUnreported) {
+        inconclusiveFields.push(`MIXED_REPORTED_UNREPORTED_${field}`);
+      } else if (!anyReported) {
+        inconclusiveFields.push(`ALL_UNREPORTED_${field}`);
+      }
+    }
+  }
+
+  for (const field of OPTIONAL_IDENTITY_FIELDS) {
+    const reported = identities
+      .map((id) => (isSourceBundleReported(id.sourceBundleId) ? id.sourceBundleId : null))
+      .filter((v): v is string => v !== null);
+    const uniqueReported = [...new Set(reported)];
+    if (uniqueReported.length > 1) {
+      contradictionFields.push(field);
+      continue;
+    }
+    const anyReported = reported.length > 0;
+    const anyUnreported = identities.some((id) => !isSourceBundleReported(id.sourceBundleId));
     if (anyReported && anyUnreported && identities.length > 1) {
       inconclusiveFields.push(field);
     }
@@ -106,10 +150,14 @@ export function evaluateProxyIdentityAdmission(input: {
     limitationCodes.push('A1_MULTICHANNEL_FINGERPRINT_NOT_REQUIRED_FOR_DESCRIPTIVE_PARTICIPANT');
   }
 
+  if (!requiredBindingAssessment.requiredFingerprintsSatisfied) {
+    limitationCodes.push('REQUIRED_FINGERPRINT_MISSING_PREVENTS_ADMISSION');
+  }
+
   let verdict: DbiP2c3IdentityAdmissionVerdictV1;
   if (contradictionFields.length > 0) {
     verdict = 'REJECTED';
-  } else if (inconclusiveFields.length > 0) {
+  } else if (inconclusiveFields.length > 0 || !requiredBindingAssessment.requiredFingerprintsSatisfied) {
     verdict = 'INCONCLUSIVE';
   } else {
     verdict = 'ADMITTED';
@@ -117,8 +165,9 @@ export function evaluateProxyIdentityAdmission(input: {
 
   return {
     verdict,
-    contradictionFields: [...contradictionFields].sort(),
-    inconclusiveFields: [...inconclusiveFields].sort(),
-    limitationCodes: [...limitationCodes].sort(),
+    contradictionFields: [...new Set(contradictionFields)].sort(),
+    inconclusiveFields: [...new Set(inconclusiveFields)].sort(),
+    limitationCodes: [...new Set(limitationCodes)].sort(),
+    requiredBindingAssessment,
   };
 }

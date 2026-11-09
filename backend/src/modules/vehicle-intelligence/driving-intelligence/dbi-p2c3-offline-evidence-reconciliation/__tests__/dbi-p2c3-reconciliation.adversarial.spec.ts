@@ -39,6 +39,8 @@ describe('dbi-p2c3 offline evidence reconciliation adversarial matrix', () => {
     const out = expectSuccess(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [b1, b2] }));
     expect(out.identityAdmission.verdict).toBe('REJECTED');
     expect(out.identityAdmission.contradictionFields).toContain('organizationId');
+    expect(out.relationshipReconciliation).toEqual({ performed: false, skipReason: 'IDENTITY_REJECTED' });
+    expect(out.pairwiseDecisions).toHaveLength(0);
   });
 
   it('03 vehicle mismatch rejects identity', () => {
@@ -47,6 +49,7 @@ describe('dbi-p2c3 offline evidence reconciliation adversarial matrix', () => {
     const out = expectSuccess(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [b1, b2] }));
     expect(out.identityAdmission.verdict).toBe('REJECTED');
     expect(out.identityAdmission.contradictionFields).toContain('vehicleId');
+    expect(out.pairwiseDecisions).toHaveLength(0);
   });
 
   it('04 trip mismatch rejects identity', () => {
@@ -55,6 +58,7 @@ describe('dbi-p2c3 offline evidence reconciliation adversarial matrix', () => {
     const out = expectSuccess(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [b1, b2] }));
     expect(out.identityAdmission.verdict).toBe('REJECTED');
     expect(out.identityAdmission.contradictionFields).toContain('tripId');
+    expect(out.pairwiseDecisions).toHaveLength(0);
   });
 
   it('05 source-link mismatch rejects identity', () => {
@@ -63,6 +67,7 @@ describe('dbi-p2c3 offline evidence reconciliation adversarial matrix', () => {
     const out = expectSuccess(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [b1, b2] }));
     expect(out.identityAdmission.verdict).toBe('REJECTED');
     expect(out.identityAdmission.contradictionFields).toContain('providerSourceLinkId');
+    expect(out.pairwiseDecisions).toHaveLength(0);
   });
 
   it('06 fingerprint mismatch rejects identity', () => {
@@ -75,6 +80,7 @@ describe('dbi-p2c3 offline evidence reconciliation adversarial matrix', () => {
     const out = expectSuccess(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [b1, b2] }));
     expect(out.identityAdmission.verdict).toBe('REJECTED');
     expect(out.identityAdmission.contradictionFields).toContain('multichannelFingerprint');
+    expect(out.pairwiseDecisions).toHaveLength(0);
   });
 
   it('07 missing fingerprint yields inconclusive optional-field alignment', () => {
@@ -83,6 +89,11 @@ describe('dbi-p2c3 offline evidence reconciliation adversarial matrix', () => {
     const out = expectSuccess(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [b1, b2] }));
     expect(out.identityAdmission.verdict).toBe('INCONCLUSIVE');
     expect(out.identityAdmission.inconclusiveFields).toContain('multichannelFingerprint');
+    expect(out.relationshipReconciliation).toEqual({
+      performed: false,
+      skipReason: 'IDENTITY_INCONCLUSIVE',
+    });
+    expect(out.pairwiseDecisions).toHaveLength(0);
   });
 
   it('08 sourceBundle mismatch rejects when both reported', () => {
@@ -94,6 +105,7 @@ describe('dbi-p2c3 offline evidence reconciliation adversarial matrix', () => {
     const out = expectSuccess(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [b1p, b2p] }));
     expect(out.identityAdmission.verdict).toBe('REJECTED');
     expect(out.identityAdmission.contradictionFields).toContain('sourceBundleId');
+    expect(out.pairwiseDecisions).toHaveLength(0);
   });
 
   it('09 duplicate exact source records yield SAME_SOURCE_DUPLICATE without suppression', () => {
@@ -106,6 +118,7 @@ describe('dbi-p2c3 offline evidence reconciliation adversarial matrix', () => {
     expect(out.candidateInventory).toHaveLength(2);
     const dupes = out.pairwiseDecisions.filter((d) => d.relationshipDecision === 'SAME_SOURCE_DUPLICATE');
     expect(dupes).toHaveLength(1);
+    expect(out.relationshipReconciliation.performed).toBe(true);
   });
 
   it('10 same episodeKey different payload records collision not duplicate proof', () => {
@@ -193,7 +206,13 @@ describe('dbi-p2c3 offline evidence reconciliation adversarial matrix', () => {
 
   it('17 matching timestamp ranges without shared labels stay insufficient', () => {
     const b1 = adaptKickdownPlaneFromScenario();
-    const b2 = cloneMutablePlane(adaptColdEnginePositiveCandidatePlane());
+    const b2 = cloneMutablePlane(
+      withIdentityOverride(adaptColdEnginePositiveCandidatePlane(), {
+        v1bInputFingerprint: b1.participant.identity.v1bInputFingerprint,
+        multichannelFingerprint: b1.participant.identity.multichannelFingerprint,
+        sourceBundleId: b1.participant.identity.sourceBundleId,
+      }),
+    );
     const kick = b1.candidates[0];
     const cold = b2.candidates[0];
     if (kick?.sourceModule !== 'P2-B1' || cold?.sourceModule !== 'P2-B2') {
@@ -270,12 +289,20 @@ describe('dbi-p2c3 offline evidence reconciliation adversarial matrix', () => {
     expect(out.candidateInventory).toHaveLength(0);
     expect(out.pairwiseDecisions).toHaveLength(0);
     expect(out.identityAdmission.verdict).toBe('ADMITTED');
+    expect(out.relationshipReconciliation).toEqual({
+      performed: false,
+      skipReason: 'NO_PROXY_CANDIDATES_FOR_RELATIONSHIP_PASS',
+    });
   });
 
   it('22 missing participating proxy module yields inconclusive identity', () => {
     const out = expectSuccess(assembleP2c2Bundle({ descriptive: adaptA1DescriptivePlaneFromS14(), powertrainProxies: [] }));
     expect(out.identityAdmission.verdict).toBe('INCONCLUSIVE');
     expect(out.candidateInventory).toHaveLength(0);
+    expect(out.relationshipReconciliation).toEqual({
+      performed: false,
+      skipReason: 'IDENTITY_INCONCLUSIVE',
+    });
   });
 
   it('does not mutate adapter bundle inputs', () => {

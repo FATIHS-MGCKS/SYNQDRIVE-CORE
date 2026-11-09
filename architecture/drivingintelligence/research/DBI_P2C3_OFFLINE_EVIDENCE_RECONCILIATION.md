@@ -12,6 +12,8 @@ Deterministic, pure offline reconciliation over `DbiP2c2OfflineEvidenceBundleV1`
 
 Compares `organizationId`, `vehicleId`, `tripId`, `providerSourceLinkId`, `v1bInputFingerprint`, `multichannelFingerprint`, and `sourceBundleId` across proxy participants.
 
+**Required core bindings** must be non-empty strings for every proxy participant. **Required proxy fingerprints** are `v1bInputFingerprint` and `multichannelFingerprint` (both must be reported for `ADMITTED`). `sourceBundleId` is optional and may be consistently absent.
+
 | Verdict | Meaning |
 |---------|---------|
 | `ADMITTED` | No contradictions; optional fields either consistently reported or consistently absent across participants |
@@ -34,6 +36,11 @@ Rules:
 - Full multiplicity preserved (no dedupe, suppression, or reclassification).
 - Namespaced `dbi-p2c3:cand/{module}/{planeIndex}/{candidateIndex}` references.
 - Same `sourceEpisodeKey` with different payload → unresolved `EPISODE_KEY_COLLISION` (not proof of one event).
+
+## Relationship reconciliation gate
+
+Pairwise relationship reconciliation runs **only** when identity verdict is `ADMITTED`.  
+`REJECTED` and `INCONCLUSIVE` skip relationship output (`relationshipReconciliation.performed = false`) while preserving participant references, inventory, and identity diagnostics.
 
 ## Pairwise relationship decisions (V1)
 
@@ -61,8 +68,15 @@ Original kernel statuses and module assessability summaries are carried forward 
 
 - Pure function: no clock, randomness, network, or persistence.
 - Stable sorts for participants, candidates, pairwise decisions, diagnostics.
-- Default budgets: 6 participants, 4096 candidate pairs — fail-closed `BUDGET_*_EXCEEDED`.
-- `resultDigest`: canonical JSON summary; **not** cryptographic attestation.
+- Candidate ties: `sourceEpisodeKey` → canonical payload → `sourceCandidateIndex`.
+- Budget options validated (finite safe integers, hard caps) **before** deep cloning or pairwise traversal.
+- Footprint check uses array lengths and theoretical pair count prior to isolation.
+- Default budgets: 6 participants, 4096 candidate pairs; hard caps 32 / 65536 — fail-closed `BUDGET_*_EXCEEDED`.
+- `resultDigest`: canonical JSON summary (identity details, rationale codes, candidate payload fingerprints); **not** cryptographic attestation.
+
+## Bundle validation
+
+Fail-closed on adapter contract version mismatch, non-`researchOnly` participants, candidate/parent module mismatch, and A1 descriptive guard violations.
 
 ## Non-goals
 

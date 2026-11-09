@@ -55,7 +55,16 @@ export function computePairwiseReconciliation(input: {
     };
     if (a.sourceModule !== b.sourceModule) return moduleOrder(a.sourceModule) - moduleOrder(b.sourceModule);
     if (a.sourcePlaneIndex !== b.sourcePlaneIndex) return a.sourcePlaneIndex - b.sourcePlaneIndex;
-    if (a.sourceCandidateIndex !== b.sourceCandidateIndex) return a.sourceCandidateIndex - b.sourceCandidateIndex;
+    if (a.sourceEpisodeKey !== b.sourceEpisodeKey) {
+      return a.sourceEpisodeKey.localeCompare(b.sourceEpisodeKey);
+    }
+    const payloadCmp = buildCandidateEnvelopeIdentityPayload(a.candidateEnvelope).localeCompare(
+      buildCandidateEnvelopeIdentityPayload(b.candidateEnvelope),
+    );
+    if (payloadCmp !== 0) return payloadCmp;
+    if (a.sourceCandidateIndex !== b.sourceCandidateIndex) {
+      return a.sourceCandidateIndex - b.sourceCandidateIndex;
+    }
     return a.internalCandidateRef.localeCompare(b.internalCandidateRef);
   });
 

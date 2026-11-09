@@ -26,11 +26,31 @@ export const DBI_P2C3_V1_AUTHORIZED_POSITIVE_RELATIONSHIPS: readonly DbiP2c3Pair
 export type DbiP2c3ReconciliationDiagnosticCodeV1 =
   | 'BUDGET_PARTICIPANT_COUNT_EXCEEDED'
   | 'BUDGET_CANDIDATE_PAIR_COUNT_EXCEEDED'
+  | 'BUDGET_OPTION_INVALID'
   | 'IDENTITY_FIELD_CONTRADICTION'
   | 'IDENTITY_ALIGNMENT_INCONCLUSIVE'
   | 'INVALID_PARTICIPANT_PLANE'
   | 'MISSING_PARTICIPANT_HEADER'
-  | 'A1_DESCRIPTIVE_AUTHORITY_VIOLATION';
+  | 'A1_DESCRIPTIVE_AUTHORITY_VIOLATION'
+  | 'INVALID_BUNDLE_CONTRACT_VERSION'
+  | 'PARTICIPANT_SOURCE_MODULE_MISMATCH'
+  | 'CANDIDATE_SOURCE_MODULE_MISMATCH'
+  | 'PARTICIPANT_NOT_RESEARCH_ONLY'
+  | 'REQUIRED_CORE_BINDING_EMPTY';
+
+export type DbiP2c3RelationshipReconciliationSkipReasonV1 =
+  | 'IDENTITY_REJECTED'
+  | 'IDENTITY_INCONCLUSIVE'
+  | 'NO_PROXY_CANDIDATES_FOR_RELATIONSHIP_PASS';
+
+export type DbiP2c3RelationshipReconciliationStatusV1 =
+  | {
+      readonly performed: true;
+    }
+  | {
+      readonly performed: false;
+      readonly skipReason: DbiP2c3RelationshipReconciliationSkipReasonV1;
+    };
 
 export type DbiP2c3ReconciliationOptionsV1 = {
   readonly maxParticipants?: number;
@@ -39,6 +59,8 @@ export type DbiP2c3ReconciliationOptionsV1 = {
 
 export const DBI_P2C3_DEFAULT_MAX_PARTICIPANTS = 6;
 export const DBI_P2C3_DEFAULT_MAX_CANDIDATE_PAIRS = 4096;
+export const DBI_P2C3_HARD_MAX_PARTICIPANTS = 32;
+export const DBI_P2C3_HARD_MAX_CANDIDATE_PAIRS = 65_536;
 
 export type DbiP2c3ParticipantReferenceV1 = {
   readonly participantRef: string;
@@ -101,11 +123,18 @@ export type DbiP2c3ProvenanceLimitationProjectionV1 = {
   readonly attestationNotEstablishedByReconciliation: true;
 };
 
+export type DbiP2c3RequiredBindingAssessmentV1 = {
+  readonly coreBindingsSatisfied: boolean;
+  readonly requiredFingerprintsSatisfied: boolean;
+  readonly optionalSourceBundleConsistentlyAbsent: boolean;
+};
+
 export type DbiP2c3IdentityAdmissionDetailV1 = {
   readonly verdict: DbiP2c3IdentityAdmissionVerdictV1;
   readonly contradictionFields: readonly string[];
   readonly inconclusiveFields: readonly string[];
   readonly limitationCodes: readonly string[];
+  readonly requiredBindingAssessment: DbiP2c3RequiredBindingAssessmentV1;
 };
 
 export type DbiP2c3ReconciliationSuccessV1 = {
@@ -119,6 +148,7 @@ export type DbiP2c3ReconciliationSuccessV1 = {
   readonly candidateInventory: readonly DbiP2c3CandidateInventoryRecordV1[];
   readonly pairwiseDecisions: readonly DbiP2c3PairwiseReconciliationDecisionV1[];
   readonly unresolvedRelationships: readonly DbiP2c3UnresolvedRelationshipV1[];
+  readonly relationshipReconciliation: DbiP2c3RelationshipReconciliationStatusV1;
   readonly scientificLimitationCodes: readonly string[];
   readonly resultDigest: string;
 };
