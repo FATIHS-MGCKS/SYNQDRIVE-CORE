@@ -90,6 +90,21 @@ describe('service-compliance-rental-blocking.policy', () => {
     expect(decision.serviceOverdueBlocksRental).toBe(false);
   });
 
+  it('does not treat computed CRITICAL forecast as HM operational overdue', () => {
+    const evaluation = baseEvaluation({
+      nextService: {
+        source: 'COMPUTED_MANUAL_INTERVAL',
+        severity: 'CRITICAL',
+        timeToNextServiceDays: -10,
+        distanceToNextServiceKm: -100,
+      } as any,
+    });
+    expect(isHmServiceOverdue(evaluation)).toBe(false);
+    const decision = evaluateServiceComplianceRentalBlocking(evaluation);
+    expect(decision.serviceOverdue).toBe(false);
+    expect(decision.serviceOverdueBlocksRental).toBe(false);
+  });
+
   it('keeps serviceOverdue true but deduplicates rental blocking when TÜV is already overdue', () => {
     const evaluation = baseEvaluation({
       nextService: { severity: 'CRITICAL', timeToNextServiceDays: -5 } as any,

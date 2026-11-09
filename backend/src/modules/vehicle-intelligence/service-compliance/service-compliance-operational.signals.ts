@@ -233,7 +233,8 @@ export function buildComplianceInsightCandidates(
           remainingKm >= 0 &&
           remainingKm <= NEXT_SERVICE_WARNING_KM));
 
-    if (overdue || imminent) {
+    const operationalOverdue = overdue && isAutoMaterializableServiceSource(nextService);
+    if (operationalOverdue || imminent) {
       const reasons: string[] = [];
       let severity: InsightSeverity;
       let title: string;

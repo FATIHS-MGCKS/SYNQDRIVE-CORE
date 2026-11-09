@@ -27,6 +27,7 @@ import {
   SERVICE_HISTORY_PAGE_DEFAULT_LIMIT,
 } from './service-history-pagination.util';
 import { MaintenanceForecastService } from './maintenance-forecast/maintenance-forecast.service';
+import { isComputedServiceSource } from './service-compliance.types';
 import type {
   MaintenanceForecastResult,
   MaintenanceHmSignal,
@@ -564,12 +565,22 @@ export class ServiceComplianceService {
 
     if (nextService.trackingStatus === 'TRACKED') {
       if (nextService.severity === 'CRITICAL') {
-        return {
-          state: 'critical',
-          reason: nextService.message,
-          last_updated_at: nextService.lastUpdatedAt,
-          data_stale: false,
-        };
+        if (nextService.source === 'HM_OEM') {
+          return {
+            state: 'critical',
+            reason: nextService.message,
+            last_updated_at: nextService.lastUpdatedAt,
+            data_stale: false,
+          };
+        }
+        if (isComputedServiceSource(nextService.source)) {
+          return {
+            state: 'warning',
+            reason: nextService.message,
+            last_updated_at: nextService.lastUpdatedAt,
+            data_stale: false,
+          };
+        }
       }
       if (nextService.severity === 'WARNING') {
         return {

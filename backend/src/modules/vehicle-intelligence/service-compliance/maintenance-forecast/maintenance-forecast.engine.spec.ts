@@ -428,10 +428,12 @@ describe('eventCoversPosition — small vs large inspection', () => {
     expect(eventCoversPosition(largeEvent, small)).toBe(true);
   });
 
-  it('unclassified full service covers generic INSPECTION only', () => {
-    const generic = event({ serviceKind: null });
-    expect(eventCoversPosition(generic, inspection())).toBe(true);
-    expect(eventCoversPosition(generic, large)).toBe(false);
-    expect(eventCoversPosition(generic, small)).toBe(false);
+  it('unclassified manual full service covers generic INSPECTION only (not tier kinds)', () => {
+    const genericManual = event({ serviceKind: null, eventSource: 'SERVICE_EVENT_MANUAL' });
+    expect(eventCoversPosition(genericManual, inspection())).toBe(true);
+    expect(eventCoversPosition(genericManual, large)).toBe(false);
+    expect(eventCoversPosition(genericManual, small)).toBe(false);
+    const genericOneAuto = event({ serviceKind: null, eventSource: 'SERVICE_EVENT_ONEAUTO' });
+    expect(eventCoversPosition(genericOneAuto, inspection())).toBe(false);
   });
 });

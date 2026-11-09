@@ -147,6 +147,82 @@ describe('maintenance-coverage.util (oil classification)', () => {
     ).toBe(true);
   });
 
+  it('rejects axle-only mentions and inspection-only component lines (M-1)', () => {
+    const pos: MaintenanceSchedulePosition = {
+      ...oilPosition(),
+      kind: 'OTHER',
+      positionId: 'oneauto:brake_awd',
+      componentTerms: ['brake_fluid', 'axle_oil'],
+    };
+    expect(
+      eventCoversPosition(
+        event({ eventType: 'REPAIR', performedWork: ['Breakpads rear axle replaced.'] }),
+        pos,
+      ),
+    ).toBe(false);
+    expect(
+      eventCoversPosition(
+        event({ eventType: 'FULL_SERVICE', performedWork: ['Brake fluid level checked'] }),
+        {
+          ...pos,
+          componentTerms: ['brake_fluid'],
+        },
+      ),
+    ).toBe(false);
+  });
+
+  it('recognizes German past-tense engine oil service wording (M-4)', () => {
+    expect(isEngineOilChangeWorkItem('Motoröl erneuert')).toBe(true);
+    expect(isEngineOilChangeWorkItem('Engine oil and filter replaced')).toBe(true);
+  });
+
+  it('does not blanket-reset all INSPECTION tiers from unscoped FULL_SERVICE (M-3)', () => {
+    const small: MaintenanceSchedulePosition = {
+      ...oilPosition(),
+      kind: 'INSPECTION',
+      positionId: 'oneauto:15k',
+      intervalKm: 15_000,
+    };
+    const large: MaintenanceSchedulePosition = {
+      ...small,
+      positionId: 'oneauto:60k',
+      intervalKm: 60_000,
+    };
+    const unscoped = event({
+      eventType: 'FULL_SERVICE',
+      eventSource: 'SERVICE_EVENT_ONEAUTO',
+      odometerKm: 15_000,
+      performedWork: [],
+    });
+    expect(eventCoversPosition(unscoped, small)).toBe(false);
+    expect(eventCoversPosition(unscoped, large)).toBe(false);
+    const smallServiceAt70k = {
+      ...unscoped,
+      serviceKind: 'INSPECTION_SMALL' as const,
+      odometerKm: 70_000,
+    };
+    expect(eventCoversPosition(smallServiceAt70k, large)).toBe(false);
+    expect(
+      eventCoversPosition(smallServiceAt70k, { ...small, kind: 'INSPECTION_SMALL' }),
+    ).toBe(true);
+  });
+
+  it('rejects brake-fluid checks and weak service phrases for OTHER positions (F2)', () => {
+    const pos: MaintenanceSchedulePosition = {
+      ...oilPosition(),
+      kind: 'OTHER',
+      positionId: 'oneauto:brake_fluid',
+      componentTerms: ['brake_fluid'],
+    };
+    const ev = (work: string) =>
+      event({ eventType: 'FULL_SERVICE', eventSource: 'SERVICE_EVENT_ONEAUTO', performedWork: [work] });
+    expect(eventCoversPosition(ev('Brake fluid service check'), pos)).toBe(false);
+    expect(eventCoversPosition(ev('service interval brake fluid'), pos)).toBe(false);
+    expect(eventCoversPosition(ev('Brake fluid check'), pos)).toBe(false);
+    expect(eventCoversPosition(ev('Brake fluid replaced'), pos)).toBe(true);
+    expect(eventCoversPosition(ev('Bremsflüssigkeit gewechselt'), pos)).toBe(true);
+  });
+
   it('covers engine oil when OneAuto lists engine oil actions', () => {
     expect(
       eventCoversPosition(

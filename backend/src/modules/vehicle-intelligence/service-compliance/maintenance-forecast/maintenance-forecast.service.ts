@@ -175,25 +175,23 @@ export class MaintenanceForecastService {
       });
       if (!job) return empty;
 
-      const responses = await this.prisma.oneAutoProviderResponse.findMany({
+      const response = await this.prisma.oneAutoProviderResponse.findFirst({
         where: { jobId: job.id },
         orderBy: { fetchedAt: 'desc' },
-        select: { responseBodyJson: true, fetchedAt: true, responsePhase: true },
+        select: { responseBodyJson: true, fetchedAt: true },
       });
+      if (!response) return empty;
 
-      for (const response of responses) {
-        const result = extractOeServiceScheduleEuProviderResult(response.responseBodyJson);
-        if (!result) continue;
-        const parsed = parseOeServiceScheduleEuProviderResult(result);
-        if (parsed.kind !== 'SUCCESS_WITH_SERVICES') continue;
-        if (parsed.vehicleIdentificationNumber !== vin) continue;
-        const mapped = mapOneAutoScheduleToPositions({
-          normalServices: parsed.normalServices,
-          extraServices: parsed.extraServices,
-        });
-        return { ...mapped, fetchedAt: response.fetchedAt };
-      }
-      return empty;
+      const result = extractOeServiceScheduleEuProviderResult(response.responseBodyJson);
+      if (!result) return empty;
+      const parsed = parseOeServiceScheduleEuProviderResult(result);
+      if (parsed.kind !== 'SUCCESS_WITH_SERVICES') return empty;
+      if (parsed.vehicleIdentificationNumber !== vin) return empty;
+      const mapped = mapOneAutoScheduleToPositions({
+        normalServices: parsed.normalServices,
+        extraServices: parsed.extraServices,
+      });
+      return { ...mapped, fetchedAt: response.fetchedAt };
     } catch (err) {
       this.logger.warn(`loadStoredOneAutoSchedule(${vehicle.id}) failed: ${(err as Error).message}`);
       return empty;

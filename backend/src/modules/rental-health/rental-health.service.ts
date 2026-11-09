@@ -603,7 +603,11 @@ export class RentalHealthService {
     evaluation: ServiceComplianceEvaluation | null,
   ): ModuleHealth['evidence_type'] {
     if (!evaluation) return 'unknown';
-    if (evaluation.nextService.trackingStatus === 'TRACKED') return 'provider';
+    const src = evaluation.nextService.source;
+    if (evaluation.nextService.trackingStatus === 'TRACKED' && src === 'HM_OEM') return 'provider';
+    if (evaluation.nextService.trackingStatus === 'TRACKED' && (src === 'COMPUTED_ONEAUTO_SCHEDULE' || src === 'COMPUTED_MANUAL_INTERVAL')) {
+      return 'manual';
+    }
     if (
       evaluation.tuvBokraft.tuvValidTill ||
       evaluation.tuvBokraft.bokraftValidTill

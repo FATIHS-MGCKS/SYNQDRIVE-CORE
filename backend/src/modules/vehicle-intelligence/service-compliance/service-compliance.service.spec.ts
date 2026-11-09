@@ -477,10 +477,10 @@ describe('ServiceComplianceService — computed forecast without HM (Service Inf
         findFirst: jest.fn().mockResolvedValue(opts.scheduleBody ? { id: 'job1' } : null),
       },
       oneAutoProviderResponse: {
-        findMany: jest.fn().mockResolvedValue(
+        findFirst: jest.fn().mockResolvedValue(
           opts.scheduleBody
-            ? [{ responseBodyJson: opts.scheduleBody, fetchedAt: new Date('2026-10-01T00:00:00Z'), responsePhase: 'callback' }]
-            : [],
+            ? { responseBodyJson: opts.scheduleBody, fetchedAt: new Date('2026-10-01T00:00:00Z') }
+            : null,
         ),
       },
     } as any;
