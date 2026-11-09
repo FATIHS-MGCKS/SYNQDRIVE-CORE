@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
 import type {
   MaintenanceConflict,
   MaintenanceDataQualityFlag,
@@ -13,9 +13,9 @@ import {
   formatServiceDate,
   formatServiceDateTime,
   formatServiceKm,
-  nextServicePanelClass,
   nextServiceToneClass,
   type NextServiceDisplay,
+  type NextServiceUiTone,
 } from '../../lib/service-info-display';
 import { ManualServiceEntryDialog, ServiceIntervalsDialog } from './ManualServiceEntryDialog';
 
@@ -35,16 +35,65 @@ export interface ServiceMaintenanceForecastPanelProps {
 
 type Translator = (key: TranslationKey, vars?: Record<string, string | number>) => string;
 
+type PlanGroupKey = 'overdue' | 'dueSoon' | 'onPlan' | 'notComputable';
+
+const PLAN_GROUP_ORDER: PlanGroupKey[] = ['overdue', 'dueSoon', 'onPlan', 'notComputable'];
+
+const PLAN_GROUP_TITLE: Record<PlanGroupKey, TranslationKey> = {
+  overdue: 'health.serviceInfo.v3.groups.overdue',
+  dueSoon: 'health.serviceInfo.v3.groups.dueSoon',
+  onPlan: 'health.serviceInfo.v3.groups.onPlan',
+  notComputable: 'health.serviceInfo.v3.groups.notComputable',
+};
+
+function planGroupForState(state: MaintenancePositionForecast['dueState']): PlanGroupKey {
+  switch (state) {
+    case 'OVERDUE':
+      return 'overdue';
+    case 'DUE_SOON':
+      return 'dueSoon';
+    case 'OK':
+      return 'onPlan';
+    default:
+      return 'notComputable';
+  }
+}
+
+function groupPositions(positions: MaintenancePositionForecast[]): Record<PlanGroupKey, MaintenancePositionForecast[]> {
+  const groups: Record<PlanGroupKey, MaintenancePositionForecast[]> = {
+    overdue: [],
+    dueSoon: [],
+    onPlan: [],
+    notComputable: [],
+  };
+  for (const p of positions) {
+    groups[planGroupForState(p.dueState)].push(p);
+  }
+  return groups;
+}
+
+function calmHeroShellClass(tone: NextServiceUiTone): string {
+  const accent =
+    tone === 'critical'
+      ? 'border-l-red-500/60'
+      : tone === 'warning'
+        ? 'border-l-amber-500/60'
+        : tone === 'good'
+          ? 'border-l-emerald-500/50'
+          : 'border-l-border';
+  return `surface-premium min-w-0 rounded-xl border border-border border-l-4 p-4 ${accent}`;
+}
+
 function dueStateChipClass(state: MaintenancePositionForecast['dueState']): string {
   switch (state) {
     case 'OVERDUE':
-      return 'sq-chip-critical';
+      return 'border border-red-500/25 bg-red-500/5 text-red-800 dark:text-red-300';
     case 'DUE_SOON':
-      return 'sq-chip-watch';
+      return 'border border-amber-500/30 bg-amber-500/5 text-amber-900 dark:text-amber-200';
     case 'OK':
-      return 'sq-chip-positive';
+      return 'border border-emerald-500/25 bg-emerald-500/5 text-emerald-900 dark:text-emerald-200';
     default:
-      return 'bg-muted text-muted-foreground border-border';
+      return 'border border-border bg-muted/40 text-muted-foreground';
   }
 }
 
@@ -94,7 +143,7 @@ function FlagList({ flags, t }: { flags: MaintenanceDataQualityFlag[]; t: Transl
     <ul className="space-y-1">
       {unique.map((flag) => (
         <li key={flag} className="flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground">
-          <Icon name="info" className="mt-px h-3 w-3 shrink-0" />
+          <Icon name="info" className="mt-px h-3 w-3 shrink-0" aria-hidden />
           <span>{t(`health.serviceInfo.v2.flag.${flag}` as TranslationKey)}</span>
         </li>
       ))}
@@ -126,32 +175,258 @@ function ConflictList({ conflicts, t, fmtLocale }: { conflicts: MaintenanceConfl
   );
 }
 
-function PositionRow({ p, t, fmtLocale }: { p: MaintenancePositionForecast; t: Translator; fmtLocale: string }) {
+function PositionDetails({
+  p,
+  t,
+  fmtLocale,
+  detailsId,
+}: {
+  p: MaintenancePositionForecast;
+  t: Translator;
+  fmtLocale: string;
+  detailsId: string;
+}) {
+  const scheduleLabel = t(`health.serviceInfo.v3.scheduleSource.${p.provenance.scheduleSource}` as TranslationKey);
+  const methodLabel = t(`health.serviceInfo.v3.calculationMethod.${p.provenance.calculationMethod}` as TranslationKey);
+  const eventSourceLabel = t(`health.serviceInfo.v2.eventSource.${p.provenance.eventSource}` as TranslationKey);
+  const odometerSourceLabel = t(`health.serviceInfo.v2.odometerSource.${p.provenance.odometerSource}` as TranslationKey);
+  const baselineDate = formatServiceDate(p.baseline?.date ?? null, fmtLocale);
+  const hasFlags = p.dataQuality.length > 0;
+  const hasRaw = Boolean(p.rawIntervalDescription);
+  const showBaselineMissing = !baselineDate && (p.dueState === 'NO_BASELINE' || p.baseline == null);
+
+  return (
+    <details id={detailsId} className="mt-1.5 text-[10px] text-muted-foreground">
+      <summary className="inline-flex min-h-9 cursor-pointer select-none items-center font-medium text-foreground/80 hover:text-foreground">
+        {t('health.serviceInfo.v3.details.toggle')}
+      </summary>
+      <div className="mt-1 space-y-1 pl-0.5">
+        <p className="break-words">{t('health.serviceInfo.v3.details.scheduleSource', { source: scheduleLabel })}</p>
+        <p className="break-words">{t('health.serviceInfo.v3.details.calculation', { method: methodLabel })}</p>
+        <p className="break-words">{t('health.serviceInfo.v3.details.eventSource', { source: eventSourceLabel })}</p>
+        <p className="break-words">{t('health.serviceInfo.v3.details.odometerSource', { source: odometerSourceLabel })}</p>
+        {baselineDate ? (
+          <p className="break-words">{t('health.serviceInfo.v2.position.baseline', { date: baselineDate })}</p>
+        ) : showBaselineMissing ? (
+          <p className="break-words">{t('health.serviceInfo.v3.details.baselineMissing')}</p>
+        ) : null}
+        {hasRaw && p.rawIntervalDescription && (
+          <p className="break-words">{t('health.serviceInfo.v3.details.rawInterval', { value: p.rawIntervalDescription })}</p>
+        )}
+        {hasFlags && (
+          <ul className="mt-0.5 space-y-0.5">
+            {p.dataQuality.map((flag) => (
+              <li key={flag} className="break-words">
+                {t(`health.serviceInfo.v2.flag.${flag}` as TranslationKey)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function PositionRow({
+  p,
+  t,
+  fmtLocale,
+  isHeadline,
+  detailsId,
+}: {
+  p: MaintenancePositionForecast;
+  t: Translator;
+  fmtLocale: string;
+  isHeadline: boolean;
+  detailsId: string;
+}) {
   const interval = describeInterval(p, t, fmtLocale);
   const dueDate = formatServiceDate(p.dueAtDate, fmtLocale);
-  const baselineDate = formatServiceDate(p.baseline?.date ?? null, fmtLocale);
+  const label = p.kind === 'OTHER' ? p.label : formatPositionKind(p.kind, t);
   return (
-    <li className="flex items-start justify-between gap-3 border-b border-border py-2 last:border-0">
-      <div className="min-w-0">
-        <p className="truncate text-xs font-semibold text-foreground" title={p.label}>
-          {p.kind === 'OTHER' ? p.label : formatPositionKind(p.kind, t)}
-        </p>
-        <p className="text-[11px] text-muted-foreground">{describeRemaining(p, t, fmtLocale)}</p>
-        <p className="text-[10px] text-muted-foreground/80">
+    <li className="flex flex-col gap-2 border-b border-border py-2.5 last:border-0 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <p className="break-words text-xs font-semibold text-foreground">{label}</p>
+          {isHeadline && (
+            <span className="rounded-md border border-primary/25 bg-primary/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
+              {t('health.serviceInfo.v3.headline.badge')}
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{describeRemaining(p, t, fmtLocale)}</p>
+        <p className="mt-0.5 break-words text-[10px] text-muted-foreground/80">
           {[
             interval ? t('health.serviceInfo.v2.positions.interval', { value: interval }) : null,
             dueDate ? t('health.serviceInfo.v2.position.dueDate', { date: dueDate }) : null,
             p.dueAtKm != null ? t('health.serviceInfo.v2.position.dueKm', { km: formatServiceKm(p.dueAtKm, fmtLocale) }) : null,
-            baselineDate ? t('health.serviceInfo.v2.position.baseline', { date: baselineDate }) : null,
           ]
             .filter(Boolean)
             .join(' · ')}
         </p>
+        <PositionDetails p={p} t={t} fmtLocale={fmtLocale} detailsId={detailsId} />
       </div>
-      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${dueStateChipClass(p.dueState)}`}>
+      <span
+        className={`max-w-full self-start rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest sm:shrink-0 ${dueStateChipClass(p.dueState)}`}
+      >
         {t(`health.serviceInfo.v2.dueState.${p.dueState}` as TranslationKey)}
       </span>
     </li>
+  );
+}
+
+function UnscheduledRow({
+  label,
+  t,
+}: {
+  label: string;
+  t: Translator;
+}) {
+  return (
+    <li className="flex items-start justify-between gap-3 border-b border-border py-2.5 last:border-0">
+      <div className="min-w-0 flex-1">
+        <p className="break-words text-xs font-semibold text-foreground">{label}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{t('health.serviceInfo.v2.positions.unscheduled')}</p>
+      </div>
+    </li>
+  );
+}
+
+function PlanGroupHeading({
+  groupKey,
+  count,
+  t,
+}: {
+  groupKey: PlanGroupKey;
+  count: number;
+  t: Translator;
+}) {
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span>{t(PLAN_GROUP_TITLE[groupKey])}</span>
+      <span className="tabular-nums text-muted-foreground" aria-hidden>
+        ({t('health.serviceInfo.v3.groups.count', { count })})
+      </span>
+    </span>
+  );
+}
+
+function PlanGroupSection({
+  groupKey,
+  positions,
+  unscheduled,
+  t,
+  fmtLocale,
+  scopeId,
+  headlineId,
+}: {
+  groupKey: PlanGroupKey;
+  positions: MaintenancePositionForecast[];
+  unscheduled: Array<{ positionId: string; label: string }>;
+  t: Translator;
+  fmtLocale: string;
+  scopeId: string;
+  headlineId: string | null;
+}) {
+  const showUnscheduled = groupKey === 'notComputable' && unscheduled.length > 0;
+  const count = positions.length + (showUnscheduled ? unscheduled.length : 0);
+  if (count === 0) return null;
+
+  const sectionId = `${scopeId}-plan-${groupKey}`;
+  const list = (
+    <ul className="min-w-0 divide-y divide-border">
+      {positions.map((p) => (
+        <PositionRow
+          key={p.positionId}
+          p={p}
+          t={t}
+          fmtLocale={fmtLocale}
+          isHeadline={headlineId != null && p.positionId === headlineId}
+          detailsId={`${scopeId}-pos-${p.positionId}-details`}
+        />
+      ))}
+      {showUnscheduled && unscheduled.map((u) => <UnscheduledRow key={u.positionId} label={u.label} t={t} />)}
+    </ul>
+  );
+
+  if (groupKey === 'notComputable') {
+    return (
+      <details data-service-plan-group={groupKey} className="surface-solid min-w-0 rounded-lg border border-border">
+        <summary
+          id={sectionId}
+          className="cursor-pointer px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground [&::-webkit-details-marker]:hidden"
+        >
+          <PlanGroupHeading groupKey={groupKey} count={count} t={t} />
+        </summary>
+        <div className="border-t border-border px-3 pb-1">{list}</div>
+      </details>
+    );
+  }
+
+  const emphasis =
+    groupKey === 'overdue'
+      ? 'text-red-800/90 dark:text-red-300'
+      : groupKey === 'dueSoon'
+        ? 'text-amber-900/90 dark:text-amber-200'
+        : 'text-muted-foreground';
+
+  return (
+    <section aria-labelledby={sectionId} className="min-w-0">
+      <h4 id={sectionId} className={`mb-1 text-xs font-semibold uppercase tracking-wide ${emphasis}`}>
+        <PlanGroupHeading groupKey={groupKey} count={count} t={t} />
+      </h4>
+      <div className="surface-solid min-w-0 rounded-lg border border-border px-3">{list}</div>
+    </section>
+  );
+}
+
+function ServiceActions({
+  t,
+  canAct,
+  onUploadProof,
+  onManual,
+  onIntervals,
+  showIntervals,
+}: {
+  t: Translator;
+  canAct: boolean;
+  onUploadProof?: () => void;
+  onManual: () => void;
+  onIntervals: () => void;
+  showIntervals: boolean;
+}) {
+  if (!canAct) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {onUploadProof && (
+        <button
+          type="button"
+          onClick={onUploadProof}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors sq-tone-info hover:opacity-90"
+        >
+          <Icon name="upload" className="h-3.5 w-3.5" aria-hidden />
+          {t('health.serviceInfo.v2.actions.upload')}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={onManual}
+        className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+      >
+        <Icon name="plus" className="h-3.5 w-3.5" aria-hidden />
+        {t('health.serviceInfo.v2.actions.manual')}
+      </button>
+      {showIntervals && (
+        <button
+          type="button"
+          onClick={onIntervals}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+        >
+          <Icon name="wrench" className="h-3.5 w-3.5" aria-hidden />
+          {t('health.serviceInfo.v2.actions.intervals')}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -169,6 +444,7 @@ export function ServiceMaintenanceForecastPanel({
   const { t, formattingLocale } = useLanguage();
   const [manualOpen, setManualOpen] = useState(false);
   const [intervalsOpen, setIntervalsOpen] = useState(false);
+  const scopeId = useId().replace(/:/g, '');
 
   const display: NextServiceDisplay = useMemo(
     () => buildNextServiceDisplay(serviceInfo, { loading, error, t, formattingLocale }),
@@ -177,11 +453,14 @@ export function ServiceMaintenanceForecastPanel({
 
   const forecast = serviceInfo?.maintenanceForecast ?? null;
   const ns = serviceInfo?.nextService;
-  const otherPositions = useMemo(() => {
-    if (!forecast) return [];
-    const headlineId = display.trackingStatus === 'TRACKED' ? (ns?.positionId ?? forecast.nextDue?.positionId ?? null) : null;
-    return forecast.positions.filter((p) => p.positionId !== headlineId);
-  }, [forecast, ns?.positionId, display.trackingStatus]);
+
+  const headlineId = useMemo(() => {
+    if (display.trackingStatus !== 'TRACKED') return null;
+    return ns?.positionId ?? forecast?.nextDue?.positionId ?? null;
+  }, [display.trackingStatus, ns?.positionId, forecast?.nextDue?.positionId]);
+
+  const planPositions = forecast?.positions ?? [];
+  const grouped = useMemo(() => groupPositions(planPositions), [planPositions]);
 
   const flags = useMemo(() => {
     const merged = [...display.dataQuality, ...(forecast?.dataQuality ?? [])];
@@ -197,30 +476,66 @@ export function ServiceMaintenanceForecastPanel({
   const odometerObserved = formatServiceDateTime(odometer?.observedAt ?? null, formattingLocale);
 
   const canAct = Boolean(vehicleId);
+  const unscheduled = forecast?.unscheduledPositions ?? [];
+  const totalPlanRows = planPositions.length + unscheduled.length;
+
+  const showPlanSections = !compact && !loading && !error && forecast != null;
+
+  const emptyPlanHint = useMemo(() => {
+    if (!forecast || totalPlanRows > 0) return null;
+    if (flags.includes('SCHEDULE_MISSING') && !flags.includes('HISTORY_MISSING')) {
+      return t('health.serviceInfo.v2.noBasis.historyOnly');
+    }
+    if (flags.includes('HISTORY_MISSING') && !flags.includes('SCHEDULE_MISSING')) {
+      return t('health.serviceInfo.v2.noBasis.scheduleOnly');
+    }
+    return t('health.serviceInfo.v3.plan.empty');
+  }, [forecast, totalPlanRows, flags, t]);
+
+  const heroHeadingId = `${scopeId}-hero`;
+  const pageTitleId = `${scopeId}-page-title`;
 
   return (
-    <div className={className}>
-      <div className={`rounded-lg p-5 ${nextServicePanelClass(display.tone)}`}>
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <p className={`text-sm font-semibold ${nextServiceToneClass(display.tone)}`}>{display.title}</p>
+    <div className={`min-w-0 space-y-4 ${className}`}>
+      {!compact && (
+        <h2 id={pageTitleId} className="text-base font-semibold tracking-tight text-foreground">
+          {t('health.serviceInfo.v3.pageTitle')}
+        </h2>
+      )}
+
+      <section aria-labelledby={heroHeadingId} className={calmHeroShellClass(display.tone)}>
+        <div className="flex flex-wrap items-center gap-2">
+          <p id={heroHeadingId} className={`text-sm font-semibold ${nextServiceToneClass(display.tone)}`}>
+            {display.title}
+          </p>
           {display.positionLabel && (
-            <span className="rounded-full border border-border bg-background/60 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+            <span className="max-w-full break-words rounded-full border border-border bg-background/60 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
               {display.positionLabel}
             </span>
           )}
           {display.badge && (
-            <span
-              className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${
-                display.tone === 'critical' ? 'sq-chip-critical' : display.tone === 'warning' ? 'sq-chip-watch' : 'bg-muted text-muted-foreground border-border'
-              }`}
-            >
+            <span className="rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
               {display.badge}
             </span>
           )}
         </div>
-        <p className="mb-2 text-sm font-bold text-foreground">{display.primaryLine}</p>
-        {display.description && <p className="mb-2 text-xs text-muted-foreground">{display.description}</p>}
-        {display.sourceLine && <p className="text-xs text-muted-foreground">{display.sourceLine}</p>}
+
+        <div className="mt-2 flex flex-wrap gap-2">
+          {display.isComputed && display.source !== 'HM_OEM' && (
+            <span className="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {t('health.serviceInfo.v3.advisory.computed')}
+            </span>
+          )}
+          {display.source === 'HM_OEM' && display.trackingStatus === 'TRACKED' && (
+            <span className="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {t('health.serviceInfo.v3.advisory.hmOem')}
+            </span>
+          )}
+        </div>
+
+        <p className="mt-2 text-sm font-semibold text-foreground">{display.primaryLine}</p>
+        {display.description && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{display.description}</p>}
+        {display.sourceLine && <p className="mt-1 text-xs text-muted-foreground">{display.sourceLine}</p>}
         {display.lastUpdatedLabel && <p className="mt-1 text-[11px] text-muted-foreground">{display.lastUpdatedLabel}</p>}
 
         {ns?.computedComparison && display.source === 'HM_OEM' && (
@@ -242,44 +557,24 @@ export function ServiceMaintenanceForecastPanel({
           </div>
         )}
 
-        {canAct && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {onUploadProof && (
-              <button
-                type="button"
-                onClick={onUploadProof}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors sq-tone-info hover:opacity-90"
-              >
-                <Icon name="upload" className="h-3.5 w-3.5" />
-                {t('health.serviceInfo.v2.actions.upload')}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setManualOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
-            >
-              <Icon name="plus" className="h-3.5 w-3.5" />
-              {t('health.serviceInfo.v2.actions.manual')}
-            </button>
-            {orgId && !hasProviderSchedule && (
-              <button
-                type="button"
-                onClick={() => setIntervalsOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
-              >
-                <Icon name="wrench" className="h-3.5 w-3.5" />
-                {t('health.serviceInfo.v2.actions.intervals')}
-              </button>
-            )}
+        {compact && (
+          <div className="mt-4">
+            <ServiceActions
+              t={t}
+              canAct={canAct}
+              onUploadProof={onUploadProof}
+              onManual={() => setManualOpen(true)}
+              onIntervals={() => setIntervalsOpen(true)}
+              showIntervals={Boolean(orgId && !hasProviderSchedule)}
+            />
           </div>
         )}
-      </div>
+      </section>
 
       {!compact && !loading && !error && (
-        <div className="mt-4 space-y-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="rounded-lg border border-border bg-muted p-3">
+        <>
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+            <InfoCard>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {t('health.serviceInfo.v2.lastMaintenance.label')}
               </p>
@@ -298,8 +593,8 @@ export function ServiceMaintenanceForecastPanel({
                   {t(`health.serviceInfo.v2.eventSource.${lastMaint.eventSource}` as TranslationKey)}
                 </p>
               )}
-            </div>
-            <div className="rounded-lg border border-border bg-muted p-3">
+            </InfoCard>
+            <InfoCard>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {t('health.serviceInfo.v2.freshness.odometerLabel')}
               </p>
@@ -316,33 +611,46 @@ export function ServiceMaintenanceForecastPanel({
                   {t('health.serviceInfo.v2.freshness.updated', { date: odometerObserved })}
                 </p>
               )}
-            </div>
+            </InfoCard>
           </div>
 
-          {(otherPositions.length > 0 || (forecast?.unscheduledPositions.length ?? 0) > 0) && (
-            <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {t('health.serviceInfo.v2.positions.title')}
-              </p>
-              {otherPositions.length > 0 ? (
-                <ul>
-                  {otherPositions.map((p) => (
-                    <PositionRow key={p.positionId} p={p} t={t} fmtLocale={formattingLocale} />
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-muted-foreground/70">{t('health.serviceInfo.v2.positions.empty')}</p>
-              )}
-              {forecast && forecast.unscheduledPositions.length > 0 && (
-                <p className="mt-2 text-[10px] text-muted-foreground/80">
-                  {t('health.serviceInfo.v2.positions.unscheduled')}: {forecast.unscheduledPositions.map((u) => u.label).join(' · ')}
-                </p>
+          {showPlanSections && (
+            <div className="min-w-0 space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">{t('health.serviceInfo.v3.plan.title')}</h3>
+              {PLAN_GROUP_ORDER.map((groupKey) => (
+                <PlanGroupSection
+                  key={groupKey}
+                  groupKey={groupKey}
+                  positions={grouped[groupKey]}
+                  unscheduled={unscheduled}
+                  t={t}
+                  fmtLocale={formattingLocale}
+                  scopeId={scopeId}
+                  headlineId={headlineId}
+                />
+              ))}
+              {emptyPlanHint && (
+                <p className="text-xs leading-relaxed text-muted-foreground">{emptyPlanHint}</p>
               )}
             </div>
           )}
 
           <FlagList flags={flags} t={t} />
-        </div>
+
+          <div className="border-t border-border pt-4">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {t('health.serviceInfo.v3.actions.title')}
+            </p>
+            <ServiceActions
+              t={t}
+              canAct={canAct}
+              onUploadProof={onUploadProof}
+              onManual={() => setManualOpen(true)}
+              onIntervals={() => setIntervalsOpen(true)}
+              showIntervals={Boolean(orgId && !hasProviderSchedule)}
+            />
+          </div>
+        </>
       )}
 
       {vehicleId && (
@@ -364,4 +672,8 @@ export function ServiceMaintenanceForecastPanel({
       )}
     </div>
   );
+}
+
+function InfoCard({ children }: { children: ReactNode }) {
+  return <div className="surface-solid min-w-0 rounded-lg border border-border p-3">{children}</div>;
 }
