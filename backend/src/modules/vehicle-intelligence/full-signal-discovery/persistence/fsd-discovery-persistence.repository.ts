@@ -7,6 +7,7 @@ import type {
   FsdDiscoveryStream,
   Prisma,
 } from '@prisma/client';
+import { Injectable } from '@nestjs/common';
 import type { PrismaService } from '@shared/database/prisma.service';
 import { acquirePgAdvisoryXactLock64 } from '@shared/database/pg-advisory-lock.util';
 import {
@@ -73,6 +74,7 @@ export type FsdDiscoveryRunOrchestrationBundleV1 = {
   }>;
 };
 
+@Injectable()
 export class FsdDiscoveryPersistenceRepository {
   constructor(private readonly prisma: PrismaService) {}
 
