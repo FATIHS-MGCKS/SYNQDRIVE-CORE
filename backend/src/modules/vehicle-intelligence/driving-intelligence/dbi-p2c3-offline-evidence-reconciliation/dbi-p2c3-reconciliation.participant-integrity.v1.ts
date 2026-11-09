@@ -26,6 +26,7 @@ import {
   validateA1KernelStatus,
   validatePowertrainKernelStatus,
 } from './dbi-p2c3-reconciliation.kernel-status.v1';
+import { validateB2SubtypeAssessabilityCompleteness } from './dbi-p2c3-reconciliation.b2-subtype-completeness.v1';
 
 const FACET_A_POSITIVE_CLASS = 'HIGH_RPM_STATIONARY_LIKE_PROXY_CANDIDATE' as const;
 const FACET_B_POSITIVE_CLASS = 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY_CANDIDATE' as const;
@@ -90,16 +91,11 @@ function validateSharedPowertrainParticipant(
 
 function validateB2Plane(plane: DbiP2c2PowertrainProxyCandidatesPlaneV1): DbiP2c3ReconciliationDiagnosticCodeV1[] {
   const participant = plane.participant as DbiP2c2B2EvidenceParticipantV1;
-  const codes = validateSharedPowertrainParticipant(participant, plane.candidates);
-  for (const cand of plane.candidates) {
-    if (cand.sourceModule !== 'P2-B2' || !('proxyKind' in cand)) continue;
-    if (!classificationIsPositiveProxy(cand.originalClassification)) continue;
-    const subtype = participant.subtypeAssessability[cand.proxyKind];
-    if (subtype?.status === 'NOT_ASSESSABLE') {
-      codes.push('B2_PARTICIPANT_SUBTYPE_ASSESSABILITY_CONTRADICTION');
-    }
+  const completeness = validateB2SubtypeAssessabilityCompleteness(plane);
+  if (completeness.length > 0) {
+    return [...completeness];
   }
-  return codes;
+  return validateSharedPowertrainParticipant(participant, plane.candidates);
 }
 
 function validateB3Plane(plane: DbiP2c2PowertrainProxyCandidatesPlaneV1): DbiP2c3ReconciliationDiagnosticCodeV1[] {

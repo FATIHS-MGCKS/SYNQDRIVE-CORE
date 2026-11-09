@@ -27,6 +27,14 @@
 
 P1-04 forged abstain + duplicate positives remains fail-closed (`PARTICIPANT_CONTRADICTORY_POSITIVE_UNDER_ABSTAIN`).
 
+## Required-field + B2 subtype closeout
+
+| Control | Diagnostic | Tests |
+|---------|------------|-------|
+| Adapter contract required nested fields | `BUNDLE_NESTED_SHAPE_INVALID` | `w2-required-shape-subtype.spec.ts` |
+| B2 three-subtype map completeness | `B2_SUBTYPE_ASSESSABILITY_INCOMPLETE` | same |
+| B2 forged subtype status | `B2_SUBTYPE_STATUS_INVALID` | same |
+
 ## Limitations
 
 - Integrity validates **adapter-reported** fields only; it does not re-run DS4 kernels or attest sources.

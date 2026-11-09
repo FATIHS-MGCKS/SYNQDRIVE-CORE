@@ -1,4 +1,5 @@
 import type { DbiP2c3ReconciliationDiagnosticCodeV1 } from './dbi-p2c3-reconciliation.contract.v1';
+import { validateParticipantRequiredAdapterFields } from './dbi-p2c3-reconciliation.bundle-required-fields.v1';
 
 const MAX_CANDIDATES_PER_PLANE = 4096;
 const MAX_EPISODES = 4096;
@@ -62,35 +63,8 @@ function validateParticipantHeader(participant: unknown, codes: DbiP2c3Reconcili
   if (!boundedString(participant.originalKernelStatus)) {
     push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
   }
-  if ('originalAbstainReasons' in participant && !isStringArray(participant.originalAbstainReasons, MAX_REASON_CODE_ENTRIES)) {
-    push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
-  }
-  if ('adapterClaimsPositiveEvidence' in participant && typeof participant.adapterClaimsPositiveEvidence !== 'boolean') {
-    push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
-  }
   validateParticipantIdentity(participant.identity, codes);
-
-  const module = participant.sourceModule;
-  if (module === 'P2-A1') {
-    if (!isPlainObject(participant.moduleAssessability)) {
-      push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
-    } else if (!boundedString(participant.moduleAssessability.highEpisodesStatus)) {
-      push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
-    }
-    if (!isPlainObject(participant.highEpisodesMeta)) {
-      push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
-    } else if (!boundedString(participant.highEpisodesMeta.status)) {
-      push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
-    }
-  }
-  if (module === 'P2-B2' && !isPlainObject(participant.subtypeAssessability)) {
-    push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
-  }
-  if (module === 'P2-B4') {
-    if (!isPlainObject(participant.facetA) || !isPlainObject(participant.facetB)) {
-      push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
-    }
-  }
+  validateParticipantRequiredAdapterFields(participant, codes);
 }
 
 function validateCandidateEnvelope(cand: unknown, codes: DbiP2c3ReconciliationDiagnosticCodeV1[]): void {
