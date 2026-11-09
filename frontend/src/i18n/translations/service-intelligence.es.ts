@@ -159,4 +159,9 @@ export const serviceIntelligenceEs = {
   'health.serviceInfo.v3.calculationMethod.COMPUTED_FROM_SCHEDULE_AND_HISTORY': 'Calculado a partir del plan y del historial acreditado',
   'health.serviceInfo.v3.calculationMethod.NOT_COMPUTABLE': 'No calculable',
   'health.serviceInfo.v3.actions.title': 'Acciones',
+  'health.serviceInfo.v3.headline.badge': 'Destacado en el resumen',
+  'health.serviceInfo.v3.groups.count': '{count}',
+  'health.serviceInfo.v3.details.eventSource': 'Fuente del punto de partida: {source}',
+  'health.serviceInfo.v3.details.odometerSource': 'Fuente del odómetro: {source}',
+  'health.serviceInfo.v3.details.baselineMissing': 'Sin punto de partida acreditado para esta posición',
 } as const;

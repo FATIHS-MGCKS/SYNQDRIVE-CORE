@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
 import type {
   MaintenanceConflict,
   MaintenanceDataQualityFlag,
@@ -175,27 +175,43 @@ function ConflictList({ conflicts, t, fmtLocale }: { conflicts: MaintenanceConfl
   );
 }
 
-function PositionDetails({ p, t, fmtLocale }: { p: MaintenancePositionForecast; t: Translator; fmtLocale: string }) {
+function PositionDetails({
+  p,
+  t,
+  fmtLocale,
+  detailsId,
+}: {
+  p: MaintenancePositionForecast;
+  t: Translator;
+  fmtLocale: string;
+  detailsId: string;
+}) {
   const scheduleLabel = t(`health.serviceInfo.v3.scheduleSource.${p.provenance.scheduleSource}` as TranslationKey);
   const methodLabel = t(`health.serviceInfo.v3.calculationMethod.${p.provenance.calculationMethod}` as TranslationKey);
+  const eventSourceLabel = t(`health.serviceInfo.v2.eventSource.${p.provenance.eventSource}` as TranslationKey);
+  const odometerSourceLabel = t(`health.serviceInfo.v2.odometerSource.${p.provenance.odometerSource}` as TranslationKey);
   const baselineDate = formatServiceDate(p.baseline?.date ?? null, fmtLocale);
   const hasFlags = p.dataQuality.length > 0;
   const hasRaw = Boolean(p.rawIntervalDescription);
-  if (!hasRaw && !hasFlags && !baselineDate) return null;
+  const showBaselineMissing = !baselineDate && (p.dueState === 'NO_BASELINE' || p.baseline == null);
 
   return (
-    <details className="mt-1 text-[10px] text-muted-foreground">
-      <summary className="cursor-pointer select-none font-medium text-foreground/80 hover:text-foreground">
+    <details id={detailsId} className="mt-1.5 text-[10px] text-muted-foreground">
+      <summary className="inline-flex min-h-9 cursor-pointer select-none items-center font-medium text-foreground/80 hover:text-foreground">
         {t('health.serviceInfo.v3.details.toggle')}
       </summary>
-      <div className="mt-1 space-y-0.5 pl-0.5">
-        <p>{t('health.serviceInfo.v3.details.scheduleSource', { source: scheduleLabel })}</p>
-        <p>{t('health.serviceInfo.v3.details.calculation', { method: methodLabel })}</p>
+      <div className="mt-1 space-y-1 pl-0.5">
+        <p className="break-words">{t('health.serviceInfo.v3.details.scheduleSource', { source: scheduleLabel })}</p>
+        <p className="break-words">{t('health.serviceInfo.v3.details.calculation', { method: methodLabel })}</p>
+        <p className="break-words">{t('health.serviceInfo.v3.details.eventSource', { source: eventSourceLabel })}</p>
+        <p className="break-words">{t('health.serviceInfo.v3.details.odometerSource', { source: odometerSourceLabel })}</p>
+        {baselineDate ? (
+          <p className="break-words">{t('health.serviceInfo.v2.position.baseline', { date: baselineDate })}</p>
+        ) : showBaselineMissing ? (
+          <p className="break-words">{t('health.serviceInfo.v3.details.baselineMissing')}</p>
+        ) : null}
         {hasRaw && p.rawIntervalDescription && (
           <p className="break-words">{t('health.serviceInfo.v3.details.rawInterval', { value: p.rawIntervalDescription })}</p>
-        )}
-        {baselineDate && (
-          <p>{t('health.serviceInfo.v2.position.baseline', { date: baselineDate })}</p>
         )}
         {hasFlags && (
           <ul className="mt-0.5 space-y-0.5">
@@ -211,14 +227,33 @@ function PositionDetails({ p, t, fmtLocale }: { p: MaintenancePositionForecast; 
   );
 }
 
-function PositionRow({ p, t, fmtLocale }: { p: MaintenancePositionForecast; t: Translator; fmtLocale: string }) {
+function PositionRow({
+  p,
+  t,
+  fmtLocale,
+  isHeadline,
+  detailsId,
+}: {
+  p: MaintenancePositionForecast;
+  t: Translator;
+  fmtLocale: string;
+  isHeadline: boolean;
+  detailsId: string;
+}) {
   const interval = describeInterval(p, t, fmtLocale);
   const dueDate = formatServiceDate(p.dueAtDate, fmtLocale);
   const label = p.kind === 'OTHER' ? p.label : formatPositionKind(p.kind, t);
   return (
-    <li className="flex items-start justify-between gap-3 border-b border-border py-2.5 last:border-0">
+    <li className="flex flex-col gap-2 border-b border-border py-2.5 last:border-0 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
       <div className="min-w-0 flex-1">
-        <p className="break-words text-xs font-semibold text-foreground">{label}</p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <p className="break-words text-xs font-semibold text-foreground">{label}</p>
+          {isHeadline && (
+            <span className="rounded-md border border-primary/25 bg-primary/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
+              {t('health.serviceInfo.v3.headline.badge')}
+            </span>
+          )}
+        </div>
         <p className="mt-0.5 text-[11px] text-muted-foreground">{describeRemaining(p, t, fmtLocale)}</p>
         <p className="mt-0.5 break-words text-[10px] text-muted-foreground/80">
           {[
@@ -229,10 +264,10 @@ function PositionRow({ p, t, fmtLocale }: { p: MaintenancePositionForecast; t: T
             .filter(Boolean)
             .join(' · ')}
         </p>
-        <PositionDetails p={p} t={t} fmtLocale={fmtLocale} />
+        <PositionDetails p={p} t={t} fmtLocale={fmtLocale} detailsId={detailsId} />
       </div>
       <span
-        className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${dueStateChipClass(p.dueState)}`}
+        className={`max-w-full self-start rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest sm:shrink-0 ${dueStateChipClass(p.dueState)}`}
       >
         {t(`health.serviceInfo.v2.dueState.${p.dueState}` as TranslationKey)}
       </span>
@@ -257,37 +292,90 @@ function UnscheduledRow({
   );
 }
 
+function PlanGroupHeading({
+  groupKey,
+  count,
+  t,
+}: {
+  groupKey: PlanGroupKey;
+  count: number;
+  t: Translator;
+}) {
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span>{t(PLAN_GROUP_TITLE[groupKey])}</span>
+      <span className="tabular-nums text-muted-foreground" aria-hidden>
+        ({t('health.serviceInfo.v3.groups.count', { count })})
+      </span>
+    </span>
+  );
+}
+
 function PlanGroupSection({
   groupKey,
   positions,
   unscheduled,
   t,
   fmtLocale,
+  scopeId,
+  headlineId,
 }: {
   groupKey: PlanGroupKey;
   positions: MaintenancePositionForecast[];
   unscheduled: Array<{ positionId: string; label: string }>;
   t: Translator;
   fmtLocale: string;
+  scopeId: string;
+  headlineId: string | null;
 }) {
   const showUnscheduled = groupKey === 'notComputable' && unscheduled.length > 0;
-  if (positions.length === 0 && !showUnscheduled) return null;
+  const count = positions.length + (showUnscheduled ? unscheduled.length : 0);
+  if (count === 0) return null;
+
+  const sectionId = `${scopeId}-plan-${groupKey}`;
+  const list = (
+    <ul className="min-w-0 divide-y divide-border">
+      {positions.map((p) => (
+        <PositionRow
+          key={p.positionId}
+          p={p}
+          t={t}
+          fmtLocale={fmtLocale}
+          isHeadline={headlineId != null && p.positionId === headlineId}
+          detailsId={`${scopeId}-pos-${p.positionId}-details`}
+        />
+      ))}
+      {showUnscheduled && unscheduled.map((u) => <UnscheduledRow key={u.positionId} label={u.label} t={t} />)}
+    </ul>
+  );
+
+  if (groupKey === 'notComputable') {
+    return (
+      <details data-service-plan-group={groupKey} className="surface-solid min-w-0 rounded-lg border border-border">
+        <summary
+          id={sectionId}
+          className="cursor-pointer px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground [&::-webkit-details-marker]:hidden"
+        >
+          <PlanGroupHeading groupKey={groupKey} count={count} t={t} />
+        </summary>
+        <div className="border-t border-border px-3 pb-1">{list}</div>
+      </details>
+    );
+  }
+
+  const emphasis =
+    groupKey === 'overdue'
+      ? 'text-red-800/90 dark:text-red-300'
+      : groupKey === 'dueSoon'
+        ? 'text-amber-900/90 dark:text-amber-200'
+        : 'text-muted-foreground';
 
   return (
-    <section aria-labelledby={`service-plan-${groupKey}`} className="min-w-0">
-      <h4
-        id={`service-plan-${groupKey}`}
-        className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
-      >
-        {t(PLAN_GROUP_TITLE[groupKey])}
+    <section aria-labelledby={sectionId} className="min-w-0">
+      <h4 id={sectionId} className={`mb-1 text-xs font-semibold uppercase tracking-wide ${emphasis}`}>
+        <PlanGroupHeading groupKey={groupKey} count={count} t={t} />
       </h4>
-      <ul className="surface-solid min-w-0 rounded-lg border border-border px-3">
-        {positions.map((p) => (
-          <PositionRow key={p.positionId} p={p} t={t} fmtLocale={fmtLocale} />
-        ))}
-        {showUnscheduled &&
-          unscheduled.map((u) => <UnscheduledRow key={u.positionId} label={u.label} t={t} />)}
-      </ul>
+      <div className="surface-solid min-w-0 rounded-lg border border-border px-3">{list}</div>
     </section>
   );
 }
@@ -356,6 +444,7 @@ export function ServiceMaintenanceForecastPanel({
   const { t, formattingLocale } = useLanguage();
   const [manualOpen, setManualOpen] = useState(false);
   const [intervalsOpen, setIntervalsOpen] = useState(false);
+  const scopeId = useId().replace(/:/g, '');
 
   const display: NextServiceDisplay = useMemo(
     () => buildNextServiceDisplay(serviceInfo, { loading, error, t, formattingLocale }),
@@ -364,13 +453,14 @@ export function ServiceMaintenanceForecastPanel({
 
   const forecast = serviceInfo?.maintenanceForecast ?? null;
   const ns = serviceInfo?.nextService;
-  const otherPositions = useMemo(() => {
-    if (!forecast) return [];
-    const headlineId = display.trackingStatus === 'TRACKED' ? (ns?.positionId ?? forecast.nextDue?.positionId ?? null) : null;
-    return forecast.positions.filter((p) => p.positionId !== headlineId);
-  }, [forecast, ns?.positionId, display.trackingStatus]);
 
-  const grouped = useMemo(() => groupPositions(otherPositions), [otherPositions]);
+  const headlineId = useMemo(() => {
+    if (display.trackingStatus !== 'TRACKED') return null;
+    return ns?.positionId ?? forecast?.nextDue?.positionId ?? null;
+  }, [display.trackingStatus, ns?.positionId, forecast?.nextDue?.positionId]);
+
+  const planPositions = forecast?.positions ?? [];
+  const grouped = useMemo(() => groupPositions(planPositions), [planPositions]);
 
   const flags = useMemo(() => {
     const merged = [...display.dataQuality, ...(forecast?.dataQuality ?? [])];
@@ -387,15 +477,12 @@ export function ServiceMaintenanceForecastPanel({
 
   const canAct = Boolean(vehicleId);
   const unscheduled = forecast?.unscheduledPositions ?? [];
+  const totalPlanRows = planPositions.length + unscheduled.length;
 
-  const showPlanSections =
-    !compact &&
-    !loading &&
-    !error &&
-    (otherPositions.length > 0 || unscheduled.length > 0 || forecast != null);
+  const showPlanSections = !compact && !loading && !error && forecast != null;
 
   const emptyPlanHint = useMemo(() => {
-    if (!forecast || otherPositions.length > 0 || unscheduled.length > 0) return null;
+    if (!forecast || totalPlanRows > 0) return null;
     if (flags.includes('SCHEDULE_MISSING') && !flags.includes('HISTORY_MISSING')) {
       return t('health.serviceInfo.v2.noBasis.historyOnly');
     }
@@ -403,14 +490,17 @@ export function ServiceMaintenanceForecastPanel({
       return t('health.serviceInfo.v2.noBasis.scheduleOnly');
     }
     return t('health.serviceInfo.v3.plan.empty');
-  }, [forecast, otherPositions.length, unscheduled.length, flags, t]);
+  }, [forecast, totalPlanRows, flags, t]);
 
-  const heroHeadingId = 'service-maintenance-hero-heading';
+  const heroHeadingId = `${scopeId}-hero`;
+  const pageTitleId = `${scopeId}-page-title`;
 
   return (
     <div className={`min-w-0 space-y-4 ${className}`}>
       {!compact && (
-        <h2 className="text-base font-semibold tracking-tight text-foreground">{t('health.serviceInfo.v3.pageTitle')}</h2>
+        <h2 id={pageTitleId} className="text-base font-semibold tracking-tight text-foreground">
+          {t('health.serviceInfo.v3.pageTitle')}
+        </h2>
       )}
 
       <section aria-labelledby={heroHeadingId} className={calmHeroShellClass(display.tone)}>
@@ -535,9 +625,11 @@ export function ServiceMaintenanceForecastPanel({
                   unscheduled={unscheduled}
                   t={t}
                   fmtLocale={formattingLocale}
+                  scopeId={scopeId}
+                  headlineId={headlineId}
                 />
               ))}
-              {emptyPlanHint && otherPositions.length === 0 && unscheduled.length === 0 && (
+              {emptyPlanHint && (
                 <p className="text-xs leading-relaxed text-muted-foreground">{emptyPlanHint}</p>
               )}
             </div>

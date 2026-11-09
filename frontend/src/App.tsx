@@ -7,6 +7,7 @@ import RentalApp from './rental/App';
 import OperatorApp from './operator/OperatorApp';
 import LoginPage from './pages/LoginPage';
 import VerificationDonePage from './pages/VerificationDonePage';
+import ServiceInfoV3DevFixturePage from './pages/dev/ServiceInfoV3DevFixturePage';
 
 function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string }) {
   if (!isAuthenticated()) {
@@ -51,6 +52,9 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginRoute />} />
             <Route path="/verification/done" element={<VerificationDonePage />} />
+            {import.meta.env.DEV ? (
+              <Route path="/dev/service-info-v3" element={<ServiceInfoV3DevFixturePage />} />
+            ) : null}
             <Route
               path="/master"
               element={

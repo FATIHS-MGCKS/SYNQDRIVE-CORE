@@ -159,4 +159,9 @@ export const serviceIntelligenceEn = {
   'health.serviceInfo.v3.calculationMethod.COMPUTED_FROM_SCHEDULE_AND_HISTORY': 'Computed from schedule and proven history',
   'health.serviceInfo.v3.calculationMethod.NOT_COMPUTABLE': 'Not computable',
   'health.serviceInfo.v3.actions.title': 'Actions',
+  'health.serviceInfo.v3.headline.badge': 'Headline in overview',
+  'health.serviceInfo.v3.groups.count': '{count}',
+  'health.serviceInfo.v3.details.eventSource': 'Baseline source: {source}',
+  'health.serviceInfo.v3.details.odometerSource': 'Odometer source: {source}',
+  'health.serviceInfo.v3.details.baselineMissing': 'No proven baseline for this position',
 } as const;

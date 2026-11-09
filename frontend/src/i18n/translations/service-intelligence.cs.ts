@@ -159,4 +159,9 @@ export const serviceIntelligenceCs = {
   'health.serviceInfo.v3.calculationMethod.COMPUTED_FROM_SCHEDULE_AND_HISTORY': 'Vypočteno z plánu a doložené historie',
   'health.serviceInfo.v3.calculationMethod.NOT_COMPUTABLE': 'Nelze vypočítat',
   'health.serviceInfo.v3.actions.title': 'Akce',
+  'health.serviceInfo.v3.headline.badge': 'Zvýrazněno v přehledu',
+  'health.serviceInfo.v3.groups.count': '{count}',
+  'health.serviceInfo.v3.details.eventSource': 'Zdroj výchozího bodu: {source}',
+  'health.serviceInfo.v3.details.odometerSource': 'Zdroj tachometru: {source}',
+  'health.serviceInfo.v3.details.baselineMissing': 'Žádný doložený výchozí bod pro tuto položku',
 } as const;

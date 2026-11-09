@@ -159,4 +159,9 @@ export const serviceIntelligenceTr = {
   'health.serviceInfo.v3.calculationMethod.COMPUTED_FROM_SCHEDULE_AND_HISTORY': 'Plan ve belgelenmiş geçmişten hesaplandı',
   'health.serviceInfo.v3.calculationMethod.NOT_COMPUTABLE': 'Hesaplanamaz',
   'health.serviceInfo.v3.actions.title': 'İşlemler',
+  'health.serviceInfo.v3.headline.badge': 'Özet kartında vurgulanan',
+  'health.serviceInfo.v3.groups.count': '{count}',
+  'health.serviceInfo.v3.details.eventSource': 'Başlangıç noktası kaynağı: {source}',
+  'health.serviceInfo.v3.details.odometerSource': 'Kilometre kaynağı: {source}',
+  'health.serviceInfo.v3.details.baselineMissing': 'Bu kalem için belgelenmiş başlangıç noktası yok',
 } as const;
