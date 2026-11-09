@@ -11,6 +11,7 @@ import type {
 } from './ds4-powertrain-demand-research.contract.v1';
 import type { Ds4CanonicalMultichannelBucketV1 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
 import type { Ds4MultichannelCanonicalizeResultV1 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
+import { classifySustainedLoadNegativeEvidence } from './ds4-powertrain-demand-sustained-load-negative-evidence.v1';
 import { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from './ds4-powertrain-demand-sustained-load-reference.v1';
 
 export { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from './ds4-powertrain-demand-sustained-load-reference.v1';
@@ -206,12 +207,18 @@ export function classifySustainedLoadTripEvidence(input: {
   entryLabelCount: number;
   candidateCount: number;
   longestRunLabelCount: number;
+  longestLoadPresentRunLabelCount: number;
+  loadPresentBucketCount: number;
 }): Ds4SustainedLoadTripEvidenceClassificationV1 {
   if (input.candidateCount > 0) {
     return 'GAP_AWARE_SUSTAINED_PROXY_CANDIDATE';
   }
   if (input.entryLabelCount === 0) {
-    return 'NOT_OBSERVED';
+    return classifySustainedLoadNegativeEvidence({
+      entryLabelCount: 0,
+      loadPresentBucketCount: input.loadPresentBucketCount,
+      longestLoadPresentRunLabelCount: input.longestLoadPresentRunLabelCount,
+    });
   }
   if (input.longestRunLabelCount >= DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.minObservations) {
     return 'INSUFFICIENT_OBSERVATIONS';

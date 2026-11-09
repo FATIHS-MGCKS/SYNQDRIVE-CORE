@@ -17,6 +17,11 @@ export const DS4_SUSTAINED_LOAD_P37_THRESHOLD_REFERENCE = {
 /** Research-only admission floor (P2-B3); P37 production uses minClusterSamples=4. */
 export const DS4_SUSTAINED_LOAD_RESEARCH_MIN_OBSERVATIONS = 5 as const;
 
+/**
+ * Negative NOT_OBSERVED also requires a contiguous load-present label run of at least this length (DBI P2-C4 W1).
+ * Ratio-based coverage thresholds remain unresolved empirical research debt.
+ */
+
 export const DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY = {
   ...DS4_SUSTAINED_LOAD_P37_THRESHOLD_REFERENCE,
   minObservations: DS4_SUSTAINED_LOAD_RESEARCH_MIN_OBSERVATIONS,

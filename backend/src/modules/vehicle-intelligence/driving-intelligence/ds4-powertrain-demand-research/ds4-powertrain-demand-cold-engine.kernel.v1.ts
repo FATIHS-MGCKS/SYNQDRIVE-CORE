@@ -4,6 +4,7 @@ import {
   computeColdEngineSubtypeAssessability,
   detectColdEngineBucketGridCandidates,
 } from './ds4-powertrain-demand-cold-engine-bucket-grid.v1';
+import { resolveColdEngineTripStatus } from './ds4-powertrain-demand-cold-engine-trip-status.v1';
 import { evaluateColdEngineHighRpmReferenceAdmission } from './ds4-powertrain-demand-cold-engine-reference.v1';
 import { validateDs4PowertrainDemandColdEngineInputBinding } from './ds4-powertrain-demand-cold-engine.input-binding.v1';
 import { canonicalizeMultichannelObservations } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
@@ -109,6 +110,7 @@ export function computeDs4PowertrainDemandColdEngineResearchV1(
     buckets: canon.buckets,
     highRpmReference,
     rpmEvidencePresent: binding.rpmEvidencePresent,
+    nominalIntervalMs: nominalMs,
   });
 
   const detect = detectColdEngineBucketGridCandidates({
@@ -145,12 +147,10 @@ export function computeDs4PowertrainDemandColdEngineResearchV1(
     claims.push('FUEL_TYPE_CALLER_DECLARED_UNVERIFIED');
   }
 
-  const status =
-    detect.candidates.length > 0
-      ? 'COMPUTED'
-      : binding.ectCoverage.ectColdObservedBucketCount > 0
-        ? 'NOT_OBSERVED'
-        : 'NOT_OBSERVED';
+  const status = resolveColdEngineTripStatus({
+    candidateCount: detect.candidates.length,
+    subtypeAssessability: detect.subtypeAssessability,
+  });
 
   return {
     contractVersion: DS4_POWERTRAIN_DEMAND_RESEARCH_CONTRACT_VERSION,

@@ -57,10 +57,10 @@ describe('ds4-powertrain-demand cold-engine P2-B2', () => {
     ).toBe(true);
   });
 
-  it('C: warm ECT yields NOT_OBSERVED without abstaining on sufficient ECT labels', () => {
+  it('C: warm ECT yields COMPUTED without abstaining on sufficient ECT labels', () => {
     const grid = coldEctGrid(12, () => ({ coolantC: 85, loadPct: 90, rpm: null }));
     const out = computeDs4PowertrainDemandColdEngineResearchV1(buildColdEngineBoundInput({ multichannelObservations: grid }));
-    expect(out.status).toBe('NOT_OBSERVED');
+    expect(out.status).toBe('COMPUTED');
     expect(out.abstainReasons).toHaveLength(0);
   });
 

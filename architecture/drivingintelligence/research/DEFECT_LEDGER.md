@@ -3,7 +3,7 @@
 Significant defects discovered during the 2026-08-30 → 2026-09-06 workstream.  
 **Rejected hypotheses are NOT defects** — see `HYPOTHESIS_REGISTER.md`.
 
-**Summary:** TOTAL=**20** | FIXED=**16** (DI-DEF-003–017, 019 production-validated) | OPEN=**4** (DI-DEF-001, 002, 018, 020)
+**Summary:** TOTAL=**27** | FIXED=**23** (DI-DEF-003–017, 019 production-validated; DI-DEF-021–027 W1) | OPEN=**4** (DI-DEF-001, 002, 018, 020)
 
 | ID | Phase | Symptom | Cause | Risk | Fix | Tests | Status |
 |----|-------|---------|-------|------|-----|-------|--------|
@@ -27,3 +27,10 @@ Significant defects discovered during the 2026-08-30 → 2026-09-06 workstream.
 | DI-DEF-018 | Production detectors | ~1 Hz assumption in HF window producer | Code predates RD003/RD002 cadence evidence | Detector timing on sparse HF | **Not fixed** — documented as semantic debt | — | OPEN |
 | DI-DEF-019 | Live cal 2026-09-06 | `switchHfCalibrationPhase` fails in production | `lockSessionRow` raw SQL used Prisma model table `"ReferenceCaptureSession"` + camelCase columns; Prisma maps IDs to PostgreSQL `text` (no `::uuid` cast) | **Live HF calibration blocked**; stop/abort finalization also affected | Fix `reference_capture_sessions` + `organization_id`; GATE 1 PG integration + GATE 2 production dress rehearsal | `reference-capture-lock-session.postgres.integration` (10 tests) + gate script; GATE 2 STOP/ABORT on prod | FIXED_PRODUCTION_VALIDATED |
 | DI-DEF-020 | EXP-021 C0–C0.2 audits | R1 HF abuse FULL_BRAKING / ENGINE_SHUTDOWN_WHILE_DRIVING (and POSSIBLE_IMPACT) asserted from point-in-time OBD conjunctions; 0/5 FULL_BRAKING supported, 0/6 shutdowns sustained | Detectors treat R1 GraphQL row labels (query-grid bucket starts) as physical time; R1 records misdated (absolute offset P50 14 s / P90 45 s) | Unsupported abuse KPIs, brake wear, impact, SEVERE misuse | **Contained** (C0.3, DI-DEC-R1-TEMPORAL-CONTAINMENT-001) — not fixed: root cause UNKNOWN, historical rows retained | DI-TEST-R1-CONTAINMENT-001 | OPEN |
+| DI-DEF-021 | DBI P2-C4 audit (A1) | Fragmented high-RPM sequences reported `NOT_OBSERVED` | No assessability gate before local negative | False evidence-of-absence on sparse labels | W1 `resolveHighEpisodesStatusWhenZeroAdmitted` | `ds4-rpm-episode-research.negative-evidence.opus.spec.ts` | FIXED |
+| DI-DEF-022 | DBI P2-C4 audit (B1) | Overlap dedupe by peak throttle evicted `KICKDOWN_LIKE_PROXY_CANDIDATE` | Peak-throttle-only overlap merge | False kickdown negative | W1 classification-precedence dedupe | `ds4-powertrain-demand-kickdown.negative-evidence.opus.spec.ts` | FIXED |
+| DI-DEF-023 | DBI P2-C4 audit (B3) | Sparse load labels (5/300) → `NOT_OBSERVED` | `entryLabelCount===0` without load-run coherence | False sustained-load negative | W1 contiguous load-present floor | `ds4-powertrain-demand-sustained-load.negative-evidence.opus.spec.ts` | FIXED |
+| DI-DEF-024 | DBI P2-C4 audit (B2) | Warm / non-assessable cold → trip `NOT_OBSERVED` | Dead ternary; single cold bucket assessable | Trip-level negative without subtype opportunity | W1 `resolveColdEngineTripStatus` + triple-window assessability | cold-engine opus + S09 pin | FIXED |
+| DI-DEF-025 | W1 closeout (B3) | Load run counted across 60s label gaps | Array-adjacent only in negative gate | False local NOT_OBSERVED | Gap-aware `computeLongestLoadPresentRunLabelCount` | sustained-load opus closeout tests | FIXED |
+| DI-DEF-026 | W1 closeout (B2) | Global cold-bucket channel + any triple → ASSESSABLE | Decoupled triple vs channel | False subtype assessability | Per-subtype channel-in-triple predicate | cold-engine opus closeout tests | FIXED |
+| DI-DEF-027 | B2 detector parity | HIGH_RPM/FULL_THROTTLE assessable with 1-of-3 channel in triple | Assessability looser than 3-bucket detector | False ASSESSABLE → NOT_OBSERVED | Require channel on all three triple labels | `detector-assessability.spec.ts` | FIXED |

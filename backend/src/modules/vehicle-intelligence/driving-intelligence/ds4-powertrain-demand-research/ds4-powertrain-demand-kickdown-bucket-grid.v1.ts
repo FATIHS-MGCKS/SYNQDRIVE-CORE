@@ -195,16 +195,30 @@ function detectRawWindowsInSequence(
   return out;
 }
 
+function classificationPrecedence(c: Ds4KickdownCandidateClassification): number {
+  return c === 'KICKDOWN_LIKE_PROXY_CANDIDATE' ? 2 : 1;
+}
+
+/** Overlapping windows: keep higher-precedence classification; tie-break on peak throttle (deterministic). */
 function dedupeByBucketIndex(raw: RawWindow[]): RawWindow[] {
   if (raw.length <= 1) return raw;
-  const sorted = [...raw].sort((a, b) => a.startIdx - b.startIdx);
+  const sorted = [...raw].sort((a, b) => {
+    if (a.startIdx !== b.startIdx) return a.startIdx - b.startIdx;
+    if (a.endIdx !== b.endIdx) return a.endIdx - b.endIdx;
+    return a.peakThrottlePct - b.peakThrottlePct;
+  });
   const out: RawWindow[] = [sorted[0]!];
   for (let i = 1; i < sorted.length; i += 1) {
     const prev = out[out.length - 1]!;
     const cur = sorted[i]!;
     const overlaps = !(prev.endIdx < cur.startIdx || cur.endIdx < prev.startIdx);
     if (overlaps) {
-      if (cur.peakThrottlePct > prev.peakThrottlePct) {
+      const prevRank = classificationPrecedence(prev.classification);
+      const curRank = classificationPrecedence(cur.classification);
+      const replace =
+        curRank > prevRank ||
+        (curRank === prevRank && cur.peakThrottlePct > prev.peakThrottlePct);
+      if (replace) {
         out[out.length - 1] = cur;
       }
     } else {

@@ -294,12 +294,12 @@ describe('ds4-powertrain-demand cold-engine P2-B2 adversarial', () => {
     expect(out.abstainReasons).toContain('HF_READ_INCOMPLETE');
   });
 
-  it('warm sufficient ECT yields NOT_OBSERVED under zero-RPM path', () => {
+  it('warm sufficient ECT yields COMPUTED under zero-RPM path', () => {
     const grid = coldEctGrid(12, () => ({ coolantC: 90, loadPct: 90, rpm: null }));
     const out = computeDs4PowertrainDemandColdEngineResearchV1(
       buildColdEngineBoundInput({ multichannelObservations: grid }),
     );
-    expect(out.status).toBe('NOT_OBSERVED');
+    expect(out.status).toBe('COMPUTED');
   });
 
   it('high RPM pattern without trusted reference is NOT_ASSESSABLE at subtype', () => {

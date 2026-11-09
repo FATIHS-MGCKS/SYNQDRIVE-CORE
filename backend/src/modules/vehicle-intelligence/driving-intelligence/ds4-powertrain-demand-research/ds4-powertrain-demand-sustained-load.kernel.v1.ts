@@ -13,6 +13,7 @@ import {
   classifySustainedLoadTripEvidence,
   detectGapAwareSustainedLoadCandidates,
 } from './ds4-powertrain-demand-sustained-load-gap-aware.v1';
+import { computeLongestLoadPresentRunLabelCount } from './ds4-powertrain-demand-sustained-load-negative-evidence.v1';
 import { canonicalizeMultichannelObservations } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
 import { validateDs4PowertrainDemandSustainedLoadInputBinding } from './ds4-powertrain-demand-sustained-load.input-binding.v1';
 
@@ -150,10 +151,13 @@ export function computeDs4PowertrainDemandSustainedLoadResearchV1(
     canon,
   });
 
+  const longestLoadPresentRunLabelCount = computeLongestLoadPresentRunLabelCount(canon.buckets);
   const tripEvidenceClassification = classifySustainedLoadTripEvidence({
     entryLabelCount: detect.entryLabelCount,
     candidateCount: detect.candidates.length,
     longestRunLabelCount: detect.longestRunLabelCount,
+    longestLoadPresentRunLabelCount,
+    loadPresentBucketCount,
   });
 
   const status =

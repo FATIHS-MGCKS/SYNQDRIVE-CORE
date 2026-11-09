@@ -9,6 +9,7 @@ import { computeDs4RpmReferenceIntelligenceV1 } from '../rpm-reference-intellige
 import { buildDs4RpmHfV1bAdmissionQualityExposure } from '../rpm-hf-v1b/ds4-rpm-hf-v1b-quality-exposure';
 import type { Ds4RpmHfV1bTemporalCadenceProfile } from '../rpm-hf-v1b/ds4-rpm-hf-v1b-temporal.engine';
 import type { Ds4RpmRealDataOfflineInputBundleV1 } from '../ds4-rpm-real-data-replay/ds4-rpm-real-data-replay.contract.v1';
+import { resolveHighEpisodesStatusWhenZeroAdmitted } from './ds4-rpm-episode-research.high-episode-status.v1';
 import {
   DS4_RPM_EPISODE_RESEARCH_CONTRACT_VERSION,
   DS4_RPM_EPISODE_RESEARCH_EXCEEDANCE_GRID_MAX_THRESHOLDS,
@@ -647,10 +648,17 @@ export function computeDs4RpmEpisodeResearchV1(
     });
     mass = computeMassAccounting(sequences, allHighRuns, allNearRuns, idle, span);
     countRange = mergeCensoredCountRange(admitted, sequences);
-    episodeStatus =
-      admitted.length > 0 ? 'SUPPORTED_DESCRIPTIVE' : rejected > 0 || allHighRuns.length === 0 ? 'NOT_OBSERVED' : 'NOT_OBSERVED';
-    if (allHighRuns.length === 0 && canon.points.length > 0) {
-      episodeStatus = 'NOT_OBSERVED';
+    if (admitted.length > 0) {
+      episodeStatus = 'SUPPORTED_DESCRIPTIVE';
+    } else {
+      const longestEligibleSequenceLabelCount = Math.max(0, ...sequences.map((s) => s.length));
+      episodeStatus = resolveHighEpisodesStatusWhenZeroAdmitted({
+        rejectedCandidateCount: rejected,
+        allHighCandidateRunCount: allHighRuns.length,
+        longestEligibleSequenceLabelCount,
+        observedUniqueLabelCount: canon.points.length,
+        admittedCountRange: countRange,
+      });
     }
   } else if (canon.hasConflictingDuplicates || iceUnproven || referenceObservationConflict || !userConfirmed) {
     episodeStatus = 'NOT_ASSESSABLE';

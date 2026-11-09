@@ -67,34 +67,84 @@ function resolvePhevIceConfirmed(slice: readonly Ds4CanonicalMultichannelBucketV
   return rpmIceSamples >= COLD_ENGINE_SHADOW_POLICY.iceConfirmationMinSamples;
 }
 
+type ColdTripleSlice = readonly [
+  Ds4CanonicalMultichannelBucketV1,
+  Ds4CanonicalMultichannelBucketV1,
+  Ds4CanonicalMultichannelBucketV1,
+];
+
+function forEachEligibleColdTriple(
+  buckets: readonly Ds4CanonicalMultichannelBucketV1[],
+  nominalIntervalMs: number,
+  predicate: (slice: ColdTripleSlice) => boolean,
+): boolean {
+  const sorted = [...buckets].sort((a, b) => a.recordedAtMs - b.recordedAtMs);
+  for (let i = 2; i < sorted.length; i += 1) {
+    if (!windowBucketsConsecutive(sorted, i, nominalIntervalMs)) continue;
+    const slice: ColdTripleSlice = [sorted[i - 2]!, sorted[i - 1]!, sorted[i]!];
+    if (!slice.every(isBucketCold)) continue;
+    if (predicate(slice)) return true;
+  }
+  return false;
+}
+
+function hasAnyEligibleColdTriple(
+  buckets: readonly Ds4CanonicalMultichannelBucketV1[],
+  nominalIntervalMs: number,
+): boolean {
+  return forEachEligibleColdTriple(buckets, nominalIntervalMs, () => true);
+}
+
 export function computeColdEngineSubtypeAssessability(input: {
   buckets: readonly Ds4CanonicalMultichannelBucketV1[];
   highRpmReference: Ds4ColdEngineHighRpmReferenceVerdictV1;
   rpmEvidencePresent: boolean;
+  nominalIntervalMs: number;
 }): Record<Ds4ColdEngineProxyKindV1, Ds4ColdEngineSubtypeAssessabilityV1> {
-  const coldBuckets = input.buckets.filter(isBucketCold);
-  const hasLoad = coldBuckets.some((b) => b.loadPct != null);
-  const hasThrottle = coldBuckets.some((b) => b.throttlePct != null);
-  const hasRpmOnCold = coldBuckets.some((b) => b.rpm != null);
+  const anyColdTriple = hasAnyEligibleColdTriple(input.buckets, input.nominalIntervalMs);
+  const loadInEligibleTriple = forEachEligibleColdTriple(input.buckets, input.nominalIntervalMs, (slice) =>
+    slice.some((b) => b.loadPct != null),
+  );
+  /** Detector uses a three-bucket window; assessability matches channel presence on all three labels. */
+  const throttleInEligibleTriple = forEachEligibleColdTriple(input.buckets, input.nominalIntervalMs, (slice) =>
+    slice.every((b) => b.throttlePct != null),
+  );
+  const rpmInEligibleTriple = forEachEligibleColdTriple(input.buckets, input.nominalIntervalMs, (slice) =>
+    slice.every((b) => b.rpm != null),
+  );
 
-  const highLoad: Ds4ColdEngineSubtypeAssessabilityV1 = hasLoad
+  const highLoad: Ds4ColdEngineSubtypeAssessabilityV1 = loadInEligibleTriple
     ? { status: 'ASSESSABLE', reasonCodes: [] }
-    : { status: 'NOT_ASSESSABLE', reasonCodes: ['NO_ENGINE_LOAD_CHANNEL_EVIDENCE'] };
+    : {
+        status: 'NOT_ASSESSABLE',
+        reasonCodes: !anyColdTriple
+          ? ['INSUFFICIENT_COLD_WINDOW_OPPORTUNITY']
+          : ['NO_ENGINE_LOAD_CHANNEL_EVIDENCE'],
+      };
 
-  const fullThrottle: Ds4ColdEngineSubtypeAssessabilityV1 = hasThrottle
+  const fullThrottle: Ds4ColdEngineSubtypeAssessabilityV1 = throttleInEligibleTriple
     ? { status: 'ASSESSABLE', reasonCodes: [] }
-    : { status: 'NOT_ASSESSABLE', reasonCodes: ['NO_THROTTLE_CHANNEL_EVIDENCE'] };
+    : {
+        status: 'NOT_ASSESSABLE',
+        reasonCodes: !anyColdTriple
+          ? ['INSUFFICIENT_COLD_WINDOW_OPPORTUNITY']
+          : ['NO_THROTTLE_CHANNEL_EVIDENCE'],
+      };
 
   const highRpmReasons = [...input.highRpmReference.reasonCodes];
   if (!input.rpmEvidencePresent) highRpmReasons.push('NO_RPM_CHANNEL_EVIDENCE');
-  if (!hasRpmOnCold) highRpmReasons.push('NO_RPM_LABEL_ON_COLD_BUCKETS');
+  if (!rpmInEligibleTriple) highRpmReasons.push('NO_RPM_LABEL_ON_COLD_BUCKETS');
 
   const highRpm: Ds4ColdEngineSubtypeAssessabilityV1 =
-    input.highRpmReference.admitted && input.rpmEvidencePresent && hasRpmOnCold
+    input.highRpmReference.admitted && input.rpmEvidencePresent && rpmInEligibleTriple
       ? { status: 'ASSESSABLE', reasonCodes: [] }
       : {
           status: 'NOT_ASSESSABLE',
-          reasonCodes: highRpmReasons.length > 0 ? highRpmReasons : ['REFERENCE_MAX_RPM_NOT_ADMITTED'],
+          reasonCodes: !anyColdTriple
+            ? ['INSUFFICIENT_COLD_WINDOW_OPPORTUNITY', ...highRpmReasons]
+            : highRpmReasons.length > 0
+              ? highRpmReasons
+              : ['REFERENCE_MAX_RPM_NOT_ADMITTED'],
         };
 
   return {

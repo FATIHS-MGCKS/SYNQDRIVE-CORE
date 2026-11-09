@@ -86,7 +86,7 @@ export const DBI_P2C15_PINNED_EXPECTATIONS: Record<
   S09_MISSING_REQUIRED_CHANNELS: {
     kind: 'MODULE_KERNEL',
     researchModule: 'B2',
-    expectedStatus: 'NOT_OBSERVED',
+    expectedStatus: 'COMPUTED',
   },
   S10_INSUFFICIENT_OBSERVATIONS: {
     kind: 'POWERTRAIN_BINDING',

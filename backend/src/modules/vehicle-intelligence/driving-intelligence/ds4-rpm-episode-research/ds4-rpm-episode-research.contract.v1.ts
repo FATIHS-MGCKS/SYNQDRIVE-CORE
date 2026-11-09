@@ -73,6 +73,8 @@ export type Ds4RpmEpisodeResearchInputV1 = {
 /**
  * Binding / applicability gate — not descriptive episode support.
  * highEpisodes.status carries SUPPORTED_DESCRIPTIVE | NOT_OBSERVED | NOT_ASSESSABLE.
+ * NOT_OBSERVED requires zero admitted episodes and adequate contiguous label opportunity (see high-episode-status.v1).
+ * NOT_ASSESSABLE covers fragmentation/censoring where absence cannot be concluded.
  * semanticGuards.notEvidenceCandidate=true — episodes are not proxy misuse candidates.
  */
 export type Ds4RpmEpisodeResearchResultStatus = 'COMPUTED' | 'ABSTAINED' | 'NOT_APPLICABLE';
