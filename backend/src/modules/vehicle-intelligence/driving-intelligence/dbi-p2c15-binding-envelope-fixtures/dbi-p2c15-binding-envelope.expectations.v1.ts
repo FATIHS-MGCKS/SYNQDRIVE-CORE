@@ -148,3 +148,22 @@ export const DBI_P2C15_PINNED_EXPECTATIONS: Record<
     kickdownKernelStatusMustMatch: true,
   },
 };
+
+function deepFreeze<T extends object>(value: T): T {
+  Object.freeze(value);
+  for (const entry of Object.values(value)) {
+    if (entry && typeof entry === 'object' && !Object.isFrozen(entry)) {
+      deepFreeze(entry as object);
+    }
+  }
+  return value;
+}
+
+deepFreeze(DBI_P2C15_PINNED_EXPECTATIONS);
+
+/** Defensive clone for per-package expectations (canonical pins remain frozen). */
+export function clonePinnedExpectation(
+  scenarioId: DbiP2c15ScenarioIdV1,
+): DbiP2c15IndependentExpectationV1 {
+  return structuredClone(DBI_P2C15_PINNED_EXPECTATIONS[scenarioId]);
+}

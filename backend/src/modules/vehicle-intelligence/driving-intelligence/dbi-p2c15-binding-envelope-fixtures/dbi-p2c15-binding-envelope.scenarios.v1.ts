@@ -2,7 +2,12 @@ import {
   buildBoundResearchInput,
   rpmAtU,
 } from '../ds4-rpm-episode-research/__tests__/ds4-rpm-episode-research.test-helpers';
-import type { Ds4PowertrainDemandResearchInputV1 } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
+import type {
+  Ds4PowertrainDemandColdEngineResearchInputV1,
+  Ds4PowertrainDemandResearchInputV1,
+  Ds4RevvingIdleResearchInputV1,
+  Ds4SustainedLoadResearchInputV1,
+} from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
 import {
   buildBoundPowertrainInput,
   buildColdEngineBoundInput,
@@ -10,8 +15,14 @@ import {
   positiveKickdownGrid,
 } from '../ds4-powertrain-demand-research/__tests__/ds4-powertrain-demand-research.test-helpers';
 import { buildRpmPointsEverySeconds } from '../rpm-hf-v1b/__tests__/ds4-rpm-hf-v1b-tier-fixtures';
-import { cloneA1FixtureInput, clonePowertrainFixtureInput } from './dbi-p2c15-binding-envelope.clone.v1';
-import { DBI_P2C15_PINNED_EXPECTATIONS } from './dbi-p2c15-binding-envelope.expectations.v1';
+import {
+  cloneA1FixtureInput,
+  cloneColdEngineFixtureInput,
+  clonePowertrainFixtureInput,
+  cloneRevvingIdleFixtureInput,
+  cloneSustainedLoadFixtureInput,
+} from './dbi-p2c15-binding-envelope.clone.v1';
+import { clonePinnedExpectation } from './dbi-p2c15-binding-envelope.expectations.v1';
 import {
   assertEnvelopeFingerprintsDeriveFromData,
   envelopeFromA1Input,
@@ -85,20 +96,18 @@ function finalizePowertrainPackage(
     scenarioId,
     envelope: envelopeFromPowertrainInput(scenarioId, input),
     payload: { kind: 'POWERTRAIN_INPUT', input, bindingValidator: 'SHARED_KICKDOWN_BINDING' },
-    expectation: DBI_P2C15_PINNED_EXPECTATIONS[scenarioId],
+    expectation: clonePinnedExpectation(scenarioId),
     scientificNotes,
   };
 }
 
-function finalizeModulePackage(
+function finalizeB2Package(
   scenarioId: DbiP2c15ScenarioIdV1,
-  raw: Ds4PowertrainDemandResearchInputV1,
-  researchModule: 'B2' | 'B3' | 'B4',
+  raw: Ds4PowertrainDemandColdEngineResearchInputV1,
   scientificNotes: readonly string[],
-  subVariant?: 'BEV' | 'UNKNOWN' | 'CONTRADICTORY',
   tamperAllowsMismatch?: boolean,
 ): DbiP2c15ScenarioPackageV1 {
-  const input = clonePowertrainFixtureInput(raw);
+  const input = cloneColdEngineFixtureInput(raw);
   if (!tamperAllowsMismatch) {
     assertEnvelopeFingerprintsDeriveFromData(input);
   }
@@ -106,8 +115,49 @@ function finalizeModulePackage(
   return {
     scenarioId,
     envelope: envelopeFromPowertrainInput(scenarioId, input),
-    payload: { kind: 'MODULE_SPECIFIC_SCENARIO', input, researchModule, subVariant },
-    expectation: DBI_P2C15_PINNED_EXPECTATIONS[scenarioId],
+    payload: { kind: 'MODULE_B2_INPUT', researchModule: 'B2', input },
+    expectation: clonePinnedExpectation(scenarioId),
+    scientificNotes,
+  };
+}
+
+function finalizeB3Package(
+  scenarioId: DbiP2c15ScenarioIdV1,
+  raw: Ds4SustainedLoadResearchInputV1,
+  scientificNotes: readonly string[],
+  subVariant?: 'BEV' | 'UNKNOWN' | 'CONTRADICTORY',
+  tamperAllowsMismatch?: boolean,
+): DbiP2c15ScenarioPackageV1 {
+  const input = cloneSustainedLoadFixtureInput(raw);
+  if (!tamperAllowsMismatch) {
+    assertEnvelopeFingerprintsDeriveFromData(input);
+  }
+  expectSyntheticProvenance(input);
+  return {
+    scenarioId,
+    envelope: envelopeFromPowertrainInput(scenarioId, input),
+    payload: { kind: 'MODULE_B3_INPUT', researchModule: 'B3', input, subVariant },
+    expectation: clonePinnedExpectation(scenarioId),
+    scientificNotes,
+  };
+}
+
+function finalizeB4Package(
+  scenarioId: DbiP2c15ScenarioIdV1,
+  raw: Ds4RevvingIdleResearchInputV1,
+  scientificNotes: readonly string[],
+  tamperAllowsMismatch?: boolean,
+): DbiP2c15ScenarioPackageV1 {
+  const input = cloneRevvingIdleFixtureInput(raw);
+  if (!tamperAllowsMismatch) {
+    assertEnvelopeFingerprintsDeriveFromData(input);
+  }
+  expectSyntheticProvenance(input);
+  return {
+    scenarioId,
+    envelope: envelopeFromPowertrainInput(scenarioId, input),
+    payload: { kind: 'MODULE_B4_INPUT', researchModule: 'B4', input },
+    expectation: clonePinnedExpectation(scenarioId),
     scientificNotes,
   };
 }
@@ -177,8 +227,8 @@ export function buildDbiP2c15ScenarioPackage(scenarioId: DbiP2c15ScenarioIdV1): 
         multichannelObservations: grid,
         tripId: DBI_P2C15_TRIP_BASELINE,
         linkId: DBI_P2C15_LINK_BASELINE,
-      }) as Ds4PowertrainDemandResearchInputV1;
-      return finalizeModulePackage(scenarioId, raw, 'B2', [
+      });
+      return finalizeB2Package(scenarioId, raw, [
         'ECT-only window — RPM/speed/load absent; no invented RPM for admission.',
       ]);
     }
@@ -208,7 +258,7 @@ export function buildDbiP2c15ScenarioPackage(scenarioId: DbiP2c15ScenarioIdV1): 
         tripId: DBI_P2C15_TRIP_BASELINE,
         linkId: DBI_P2C15_LINK_BASELINE,
       });
-      return finalizeModulePackage(scenarioId, raw, 'B3', [
+      return finalizeB3Package(scenarioId, raw, [
         'Partial trusted load counts — sole INSUFFICIENT_LOAD_LABEL_OBSERVATIONS at kernel layer.',
       ]);
     }
@@ -222,8 +272,8 @@ export function buildDbiP2c15ScenarioPackage(scenarioId: DbiP2c15ScenarioIdV1): 
         multichannelObservations: grid,
         tripId: DBI_P2C15_TRIP_BASELINE,
         linkId: DBI_P2C15_LINK_BASELINE,
-      }) as Ds4PowertrainDemandResearchInputV1;
-      return finalizeModulePackage(scenarioId, raw, 'B4', [
+      });
+      return finalizeB4Package(scenarioId, raw, [
         'COMPUTED with both facets NOT_ASSESSABLE — not a positive rev/idle verdict.',
       ]);
     }
@@ -235,7 +285,7 @@ export function buildDbiP2c15ScenarioPackage(scenarioId: DbiP2c15ScenarioIdV1): 
       const raw = baselineBoundIceInput();
       raw.fuelType = null;
       raw.isEvPowertrain = false;
-      return finalizeModulePackage(scenarioId, raw, 'B3', ['Unknown fuel context — no ICE confirmation.'], 'UNKNOWN');
+      return finalizeB3Package(scenarioId, raw, ['Unknown fuel context — no ICE confirmation.'], 'UNKNOWN');
     }
     case 'S13_POWERTRAIN_CONTRADICTORY_FAIL_CLOSED': {
       const raw = baselineBoundIceInput({ fuelType: 'GASOLINE', isEvPowertrain: true });
@@ -256,7 +306,7 @@ export function buildDbiP2c15ScenarioPackage(scenarioId: DbiP2c15ScenarioIdV1): 
         scenarioId,
         envelope: envelopeFromA1Input(scenarioId, input),
         payload: { kind: 'A1_INPUT', input },
-        expectation: DBI_P2C15_PINNED_EXPECTATIONS[scenarioId],
+        expectation: clonePinnedExpectation(scenarioId),
         scientificNotes: [
           'A1 descriptive episodes — labelsNotForCrossDomainJoin; not a B1–B4 event participant.',
         ],
@@ -296,7 +346,7 @@ export function buildDbiP2c15ScenarioPackage(scenarioId: DbiP2c15ScenarioIdV1): 
           forwardObservations,
           reversedObservations,
         },
-        expectation: DBI_P2C15_PINNED_EXPECTATIONS[scenarioId],
+        expectation: clonePinnedExpectation(scenarioId),
         scientificNotes: [
           'Raw observation order reversed — canonical buckets and multichannel fingerprint stable.',
         ],

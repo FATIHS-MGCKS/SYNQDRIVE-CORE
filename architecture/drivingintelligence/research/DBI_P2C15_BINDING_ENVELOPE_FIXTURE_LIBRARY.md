@@ -38,11 +38,13 @@ Each scenario exposes `DbiP2c15SyntheticIdentityEnvelopeV1`:
 
 - `envelope` — synthetic identity + derived fingerprints
 - `payload` — discriminated union:
-  - `POWERTRAIN_INPUT` — shared kickdown binding validator input
-  - `MODULE_SPECIFIC_SCENARIO` — B2/B3/B4 kernel inputs (+ optional subVariant)
+  - `POWERTRAIN_INPUT` — shared kickdown binding validator input (B1 path)
+  - `MODULE_B2_INPUT` — `Ds4PowertrainDemandColdEngineResearchInputV1`
+  - `MODULE_B3_INPUT` — `Ds4SustainedLoadResearchInputV1` (+ optional subVariant)
+  - `MODULE_B4_INPUT` — `Ds4RevvingIdleResearchInputV1`
   - `A1_INPUT` — RPM episode research input
   - `CANONICAL_ORDER_PAIR` — forward/reversed inputs + raw observation grids
-- `expectation` — **pinned** in `dbi-p2c15-binding-envelope.expectations.v1.ts` (not derived from validator at build time)
+- `expectation` — **pinned** in `dbi-p2c15-binding-envelope.expectations.v1.ts` (frozen + per-package `structuredClone`; not derived from validator at build time)
 - `scientificNotes`
 
 Inputs are `structuredClone` copies — independent factory calls do not share mutable state.

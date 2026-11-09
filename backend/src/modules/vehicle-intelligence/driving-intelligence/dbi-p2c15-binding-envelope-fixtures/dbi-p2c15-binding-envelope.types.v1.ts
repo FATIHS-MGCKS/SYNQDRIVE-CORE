@@ -1,6 +1,9 @@
 import type {
   Ds4MultichannelBucketObservationV1,
+  Ds4PowertrainDemandColdEngineResearchInputV1,
   Ds4PowertrainDemandResearchInputV1,
+  Ds4RevvingIdleResearchInputV1,
+  Ds4SustainedLoadResearchInputV1,
 } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
 import type { Ds4RpmEpisodeResearchInputV1 } from '../ds4-rpm-episode-research/ds4-rpm-episode-research.contract.v1';
 import type { DbiP2c15IndependentExpectationV1 } from './dbi-p2c15-binding-envelope.expectations.v1';
@@ -62,10 +65,20 @@ export type DbiP2c15ScenarioPayloadV1 =
       readonly reversedObservations: readonly Ds4MultichannelBucketObservationV1[];
     }
   | {
-      readonly kind: 'MODULE_SPECIFIC_SCENARIO';
-      readonly input: Ds4PowertrainDemandResearchInputV1;
-      readonly researchModule: 'B2' | 'B3' | 'B4';
+      readonly kind: 'MODULE_B2_INPUT';
+      readonly researchModule: 'B2';
+      readonly input: Ds4PowertrainDemandColdEngineResearchInputV1;
+    }
+  | {
+      readonly kind: 'MODULE_B3_INPUT';
+      readonly researchModule: 'B3';
+      readonly input: Ds4SustainedLoadResearchInputV1;
       readonly subVariant?: DbiP2c15PowertrainSubVariantV1;
+    }
+  | {
+      readonly kind: 'MODULE_B4_INPUT';
+      readonly researchModule: 'B4';
+      readonly input: Ds4RevvingIdleResearchInputV1;
     };
 
 export type DbiP2c15ScenarioPackageV1 = {

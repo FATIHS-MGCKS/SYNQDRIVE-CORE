@@ -1,4 +1,3 @@
-import { validateDs4RpmEpisodeResearchInputBinding } from '../../ds4-rpm-episode-research/ds4-rpm-episode-research.input-binding.v1';
 import { computeDs4RpmEpisodeResearchV1 } from '../../ds4-rpm-episode-research/ds4-rpm-episode-research.kernel.v1';
 import { computeDs4PowertrainDemandColdEngineResearchV1 } from '../../ds4-powertrain-demand-research/ds4-powertrain-demand-cold-engine.kernel.v1';
 import { computeDs4PowertrainDemandResearchV1 } from '../../ds4-powertrain-demand-research/ds4-powertrain-demand-research.kernel.v1';
@@ -18,14 +17,24 @@ import type {
   DbiP2c15ScenarioPayloadV1,
 } from '../dbi-p2c15-binding-envelope.types.v1';
 import type { Ds4PowertrainDemandResearchInputV1 } from '../../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
+import {
+  buildColdEngineBoundInput,
+  buildObservationSeries,
+} from '../../ds4-powertrain-demand-research/__tests__/ds4-powertrain-demand-research.test-helpers';
+import { DBI_P2C15_GRID_START_ISO, DBI_P2C15_LINK_BASELINE, DBI_P2C15_TRIP_BASELINE } from '../dbi-p2c15-binding-envelope.identity.v1';
 
 function powertrainPayloadInput(
   payload: DbiP2c15ScenarioPayloadV1,
 ): Ds4PowertrainDemandResearchInputV1 {
-  if (payload.kind === 'POWERTRAIN_INPUT' || payload.kind === 'MODULE_SPECIFIC_SCENARIO') {
-    return payload.input;
+  switch (payload.kind) {
+    case 'POWERTRAIN_INPUT':
+    case 'MODULE_B2_INPUT':
+    case 'MODULE_B3_INPUT':
+    case 'MODULE_B4_INPUT':
+      return payload.input;
+    default:
+      throw new Error(`expected powertrain module payload, got ${payload.kind}`);
   }
-  throw new Error(`expected powertrain payload, got ${payload.kind}`);
 }
 
 function assertPinMatchesPowertrainBinding(
@@ -43,20 +52,30 @@ function assertPinMatchesPowertrainBinding(
   }
 }
 
-function assertPinMatchesA1Binding(
-  actual: ReturnType<typeof validateDs4RpmEpisodeResearchInputBinding>,
-  pinned: Extract<DbiP2c15IndependentExpectationV1, { kind: 'A1_BINDING' }>,
+function assertPinMatchesModuleKernel(
+  pack: DbiP2c15ScenarioPackageV1,
+  actualStatus: string,
+  actualAbstainReasons?: readonly string[],
 ): void {
-  expect(actual.ok).toBe(pinned.bindingOk);
-  if (!actual.ok) {
+  const pinned = pack.expectation;
+  if (pinned.kind !== 'MODULE_KERNEL') {
+    throw new Error('expected MODULE_KERNEL pin');
+  }
+  expect(actualStatus).toBe(pinned.expectedStatus);
+  if (pinned.requiredAbstainReasons != null && actualAbstainReasons != null) {
     for (const code of pinned.requiredAbstainReasons) {
-      expect(actual.reasonCodes).toContain(code);
+      expect(actualAbstainReasons).toContain(code);
     }
   }
 }
 
 function assertEnvelopeMatchesPayload(pack: DbiP2c15ScenarioPackageV1): void {
-  if (pack.payload.kind === 'POWERTRAIN_INPUT' || pack.payload.kind === 'MODULE_SPECIFIC_SCENARIO') {
+  if (
+    pack.payload.kind === 'POWERTRAIN_INPUT' ||
+    pack.payload.kind === 'MODULE_B2_INPUT' ||
+    pack.payload.kind === 'MODULE_B3_INPUT' ||
+    pack.payload.kind === 'MODULE_B4_INPUT'
+  ) {
     const expected = envelopeFromPowertrainInput(pack.scenarioId, pack.payload.input);
     expect(pack.envelope).toEqual(expected);
   } else if (pack.payload.kind === 'A1_INPUT') {
@@ -67,6 +86,14 @@ function assertEnvelopeMatchesPayload(pack: DbiP2c15ScenarioPackageV1): void {
     );
   }
 }
+
+const MODULE_KERNEL_SCENARIOS = [
+  'S09_MISSING_REQUIRED_CHANNELS',
+  'S11_B3_SOLE_INSUFFICIENT_LOAD',
+  'S12_B4_ZERO_ASSESSABLE_FACETS',
+  'S13_POWERTRAIN_UNKNOWN_FAIL_CLOSED',
+  'S14_A1_DESCRIPTIVE_ONLY',
+] as const;
 
 describe('DBI P2-C1.5 binding envelope fixture library', () => {
   it.each(DBI_P2C15_SCENARIO_IDS)('%s exposes payload, envelope and pinned expectation', (scenarioId) => {
@@ -89,6 +116,16 @@ describe('DBI P2-C1.5 binding envelope fixture library', () => {
     expect(powertrainPayloadInput(b.payload).organizationId).not.toBe(tampered);
   });
 
+  it('independent packages do not share mutable expectation clones', () => {
+    const a = buildDbiP2c15ScenarioPackage('S01_VALID_ICE_BASELINE');
+    const b = buildDbiP2c15ScenarioPackage('S01_VALID_ICE_BASELINE');
+    expect(a.expectation).not.toBe(b.expectation);
+    if (a.expectation.kind === 'POWERTRAIN_BINDING' && b.expectation.kind === 'POWERTRAIN_BINDING') {
+      (a.expectation as { bindingOk: boolean }).bindingOk = false;
+      expect(b.expectation.bindingOk).toBe(true);
+    }
+  });
+
   it.each(DBI_P2C15_SCENARIO_IDS)('%s actual binding vs pinned expectation (powertrain)', (scenarioId) => {
     const pack = buildDbiP2c15ScenarioPackage(scenarioId);
     if (pack.expectation.kind !== 'POWERTRAIN_BINDING') return;
@@ -99,25 +136,46 @@ describe('DBI P2-C1.5 binding envelope fixture library', () => {
     assertPinMatchesPowertrainBinding(actual, pack.expectation);
   });
 
+  it.each(MODULE_KERNEL_SCENARIOS)('%s kernel status vs pinned expectedStatus', (scenarioId) => {
+    const pack = buildDbiP2c15ScenarioPackage(scenarioId);
+    if (pack.expectation.kind !== 'MODULE_KERNEL') return;
+
+    if (pack.payload.kind === 'MODULE_B2_INPUT') {
+      const out = computeDs4PowertrainDemandColdEngineResearchV1(pack.payload.input);
+      assertPinMatchesModuleKernel(pack, out.status, out.abstainReasons);
+    } else if (pack.payload.kind === 'MODULE_B3_INPUT') {
+      const out = computeDs4PowertrainDemandSustainedLoadResearchV1(pack.payload.input);
+      assertPinMatchesModuleKernel(pack, out.status, out.abstainReasons);
+    } else if (pack.payload.kind === 'MODULE_B4_INPUT') {
+      const out = computeDs4PowertrainDemandRevvingIdleResearchV1(pack.payload.input);
+      assertPinMatchesModuleKernel(pack, out.status, out.abstainReasons);
+    } else if (pack.payload.kind === 'A1_INPUT') {
+      const out = computeDs4RpmEpisodeResearchV1(pack.payload.input);
+      assertPinMatchesModuleKernel(pack, out.status);
+      const guards = pack.expectation.requiredSemanticGuards;
+      if (guards) {
+        expect(out.semanticGuards.notEvidenceCandidate).toBe(guards.notEvidenceCandidate);
+        expect(out.semanticGuards.labelsNotForCrossDomainJoin).toBe(guards.labelsNotForCrossDomainJoin);
+      }
+    }
+  });
+
   it('S01 kernel admits via returned input only', () => {
     const pack = buildDbiP2c15ScenarioPackage('S01_VALID_ICE_BASELINE');
     expect(pack.payload.kind).toBe('POWERTRAIN_INPUT');
-    const out = computeDs4PowertrainDemandResearchV1(powertrainPayloadInput(pack.payload));
+    if (pack.payload.kind !== 'POWERTRAIN_INPUT') return;
+    const out = computeDs4PowertrainDemandResearchV1(pack.payload.input);
     expect(out.status).not.toBe('ABSTAINED');
     expect(out.provenance.sourceProvenanceVerified).toBe(false);
   });
 
-  it('S09 B2 missing-channel semantics via returned input', () => {
+  it('S09 B2 ECT-only positive via returned B2 input', () => {
     const pack = buildDbiP2c15ScenarioPackage('S09_MISSING_REQUIRED_CHANNELS');
-    expect(pack.payload.kind).toBe('MODULE_SPECIFIC_SCENARIO');
-    expect(pack.payload.kind).toBe('MODULE_SPECIFIC_SCENARIO');
-    if (pack.payload.kind === 'MODULE_SPECIFIC_SCENARIO') {
-      expect(pack.payload.researchModule).toBe('B2');
-    }
-    const out = computeDs4PowertrainDemandColdEngineResearchV1(
-      powertrainPayloadInput(pack.payload) as never,
-    );
-    expect(out.status).toBe('NOT_OBSERVED');
+    expect(pack.payload.kind).toBe('MODULE_B2_INPUT');
+    if (pack.payload.kind !== 'MODULE_B2_INPUT') return;
+    expect(pack.payload.input.vehicleRpmReference).toBeDefined();
+    const out = computeDs4PowertrainDemandColdEngineResearchV1(pack.payload.input);
+    assertPinMatchesModuleKernel(pack, out.status);
     expect(out.coldEngine.deduplicatedCandidateCount).toBe(0);
     const assessable = Object.values(out.coldEngine.subtypeAssessability).filter(
       (s) => s.status === 'ASSESSABLE',
@@ -125,12 +183,33 @@ describe('DBI P2-C1.5 binding envelope fixture library', () => {
     expect(assessable.length).toBe(0);
   });
 
+  it('S09 family: missing ECT negative for B2 without inventing channels', () => {
+    const grid = buildObservationSeries(DBI_P2C15_GRID_START_ISO, 12, 1, () => ({
+      rpm: null,
+      speedKmh: null,
+      throttlePct: null,
+      loadPct: null,
+      coolantC: null,
+    }));
+    const input = buildColdEngineBoundInput({
+      multichannelObservations: grid,
+      tripId: DBI_P2C15_TRIP_BASELINE,
+      linkId: DBI_P2C15_LINK_BASELINE,
+    });
+    const out = computeDs4PowertrainDemandColdEngineResearchV1(input);
+    expect(out.status).toBe('ABSTAINED');
+    expect(out.coldEngine.deduplicatedCandidateCount).toBe(0);
+    expect(out.abstainReasons.length).toBeGreaterThan(0);
+    expect(
+      Object.values(out.coldEngine.subtypeAssessability).every((s) => s.status === 'NOT_ASSESSABLE'),
+    ).toBe(true);
+  });
+
   it('S10 insufficient opportunity pinned at bind layer', () => {
     const pack = buildDbiP2c15ScenarioPackage('S10_INSUFFICIENT_OBSERVATIONS');
     expect(pack.payload.kind).toBe('POWERTRAIN_INPUT');
-    const actual = validateDs4PowertrainDemandResearchInputBinding(
-      powertrainPayloadInput(pack.payload),
-    );
+    if (pack.payload.kind !== 'POWERTRAIN_INPUT') return;
+    const actual = validateDs4PowertrainDemandResearchInputBinding(pack.payload.input);
     assertPinMatchesPowertrainBinding(actual, pack.expectation as Extract<
       DbiP2c15IndependentExpectationV1,
       { kind: 'POWERTRAIN_BINDING' }
@@ -139,9 +218,10 @@ describe('DBI P2-C1.5 binding envelope fixture library', () => {
 
   it('S11 B3 sole insufficient load via returned input', () => {
     const pack = buildDbiP2c15ScenarioPackage('S11_B3_SOLE_INSUFFICIENT_LOAD');
-    expect(pack.payload.kind).toBe('MODULE_SPECIFIC_SCENARIO');
-    const out = computeDs4PowertrainDemandSustainedLoadResearchV1(powertrainPayloadInput(pack.payload));
-    expect(out.status).toBe('ABSTAINED');
+    expect(pack.payload.kind).toBe('MODULE_B3_INPUT');
+    if (pack.payload.kind !== 'MODULE_B3_INPUT') return;
+    const out = computeDs4PowertrainDemandSustainedLoadResearchV1(pack.payload.input);
+    assertPinMatchesModuleKernel(pack, out.status, out.abstainReasons);
     expect(out.abstainReasons).toEqual(['INSUFFICIENT_LOAD_LABEL_OBSERVATIONS']);
     expect(isSoleInsufficientLoadLabelBindingFailure(out.abstainReasons)).toBe(true);
     expect(out.sustainedLoad.coverageEvidence.loadPresentBucketCount).toBe(3);
@@ -149,11 +229,10 @@ describe('DBI P2-C1.5 binding envelope fixture library', () => {
 
   it('S12 B4 zero assessable facets via returned input', () => {
     const pack = buildDbiP2c15ScenarioPackage('S12_B4_ZERO_ASSESSABLE_FACETS');
-    expect(pack.payload.kind).toBe('MODULE_SPECIFIC_SCENARIO');
-    const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
-      powertrainPayloadInput(pack.payload) as never,
-    );
-    expect(out.status).toBe('COMPUTED');
+    expect(pack.payload.kind).toBe('MODULE_B4_INPUT');
+    if (pack.payload.kind !== 'MODULE_B4_INPUT') return;
+    const out = computeDs4PowertrainDemandRevvingIdleResearchV1(pack.payload.input);
+    assertPinMatchesModuleKernel(pack, out.status);
     expect(out.revvingIdle.facetA.assessability).toBe('NOT_ASSESSABLE');
     expect(out.revvingIdle.facetB.assessability).toBe('NOT_ASSESSABLE');
     expect(Object.keys(out.revvingIdle.coverageEvidence)).toHaveLength(6);
@@ -163,25 +242,23 @@ describe('DBI P2-C1.5 binding envelope fixture library', () => {
   it('S13 powertrain fail-closed matrix', () => {
     const bev = buildDbiP2c15ScenarioPackage('S13_POWERTRAIN_BEV_FAIL_CLOSED');
     expect(bev.payload.kind).toBe('POWERTRAIN_INPUT');
-    const bevBind = validateDs4PowertrainDemandResearchInputBinding(powertrainPayloadInput(bev.payload));
+    if (bev.payload.kind !== 'POWERTRAIN_INPUT') return;
+    const bevBind = validateDs4PowertrainDemandResearchInputBinding(bev.payload.input);
     assertPinMatchesPowertrainBinding(bevBind, bev.expectation as Extract<
       DbiP2c15IndependentExpectationV1,
       { kind: 'POWERTRAIN_BINDING' }
     >);
 
     const unknown = buildDbiP2c15ScenarioPackage('S13_POWERTRAIN_UNKNOWN_FAIL_CLOSED');
-    expect(unknown.payload.kind).toBe('MODULE_SPECIFIC_SCENARIO');
-    const unknownOut = computeDs4PowertrainDemandSustainedLoadResearchV1(
-      powertrainPayloadInput(unknown.payload),
-    );
-    expect(unknownOut.status).toBe('ABSTAINED');
-    expect(unknownOut.abstainReasons).toContain('ICE_OPERATION_NOT_CONFIRMED');
+    expect(unknown.payload.kind).toBe('MODULE_B3_INPUT');
+    if (unknown.payload.kind !== 'MODULE_B3_INPUT') return;
+    const unknownOut = computeDs4PowertrainDemandSustainedLoadResearchV1(unknown.payload.input);
+    assertPinMatchesModuleKernel(unknown, unknownOut.status, unknownOut.abstainReasons);
 
     const contradictory = buildDbiP2c15ScenarioPackage('S13_POWERTRAIN_CONTRADICTORY_FAIL_CLOSED');
     expect(contradictory.payload.kind).toBe('POWERTRAIN_INPUT');
-    const contraBind = validateDs4PowertrainDemandResearchInputBinding(
-      powertrainPayloadInput(contradictory.payload),
-    );
+    if (contradictory.payload.kind !== 'POWERTRAIN_INPUT') return;
+    const contraBind = validateDs4PowertrainDemandResearchInputBinding(contradictory.payload.input);
     assertPinMatchesPowertrainBinding(contraBind, contradictory.expectation as Extract<
       DbiP2c15IndependentExpectationV1,
       { kind: 'POWERTRAIN_BINDING' }
@@ -191,29 +268,25 @@ describe('DBI P2-C1.5 binding envelope fixture library', () => {
   it('S14 A1 descriptive authority via returned input', () => {
     const pack = buildDbiP2c15ScenarioPackage('S14_A1_DESCRIPTIVE_ONLY');
     expect(pack.payload.kind).toBe('A1_INPUT');
-    expect(pack.payload.kind).toBe('A1_INPUT');
-    const out = computeDs4RpmEpisodeResearchV1(
-      pack.payload.kind === 'A1_INPUT' ? pack.payload.input : (null as never),
-    );
+    if (pack.payload.kind !== 'A1_INPUT') return;
+    const out = computeDs4RpmEpisodeResearchV1(pack.payload.input);
     expect(out.semanticGuards.notEvidenceCandidate).toBe(true);
     expect(out.semanticGuards.labelsNotForCrossDomainJoin).toBe(true);
     expect(pack.envelope.multichannelFingerprint).toBeNull();
-    expect(pack.expectation.kind).toBe('MODULE_KERNEL');
   });
 
   it('S15 offline negative via returned input', () => {
     const pack = buildDbiP2c15ScenarioPackage('S15_OFFLINE_UNATTESTED_NEGATIVE');
     expect(pack.payload.kind).toBe('POWERTRAIN_INPUT');
-    const actual = validateDs4PowertrainDemandResearchInputBinding(
-      powertrainPayloadInput(pack.payload),
-    );
+    if (pack.payload.kind !== 'POWERTRAIN_INPUT') return;
+    const actual = validateDs4PowertrainDemandResearchInputBinding(pack.payload.input);
     assertPinMatchesPowertrainBinding(actual, pack.expectation as Extract<
       DbiP2c15IndependentExpectationV1,
       { kind: 'POWERTRAIN_BINDING' }
     >);
   });
 
-  it('S16 canonical order invariance — buckets, fingerprints, kernel status', () => {
+  it('S16 canonical order invariance — buckets, fingerprints, kernel, episodeKeys', () => {
     const pack = buildDbiP2c15ScenarioPackage('S16_CANONICAL_ORDER_INVARIANCE');
     expect(pack.payload.kind).toBe('CANONICAL_ORDER_PAIR');
     if (pack.payload.kind !== 'CANONICAL_ORDER_PAIR') {
@@ -239,5 +312,9 @@ describe('DBI P2-C1.5 binding envelope fixture library', () => {
     expect(forwardOut.kickdown.deduplicatedCandidateCount).toBe(
       reversedOut.kickdown.deduplicatedCandidateCount,
     );
+
+    const forwardKeys = forwardOut.kickdown.candidates.map((c) => c.episodeKey).sort();
+    const reversedKeys = reversedOut.kickdown.candidates.map((c) => c.episodeKey).sort();
+    expect(forwardKeys).toEqual(reversedKeys);
   });
 });
