@@ -1,3 +1,4 @@
+/** Global Redis module (ConfigModule.forFeature ensures redisConfig injection). */
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import redisConfig from '@config/redis.config';
