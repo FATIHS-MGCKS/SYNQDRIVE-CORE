@@ -7,7 +7,8 @@ import type {
   FsdDiscoveryStream,
   Prisma,
 } from '@prisma/client';
-import type { PrismaService } from '@shared/database/prisma.service';
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '@shared/database/prisma.service';
 import { acquirePgAdvisoryXactLock64 } from '@shared/database/pg-advisory-lock.util';
 import {
   buildEffectiveEvidenceStateV1,
@@ -73,6 +74,7 @@ export type FsdDiscoveryRunOrchestrationBundleV1 = {
   }>;
 };
 
+@Injectable()
 export class FsdDiscoveryPersistenceRepository {
   constructor(private readonly prisma: PrismaService) {}
 

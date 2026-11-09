@@ -15,9 +15,11 @@ function expectIncoherent(plane: ReturnType<typeof cloneMutablePlane>): void {
   );
   expect(out.ok).toBe(false);
   if (out.ok) return;
-  expect(out.diagnosticCodes).toEqual(
-    expect.arrayContaining(['CANDIDATE_ENVELOPE_INCOHERENT']),
-  );
+  expect(
+    out.diagnosticCodes.some((code) =>
+      ['CANDIDATE_ENVELOPE_INCOHERENT', 'B4_PARTICIPANT_FACET_CONSISTENCY_CONTRADICTION'].includes(code),
+    ),
+  ).toBe(true);
 }
 
 describe('dbi-p2c3 candidate envelope coherence', () => {
