@@ -1,0 +1,81 @@
+# DBI P2-C — Cross-kernel consumer glossary (research-only)
+
+**Status:** Preflight authority (P2-C1).  
+**Scope:** P2-A1 RPM Episode, P2-B1 Kickdown, P2-B2 Cold Engine, P2-B3 Sustained Load, P2-B4 Revving/Idle.  
+**Not in scope:** P2-C2 adapters, reconciliation engine, P2-D DS4×RPM fusion, production detectors.
+
+## Mandatory consumer rules
+
+1. **`COMPUTED` ≠ assessable opportunity** — trip/kernel `status` only means binding admitted (or A1 applicability satisfied). Always read module-specific assessability, `tripEvidenceClassification`, or `highEpisodes.status`.
+2. **`NOT_OBSERVED` is not confirmed absence** — no positive proxy in the assessable observation window; behavior outside labels is unknown.
+3. **`ABSTAINED` is not automatically fingerprint tampering** — inspect `abstainReasons`. B3 may abstain with sole `INSUFFICIENT_LOAD_LABEL_OBSERVATIONS` while exposing partial trusted load counts.
+4. **`sourceProvenanceVerified` is always false** in B1–B4 success paths today; `contentConsistencyVerified` does not replace independent source attestation.
+5. **Label spans are not physical duration** — `researchLabelSpanMs`, bucket spans, and A1 grid spans are MODE_A bucket-label semantics (`BUCKET_LABEL_UNVERIFIED`).
+
+## Per-module semantics
+
+### P2-A1 RPM Episode
+
+| Layer | Field | Meaning |
+|-------|--------|---------|
+| Kernel status | `status` | `COMPUTED` \| `ABSTAINED` \| `NOT_APPLICABLE` (no `NOT_OBSERVED` at trip level) |
+| Episode plane | `highEpisodes.status` | `SUPPORTED_DESCRIPTIVE` \| `NOT_OBSERVED` \| `NOT_ASSESSABLE` |
+| Binding | `abstainReasons` | v1a/v1b identity, tenant, admission, ICE applicability |
+| Assessability | `referenceContext.normalizedEpisodesEligible` | Reference + ICE gates for u-normalized episodes |
+| Candidates | `highEpisodes.items` | Descriptive episodes, **not** misuse/proxy candidates |
+| Intervals | `startIdx`/`endIdx`, `pointCount` | v1a RPM sequence indices |
+| Trust | No multichannel fingerprint | `semanticGuards.labelsNotForCrossDomainJoin=true` |
+
+### P2-B1 Kickdown
+
+| Layer | Field | Meaning |
+|-------|--------|---------|
+| Kernel status | `status` | `COMPUTED` if ≥1 `KICKDOWN_LIKE_PROXY_CANDIDATE`; else `NOT_OBSERVED` |
+| Assessability | *(none explicit)* | Movement completeness admits detection; do not invent facet assessability |
+| Evidence | `kickdown.candidates` | Kickdown-like proxy only |
+| Intervals | Bucket indices + isos | Moving-biased grid |
+| Fingerprints | v1b + multichannel | Required for binding |
+
+### P2-B2 Cold Engine
+
+| Layer | Field | Meaning |
+|-------|--------|---------|
+| Kernel status | `status` | `COMPUTED` if candidates; else `NOT_OBSERVED` (independent of subtype assessability) |
+| Assessability | `coldEngine.subtypeAssessability` | Per `COLD_ENGINE_*` kind: `ASSESSABLE` \| `NOT_ASSESSABLE` |
+| Evidence | `coldEngine.candidates` | Cold-engine proxy candidates by `proxyKind` |
+| Scope | `coverageEvidence.localCoverageScope` | ECT-labelled buckets; full-trip cold state unknown |
+
+### P2-B3 Sustained Load
+
+| Layer | Field | Meaning |
+|-------|--------|---------|
+| Kernel status | `status` | `NOT_OBSERVED` only when `tripEvidenceClassification===NOT_OBSERVED`; else `COMPUTED` |
+| Abstain | Sole `INSUFFICIENT_LOAD_LABEL_OBSERVATIONS` | Trip `ABSTAINED` but partial load counts may be trusted |
+| Assessability | *(none explicit)* | Encoded in `tripEvidenceClassification` |
+| Evidence | `sustainedLoad.candidates` | Gap-aware sustained proxy |
+| Intervals | `researchLabelSpanMs` | Label span, not physical duration |
+
+### P2-B4 Revving / Idle
+
+| Layer | Field | Meaning |
+|-------|--------|---------|
+| Kernel status | `status` | `ABSTAINED` \| `NOT_OBSERVED` (both facets) \| `COMPUTED` |
+| Assessability | `facetA/B.assessability` | Per-facet opportunity |
+| Evidence | `tripEvidenceClassification` | Per-facet verdict after detection |
+| Coverage | `coverageEvidence` | **Exactly six keys** (grid + channel presence); root holds `distinctMsLabelsInTrip` |
+| Zero-RPM admitted | `status=COMPUTED` | Both facets `NOT_ASSESSABLE` possible — not an evaluated rev/idle result |
+
+## P2-C2/C3 design constraints (not implemented in P2-C1)
+
+- No A1 cross-domain label joins without v1a/multichannel parity proof.
+- No physical event overlap inference from label timestamps alone.
+- No `overlapLabelCount` without concrete shared label sets.
+- Identity mismatch (tenant/trip/source link/fingerprint) ⇒ **reject reconciliation**, not `UNRELATED`.
+- No default candidate suppression, scoring rollup, or DS4 Motion fusion in P2-C.
+- No DB writer, persistent outbox, or provider/production queries in P2-C.
+- Timestamp-only “synchronization” is insufficient for relationship edges.
+
+## References
+
+- Contracts: `ds4-rpm-episode-research.contract.v1.ts`, `ds4-powertrain-demand-research.contract.v1.ts`
+- Consumer tests: `ds4-powertrain-demand-research.consumer-gating.spec.ts`
