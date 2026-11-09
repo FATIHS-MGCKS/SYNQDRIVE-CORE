@@ -25,13 +25,21 @@ describe('FSD P6D architecture review remediation (adversarial)', () => {
   });
 
   it('mock EXECUTE still requires disposable pg harness', () => {
-    expect(() =>
-      assertFsdP6dLiveCliDatabaseAdmissionV1({
-        mode: 'EXECUTE',
-        liveProvider: 'mock',
-        env: { DATABASE_URL: 'postgresql://u:p@127.0.0.1:5432/synqdrive' },
-      }),
-    ).toThrow(/FSD_P6C_MOCK_EXECUTE_REQUIRES_DISPOSABLE_PG_FLAG/);
+    const prevPg = process.env.FSD_DISCOVERY_PERSISTENCE_PG;
+    delete process.env.FSD_DISCOVERY_PERSISTENCE_PG;
+    try {
+      expect(() =>
+        assertFsdP6dLiveCliDatabaseAdmissionV1({
+          mode: 'EXECUTE',
+          liveProvider: 'mock',
+          env: { DATABASE_URL: 'postgresql://u:p@127.0.0.1:5432/synqdrive' },
+        }),
+      ).toThrow(/FSD_P6C_MOCK_EXECUTE_DB_FORBIDDEN:FSD_DISCOVERY_PERSISTENCE_PG must be 1/);
+    } finally {
+      if (prevPg !== undefined) {
+        process.env.FSD_DISCOVERY_PERSISTENCE_PG = prevPg;
+      }
+    }
   });
 
   it('mock transport forbidden on production database target', () => {

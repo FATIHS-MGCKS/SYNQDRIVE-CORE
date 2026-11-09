@@ -27,6 +27,8 @@ Controlled integration tests use `FSD_P6D_FORCE_MOCK_TRANSPORT=1` (mock provider
 - **Blocker D** — `prepareArtifact` + `--fleet-prepare-request-key` required for EXECUTE; CLI writes/reads `--prepare-artifact-out/in`. Artifact is HMAC-SHA256 authenticated (`FSD_P6D_FLEET_PREPARE_ARTIFACT_HMAC_SECRET` on authorized CLI host only); manifest discovery/historical request keys and tenant-scoped catalog run bindings are verified on execute (fail-closed).
 - **Closeout FIX1** — Catalog-only prep success is derived from persisted catalog stage + ledger (not global FSD3 `PARTIAL`); budget-1 snapshot deferrals may return client `PARTIAL` while catalog prep succeeds.
 - **Closeout FIX3** — `providerAccounting` in prepare artifact separates PREPARE catalog ledger attempts vs EXECUTE planned fleet requests; replays do not double-count actual ledger attempts.
+- **Prepare fleet cap** — `assertFsdP6dPrepareFleetDisclosureCapV1` before first live catalog dispatch and before each vehicle (`FSD_P6D_PREPARE_FLEET_DISCLOSURE_CAP_NO_GO`).
+- **Ledger replay** — catalog-only replay uses persisted run/ledger snapshot (`fsd-p6d-catalog-ledger-replay.v1.ts`), not mock `getCatalogCallCount()`.
 - **H4** — Production manifests may omit declared fields; unresolved catalog → `CATALOG_PENDING`. Live fetch accepts only HTTP 200 + `catalogFetchSucceeded !== false` + non-empty signals.
 - **H5** — `identityFreeze` artifact compares connection fingerprint, token, and catalog fingerprint between prepare and execute.
 - **H6** — Optional per-vehicle `historicalWindow` in fleet manifest; plan row carries effective window; execute stops on plan/execute window drift.

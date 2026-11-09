@@ -20,7 +20,14 @@ import {
   ensureFsd2DisposableDatabaseOnce,
 } from '@modules/vehicle-intelligence/full-signal-discovery/persistence/fsd-discovery-persistence.postgres-harness';
 import { createDefaultFsdBudgetConfigV1 } from '@modules/vehicle-intelligence/full-signal-discovery/fsd-budget.contract.v1';
-import { createFsd3MockDiscoveryProvider } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-mock-provider.v1';
+import {
+  buildFsd3TeslaMockCatalogResultV1,
+  buildFsd3TeslaMockSnapshotValues,
+} from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-mock-provider.v1';
+import type {
+  Fsd3DiscoveryProviderPortV1,
+  Fsd3ProviderSnapshotFieldValueV1,
+} from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-provider.port.v1';
 import { FSD_P2E_HISTORICAL_WINDOW_V1 } from '@modules/vehicle-intelligence/full-signal-discovery/__fixtures__/fsd-p2e-tesla.fixture.v1';
 import { Fsd3OneShotPreflightService } from '../../fsd3-one-shot-preflight.service';
 import { Fsd3OneShotExecutionService } from '../../fsd3-one-shot-execution.service';
@@ -113,9 +120,26 @@ async function ensurePlatformUser(prisma: PrismaClient, userId: string) {
     const preflightSvc = new Fsd3OneShotPreflightService(prismaSvc, operatorAuth, persistence);
     const executionSvc = new Fsd3OneShotExecutionService(persistence);
 
-    const provider = createFsd3MockDiscoveryProvider({ mode: 'TESLA_REFERENCE_26' });
-    const mockWithCounter = provider as ReturnType<typeof createFsd3MockDiscoveryProvider> & {
-      getCatalogCallCount: () => number;
+    const teslaValues = buildFsd3TeslaMockSnapshotValues();
+    const provider: Fsd3DiscoveryProviderPortV1 = {
+      providerKind: 'mock',
+      async fetchAvailableSignals() {
+        return buildFsd3TeslaMockCatalogResultV1();
+      },
+      async executeSnapshotDocument(request) {
+        const valuesByField: Record<string, Fsd3ProviderSnapshotFieldValueV1> = {};
+        for (const field of request.fieldNamesInDocument) {
+          const preset = teslaValues[field];
+          valuesByField[field] = preset ?? { kind: 'MISSING' };
+        }
+        return {
+          documentFingerprint: request.documentFingerprint,
+          fieldNamesInDocument: request.fieldNamesInDocument,
+          dataPresent: true,
+          httpStatus: 200,
+          valuesByField,
+        };
+      },
     };
 
     const env = {
@@ -151,8 +175,8 @@ async function ensurePlatformUser(prisma: PrismaClient, userId: string) {
 
     expect(first.clientTerminalStatus).toBe('PARTIAL');
     expect(first.ledgerReplayed).toBe(false);
+    expect(first.providerDispatchConsumed).toBe(true);
     expect(first.availableSignals.length).toBeGreaterThan(0);
-    expect(mockWithCounter.getCatalogCallCount()).toBe(1);
 
     const second = await dispatchFsdP6dCatalogWithLedgerV1({
       prisma: prismaSvc,
@@ -168,6 +192,6 @@ async function ensurePlatformUser(prisma: PrismaClient, userId: string) {
 
     expect(second.persistedRunId).toBe(first.persistedRunId);
     expect(second.ledgerReplayed).toBe(true);
-    expect(mockWithCounter.getCatalogCallCount()).toBe(1);
+    expect(second.providerDispatchConsumed).toBe(false);
   });
 });

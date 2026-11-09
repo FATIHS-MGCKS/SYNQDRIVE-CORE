@@ -68,6 +68,7 @@ import {
   summarizeFsdP6dTotalProviderExposureV1,
 } from './p6d/fsd-p6d-fleet-provider-accounting.v1';
 import { assertFsdP6dTenantScopedCatalogBindingV1 } from './p6d/fsd-p6d-tenant-scoped-catalog-binding.v1';
+import { assertFsdP6dPrepareFleetDisclosureCapV1 } from './p6d/fsd-p6d-prepare-fleet-cap.v1';
 
 export type FsdP6dFleetLivePrepareReportV1 = {
   status: 'LIVE_FLEET_PREPARED';
@@ -308,10 +309,32 @@ export class FsdP6dFleetLiveExecutorService {
       const liveProvider = forceMockTransport ? 'mock' : 'dimo_live';
       const budget = resolveP6cCliBudgetFromManifest(input.manifest);
 
+      const catalogPendingVehicleIds = input.manifest.vehicles
+        .filter((v) => !evidenceByVehicle.has(v.vehicleId))
+        .map((v) => v.vehicleId);
+
+      assertFsdP6dPrepareFleetDisclosureCapV1({
+        fleetPlannedRequestDisclosureCap: input.manifest.fleetPlannedRequestDisclosureCap,
+        prepareLedgerAttemptsCommitted: fleetProviderAccounting.prepareCatalogLedgerAttemptsActual,
+        executePlannedFleetCumulativeRequests: planReport.fleetCumulativePlannedProviderRequests,
+        pendingCatalogDispatches: catalogPendingVehicleIds.length,
+      });
+
       for (const vehicle of input.manifest.vehicles) {
         if (evidenceByVehicle.has(vehicle.vehicleId)) {
           continue;
         }
+
+        const pendingIncludingThis = input.manifest.vehicles.filter(
+          (v) => !evidenceByVehicle.has(v.vehicleId),
+        ).length;
+        assertFsdP6dPrepareFleetDisclosureCapV1({
+          fleetPlannedRequestDisclosureCap: input.manifest.fleetPlannedRequestDisclosureCap,
+          prepareLedgerAttemptsCommitted: fleetProviderAccounting.prepareCatalogLedgerAttemptsActual,
+          executePlannedFleetCumulativeRequests: planReport.fleetCumulativePlannedProviderRequests,
+          pendingCatalogDispatches: pendingIncludingThis,
+        });
+
         const preflight = await this.preflightSvc.runAuthorizedReadOnlyPreflight({
           scope: {
             organizationId: input.manifest.organizationId,
@@ -339,7 +362,9 @@ export class FsdP6dFleetLiveExecutorService {
         });
         fleetProviderAccounting = recordFsdP6dPrepareCatalogDispatchAccountingV1({
           accounting: fleetProviderAccounting,
-          ledgerAttemptsSucceeded: dispatch.ledgerCatalogAttemptsSucceeded,
+          ledgerAttemptsSucceeded: dispatch.providerDispatchConsumed
+            ? dispatch.ledgerCatalogAttemptsSucceeded
+            : 0,
           replayed: dispatch.ledgerReplayed,
         });
         const evidence: FsdP6dVerifiedCatalogEvidenceV1 = {

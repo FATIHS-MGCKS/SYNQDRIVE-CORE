@@ -6,6 +6,11 @@ import type { Fsd3OneShotPreflightResultV1 } from '../fsd3-one-shot-preflight.se
 import type { PrismaService } from '@shared/database/prisma.service';
 import type { Fsd3OneShotLiveProviderV1 } from '../fsd3-one-shot-types.v1';
 import { verifyFsdP6dCatalogOnlyLedgerDispatchV1 } from './fsd-p6d-catalog-only-outcome.v1';
+import {
+  deriveFsdP6dCatalogLedgerReplayV1,
+  readFsdP6dCatalogPrepLedgerSnapshotV1,
+} from './fsd-p6d-catalog-ledger-replay.v1';
+import { parsePersistedCatalogCheckpointV1 } from './fsd-p6d-catalog-provenance-authority.v1';
 
 export const FSD_P6D_CATALOG_PREP_REQUEST_PREFIX_V1 = 'p6d-catalog-prep' as const;
 
@@ -17,13 +22,6 @@ export function buildFsdP6dCatalogPrepDiscoveryRequestKeyV1(discoveryRequestKey:
 export function buildFsdP6dCatalogOnlyBudgetV1(base?: FsdBudgetConfigV1): FsdBudgetConfigV1 {
   const normalized = base ?? createDefaultFsdBudgetConfigV1();
   return { ...normalized, maxRequestsPerRun: 1 };
-}
-
-function readCatalogProviderCallCount(
-  provider: Fsd3DiscoveryProviderPortV1,
-): number | null {
-  const maybe = provider as Fsd3DiscoveryProviderPortV1 & { getCatalogCallCount?: () => number };
-  return typeof maybe.getCatalogCallCount === 'function' ? maybe.getCatalogCallCount() : null;
 }
 
 export async function dispatchFsdP6dCatalogWithLedgerV1(input: {
@@ -50,10 +48,16 @@ export async function dispatchFsdP6dCatalogWithLedgerV1(input: {
   clientTerminalStatus: string;
   ledgerCatalogAttemptsSucceeded: number;
   ledgerReplayed: boolean;
+  providerDispatchConsumed: boolean;
 }> {
-  const catalogCallsBefore = readCatalogProviderCallCount(input.provider);
-
   const catalogRequestKey = buildFsdP6dCatalogPrepDiscoveryRequestKeyV1(input.scope.discoveryRequestKey);
+  const ledgerBefore = await readFsdP6dCatalogPrepLedgerSnapshotV1({
+    prisma: input.prisma,
+    organizationId: input.scope.organizationId,
+    connectionIdentityFingerprint: input.preflight.connectionIdentityFingerprint!,
+    catalogPrepDiscoveryRequestKey: catalogRequestKey,
+  });
+
   const result = await input.executionSvc.executeOneShot({
     scope: {
       organizationId: input.scope.organizationId,
@@ -84,12 +88,20 @@ export async function dispatchFsdP6dCatalogWithLedgerV1(input: {
   }
   const accepted = verified as Extract<typeof verified, { verdict: { accepted: true } }>;
 
-  const catalogCallsAfter = readCatalogProviderCallCount(input.provider);
-  const ledgerReplayed =
-    catalogCallsBefore != null &&
-    catalogCallsAfter != null &&
-    catalogCallsAfter === catalogCallsBefore &&
-    accepted.verdict.ledgerCatalogAttemptsSucceeded === 1;
+  const run = await input.prisma.fsdDiscoveryRun.findFirst({
+    where: { id: accepted.persistedRunId, organizationId: input.scope.organizationId },
+    include: { stages: { where: { stageType: 'CATALOG', status: 'SUCCEEDED' }, take: 1 } },
+  });
+  const checkpoint = parsePersistedCatalogCheckpointV1(run?.stages[0]?.checkpointJson);
+  if (!checkpoint) {
+    throw new Error('FSD_P6D_CATALOG_LEDGER_REPLAY_CHECKPOINT_MISSING');
+  }
+
+  const replay = deriveFsdP6dCatalogLedgerReplayV1({
+    ledgerBefore,
+    persistedRunId: accepted.persistedRunId,
+    checkpoint,
+  });
 
   return {
     runId: accepted.persistedRunId,
@@ -99,6 +111,7 @@ export async function dispatchFsdP6dCatalogWithLedgerV1(input: {
     httpStatus: accepted.httpStatus,
     clientTerminalStatus: accepted.verdict.runTerminalClientStatus,
     ledgerCatalogAttemptsSucceeded: accepted.verdict.ledgerCatalogAttemptsSucceeded,
-    ledgerReplayed,
+    ledgerReplayed: replay.ledgerReplayed,
+    providerDispatchConsumed: replay.providerDispatchConsumed,
   };
 }

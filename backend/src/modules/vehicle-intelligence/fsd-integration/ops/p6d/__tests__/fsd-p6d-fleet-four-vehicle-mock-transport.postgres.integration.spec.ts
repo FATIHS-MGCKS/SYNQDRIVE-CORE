@@ -357,6 +357,47 @@ function buildServices(prisma: PrismaClient) {
     expect(result.stopReason).toMatch(/FSD_P6C_FSD4_BLOCKED_FSD3_FAILED/);
   });
 
+  it('prepare rejects fleet disclosure cap before any catalog provider call', async () => {
+    const { manifest, actorUserId } = await seedFourVehicleFleetCatalogPending(prisma);
+    const { p6d } = buildServices(prisma);
+    const manifestCapped = {
+      ...manifest,
+      fleetPlannedRequestDisclosureCap: 2,
+    };
+    const releaseSha = 'p6d-pg-cap-no-go';
+    let providerCatalogCalls = 0;
+    const catalogProvider = createFsd3MockDiscoveryProvider({
+      mode: 'TESLA_REFERENCE_26',
+      catalogGate: { onCatalogEntered: () => (providerCatalogCalls += 1) },
+    });
+
+    const env = {
+      ...process.env,
+      FSD3_ONE_SHOT_HOST_ATTESTATION: '1',
+      [SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED]: '1',
+      [SYNQDRIVE_FSD_P6C_ARCHITECTURE_REVIEW_CLEARED]: '1',
+      [SYNQDRIVE_FSD_P6D_LIVE_FLEET_EXECUTE_AUTHORIZED]: '1',
+      [SYNQDRIVE_FSD_P6D_LIVE_CATALOG_DISPATCH_AUTHORIZED]: '1',
+      [FSD_P6D_LIVE_FLEET_AUTHORIZED_RELEASE_SHA]: releaseSha,
+      [FSD_P6D_FORCE_MOCK_TRANSPORT]: '1',
+      [FSD_P6D_FLEET_PREPARE_ARTIFACT_HMAC_SECRET_ENV]: 'p6d-four-vehicle-hmac',
+      NODE_ENV: 'test',
+    } as NodeJS.ProcessEnv;
+
+    await expect(
+      p6d.prepareLiveFleetExecution({
+        manifest: manifestCapped,
+        actorUserId,
+        releaseSha,
+        fleetPrepareRequestKey: randomUUID(),
+        env,
+        allowLiveCatalogDispatch: true,
+        liveCatalogProvider: catalogProvider,
+      }),
+    ).rejects.toThrow(/FSD_P6D_PREPARE_FLEET_DISCLOSURE_CAP_NO_GO/);
+    expect(providerCatalogCalls).toBe(0);
+  });
+
   it('prepare live catalog dispatch for four vehicles records provider accounting', async () => {
     const { manifest, actorUserId } = await seedFourVehicleFleetCatalogPending(prisma);
     const { p6d } = buildServices(prisma);

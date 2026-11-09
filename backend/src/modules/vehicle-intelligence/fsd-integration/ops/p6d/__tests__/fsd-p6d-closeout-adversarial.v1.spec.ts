@@ -15,6 +15,9 @@ import { SYNQDRIVE_FSD_P6D_LIVE_CATALOG_DISPATCH_AUTHORIZED } from '../fsd-p6d-l
 import { finalizeFsdP6dFleetPrepareArtifactV1, assertFsdP6dFleetPrepareArtifactForExecuteV1 } from '../fsd-p6d-fleet-prepare-artifact.v1';
 import { FSD_P6D_FLEET_PREPARE_ARTIFACT_HMAC_SECRET_ENV } from '../fsd-p6d-fleet-prepare-artifact-auth.v1';
 import { buildInitialFsdP6dFleetProviderAccountingV1 } from '../fsd-p6d-fleet-provider-accounting.v1';
+import { assertFsdP6dPrepareFleetDisclosureCapV1 } from '../fsd-p6d-prepare-fleet-cap.v1';
+import { deriveFsdP6dCatalogLedgerReplayV1 } from '../fsd-p6d-catalog-ledger-replay.v1';
+import { FSD3_CATALOG_ATTEMPT_KEY_V1 } from '@modules/vehicle-intelligence/full-signal-discovery/orchestration/fsd3-request-ledger.v1';
 
 describe('FSD P6D final closeout adversarial', () => {
   it('Blocker A: rejects persisted catalog without providerKind', () => {
@@ -177,6 +180,53 @@ describe('FSD P6D final closeout adversarial', () => {
         env: testEnv,
       }),
     ).toThrow(/FSD_P6D_PREPARE_ARTIFACT_RELEASE_SHA_MISMATCH/);
+  });
+
+  it('PREPARE fleet disclosure cap fails closed before catalog provider calls', () => {
+    expect(() =>
+      assertFsdP6dPrepareFleetDisclosureCapV1({
+        fleetPlannedRequestDisclosureCap: 2,
+        prepareLedgerAttemptsCommitted: 0,
+        executePlannedFleetCumulativeRequests: 0,
+        pendingCatalogDispatches: 4,
+      }),
+    ).toThrow(/FSD_P6D_PREPARE_FLEET_DISCLOSURE_CAP_NO_GO/);
+  });
+
+  it('ledger replay derived without mock getCatalogCallCount hook', () => {
+    const checkpoint = {
+      requestLedger: {
+        budgetTotal: 1,
+        attempts: [
+          {
+            attemptKey: FSD3_CATALOG_ATTEMPT_KEY_V1,
+            queryFingerprint: 'q',
+            outcome: 'SUCCEEDED' as const,
+            reservedAt: '2026-01-01T00:00:00.000Z',
+            finishedAt: '2026-01-01T00:00:01.000Z',
+          },
+        ],
+      },
+      catalogFetch: {
+        succeeded: true,
+        availableSignalNames: ['speed'],
+        catalogFetchSucceeded: true,
+        httpStatus: 200,
+        providerKind: 'mock' as const,
+        declaredCatalogFingerprint: 'fp',
+      },
+    };
+    const replay = deriveFsdP6dCatalogLedgerReplayV1({
+      ledgerBefore: {
+        runId: 'run-1',
+        catalogAttemptSucceeded: true,
+        catalogAttemptReservedAt: '2026-01-01T00:00:00.000Z',
+      },
+      persistedRunId: 'run-1',
+      checkpoint,
+    });
+    expect(replay.ledgerReplayed).toBe(true);
+    expect(replay.providerDispatchConsumed).toBe(false);
   });
 
   it('Blocker D: HMAC authentication rejects tampered artifact fields', () => {
