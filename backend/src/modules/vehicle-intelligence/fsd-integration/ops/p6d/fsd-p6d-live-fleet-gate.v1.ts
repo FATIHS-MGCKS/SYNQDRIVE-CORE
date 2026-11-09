@@ -2,6 +2,7 @@ import type { FsdP6cFleetManifestV1 } from '../p6c/fsd-p6c-fleet-manifest.v1';
 import type { FsdP6cLiveTestGoNoGoV1 } from '../p6c/fsd-p6c-go-no-go.v1';
 import { SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED } from '../fsd3-one-shot-live-owner-gate.v1';
 import { isFsdP6cLiveGoEligibleV1 } from '../p6c/fsd-p6c-go-no-go.v1';
+import { isAuthoritativeProductionDatabaseTargetV1 } from './fsd-p6d-production-database-target.v1';
 
 export const SYNQDRIVE_FSD_P6D_LIVE_FLEET_EXECUTE_AUTHORIZED =
   'SYNQDRIVE_FSD_P6D_LIVE_FLEET_EXECUTE_AUTHORIZED' as const;
@@ -24,13 +25,17 @@ export function isFsdP6dForceMockTransportV1(env: NodeJS.ProcessEnv = process.en
   return env[FSD_P6D_FORCE_MOCK_TRANSPORT] === '1';
 }
 
-/** H1 — mock transport on production is forbidden; no env bypass. */
+/** Mock transport against the real production database is forbidden — no env bypass. */
 export function assertFsdP6dMockTransportForbiddenOnProductionV1(
   env: NodeJS.ProcessEnv,
   forceMockTransport: boolean,
 ): void {
   if (!forceMockTransport) {
     return;
+  }
+  const databaseUrl = env.DATABASE_URL ?? '';
+  if (databaseUrl && isAuthoritativeProductionDatabaseTargetV1(databaseUrl)) {
+    throw new Error('FSD_P6D_MOCK_TRANSPORT_FORBIDDEN_ON_PRODUCTION_DATABASE');
   }
   if (env.SYNQDRIVE_DATABASE_IDENTITY_PROFILE === 'production_vps') {
     throw new Error('FSD_P6D_MOCK_TRANSPORT_FORBIDDEN_ON_PRODUCTION');

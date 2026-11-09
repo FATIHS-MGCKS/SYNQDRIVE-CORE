@@ -30,6 +30,10 @@ export type Fsd3CatalogStageCheckpointV1 = {
     availableSignalNames?: string[];
     httpStatus?: number;
     succeeded?: boolean;
+    /** Immutable provider origin recorded at catalog settlement (required for P6D live provenance). */
+    providerKind?: 'mock' | 'live';
+    /** Explicit live-path success marker; undefined is not live-verified. */
+    catalogFetchSucceeded?: boolean;
   };
 };
 

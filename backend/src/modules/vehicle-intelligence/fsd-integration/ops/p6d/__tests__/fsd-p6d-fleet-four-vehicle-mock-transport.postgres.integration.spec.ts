@@ -150,10 +150,9 @@ function buildServices(prisma: PrismaClient) {
     fsd3,
     fsd4,
     inspector,
-    fleet,
     undefined,
   );
-  return { fleet, p6d };
+  return { fleet, p6d, fsd3, fsd4 };
 }
 
 (LIVE ? describe : describe.skip)('FSD P6D four-vehicle mock-transport live executor (PostgreSQL)', () => {
@@ -172,10 +171,11 @@ function buildServices(prisma: PrismaClient) {
     await prisma?.$disconnect();
   });
 
-  it('seeds catalog via mock fleet then executes live path with mock transport', async () => {
+  it('prepare then execute across separate prepare artifact invocations (mock transport)', async () => {
     const { manifest, actorUserId } = await seedFourVehicleFleetManifest(prisma);
     const { fleet, p6d } = buildServices(prisma);
-  const releaseSha = 'p6d-pg-mock-transport';
+    const releaseSha = 'p6d-pg-mock-transport';
+    const fleetPrepareRequestKey = randomUUID();
 
     await fleet.executeFleetSequentialMock({
       manifest,
@@ -194,10 +194,22 @@ function buildServices(prisma: PrismaClient) {
       NODE_ENV: 'test',
     } as NodeJS.ProcessEnv;
 
+    const prepared = await p6d.prepareLiveFleetExecution({
+      manifest,
+      actorUserId,
+      releaseSha,
+      fleetPrepareRequestKey,
+      env,
+    });
+
+    expect(prepared.prepareArtifact.vehicles.every((v) => v.catalogPersistedRunId)).toBe(true);
+
     const result = await p6d.executeFleetSequentialLive({
       manifest,
       actorUserId,
       releaseSha,
+      fleetPrepareRequestKey,
+      prepareArtifact: prepared.prepareArtifact,
       env,
     });
 
@@ -209,5 +221,66 @@ function buildServices(prisma: PrismaClient) {
       expect(row.fsd3TerminalStatus).toBe('COMPLETED');
       expect(row.fsd4TerminalStatus).toBe('COMPLETED');
     }
+  });
+
+  it('stops fleet after second vehicle failure without later vehicles', async () => {
+    const { manifest, actorUserId } = await seedFourVehicleFleetManifest(prisma);
+    const stack = buildServices(prisma);
+    const releaseSha = 'p6d-pg-controlled-stop';
+    const fleetPrepareRequestKey = randomUUID();
+
+    await stack.fleet.executeFleetSequentialMock({
+      manifest,
+      actorUserId,
+      releaseSha: 'p6d-seed-catalog-stop',
+    });
+
+    const env = {
+      ...process.env,
+      FSD3_ONE_SHOT_HOST_ATTESTATION: '1',
+      [SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED]: '1',
+      [SYNQDRIVE_FSD_P6C_ARCHITECTURE_REVIEW_CLEARED]: '1',
+      [SYNQDRIVE_FSD_P6D_LIVE_FLEET_EXECUTE_AUTHORIZED]: '1',
+      [FSD_P6D_LIVE_FLEET_AUTHORIZED_RELEASE_SHA]: releaseSha,
+      [FSD_P6D_FORCE_MOCK_TRANSPORT]: '1',
+      NODE_ENV: 'test',
+    } as NodeJS.ProcessEnv;
+
+    const vwTiguan = manifest.vehicles.find((v) => v.label === 'vw_tiguan')!;
+    const fsd3Orig = stack.fsd3.executeOneShot.bind(stack.fsd3);
+    jest.spyOn(stack.fsd3, 'executeOneShot').mockImplementation(async (input) => {
+      if (input.scope.vehicleId === vwTiguan.vehicleId) {
+        return {
+          mode: 'EXECUTE',
+          discoveryRequestKey: input.scope.discoveryRequestKey,
+          runId: 'controlled-stop-run',
+          terminalStatus: 'FAILED',
+          releaseSha,
+          operatorAuthorizationReference: 'op-ref',
+        };
+      }
+      return fsd3Orig(input);
+    });
+
+    const prepared = await stack.p6d.prepareLiveFleetExecution({
+      manifest,
+      actorUserId,
+      releaseSha,
+      fleetPrepareRequestKey,
+      env,
+    });
+
+    const result = await stack.p6d.executeFleetSequentialLive({
+      manifest,
+      actorUserId,
+      releaseSha,
+      fleetPrepareRequestKey,
+      prepareArtifact: prepared.prepareArtifact,
+      env,
+    });
+
+    expect(result.fleetStopped).toBe(true);
+    expect(result.vehicles).toHaveLength(2);
+    expect(result.stopReason).toMatch(/FSD_P6C_FSD4_BLOCKED_FSD3_FAILED/);
   });
 });

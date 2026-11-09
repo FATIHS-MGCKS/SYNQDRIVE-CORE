@@ -523,6 +523,11 @@ export class Fsd3CatalogSnapshotOrchestratorService {
               declaredCatalogFingerprint: catalogFingerprint,
               availableSignalNames: catalogSignals,
               httpStatus: catalogResult.httpStatus,
+              providerKind: this.provider.providerKind,
+              catalogFetchSucceeded:
+                catalogResult.catalogFetchSucceeded === undefined
+                  ? catalogResult.httpStatus === 200 && Array.isArray(catalogResult.availableSignals)
+                  : catalogResult.catalogFetchSucceeded === true,
             },
           }),
         });

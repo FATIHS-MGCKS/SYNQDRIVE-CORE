@@ -31,7 +31,7 @@ describe('FsdP6d catalog provenance', () => {
       manifestDeclaredCatalogEvidenceV1({
         preflight: { connectionIdentityFingerprint: 'fp', dimoTokenId: 1 },
         declaredFieldNames: ['speed'],
-      })?.source,
-    ).toBe('MANIFEST_DECLARED_FIELDS');
+      }),
+    ).toBeNull();
   });
 });

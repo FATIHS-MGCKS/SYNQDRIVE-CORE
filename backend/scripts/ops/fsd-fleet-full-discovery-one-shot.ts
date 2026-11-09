@@ -31,6 +31,8 @@ import { assertFsdP6cMockExecuteDatabaseAllowedV1 } from '../../src/modules/vehi
 import { assertProductionFleetBindingsForLiveV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/p6d/fsd-p6d-production-bindings-guard.v1';
 import { assertFsdP6dLiveCliDatabaseAdmissionV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/p6d/fsd-p6d-live-cli-database-guard.v1';
 import { SYNQDRIVE_FSD_P6D_LIVE_CATALOG_DISPATCH_AUTHORIZED } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/p6d/fsd-p6d-live-fleet-gate.v1';
+import type { FsdP6dFleetPrepareArtifactV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/p6d/fsd-p6d-fleet-prepare-artifact.v1';
+import { resolveFsdP6dFleetProviderBundleV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/p6d/fsd-p6d-fleet-live-ports.v1';
 import type { Fsd3OneShotLiveProviderV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-types.v1';
 
 {
@@ -77,6 +79,9 @@ function parseArgs() {
     planTokenId: get('--plan-token-id='),
     allowOfflineFixture: get('--allow-offline-fixture=') === '1',
     liveProvider: get('--provider=') ? parseLiveProvider(get('--provider=')) : undefined,
+    fleetPrepareRequestKey: get('--fleet-prepare-request-key='),
+    prepareArtifactIn: get('--prepare-artifact-in='),
+    prepareArtifactOut: get('--prepare-artifact-out='),
   };
 }
 
@@ -223,27 +228,56 @@ async function main(): Promise<void> {
     }
 
     if (args.mode === 'PREPARE_LIVE_FLEET' && liveProvider === 'dimo_live') {
+      if (!args.fleetPrepareRequestKey?.trim()) {
+        throw new Error('MISSING_FLEET_PREPARE_REQUEST_KEY');
+      }
       const p6d = app.get(FsdP6dFleetLiveExecutorService);
       const allowCatalogDispatch =
         process.env[SYNQDRIVE_FSD_P6D_LIVE_CATALOG_DISPATCH_AUTHORIZED] === '1';
+      const providerBundle =
+        allowCatalogDispatch ?
+          resolveFsdP6dFleetProviderBundleV1({
+            env: process.env,
+            adapterFactory: app.get(FsdDimoAdapterFactoryService),
+            catalogSignals: manifest.vehicles[0]?.declaredFieldNames ?? [],
+          })
+        : undefined;
       const prepared = await p6d.prepareLiveFleetExecution({
         manifest,
         actorUserId: args.actorUserId,
         releaseSha,
+        fleetPrepareRequestKey: args.fleetPrepareRequestKey.trim(),
         allowLiveCatalogDispatch: allowCatalogDispatch,
-        liveCatalogProvider:
-          allowCatalogDispatch ? app.get(FsdDimoAdapterFactoryService).createAdapter().createFsd3Port() : undefined,
+        liveCatalogProvider: providerBundle?.fsd3Provider,
       });
+      if (args.prepareArtifactOut?.trim()) {
+        fs.writeFileSync(
+          args.prepareArtifactOut.trim(),
+          `${JSON.stringify(prepared.prepareArtifact, null, 2)}\n`,
+          'utf8',
+        );
+      }
       console.log(JSON.stringify({ releaseSha, ...prepared, stop: 'AWAIT_CHATGPT_ARCHITECTURE_REVIEW' }, null, 2));
       return;
     }
 
     if (args.mode === 'EXECUTE' && liveProvider === 'dimo_live') {
+      if (!args.fleetPrepareRequestKey?.trim()) {
+        throw new Error('MISSING_FLEET_PREPARE_REQUEST_KEY');
+      }
+      if (!args.prepareArtifactIn?.trim()) {
+        throw new Error('MISSING_PREPARE_ARTIFACT_IN');
+      }
+      const artifact = JSON.parse(
+        fs.readFileSync(args.prepareArtifactIn.trim(), 'utf8'),
+      ) as FsdP6dFleetPrepareArtifactV1;
       const p6d = app.get(FsdP6dFleetLiveExecutorService);
       const result = await p6d.executeFleetSequentialLive({
         manifest,
         actorUserId: args.actorUserId,
         releaseSha,
+        fleetPrepareRequestKey: args.fleetPrepareRequestKey.trim(),
+        prepareArtifact: artifact,
       });
       console.log(
         JSON.stringify(
