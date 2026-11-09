@@ -6,6 +6,7 @@ import * as path from 'path';
 import { NestFactory } from '@nestjs/core';
 import { FsdDiscoveryOpsModule } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd-discovery-ops.module';
 import { FsdP6dLiveFleetBootstrapModule } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd-p6d-live-fleet-bootstrap.module';
+import { FsdDimoAdapterFactoryService } from '../../src/modules/vehicle-intelligence/fsd-integration/fsd-dimo-adapter-factory.service';
 import { FsdP6cFleetDiscoveryService } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd-p6c-fleet-discovery.service';
 import { FsdP6dFleetLiveExecutorService } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd-p6d-fleet-live-executor.service';
 import { assertFsd3OneShotHostAttestation } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-host-attestation.v1';
@@ -27,6 +28,9 @@ import {
 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/p6c/fsd-p6c-go-no-go.v1';
 import { assertProductionFleetManifestV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/p6c/fsd-p6c-production-manifest-guard.v1';
 import { assertFsdP6cMockExecuteDatabaseAllowedV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/p6c/fsd-p6c-mock-execute-db-guard.v1';
+import { assertProductionFleetBindingsForLiveV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/p6d/fsd-p6d-production-bindings-guard.v1';
+import { assertFsdP6dLiveCliDatabaseAdmissionV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/p6d/fsd-p6d-live-cli-database-guard.v1';
+import { SYNQDRIVE_FSD_P6D_LIVE_CATALOG_DISPATCH_AUTHORIZED } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/p6d/fsd-p6d-live-fleet-gate.v1';
 import type { Fsd3OneShotLiveProviderV1 } from '../../src/modules/vehicle-intelligence/fsd-integration/ops/fsd3-one-shot-types.v1';
 
 {
@@ -76,7 +80,12 @@ function parseArgs() {
   };
 }
 
-function loadManifest(mode: CliMode, manifestPath: string, allowOfflineFixture: boolean) {
+function loadManifest(
+  mode: CliMode,
+  manifestPath: string,
+  allowOfflineFixture: boolean,
+  liveProvider?: Fsd3OneShotLiveProviderV1,
+) {
   const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as unknown;
   const parsed = parseFsdP6cFleetManifestV1(raw);
 
@@ -86,6 +95,14 @@ function loadManifest(mode: CliMode, manifestPath: string, allowOfflineFixture: 
     }
     process.env[FSD_P6C_OFFLINE_FIXTURE_HYDRATION_ENV] = '1';
     return hydrateFsdP6cOfflineFleetManifestV1(parsed, { allowHydration: true });
+  }
+
+  if (
+    liveProvider === 'dimo_live' &&
+    (mode === 'PREPARE_LIVE_FLEET' || mode === 'EXECUTE')
+  ) {
+    assertProductionFleetBindingsForLiveV1(parsed);
+    return parsed;
   }
 
   assertProductionFleetManifestV1(parsed);
@@ -109,7 +126,12 @@ async function main(): Promise<void> {
   if (!args.fleetManifestPath?.trim()) {
     throw new Error('MISSING_FLEET_MANIFEST');
   }
-  const manifest = loadManifest(args.mode, args.fleetManifestPath, args.allowOfflineFixture);
+  const manifest = loadManifest(
+    args.mode,
+    args.fleetManifestPath,
+    args.allowOfflineFixture,
+    args.liveProvider,
+  );
   const releaseSha = resolveFsd3OneShotReleaseShaForAuditV1();
 
   if (args.mode === 'OFFLINE_PLAN') {
@@ -174,7 +196,10 @@ async function main(): Promise<void> {
     (args.mode === 'EXECUTE' || args.mode === 'PREPARE_LIVE_FLEET') &&
     liveProvider === 'dimo_live'
   ) {
-    assertFsdP6cMockExecuteDatabaseAllowedV1();
+    assertFsdP6dLiveCliDatabaseAdmissionV1({
+      mode: args.mode === 'PREPARE_LIVE_FLEET' ? 'PREPARE_LIVE_FLEET' : 'EXECUTE',
+      liveProvider: 'dimo_live',
+    });
   }
 
   const useP6dLive =
@@ -199,9 +224,15 @@ async function main(): Promise<void> {
 
     if (args.mode === 'PREPARE_LIVE_FLEET' && liveProvider === 'dimo_live') {
       const p6d = app.get(FsdP6dFleetLiveExecutorService);
+      const allowCatalogDispatch =
+        process.env[SYNQDRIVE_FSD_P6D_LIVE_CATALOG_DISPATCH_AUTHORIZED] === '1';
       const prepared = await p6d.prepareLiveFleetExecution({
         manifest,
         actorUserId: args.actorUserId,
+        releaseSha,
+        allowLiveCatalogDispatch: allowCatalogDispatch,
+        liveCatalogProvider:
+          allowCatalogDispatch ? app.get(FsdDimoAdapterFactoryService).createAdapter().createFsd3Port() : undefined,
       });
       console.log(JSON.stringify({ releaseSha, ...prepared, stop: 'AWAIT_CHATGPT_ARCHITECTURE_REVIEW' }, null, 2));
       return;

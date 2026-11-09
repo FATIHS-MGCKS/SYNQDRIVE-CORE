@@ -24,6 +24,22 @@ export function isFsdP6dForceMockTransportV1(env: NodeJS.ProcessEnv = process.en
   return env[FSD_P6D_FORCE_MOCK_TRANSPORT] === '1';
 }
 
+/** H1 — mock transport on production is forbidden; no env bypass. */
+export function assertFsdP6dMockTransportForbiddenOnProductionV1(
+  env: NodeJS.ProcessEnv,
+  forceMockTransport: boolean,
+): void {
+  if (!forceMockTransport) {
+    return;
+  }
+  if (env.SYNQDRIVE_DATABASE_IDENTITY_PROFILE === 'production_vps') {
+    throw new Error('FSD_P6D_MOCK_TRANSPORT_FORBIDDEN_ON_PRODUCTION');
+  }
+  if (env.NODE_ENV === 'production') {
+    throw new Error('FSD_P6D_MOCK_TRANSPORT_FORBIDDEN_IN_PRODUCTION');
+  }
+}
+
 export function assertFsdP6dLiveCatalogDispatchAuthorizedV1(env: NodeJS.ProcessEnv = process.env): void {
   if (env[SYNQDRIVE_FSD_P6D_LIVE_CATALOG_DISPATCH_AUTHORIZED] !== '1') {
     throw new Error('FSD_P6D_LIVE_CATALOG_DISPATCH_NOT_AUTHORIZED');
@@ -64,11 +80,7 @@ export function assertFsdP6dLiveFleetExecuteGateV1(input: {
   if (input.liveProvider !== 'dimo_live') {
     throw new Error('FSD_P6D_LIVE_FLEET_REQUIRES_DIMO_LIVE_PROVIDER');
   }
-  if (input.forceMockTransport) {
-    if (env.NODE_ENV === 'production' && env.FSD_P6D_ALLOW_MOCK_TRANSPORT_IN_PRODUCTION !== '1') {
-      throw new Error('FSD_P6D_MOCK_TRANSPORT_FORBIDDEN_IN_PRODUCTION');
-    }
-  }
+  assertFsdP6dMockTransportForbiddenOnProductionV1(env, input.forceMockTransport);
 
   if (env.FSD3_ONE_SHOT_HOST_ATTESTATION !== '1') {
     throw new Error('FSD3_HOST_ATTESTATION_MISSING');

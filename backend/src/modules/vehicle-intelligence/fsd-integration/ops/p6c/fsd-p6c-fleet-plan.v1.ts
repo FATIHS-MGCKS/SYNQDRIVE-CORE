@@ -4,6 +4,7 @@ import {
 } from '@modules/vehicle-intelligence/full-signal-discovery/fsd-discovery.planner.v1';
 import { FSD_CATALOG_PROVIDER_REQUEST_SLOTS_V1 } from '@modules/vehicle-intelligence/full-signal-discovery/fsd-discovery.planner.v1';
 import type { FsdBudgetConfigV1 } from '@modules/vehicle-intelligence/full-signal-discovery/fsd-budget.contract.v1';
+import type { FsdHistoricalWindowV1 } from '@modules/vehicle-intelligence/full-signal-discovery/fsd-query-document.builder.v1';
 import type {
   FsdP6cFleetManifestV1,
   FsdP6cFleetVehicleManifestEntryV1,
@@ -28,6 +29,7 @@ export type FsdP6cVehicleDiscoveryPlanV1 = {
   vehicleId: string;
   providerSourceLinkId: string;
   tokenId: number;
+  historicalWindow: FsdHistoricalWindowV1;
   catalogPlanMode: FsdP6cCatalogPlanModeV1;
   fullPlan: FsdFullDiscoveryPlanV1 | null;
   fsd3PlannedProviderRequests: number;
@@ -119,6 +121,13 @@ export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
       throw new Error('FSD_P6C_PLAN_TOKEN_ID_MISSING');
     }
 
+    const vehicleWindow: FsdHistoricalWindowV1 =
+      entry.historicalWindow ?? input.manifest.historicalWindow;
+    assertP6cHistoricalWindowAdmissibleV1({
+      window: vehicleWindow,
+      budget,
+    });
+
     if (entry.declaredFieldNames.length === 0) {
       if (!allowCatalogPending) {
         throw new Error('FSD_P6C_PLAN_EMPTY_DECLARED_FIELDS');
@@ -129,6 +138,7 @@ export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
         vehicleId: entry.vehicleId,
         providerSourceLinkId: entry.providerSourceLinkId,
         tokenId,
+        historicalWindow: vehicleWindow,
         catalogPlanMode: 'CATALOG_PENDING',
         fullPlan: buildCatalogPendingFullPlan(),
         fsd3PlannedProviderRequests: 0,
@@ -142,7 +152,7 @@ export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
     const fullPlan = planFsdFullSignalDiscoveryV1({
       tokenId,
       declaredFieldNames: entry.declaredFieldNames,
-      historicalWindow: input.manifest.historicalWindow,
+      historicalWindow: vehicleWindow,
       budget,
     });
 
@@ -159,6 +169,7 @@ export function buildFsdP6cFleetDiscoveryPlanReportV1(input: {
       vehicleId: entry.vehicleId,
       providerSourceLinkId: entry.providerSourceLinkId,
       tokenId,
+      historicalWindow: vehicleWindow,
       catalogPlanMode: 'DECLARED_FIELDS',
       fullPlan,
       fsd3PlannedProviderRequests: fsd3Planned,

@@ -20,6 +20,7 @@ import { resolveP6cCliBudgetFromManifest } from './p6c/fsd-p6c-cli-budget.v1';
 import { assertProductionFleetBindingsForLiveV1 } from './p6d/fsd-p6d-production-bindings-guard.v1';
 import { assertProductionFleetManifestV1 } from './p6c/fsd-p6c-production-manifest-guard.v1';
 import {
+  fetchLiveCatalogEvidenceV1,
   resolveFsdP6dCatalogEvidenceV1,
   type FsdP6dVerifiedCatalogEvidenceV1,
 } from './p6d/fsd-p6d-catalog-provenance.v1';
@@ -27,6 +28,7 @@ import {
   assertFsdP6dLiveFleetExecuteGateV1,
   isFsdP6dForceMockTransportV1,
 } from './p6d/fsd-p6d-live-fleet-gate.v1';
+import { assertFsdP6dProviderPreDispatchGateV1 } from './p6d/fsd-p6d-pre-dispatch-gate.v1';
 import { resolveFsdP6dFleetProviderBundleV1 } from './p6d/fsd-p6d-fleet-live-ports.v1';
 import { classifyFsdP6dFleetDiscoveryOutcomeV1 } from './p6d/fsd-p6d-discovery-outcome.v1';
 import {
@@ -44,17 +46,25 @@ import {
   resolveFsdP6cArchitectureReviewClearedV1,
 } from './p6c/fsd-p6c-go-no-go.v1';
 import { SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED } from './fsd3-one-shot-live-owner-gate.v1';
+import type { FsdHistoricalWindowV1 } from '@modules/vehicle-intelligence/full-signal-discovery/fsd-query-document.builder.v1';
+import {
+  assertFsdP6dPrepareExecuteIdentityFreezeV1,
+  buildFsdP6dVehicleIdentityFreezeV1,
+  type FsdP6dVehicleIdentityFreezeV1,
+} from './p6d/fsd-p6d-identity-freeze.v1';
 
 export type FsdP6dFleetLivePrepareReportV1 = {
   status: 'LIVE_FLEET_PREPARED';
   catalogEvidence: Array<{
     label: string;
     vehicleId: string;
-    evidence: FsdP6dVerifiedCatalogEvidenceV1;
+    catalogStatus: 'VERIFIED' | 'CATALOG_PENDING';
+    evidence: FsdP6dVerifiedCatalogEvidenceV1 | null;
   }>;
+  identityFreeze: FsdP6dVehicleIdentityFreezeV1[];
   planReport: ReturnType<typeof buildFsdP6cFleetDiscoveryPlanReportV1>;
   providerBudgetGuard: ReturnType<typeof evaluateFsdP6cProviderBudgetGuardV1>;
-  goNoGo: Awaited<ReturnType<FsdP6cFleetDiscoveryService['runAuthorizedFleetPreflight']>>['goNoGo'];
+  goNoGo: ReturnType<typeof buildFsdP6cLiveTestGoNoGoV1>;
 };
 
 export type FsdP6dFleetLiveExecutionRecordV1 = FsdP6dVehicleEvaluationReportV1 & {
@@ -77,16 +87,15 @@ export class FsdP6dFleetLiveExecutorService {
   private resolveHistoricalWindow(
     manifest: FsdP6cFleetManifestV1,
     label: string,
-  ): FsdP6cFleetManifestV1['historicalWindow'] {
+  ): FsdHistoricalWindowV1 {
     const entry = manifest.vehicles.find((v) => v.label === label);
-    const perVehicle = (entry as { historicalWindow?: FsdP6cFleetManifestV1['historicalWindow'] })
-      ?.historicalWindow;
-    return perVehicle ?? manifest.historicalWindow;
+    return entry?.historicalWindow ?? manifest.historicalWindow;
   }
 
   async prepareLiveFleetExecution(input: {
     manifest: FsdP6cFleetManifestV1;
     actorUserId: string;
+    releaseSha: string;
     env?: NodeJS.ProcessEnv;
     allowLiveCatalogDispatch?: boolean;
     liveCatalogProvider?: Fsd3DiscoveryProviderPortV1;
@@ -95,9 +104,9 @@ export class FsdP6dFleetLiveExecutorService {
     assertProductionFleetBindingsForLiveV1(input.manifest);
     assertFsdP6cFleetManifestOrderV1(input.manifest);
 
-    const catalogEvidence: FsdP6dFleetLivePrepareReportV1['catalogEvidence'] = [];
     const tokenMap = new Map<string, number>();
-    const resolvedFields = new Map<string, readonly string[]>();
+    const preliminaryFields = new Map<string, readonly string[]>();
+    const catalogRows: FsdP6dFleetLivePrepareReportV1['catalogEvidence'] = [];
 
     for (const vehicle of input.manifest.vehicles) {
       const preflight = await this.preflightSvc.runAuthorizedReadOnlyPreflight({
@@ -114,7 +123,7 @@ export class FsdP6dFleetLiveExecutorService {
       }
       tokenMap.set(vehicle.vehicleId, preflight.dimoTokenId);
 
-      const evidence = await resolveFsdP6dCatalogEvidenceV1({
+      const resolution = await resolveFsdP6dCatalogEvidenceV1({
         prisma: this.prisma,
         env,
         preflight,
@@ -122,29 +131,123 @@ export class FsdP6dFleetLiveExecutorService {
         vehicleId: vehicle.vehicleId,
         providerSourceLinkId: vehicle.providerSourceLinkId,
         manifestDeclaredFieldNames: vehicle.declaredFieldNames,
-        liveCatalogProvider: input.allowLiveCatalogDispatch ? input.liveCatalogProvider : undefined,
-        catalogDispatchRunKey: input.allowLiveCatalogDispatch
-          ? `catalog-prep-${vehicle.discoveryRequestKey}`
-          : undefined,
+        allowCatalogPending: true,
       });
 
-      catalogEvidence.push({ label: vehicle.label, vehicleId: vehicle.vehicleId, evidence });
-      resolvedFields.set(vehicle.vehicleId, evidence.availableSignals);
+      if (resolution.kind === 'VERIFIED') {
+        preliminaryFields.set(vehicle.vehicleId, resolution.evidence.availableSignals);
+        catalogRows.push({
+          label: vehicle.label,
+          vehicleId: vehicle.vehicleId,
+          catalogStatus: 'VERIFIED',
+          evidence: resolution.evidence,
+        });
+      } else {
+        preliminaryFields.set(vehicle.vehicleId, []);
+        catalogRows.push({
+          label: vehicle.label,
+          vehicleId: vehicle.vehicleId,
+          catalogStatus: 'CATALOG_PENDING',
+          evidence: null,
+        });
+      }
+    }
+
+    const bootstrapManifest: FsdP6cFleetManifestV1 = {
+      ...input.manifest,
+      vehicles: input.manifest.vehicles.map((v) => ({
+        ...v,
+        declaredFieldNames: preliminaryFields.get(v.vehicleId) ?? [],
+      })),
+    };
+
+    let planReport = buildFsdP6cFleetDiscoveryPlanReportV1({
+      manifest: bootstrapManifest,
+      tokenIdByVehicleId: tokenMap,
+      allowCatalogPending: true,
+    });
+
+    const goNoGoBootstrap = buildFsdP6cLiveTestGoNoGoV1({
+      planReport,
+      providerBudgetGuard: evaluateFsdP6cProviderBudgetGuardV1(planReport),
+      context: 'EXECUTE',
+      liveProvider: 'dimo_live',
+      ownerAuthorizationSatisfied: env[SYNQDRIVE_FSD3_ONE_SHOT_LIVE_OWNER_AUTHORIZED] === '1',
+      productionManifestValid: true,
+      architectureReviewCleared: resolveFsdP6cArchitectureReviewClearedV1(env),
+    });
+
+    if (input.allowLiveCatalogDispatch && input.liveCatalogProvider) {
+      for (let i = 0; i < catalogRows.length; i += 1) {
+        const row = catalogRows[i]!;
+        if (row.catalogStatus !== 'CATALOG_PENDING') {
+          continue;
+        }
+        const vehicle = input.manifest.vehicles.find((v) => v.vehicleId === row.vehicleId);
+        if (!vehicle) {
+          continue;
+        }
+        const preflight = await this.preflightSvc.runAuthorizedReadOnlyPreflight({
+          scope: {
+            organizationId: input.manifest.organizationId,
+            vehicleId: vehicle.vehicleId,
+            providerSourceLinkId: vehicle.providerSourceLinkId,
+            discoveryRequestKey: vehicle.discoveryRequestKey,
+          },
+          actorUserId: input.actorUserId,
+        });
+        const evidence = await fetchLiveCatalogEvidenceV1({
+          env,
+          provider: input.liveCatalogProvider,
+          preflight,
+          manifest: input.manifest,
+          planReport,
+          goNoGo: goNoGoBootstrap,
+          releaseSha: input.releaseSha,
+          dispatchContext: {
+            organizationId: input.manifest.organizationId,
+            vehicleId: vehicle.vehicleId,
+            providerSourceLinkId: vehicle.providerSourceLinkId,
+            runKey: `catalog-prep-${vehicle.discoveryRequestKey}`,
+            dimoTokenId: preflight.dimoTokenId!,
+            connectionIdentityFingerprint: preflight.connectionIdentityFingerprint!,
+          },
+        });
+        preliminaryFields.set(vehicle.vehicleId, evidence.availableSignals);
+        catalogRows[i] = {
+          label: vehicle.label,
+          vehicleId: vehicle.vehicleId,
+          catalogStatus: 'VERIFIED',
+          evidence,
+        };
+      }
+
+      planReport = buildFsdP6cFleetDiscoveryPlanReportV1({
+        manifest: {
+          ...input.manifest,
+          vehicles: input.manifest.vehicles.map((v) => ({
+            ...v,
+            declaredFieldNames: preliminaryFields.get(v.vehicleId) ?? [],
+            catalogProvenance: 'VERIFIED_LIVE_CATALOG',
+          })),
+        },
+        tokenIdByVehicleId: tokenMap,
+        allowCatalogPending: false,
+      });
     }
 
     const dynamicManifest: FsdP6cFleetManifestV1 = {
       ...input.manifest,
       vehicles: input.manifest.vehicles.map((v) => ({
         ...v,
-        declaredFieldNames: resolvedFields.get(v.vehicleId) ?? [],
-        catalogProvenance: 'VERIFIED_LIVE_CATALOG',
+        declaredFieldNames: preliminaryFields.get(v.vehicleId) ?? [],
+        catalogProvenance:
+          (preliminaryFields.get(v.vehicleId) ?? []).length > 0
+            ? 'VERIFIED_LIVE_CATALOG'
+            : undefined,
       })),
     };
 
-    const planReport = buildFsdP6cFleetDiscoveryPlanReportV1({
-      manifest: dynamicManifest,
-      tokenIdByVehicleId: tokenMap,
-    });
     const providerBudgetGuard = evaluateFsdP6cProviderBudgetGuardV1(planReport);
     let productionManifestValid = false;
     try {
@@ -164,9 +267,23 @@ export class FsdP6dFleetLiveExecutorService {
       architectureReviewCleared: resolveFsdP6cArchitectureReviewClearedV1(env),
     });
 
+    const identityFreeze = catalogRows
+      .filter((row): row is typeof row & { evidence: FsdP6dVerifiedCatalogEvidenceV1 } =>
+        Boolean(row.evidence),
+      )
+      .map((row) =>
+        buildFsdP6dVehicleIdentityFreezeV1({
+          vehicleId: row.vehicleId,
+          providerSourceLinkId:
+            input.manifest.vehicles.find((v) => v.vehicleId === row.vehicleId)!.providerSourceLinkId,
+          evidence: row.evidence,
+        }),
+      );
+
     return {
       status: 'LIVE_FLEET_PREPARED',
-      catalogEvidence,
+      catalogEvidence: catalogRows,
+      identityFreeze,
       planReport,
       providerBudgetGuard,
       goNoGo,
@@ -179,6 +296,7 @@ export class FsdP6dFleetLiveExecutorService {
     releaseSha: string;
     env?: NodeJS.ProcessEnv;
     allowLiveCatalogDispatch?: boolean;
+    prepareIdentityFreeze?: FsdP6dVehicleIdentityFreezeV1[];
   }): Promise<{
     status: 'EXECUTE_LIVE_FLEET' | 'EXECUTE_LIVE_FLEET_STOPPED';
     releaseSha: string;
@@ -190,18 +308,32 @@ export class FsdP6dFleetLiveExecutorService {
   }> {
     const env = input.env ?? process.env;
     const forceMockTransport = isFsdP6dForceMockTransportV1(env);
+    const liveCatalogProvider =
+      input.allowLiveCatalogDispatch && !forceMockTransport && this.adapterFactory
+        ? this.adapterFactory.createAdapter().createFsd3Port()
+        : undefined;
+
     const prepared = await this.prepareLiveFleetExecution({
       manifest: input.manifest,
       actorUserId: input.actorUserId,
+      releaseSha: input.releaseSha,
       env,
       allowLiveCatalogDispatch: input.allowLiveCatalogDispatch,
-      liveCatalogProvider:
-        input.allowLiveCatalogDispatch && !forceMockTransport && this.adapterFactory
-          ? this.adapterFactory.createAdapter().createFsd3Port()
-          : undefined,
+      liveCatalogProvider,
     });
 
     assertFsdP6cProviderBudgetGuardV1(prepared.planReport);
+
+    assertFsdP6dProviderPreDispatchGateV1({
+      env,
+      context: 'EXECUTE_FLEET',
+      releaseSha: input.releaseSha,
+      goNoGo: prepared.goNoGo,
+      planReport: prepared.planReport,
+      manifest: input.manifest,
+      forceMockTransport,
+    });
+
     const gateBundle = assertFsdP6dLiveFleetExecuteGateV1({
       env,
       releaseSha: input.releaseSha,
@@ -211,32 +343,24 @@ export class FsdP6dFleetLiveExecutorService {
       forceMockTransport,
     });
 
-    const budget = resolveP6cCliBudgetFromManifest(input.manifest);
-    const records: FsdP6dFleetLiveExecutionRecordV1[] = [];
-    const fingerprintMap = new Map<string, string | null>();
-    const evidenceByVehicle = new Map(
-      prepared.catalogEvidence.map((row) => [row.vehicleId, row.evidence]),
+    const freezeByVehicle = new Map(
+      (input.prepareIdentityFreeze ?? prepared.identityFreeze).map((f) => [f.vehicleId, f]),
     );
 
-    for (const vehicle of input.manifest.vehicles) {
-      const preflight = await this.preflightSvc.runAuthorizedReadOnlyPreflight({
-        scope: {
-          organizationId: input.manifest.organizationId,
-          vehicleId: vehicle.vehicleId,
-          providerSourceLinkId: vehicle.providerSourceLinkId,
-          discoveryRequestKey: vehicle.discoveryRequestKey,
-        },
-        actorUserId: input.actorUserId,
-      });
-      fingerprintMap.set(vehicle.vehicleId, preflight.connectionIdentityFingerprint);
+    const budget = resolveP6cCliBudgetFromManifest(input.manifest);
+    const records: FsdP6dFleetLiveExecutionRecordV1[] = [];
+    const evidenceByVehicle = new Map<string, FsdP6dVerifiedCatalogEvidenceV1>();
+
+    for (const row of prepared.catalogEvidence) {
+      if (row.evidence) {
+        evidenceByVehicle.set(row.vehicleId, row.evidence);
+      }
     }
 
     let fleetStopped = false;
     let stopReason: string | undefined;
 
-    const planVehicleByLabel = new Map(
-      prepared.planReport.vehicles.map((v) => [v.label, v]),
-    );
+    const planVehicleByLabel = new Map(prepared.planReport.vehicles.map((v) => [v.label, v]));
 
     for (const vehicle of input.manifest.vehicles) {
       if (fleetStopped) {
@@ -252,16 +376,29 @@ export class FsdP6dFleetLiveExecutorService {
         },
         actorUserId: input.actorUserId,
       });
-      const expectedFp = fingerprintMap.get(vehicle.vehicleId) ?? null;
-      if (expectedFp !== preflight.connectionIdentityFingerprint) {
-        fleetStopped = true;
-        stopReason = `FSD_P6D_IDENTITY_DRIFT_${vehicle.label}`;
-        break;
-      }
 
       const catalog = evidenceByVehicle.get(vehicle.vehicleId);
       if (!catalog) {
-        throw new Error(`FSD_P6D_CATALOG_EVIDENCE_MISSING_${vehicle.label}`);
+        fleetStopped = true;
+        stopReason = `FSD_P6D_CATALOG_PENDING_${vehicle.label}`;
+        break;
+      }
+
+      const freeze = freezeByVehicle.get(vehicle.vehicleId);
+      if (freeze) {
+        try {
+          assertFsdP6dPrepareExecuteIdentityFreezeV1({
+            label: vehicle.label,
+            freeze,
+            connectionIdentityFingerprint: preflight.connectionIdentityFingerprint,
+            dimoTokenId: preflight.dimoTokenId,
+            evidence: catalog,
+          });
+        } catch (err) {
+          fleetStopped = true;
+          stopReason = err instanceof Error ? err.message : String(err);
+          break;
+        }
       }
 
       const providerBundle = resolveFsdP6dFleetProviderBundleV1({
@@ -290,6 +427,17 @@ export class FsdP6dFleetLiveExecutorService {
       const planRow = planVehicleByLabel.get(vehicle.label);
       if (!planRow) {
         throw new Error(`FSD_P6D_PLAN_ROW_MISSING_${vehicle.label}`);
+      }
+
+      const planWindow = planRow.historicalWindow;
+      const executeWindow = this.resolveHistoricalWindow(input.manifest, vehicle.label);
+      if (
+        planWindow.fromUtc !== executeWindow.fromUtc ||
+        planWindow.toUtc !== executeWindow.toUtc
+      ) {
+        fleetStopped = true;
+        stopReason = `FSD_P6D_HISTORICAL_WINDOW_DRIFT_${vehicle.label}`;
+        break;
       }
 
       try {
@@ -325,8 +473,6 @@ export class FsdP6dFleetLiveExecutorService {
         break;
       }
 
-      const historicalWindow = this.resolveHistoricalWindow(input.manifest, vehicle.label);
-
       const fsd4 = await this.fsd4ExecutionSvc.executeHistoricalOneShot({
         scope: {
           organizationId: input.manifest.organizationId,
@@ -337,7 +483,7 @@ export class FsdP6dFleetLiveExecutorService {
         preflight,
         liveProvider: providerBundle.transportLabel === 'mock' ? 'mock' : 'dimo_live',
         provider: fsd4Provider,
-        historicalWindow,
+        historicalWindow: executeWindow,
         budget,
         verifiedFsd3CatalogRunId: fsd3.runId,
         releaseSha: input.releaseSha,

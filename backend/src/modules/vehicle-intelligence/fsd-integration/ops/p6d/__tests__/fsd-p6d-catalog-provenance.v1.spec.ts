@@ -21,6 +21,7 @@ describe('FsdP6d catalog provenance', () => {
         vehicleId: 'v',
         providerSourceLinkId: 'l',
         manifestDeclaredFieldNames: ['speed'],
+        allowCatalogPending: false,
       }),
     ).rejects.toThrow(/FSD_P6D_CATALOG_MANIFEST_ONLY_NOT_ACCEPTED/);
   });
