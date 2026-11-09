@@ -127,6 +127,54 @@ describe('dbi-p2c3 candidate envelope coherence', () => {
     expectIncoherent(plane);
   });
 
+  it('rejects B4 facet A shape with facet B classification on both fields', () => {
+    const plane = cloneMutablePlane(adaptRevvingIdleB4DualFacetPlaneFromS01());
+    const facetA = plane.candidates.find(
+      (c) => c.sourceModule === 'P2-B4' && c.facet === 'HIGH_RPM_STATIONARY_LIKE_PROXY',
+    );
+    if (!facetA || facetA.sourceModule !== 'P2-B4') throw new Error('b4a');
+    const wrongClass = 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY_CANDIDATE' as const;
+    plane.candidates = [
+      {
+        ...structuredClone(facetA),
+        originalClassification: wrongClass,
+        originalCandidate: {
+          ...structuredClone(facetA.originalCandidate),
+          classification: wrongClass,
+        },
+      } as DbiP2c2ProxyCandidateEnvelopeV1,
+    ];
+    expectIncoherent(plane);
+  });
+
+  it('rejects B4 facet B shape with facet A classification on both fields', () => {
+    const plane = cloneMutablePlane(adaptRevvingIdleB4DualFacetPlaneFromS01());
+    const facetB = plane.candidates.find(
+      (c) => c.sourceModule === 'P2-B4' && c.facet === 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY',
+    );
+    if (!facetB || facetB.sourceModule !== 'P2-B4') throw new Error('b4b');
+    const wrongClass = 'HIGH_RPM_STATIONARY_LIKE_PROXY_CANDIDATE' as const;
+    plane.candidates = [
+      {
+        ...structuredClone(facetB),
+        originalClassification: wrongClass,
+        originalCandidate: {
+          ...structuredClone(facetB.originalCandidate),
+          classification: wrongClass,
+        },
+      } as DbiP2c2ProxyCandidateEnvelopeV1,
+    ];
+    expectIncoherent(plane);
+  });
+
+  it('admits B4 facet A and B envelopes with correct shape and classification', () => {
+    const plane = adaptRevvingIdleB4DualFacetPlaneFromS01();
+    const out = reconcileDbiP2c2OfflineEvidenceBundleV1(
+      assembleP2c2Bundle({ descriptive: null, powertrainProxies: [plane] }),
+    );
+    expect(out.ok).toBe(true);
+  });
+
   it('rejects B4 classification disagreement', () => {
     const plane = cloneMutablePlane(adaptRevvingIdleB4DualFacetPlaneFromS01());
     const facetA = plane.candidates.find(

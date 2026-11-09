@@ -23,7 +23,7 @@ function isPlainRecord(value: object): boolean {
 /** Recursive deterministic JSON-safe canonicalization (sorted object keys; array order preserved). Fail-closed on ambiguous values. */
 export function tryCanonicalizeJsonValue(
   value: unknown,
-  seen: WeakSet<object> = new WeakSet(),
+  ancestors: Set<object> = new Set(),
 ): DbiP2c3CanonicalJsonResultV1 {
   if (value === undefined) {
     return { ok: false, reason: 'UNDEFINED' };
@@ -54,32 +54,36 @@ export function tryCanonicalizeJsonValue(
     if (!Array.isArray(value) && !isPlainRecord(value)) {
       return { ok: false, reason: 'UNSUPPORTED_OBJECT' };
     }
-    if (seen.has(value)) {
+    if (ancestors.has(value)) {
       return { ok: false, reason: 'CYCLIC_REFERENCE' };
     }
-    seen.add(value);
-    if (Array.isArray(value)) {
-      const canonical: unknown[] = [];
-      for (const entry of value) {
-        const next = tryCanonicalizeJsonValue(entry, seen);
+    ancestors.add(value);
+    try {
+      if (Array.isArray(value)) {
+        const canonical: unknown[] = [];
+        for (const entry of value) {
+          const next = tryCanonicalizeJsonValue(entry, ancestors);
+          if (!next.ok) return next;
+          canonical.push(next.canonical);
+        }
+        return { ok: true, canonical };
+      }
+      const record = value as Record<string, unknown>;
+      const sortedKeys = Object.keys(record).sort();
+      const canonical: Record<string, unknown> = {};
+      for (const key of sortedKeys) {
+        const field = record[key];
+        if (field === undefined) {
+          return { ok: false, reason: 'UNDEFINED' };
+        }
+        const next = tryCanonicalizeJsonValue(field, ancestors);
         if (!next.ok) return next;
-        canonical.push(next.canonical);
+        canonical[key] = next.canonical;
       }
       return { ok: true, canonical };
+    } finally {
+      ancestors.delete(value);
     }
-    const record = value as Record<string, unknown>;
-    const sortedKeys = Object.keys(record).sort();
-    const canonical: Record<string, unknown> = {};
-    for (const key of sortedKeys) {
-      const field = record[key];
-      if (field === undefined) {
-        return { ok: false, reason: 'UNDEFINED' };
-      }
-      const next = tryCanonicalizeJsonValue(field, seen);
-      if (!next.ok) return next;
-      canonical[key] = next.canonical;
-    }
-    return { ok: true, canonical };
   }
   return { ok: false, reason: 'UNSUPPORTED_OBJECT' };
 }

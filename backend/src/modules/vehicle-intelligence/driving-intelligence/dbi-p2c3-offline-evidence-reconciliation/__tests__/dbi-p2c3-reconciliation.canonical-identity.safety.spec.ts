@@ -119,6 +119,29 @@ describe('dbi-p2c3 lossless canonical identity', () => {
     expect(buildCandidateEnvelopeIdentityPayload(base)).not.toBe(buildCandidateEnvelopeIdentityPayload(twin));
   });
 
+  it('allows acyclic shared object references in canonical JSON', () => {
+    const shared = { channel: 'rpm', present: true };
+    const payload = { left: shared, right: shared, module: 'P2-B1' };
+    const result = tryCanonicalJsonStringify(payload);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.json).toContain('"rpm"');
+  });
+
+  it('rejects self-referential object cycles', () => {
+    const cyclic: { v: number; self?: unknown } = { v: 1 };
+    cyclic.self = cyclic;
+    expect(tryCanonicalizeJsonValue(cyclic)).toEqual({ ok: false, reason: 'CYCLIC_REFERENCE' });
+  });
+
+  it('rejects nested mutual object cycles', () => {
+    const a: { b?: object } = {};
+    const b: { a?: object } = {};
+    a.b = b;
+    b.a = a;
+    expect(tryCanonicalizeJsonValue(a)).toEqual({ ok: false, reason: 'CYCLIC_REFERENCE' });
+  });
+
   it('null field versus omitted field do not collapse to false duplicate identity', () => {
     const a = tryCanonicalJsonStringify({ rpm: null });
     const b = tryCanonicalJsonStringify({});

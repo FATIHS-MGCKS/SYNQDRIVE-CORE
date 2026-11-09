@@ -7,6 +7,9 @@ import {
 import type { DbiP2c3ReconciliationDiagnosticCodeV1 } from './dbi-p2c3-reconciliation.contract.v1';
 import { tryBuildCandidateEnvelopeIdentityPayload } from './dbi-p2c3-reconciliation.canonical.v1';
 
+const B4_FACET_A_CLASSIFICATION = 'HIGH_RPM_STATIONARY_LIKE_PROXY_CANDIDATE' as const;
+const B4_FACET_B_CLASSIFICATION = 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY_CANDIDATE' as const;
+
 const CORE_BINDING_KEYS = ['organizationId', 'vehicleId', 'tripId', 'providerSourceLinkId'] as const;
 
 const ALLOWED_POWERTRAIN_MODULES: readonly DbiP2c2SourceModuleV1[] = [
@@ -112,10 +115,20 @@ function candidateEnvelopeCoherent(cand: DbiP2c2ProxyCandidateEnvelopeV1): boole
       return true;
     case 'P2-B4': {
       if (cand.facet === 'HIGH_RPM_STATIONARY_LIKE_PROXY') {
-        return 'peakObservedRpm' in cand.originalCandidate && !('meanObservedRpmInBand' in cand.originalCandidate);
+        return (
+          'peakObservedRpm' in cand.originalCandidate &&
+          !('meanObservedRpmInBand' in cand.originalCandidate) &&
+          cand.originalCandidate.classification === B4_FACET_A_CLASSIFICATION &&
+          cand.originalClassification === B4_FACET_A_CLASSIFICATION
+        );
       }
       if (cand.facet === 'EXCESSIVE_STATIONARY_LIKE_SPAN_PROXY') {
-        return 'meanObservedRpmInBand' in cand.originalCandidate && !('peakObservedRpm' in cand.originalCandidate);
+        return (
+          'meanObservedRpmInBand' in cand.originalCandidate &&
+          !('peakObservedRpm' in cand.originalCandidate) &&
+          cand.originalCandidate.classification === B4_FACET_B_CLASSIFICATION &&
+          cand.originalClassification === B4_FACET_B_CLASSIFICATION
+        );
       }
       return false;
     }
