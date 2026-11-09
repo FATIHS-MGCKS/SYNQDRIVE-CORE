@@ -1,6 +1,9 @@
 import { useLanguage } from '../../i18n/LanguageContext';
-import { ServiceMaintenanceForecastPanel } from '../../rental/components/health/ServiceMaintenanceForecastPanel';
-import { arteonFixtureServiceInfo, mercedesNoForecastServiceInfo } from '../../rental/components/health/service-info-v3-fixture-data';
+import { ServiceInfoV3Panel } from '../../rental/components/health/ServiceInfoV3Panel';
+import {
+  arteonFixtureWithHistory,
+  mercedesNoForecastServiceInfo,
+} from '../../rental/components/health/service-info-v3-fixture-data';
 
 /**
  * DEV-only visual fixture for Service Info V3 (Playwright / manual layout QA).
@@ -8,7 +11,7 @@ import { arteonFixtureServiceInfo, mercedesNoForecastServiceInfo } from '../../r
  */
 export default function ServiceInfoV3DevFixturePage() {
   const { t } = useLanguage();
-  const arteon = arteonFixtureServiceInfo();
+  const arteon = arteonFixtureWithHistory();
   const mercedes = mercedesNoForecastServiceInfo();
 
   return (
@@ -18,21 +21,23 @@ export default function ServiceInfoV3DevFixturePage() {
         <p className="text-xs text-muted-foreground">{t('health.serviceInfo.v3.devFixture.subtitle')}</p>
       </header>
       <section data-testid="fixture-arteon" className="min-w-0">
-        <ServiceMaintenanceForecastPanel
+        <ServiceInfoV3Panel
           serviceInfo={arteon}
           loading={false}
           error={false}
           vehicleId="veh-arteon"
           orgId="org-fixture"
+          defaultTab="overview"
         />
       </section>
       <section data-testid="fixture-mercedes" className="min-w-0">
-        <ServiceMaintenanceForecastPanel
+        <ServiceInfoV3Panel
           serviceInfo={mercedes}
           loading={false}
           error={false}
           vehicleId="veh-mercedes"
           orgId="org-fixture"
+          defaultTab="history"
         />
       </section>
     </main>
