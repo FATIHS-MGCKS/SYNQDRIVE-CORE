@@ -512,6 +512,98 @@ describe('INDEPENDENT REAUDIT — W2 adversarial', () => {
     }
   });
 
+  describe('Opus W2 final two-blocker oracles (N-03..N-09)', () => {
+    function nestPlainObjectForProjection(depth: number): Record<string, unknown> {
+      let n: Record<string, unknown> = { leaf: 1 };
+      for (let i = 0; i < depth; i++) n = { c: n };
+      return n;
+    }
+
+    function expectProjectionReject(id: string, bundle: unknown) {
+      const r = run(bundle);
+      report(id, r);
+      expect(r.thrown).toBeUndefined();
+      expect(r.out?.ok).toBe(false);
+      const fail = r.out;
+      if (fail && !fail.ok) {
+        expect(fail.diagnosticCodes).toContain('PARTICIPANT_PROJECTION_CANONICAL_INVALID');
+      }
+    }
+
+    it('N-03 deep moduleCoverage fails closed without throw (A-8 projection)', () => {
+      const p = cloneMutablePlane(adaptKickdownPlaneFromScenario());
+      const part = p.participant;
+      if (part.sourceModule !== 'P2-B1') throw new Error('precondition B1');
+      p.participant = {
+        ...part,
+        moduleCoverage: { ...part.moduleCoverage, deep: nestPlainObjectForProjection(80) } as never,
+      };
+      expectProjectionReject('N-03', assembleP2c2Bundle({ descriptive: null, powertrainProxies: [p] }));
+    });
+
+    it('N-04 NaN in moduleCoverage fails closed without throw (A-8 projection)', () => {
+      const p = cloneMutablePlane(adaptKickdownPlaneFromScenario());
+      const part = p.participant;
+      if (part.sourceModule !== 'P2-B1') throw new Error('precondition B1');
+      p.participant = {
+        ...part,
+        moduleCoverage: { ...part.moduleCoverage, rpmTripCoverage: Number.NaN } as never,
+      };
+      expectProjectionReject('N-04', assembleP2c2Bundle({ descriptive: null, powertrainProxies: [p] }));
+    });
+
+    it('N-05 Date in B4 coverageDiagnostics fails closed without throw (A-8 projection)', () => {
+      const p = cloneMutablePlane(adaptRevvingIdleB4FacetAPlaneFromS01());
+      const part = p.participant;
+      if (part.sourceModule !== 'P2-B4') throw new Error('precondition B4');
+      p.participant = {
+        ...part,
+        facetA: {
+          ...part.facetA,
+          coverageDiagnostics: { ...part.facetA.coverageDiagnostics, d: new Date(0) } as never,
+        },
+      };
+      expectProjectionReject('N-05', assembleP2c2Bundle({ descriptive: null, powertrainProxies: [p] }));
+    });
+
+    it('N-06 undefined in B2 moduleCoverage fails closed without throw (A-8 projection)', () => {
+      const p = cloneMutablePlane(adaptColdEnginePositiveCandidatePlane());
+      const part = p.participant;
+      if (part.sourceModule !== 'P2-B2') throw new Error('precondition B2');
+      p.participant = {
+        ...part,
+        moduleCoverage: { ...part.moduleCoverage, u: undefined } as never,
+      };
+      expectProjectionReject('N-06', assembleP2c2Bundle({ descriptive: null, powertrainProxies: [p] }));
+    });
+
+    it('N-08 B3 ABSTAINED + NOT_OBSERVED trip class fails closed (A-4 negative parity)', () => {
+      const r = run(
+        assembleP2c2Bundle({ descriptive: null, powertrainProxies: [syntheticB3('NOT_OBSERVED', 'ABSTAINED', 0)] }),
+      );
+      report('N-08', r);
+      expect(r.thrown).toBeUndefined();
+      expect(r.out?.ok).toBe(false);
+      const fail = r.out;
+      if (fail && !fail.ok) {
+        expect(fail.diagnosticCodes).toContain('B3_PARTICIPANT_STATUS_TRIP_CLASS_CONTRADICTION');
+      }
+    });
+
+    it('N-09 B3 COMPUTED + NOT_OBSERVED trip class fails closed (A-4 negative parity)', () => {
+      const r = run(
+        assembleP2c2Bundle({ descriptive: null, powertrainProxies: [syntheticB3('NOT_OBSERVED', 'COMPUTED', 0)] }),
+      );
+      report('N-09', r);
+      expect(r.thrown).toBeUndefined();
+      expect(r.out?.ok).toBe(false);
+      const fail = r.out;
+      if (fail && !fail.ok) {
+        expect(fail.diagnosticCodes).toContain('B3_PARTICIPANT_STATUS_TRIP_CLASS_CONTRADICTION');
+      }
+    });
+  });
+
   it('AUD-42 oversized limitationCodes array fails closed without stack overflow (A-8 breadth)', () => {
     const plane = cloneMutablePlane(adaptKickdownPlaneFromScenario());
     const c = structuredClone(plane.candidates[0]!);

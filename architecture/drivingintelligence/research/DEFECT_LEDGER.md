@@ -3,7 +3,7 @@
 Significant defects discovered during the 2026-08-30 → 2026-09-06 workstream.  
 **Rejected hypotheses are NOT defects** — see `HYPOTHESIS_REGISTER.md`.
 
-**Summary:** TOTAL=**42** | FIXED=**38** (DI-DEF-003–017, 019 production-validated; DI-DEF-021–041 W1/W2/Opus) | OPEN=**4** (DI-DEF-001, 002, 018, 020)
+**Summary:** TOTAL=**45** | FIXED=**44** (DI-DEF-003–017, 019 production-validated; DI-DEF-021–044 W1/W2/Opus) | OPEN=**4** (DI-DEF-001, 002, 018, 020) | W3_DEBT=**1** (DI-DEF-045)
 
 | ID | Phase | Symptom | Cause | Risk | Fix | Tests | Status |
 |----|-------|---------|-------|------|-----|-------|--------|
@@ -49,3 +49,6 @@ Significant defects discovered during the 2026-08-30 → 2026-09-06 workstream.
 | DI-DEF-040 | Opus A-7 | Extra identity keys in dup key | Whole-object canonical key | Dup-plane bypass | `identity-canon.v1` | AUD-10,11 | FIXED |
 | DI-DEF-041 | Opus A-8 | Uncaught clone/canonical throws | No fail-closed wrapper | DoS / silent success | `tryDeepIsolate` + canonical diagnostics | AUD-11..14 | FIXED |
 | DI-DEF-042 | Opus A-9 | Extra B2 subtype keys ignored | Required-key loop only | Digest/projection drift | `B2_SUBTYPE_ASSESSABILITY_EXTRA_KEY` | AUD-17 | FIXED |
+| DI-DEF-043 | Opus final A-8 | Non-JSON-safe values in projection fields reached digest | Shape-only `isPlainObject` on coverage/facets | Uncaught `DBI_P2C3_CANONICAL_INVARIANT_VIOLATION` | `participant-projection-json-safety.v1` | N-03..06 | FIXED |
+| DI-DEF-044 | Opus final A-4 | B3 `ABSTAINED`/`COMPUTED` + `NOT_OBSERVED` trip admitted | Missing negative status/trip rules | Forged kernel-impossible negatives | `participant-integrity` B3 | N-08, N-09 | FIXED |
+| DI-DEF-045 | Opus final P3 (non-W2) | B1 `candidateSupportTier` not runtime enum-checked | Equality-only validation | Low-severity forgery surface | — | N-12 record-only | OPEN_W3 |

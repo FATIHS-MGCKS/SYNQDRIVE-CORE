@@ -23,6 +23,7 @@ import type { DbiP2c3ReconciliationDiagnosticCodeV1 } from './dbi-p2c3-reconcili
 import { participantPlaneIdentityKey } from './dbi-p2c3-reconciliation.identity-canon.v1';
 import { validateCandidateInventoryEligibility } from './dbi-p2c3-reconciliation.candidate-eligibility.v1';
 import { validateParticipantRuntimeEnums } from './dbi-p2c3-reconciliation.participant-enums.v1';
+import { validateParticipantProjectionJsonSafety } from './dbi-p2c3-reconciliation.participant-projection-json-safety.v1';
 import {
   isKnownPowertrainKernelStatus,
   validateA1KernelStatus,
@@ -127,6 +128,16 @@ function validateB3Plane(plane: DbiP2c2PowertrainProxyCandidatesPlaneV1): DbiP2c
   }
   const kernelStatus = tripStatus(participant);
   if (kernelStatus === 'NOT_OBSERVED' && tripClass !== 'NOT_OBSERVED') {
+    codes.push('B3_PARTICIPANT_STATUS_TRIP_CLASS_CONTRADICTION');
+  }
+  if (
+    kernelStatus === 'ABSTAINED' &&
+    tripClass !== 'NOT_ASSESSABLE' &&
+    tripClass !== 'INSUFFICIENT_OBSERVATIONS'
+  ) {
+    codes.push('B3_PARTICIPANT_STATUS_TRIP_CLASS_CONTRADICTION');
+  }
+  if (kernelStatus === 'COMPUTED' && tripClass === 'NOT_OBSERVED') {
     codes.push('B3_PARTICIPANT_STATUS_TRIP_CLASS_CONTRADICTION');
   }
   return codes;
@@ -317,6 +328,7 @@ export function validateParticipantEvidenceIntegrity(
   codes.push(...validateA1ProxyBindingCoherence(bundle));
   codes.push(...validateDuplicateParticipantPlanes(bundle));
   codes.push(...validateParticipantRuntimeEnums(bundle));
+  codes.push(...validateParticipantProjectionJsonSafety(bundle));
   codes.push(...validateCandidateInventoryEligibility(bundle));
 
   for (const plane of bundle.powertrainProxies) {
