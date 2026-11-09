@@ -23,6 +23,8 @@ export interface ServiceInfoV3PanelProps {
   onRetryServiceInfo?: () => void;
   /** Invalidates paginated history when ServiceInfoStatus is re-fetched. */
   historySyncEpoch?: number;
+  /** Modal hosts supply the primary page title externally. */
+  presentation?: 'standalone' | 'modal';
   className?: string;
   defaultTab?: ServiceInfoV3Tab;
 }
@@ -37,9 +39,11 @@ export function ServiceInfoV3Panel({
   onChanged,
   onRetryServiceInfo,
   historySyncEpoch = 0,
+  presentation = 'standalone',
   className = '',
   defaultTab = 'overview',
 }: ServiceInfoV3PanelProps) {
+  const showPageTitle = presentation !== 'modal';
   const { t } = useLanguage();
   const baseId = useId().replace(/:/g, '');
   const [tab, setTab] = useState<ServiceInfoV3Tab>(defaultTab);
@@ -145,6 +149,7 @@ export function ServiceInfoV3Panel({
           ) : (
             <ServiceMaintenanceForecastPanel
               surface={id === 'overview' ? 'overview' : 'plan'}
+              showPageTitle={showPageTitle}
               serviceInfo={serviceInfo}
               loading={loading}
               error={error}

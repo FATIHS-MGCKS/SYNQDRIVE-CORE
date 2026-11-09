@@ -512,14 +512,14 @@ export function HealthVehicleDetailPanel({
             }}
           />
           <HealthModuleCard
-            title="Service & compliance"
+            title={t('health.detail.serviceCompliance')}
             icon={Wrench}
             rentalModule={health?.modules.service_compliance}
             keyValues={[
               { label: t('health.serviceInfo.v2.title'), value: ns.badge ?? t('health.serviceInfo.v2.badge.noBasis') },
-              { label: 'Detail', value: ns.primaryLine },
-              { label: 'TÜV', value: tuv.label },
-              { label: 'BOKraft', value: bok.label },
+              { label: t('health.serviceInfo.v3.entry.detailLine'), value: ns.primaryLine },
+              { label: t('health.serviceInfo.v3.compliance.tuvTitle'), value: tuv.label },
+              { label: t('health.serviceInfo.v3.compliance.bokraftTitle'), value: bok.label },
             ]}
           />
           <ModuleServiceFooter
