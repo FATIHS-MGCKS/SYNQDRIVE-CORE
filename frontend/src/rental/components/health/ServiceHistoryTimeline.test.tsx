@@ -158,6 +158,102 @@ describe('ServiceHistoryTimeline', () => {
     expect(ids).toContain('mh-2024-inspection');
   });
 
+  it('drops loaded page 2 on refresh when ids/cursor unchanged (historySyncEpoch)', async () => {
+    serviceHistoryPage.mockImplementationOnce(() =>
+      Promise.resolve({
+        items: [
+          {
+            id: 'page2-only',
+            eventType: 'REPAIR',
+            date: '2020-06-01',
+            odometerKm: 9000,
+            workshopName: 'Page two workshop',
+            notes: null,
+            origin: 'MANUAL',
+            externalSource: false,
+          },
+        ],
+        totalCount: 3,
+        hasMore: false,
+        nextCursor: null,
+      }),
+    );
+    const initial = MERCEDES_HISTORY_FIXTURE.slice(0, 2);
+    const { container, rerender, cleanup: c } = renderTimeline({
+      vehicleId: 'veh-1',
+      initialItems: initial,
+      initialNextCursor: 'cursor-1',
+      initialHasMore: true,
+      historySyncEpoch: 1,
+      loading: false,
+      error: false,
+    });
+    cleanup = c;
+    const btn = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('Weitere'));
+    await act(async () => {
+      btn?.click();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-service-history-id="page2-only"]')).toBeTruthy();
+
+    rerender({
+      vehicleId: 'veh-1',
+      initialItems: initial.map((row) =>
+        row.id === 'mh-2025-full' ? { ...row, notes: 'Refreshed snapshot note' } : row,
+      ),
+      initialNextCursor: 'cursor-1',
+      initialHasMore: true,
+      historySyncEpoch: 2,
+      loading: false,
+      error: false,
+    });
+
+    expect(container.querySelector('[data-service-history-id="page2-only"]')).toBeNull();
+    expect(container.textContent).toContain('Refreshed snapshot note');
+
+    pageResolvers.length = 0;
+    serviceHistoryPage.mockImplementation(() => new Promise((resolve, reject) => {
+      pageResolvers.push({ resolve, reject });
+    }));
+    const loadMoreAgain = [...container.querySelectorAll('button')].find((b) =>
+      b.textContent?.includes('Weitere'),
+    );
+    await act(async () => {
+      loadMoreAgain?.click();
+    });
+    rerender({
+      vehicleId: 'veh-1',
+      initialItems: initial,
+      initialNextCursor: 'cursor-1',
+      initialHasMore: true,
+      historySyncEpoch: 3,
+      loading: false,
+      error: false,
+    });
+    await act(async () => {
+      pageResolvers[0]?.resolve({
+        items: [
+          {
+            id: 'late-after-epoch-bump',
+            eventType: 'OTHER',
+            date: '2018-01-01',
+            odometerKm: 2,
+            workshopName: 'Late after refresh',
+            notes: null,
+            origin: 'MANUAL',
+            externalSource: false,
+          },
+        ],
+        totalCount: 9,
+        hasMore: false,
+        nextCursor: null,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-service-history-id="late-after-epoch-bump"]')).toBeNull();
+  });
+
   it('ignores stale pagination after vehicle switch (generation guard)', async () => {
     const initialA = MERCEDES_HISTORY_FIXTURE.slice(0, 1);
     const initialB = [

@@ -21,6 +21,8 @@ export interface ServiceInfoV3PanelProps {
   onUploadProof?: () => void;
   onChanged?: () => void | Promise<void>;
   onRetryServiceInfo?: () => void;
+  /** Invalidates paginated history when ServiceInfoStatus is re-fetched. */
+  historySyncEpoch?: number;
   className?: string;
   defaultTab?: ServiceInfoV3Tab;
 }
@@ -34,6 +36,7 @@ export function ServiceInfoV3Panel({
   onUploadProof,
   onChanged,
   onRetryServiceInfo,
+  historySyncEpoch = 0,
   className = '',
   defaultTab = 'overview',
 }: ServiceInfoV3PanelProps) {
@@ -137,6 +140,7 @@ export function ServiceInfoV3Panel({
               loading={loading}
               error={error}
               onRetry={onRetryServiceInfo}
+              historySyncEpoch={historySyncEpoch}
             />
           ) : (
             <ServiceMaintenanceForecastPanel

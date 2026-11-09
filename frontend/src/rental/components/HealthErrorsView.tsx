@@ -417,6 +417,7 @@ export function HealthErrorsView({
   const [serviceInfo, setServiceInfo] = useState<ServiceInfoStatus | null>(null);
   const [serviceInfoLoading, setServiceInfoLoading] = useState(true);
   const [serviceInfoError, setServiceInfoError] = useState(false);
+  const [serviceInfoSyncEpoch, setServiceInfoSyncEpoch] = useState(0);
   const [hmTirePressure, setHmTirePressure] = useState<import('../../lib/api').HmTirePressureSignals | null>(null);
 
   useEffect(() => {
@@ -446,6 +447,7 @@ export function HealthErrorsView({
     api.vehicleIntelligence.serviceInfoStatus(vehicleId)
       .then((status) => {
         setServiceInfo(status);
+        setServiceInfoSyncEpoch((n) => n + 1);
       })
       .catch(() => {
         setServiceInfo(null);
@@ -482,6 +484,7 @@ export function HealthErrorsView({
       .serviceInfoStatus(vehicleId)
       .then((status) => {
         setServiceInfo(status);
+        setServiceInfoSyncEpoch((n) => n + 1);
       })
       .catch(() => {
         setServiceInfo(null);
@@ -497,6 +500,7 @@ export function HealthErrorsView({
     try {
       const status = await api.vehicleIntelligence.serviceInfoStatus(vehicleId);
       setServiceInfo(status);
+      setServiceInfoSyncEpoch((n) => n + 1);
     } catch {
       setServiceInfo(null);
       setServiceInfoError(true);
@@ -2379,6 +2383,7 @@ export function HealthErrorsView({
               onUploadProof={vehicleId ? openHealthDocumentIntake : undefined}
               onChanged={refreshServiceInfo}
               onRetryServiceInfo={() => void refreshServiceInfo()}
+              historySyncEpoch={serviceInfoSyncEpoch}
             />
 
             {vehicleId && serviceInfo?.taskSignals && serviceInfo.taskSignals.length > 0 && (

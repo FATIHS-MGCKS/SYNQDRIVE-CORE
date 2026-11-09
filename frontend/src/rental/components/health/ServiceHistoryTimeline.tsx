@@ -24,6 +24,8 @@ export interface ServiceHistoryTimelineProps {
   loading?: boolean;
   error?: boolean;
   onRetry?: () => void;
+  /** Bumped by host on every ServiceInfoStatus refresh (even when page-1 ids/cursor are unchanged). */
+  historySyncEpoch?: number;
   className?: string;
 }
 
@@ -165,6 +167,7 @@ export function ServiceHistoryTimeline({
   loading = false,
   error = false,
   onRetry,
+  historySyncEpoch = 0,
   className = '',
 }: ServiceHistoryTimelineProps) {
   const { t, formattingLocale } = useLanguage();
@@ -177,8 +180,9 @@ export function ServiceHistoryTimeline({
   const [loadMoreError, setLoadMoreError] = useState(false);
 
   const resetToken = useMemo(
-    () => `${vehicleId ?? ''}:${initialItems.map((i) => i.id).join(',')}:${initialNextCursor ?? ''}`,
-    [vehicleId, initialItems, initialNextCursor],
+    () =>
+      `${vehicleId ?? ''}:${historySyncEpoch}:${initialItems.map((i) => i.id).join(',')}:${initialNextCursor ?? ''}`,
+    [vehicleId, historySyncEpoch, initialItems, initialNextCursor],
   );
 
   useEffect(() => {
