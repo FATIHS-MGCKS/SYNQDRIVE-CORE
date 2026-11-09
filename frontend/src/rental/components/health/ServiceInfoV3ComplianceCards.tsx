@@ -8,22 +8,26 @@ import {
 
 export function ServiceInfoV3ComplianceCards({
   serviceInfo,
+  idPrefix = 'service-info-v3',
   className = '',
 }: {
   serviceInfo: ServiceInfoStatus | null | undefined;
+  /** Prefix for section heading ids when multiple compliance blocks could coexist in tests. */
+  idPrefix?: string;
   className?: string;
 }) {
   const { t } = useLanguage();
   const tuv = buildTuvComplianceDisplay(serviceInfo);
   const bok = buildBokraftComplianceDisplay(serviceInfo);
+  const sectionHeadingId = `${idPrefix}-compliance-heading`;
 
   return (
     <section
       className={`min-w-0 space-y-3 ${className}`}
       data-testid="service-info-v3-compliance"
-      aria-labelledby="service-info-v3-compliance-heading"
+      aria-labelledby={sectionHeadingId}
     >
-      <h3 id="service-info-v3-compliance-heading" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <h3 id={sectionHeadingId} className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         {t('health.serviceInfo.v3.compliance.sectionTitle')}
       </h3>
       <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2">

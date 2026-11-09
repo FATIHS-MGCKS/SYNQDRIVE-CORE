@@ -195,7 +195,7 @@ function PositionDetails({
   const eventSourceLabel = t(`health.serviceInfo.v2.eventSource.${p.provenance.eventSource}` as TranslationKey);
   const odometerSourceLabel = t(`health.serviceInfo.v2.odometerSource.${p.provenance.odometerSource}` as TranslationKey);
   const baselineDate = formatServiceDate(p.baseline?.date ?? null, fmtLocale);
-  const hasFlags = p.dataQuality.length > 0;
+  const hasFlags = (p.dataQuality?.length ?? 0) > 0;
   const hasRaw = Boolean(p.rawIntervalDescription);
   const showBaselineMissing = !baselineDate && (p.dueState === 'NO_BASELINE' || p.baseline == null);
 
@@ -473,7 +473,7 @@ export function ServiceMaintenanceForecastPanel({
     return [...new Set(merged)];
   }, [display.dataQuality, forecast?.dataQuality]);
 
-  const conflicts = display.conflicts.length > 0 ? display.conflicts : (forecast?.conflicts ?? []);
+  const conflicts = (display.conflicts?.length ?? 0) > 0 ? (display.conflicts ?? []) : (forecast?.conflicts ?? []);
   const hasProviderSchedule = (forecast?.scheduleSources ?? []).some((s) => s === 'ONEAUTO_SCHEDULE' || s === 'HM_OEM');
 
   const lastMaint = forecast?.lastRelevantMaintenance ?? null;

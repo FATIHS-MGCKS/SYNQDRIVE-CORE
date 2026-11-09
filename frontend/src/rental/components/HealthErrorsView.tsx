@@ -2,7 +2,7 @@
 import { Activity, AlertTriangle, Gauge, Snowflake, Sun, Thermometer, Wind, Wrench, Zap } from 'lucide-react';
 import { Icon } from './ui/Icon';
 import tellTaleBatteryIcon from '../../assets/icons/telltale/battery.svg';
-import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { XAxis, YAxis, ResponsiveContainer, Tooltip, Line, LineChart, ReferenceArea } from 'recharts';
 import { api, streamAiTireSpecs, type AgentStep, type AiTireSpecsStreamEvent, type DashboardWarningLightsResponse, type VehicleHealthTabSummaryDto, type TireWearAnalysis, type ServiceInfoStatus, type BatteryHealthSummary, type BatteryHealthDetail, type HvBatteryStatus, type BrakeHealthSummary as BrakeHealthSummaryType, type BrakeHealthDetail, type BrakeAlert, type TripProfile, type TireHealthSummaryResponse, type TireHealthDetailResponse, type TireAlert, type DtcKnowledgeDto, type BatteryHealthStatus, type BatteryRestingVoltageStatus, type VehicleTripAnalytics } from '../../lib/api';
@@ -18,6 +18,7 @@ import {
 import { ServiceInfoV3Panel } from './health/ServiceInfoV3Panel';
 import { ServiceInfoV3ComplianceCards } from './health/ServiceInfoV3ComplianceCards';
 import { ServiceInfoV3OperationalSection } from './health/ServiceInfoV3OperationalSection';
+import { usePortalModalA11y } from '../lib/use-portal-modal-a11y';
 import { DashboardWarningLightsPanel } from './DashboardWarningLightsPanel';
 import { isBatteryTelltaleActive } from '../lib/dashboard-warning-lights-display';
 import {
@@ -420,6 +421,11 @@ export function HealthErrorsView({
   const [serviceInfoError, setServiceInfoError] = useState(false);
   const [serviceInfoSyncEpoch, setServiceInfoSyncEpoch] = useState(0);
   const [hmTirePressure, setHmTirePressure] = useState<import('../../lib/api').HmTirePressureSignals | null>(null);
+
+  const healthViewRootRef = useRef<HTMLDivElement>(null);
+  const serviceModalDialogRef = useRef<HTMLDivElement>(null);
+  const serviceModalCloseRef = useRef<HTMLButtonElement>(null);
+  const serviceModalOpenTriggerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!vehicleId) return;
@@ -1230,6 +1236,36 @@ export function HealthErrorsView({
     }, 400);
   };
 
+  const requestCloseServiceModal = useCallback(() => {
+    closeModal(setShowService);
+  }, []);
+
+  usePortalModalA11y({
+    active: showService,
+    containerRef: serviceModalDialogRef,
+    initialFocusRef: serviceModalCloseRef,
+    restoreFocusRef: serviceModalOpenTriggerRef,
+    onRequestClose: requestCloseServiceModal,
+    focusReady: showService && !isModalClosing,
+  });
+
+  useLayoutEffect(() => {
+    const root = healthViewRootRef.current;
+    if (!root) return;
+    if (showService) {
+      root.setAttribute('inert', '');
+    } else {
+      root.removeAttribute('inert');
+    }
+  }, [showService]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const onDevOpenService = () => openModal(setShowService);
+    window.addEventListener('synqdrive-dev-open-service-modal', onDevOpenService);
+    return () => window.removeEventListener('synqdrive-dev-open-service-modal', onDevOpenService);
+  }, []);
+
   useEffect(() => {
     if (!initialModuleTab || initialModuleTab === 'overview') {
       onConsumeInitialModuleTab?.();
@@ -1446,7 +1482,7 @@ export function HealthErrorsView({
   const quickCardFooterClass = 'mt-1 pt-1 border-t border-border/50 relative z-10';
 
   return (
-    <div className="relative">
+    <div ref={healthViewRootRef} className="relative" data-testid="health-errors-view-root">
       <div
         className="grid grid-cols-1 lg:grid-cols-[1.4fr_2.55fr] gap-3 transition-all duration-500 ease-out origin-center items-start"
         style={{
@@ -1466,7 +1502,7 @@ export function HealthErrorsView({
             onOpenBooking={onOpenBooking}
             onOpenTrips={onOpenTrips}
             syncErrorMessage={
-              healthTabSummary?.sourceStatus.highMobility === 'sync_error'
+              healthTabSummary?.sourceStatus?.highMobility === 'sync_error'
                 ? 'High Mobility synchronization failed'
                 : aiHealthCare?.hmLastErrorAt && aiHealthCare?.hmLastErrorMessage
                   ? aiHealthCare.hmLastErrorMessage
@@ -1624,7 +1660,20 @@ export function HealthErrorsView({
           const serviceAccent = quickCardAccentFromRentalState(rentalHealth?.modules.service_compliance.state);
 
           return (
-            <div onClick={() => openModal(setShowService)} className={`${quickCardClass} order-3 ${borderHighlight}`}>
+            <div
+              ref={serviceModalOpenTriggerRef}
+              role="button"
+              tabIndex={0}
+              data-testid="health-service-quick-card"
+              onClick={() => openModal(setShowService)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  openModal(setShowService);
+                }
+              }}
+              className={`${quickCardClass} order-3 ${borderHighlight}`}
+            >
               <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl pointer-events-none ${serviceAccent.backdrop}`} />
               <div className={quickCardHeaderClass}>
                 <div className="flex items-center gap-2">
@@ -2057,7 +2106,7 @@ export function HealthErrorsView({
                       Historical Fault Codes
                     </h3>
 
-                    {(!d || d.history.length === 0) ? (
+                    {(!d || Array.isArray(d) || (d.history?.length ?? 0) === 0) ? (
                       <p className="text-sm text-muted-foreground/70">No historical DTC records yet</p>
                     ) : (
                       <div className="rounded-lg border overflow-x-auto border-border">
@@ -2071,7 +2120,7 @@ export function HealthErrorsView({
                           <span>Status</span>
                         </div>
                         {/* Table rows */}
-                        {d.history.map((item: any, idx: number) => (
+                        {(d.history ?? []).map((item: any, idx: number) => (
                           <div key={item.id ?? idx} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-3 px-4 py-3 items-center text-xs border-t border-border hover:bg-muted/50 transition-colors min-w-[520px]">
                             <span className="font-bold font-mono text-[11px] text-[color:var(--brand)]">{item.code}</span>
                             <span className="truncate text-foreground/80">{item.label}</span>
@@ -2374,12 +2423,17 @@ export function HealthErrorsView({
         >
           <div className="absolute inset-0 overlay-scrim transition-opacity duration-500 ease-out" style={{ opacity: isModalAnimating ? 1 : 0 }} />
           <div
+            ref={serviceModalDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="service-info-v3-modal-title"
+            tabIndex={-1}
             onClick={(e) => e.stopPropagation()}
             className="relative flex max-h-[min(90vh,100dvh)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-border surface-premium shadow-xl transition-all duration-500 ease-out sm:rounded-2xl"
-            style={{ transform: isModalAnimating ? 'scale(1) translateY(0)' : 'scale(0.98) translateY(12px)', opacity: isModalAnimating ? 1 : 0 }}
+            style={{
+              transform: isModalAnimating ? 'scale(1) translateY(0)' : 'scale(0.98) translateY(12px)',
+              opacity: isModalClosing ? 0 : 1,
+            }}
             data-testid="service-info-v3-modal"
           >
             <div className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-5 sm:py-4">
@@ -2387,6 +2441,7 @@ export function HealthErrorsView({
                 {t('health.serviceInfo.v3.pageTitle')}
               </h2>
               <button
+                ref={serviceModalCloseRef}
                 type="button"
                 onClick={() => closeModal(setShowService)}
                 aria-label={t('common.close')}
@@ -2410,7 +2465,11 @@ export function HealthErrorsView({
                 historySyncEpoch={serviceInfoSyncEpoch}
               />
 
-              <ServiceInfoV3ComplianceCards serviceInfo={serviceInfo} className="mb-5" />
+              <ServiceInfoV3ComplianceCards
+                idPrefix="service-info-v3-modal"
+                serviceInfo={serviceInfo}
+                className="mb-5"
+              />
 
               <ServiceInfoV3OperationalSection
                 vehicleId={vehicleId}
