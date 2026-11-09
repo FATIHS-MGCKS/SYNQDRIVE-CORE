@@ -2982,4 +2982,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | P2-B4 Opus semantic closeout (2026-11-09, PR #2371) | ASSESSABLE facets return NOT_OBSERVED when candidate-free; RPM_SPEED unavailable => NOT_ASSESSABLE; `NO_SINGLE_COHERENT_RUN_MEETS_LABEL_AND_SPAN`; paired diagnostics labelsInMaxSpanRun / spanMsInMaxLabelCountRun; boundary tests J/K/L + Facet A/B edges |
 | P2-C1 contract preflight hardening (2026-11-09) | B4 abstain coverageEvidence six-key projection; `DBI_P2C_CROSS_KERNEL_CONSUMER_GLOSSARY.md`; consumer-gating spec; paired diagnostic exact pins J/C; contract status comments |
 | P2-C1 A1 cross-domain authority closeout (2026-11-09, PR #2373) | Glossary: A1 descriptive-only in P2-C; no B1–B4 event edges; fingerprints do not override labelsNotForCrossDomainJoin |
+| P2-C1.5 binding envelope fixture library (2026-11-09) | `dbi-p2c15-binding-envelope-fixtures/` — S01–S16 typed synthetic envelopes; reuses tier/RPM/powertrain test-helpers; derived v1b+multichannel fingerprints; `DBI_P2C15_BINDING_ENVELOPE_FIXTURE_LIBRARY.md`; no adapters/reconciliation |
 
