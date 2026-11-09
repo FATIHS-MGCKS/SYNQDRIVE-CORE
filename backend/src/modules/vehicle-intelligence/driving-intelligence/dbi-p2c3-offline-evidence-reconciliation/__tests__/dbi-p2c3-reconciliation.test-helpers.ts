@@ -167,8 +167,34 @@ export function adaptRevvingIdleB4FacetBPlaneFromS01(): DbiP2c2PowertrainProxyCa
 export function adaptRevvingIdleB4DualFacetPlaneFromS01(): DbiP2c2PowertrainProxyCandidatesPlaneV1 {
   const facetA = adaptRevvingIdleB4FacetAPlaneFromS01();
   const facetB = adaptRevvingIdleB4FacetBPlaneFromS01();
+  const participantA = facetA.participant;
+  const participantB = facetB.participant;
+  if (participantA.sourceModule !== 'P2-B4' || participantB.sourceModule !== 'P2-B4') {
+    throw new Error('expected B4 participants');
+  }
+  const classifications = [...facetA.candidates, ...facetB.candidates].map((c) => c.originalClassification);
+  const tripStatus =
+    participantA.originalKernelStatus === 'COMPUTED' || participantB.originalKernelStatus === 'COMPUTED'
+      ? 'COMPUTED'
+      : participantA.originalKernelStatus;
   return {
-    ...facetA,
+    evidencePlane: 'POWERTRAIN_PROXY_CANDIDATES',
+    participant: {
+      ...participantA,
+      originalKernelStatus: tripStatus,
+      facetB: participantB.facetB,
+      coverageEvidence: {
+        ...participantA.coverageEvidence,
+        gridBucketCount: Math.max(
+          participantA.coverageEvidence.gridBucketCount,
+          participantB.coverageEvidence.gridBucketCount,
+        ),
+      },
+      adapterClaimsPositiveEvidence:
+        tripStatus === 'ABSTAINED' || tripStatus === 'NOT_OBSERVED'
+          ? false
+          : classifications.some((c) => c.endsWith('_PROXY_CANDIDATE')),
+    },
     candidates: [...facetA.candidates, ...facetB.candidates],
   };
 }

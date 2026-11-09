@@ -28,6 +28,8 @@ import { buildReconciliationResultDigest } from './dbi-p2c3-reconciliation.diges
 import { evaluateProxyIdentityAdmission } from './dbi-p2c3-reconciliation.identity.v1';
 import { deepIsolate } from './dbi-p2c3-reconciliation.isolation.v1';
 import { computePairwiseReconciliation } from './dbi-p2c3-reconciliation.pairwise.v1';
+import { validateBundleInputShape } from './dbi-p2c3-reconciliation.bundle-shape.v1';
+import { validateParticipantEvidenceIntegrity } from './dbi-p2c3-reconciliation.participant-integrity.v1';
 import { validateBundleAndParticipants } from './dbi-p2c3-reconciliation.validation.v1';
 
 const MODULE_ORDER: readonly DbiP2c2SourceModuleV1[] = ['P2-A1', 'P2-B1', 'P2-B2', 'P2-B3', 'P2-B4'] as const;
@@ -65,9 +67,19 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
     return buildFailure(['BUDGET_OPTION_INVALID']);
   }
 
+  const shapeDiagnostics = validateBundleInputShape(bundleInput);
+  if (shapeDiagnostics.length > 0) {
+    return buildFailure(shapeDiagnostics);
+  }
+
   const structureDiagnostics = validateBundleAndParticipants(bundleInput);
   if (structureDiagnostics.length > 0) {
     return buildFailure(structureDiagnostics);
+  }
+
+  const integrityDiagnostics = validateParticipantEvidenceIntegrity(bundleInput);
+  if (integrityDiagnostics.length > 0) {
+    return buildFailure(integrityDiagnostics);
   }
 
   const footprint = countBundleFootprint(bundleInput);
@@ -194,6 +206,8 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
           organizationId: a1Participant.identity.organizationId,
           vehicleId: a1Participant.identity.vehicleId,
           tripId: a1Participant.identity.tripId,
+          providerSourceLinkId: a1Participant.identity.providerSourceLinkId,
+          v1bInputFingerprint: a1Participant.identity.v1bInputFingerprint,
         }
       : null,
   });

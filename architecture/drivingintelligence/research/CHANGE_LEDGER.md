@@ -2996,4 +2996,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | DBI P2-C4 W1 negative evidence safety (2026-11-09) | A1 high-episode `NOT_ASSESSABLE` gate; B1 classification-aware kickdown dedupe; B3 contiguous load-present gate before local negative; B2 trip status vs subtype assessability + cold triple-window opportunity; Opus regression specs; `DBI_P2C4_W1_NEGATIVE_EVIDENCE_SAFETY.md`; P2-C1.5 S09 pin `COMPUTED` |
 | DBI P2-C4 W1 assessability closeout (2026-11-09, PR #2380) | B3 load-present run respects `maxAdjacentLabelGapMs`; B2 subtype assessability scoped to channel evidence within eligible cold triple; extended Opus closeout regressions |
 | DBI P2-C4 W1 B2 detector assessability parity (2026-11-09, PR #2380) | HIGH_RPM + FULL_THROTTLE require all-three-bucket channel presence in eligible cold triple; HIGH_LOAD unchanged (any bucket) |
+| DBI P2-C4 W2 P2-C3 reconciliation integrity (2026-11-09) | Forged-bundle participant integrity gate (P1-04), A1 binding cross-check, duplicate-plane policy, bundle shape safety; W2 adversarial matrix 01–18 |
 

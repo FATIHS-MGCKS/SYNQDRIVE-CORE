@@ -87,6 +87,20 @@ Original kernel statuses and module assessability summaries are carried forward 
 - Default budgets: 6 participants, 4096 candidate pairs; hard caps 32 / 65536 — fail-closed `BUDGET_*_EXCEEDED`.
 - `resultDigest`: canonical JSON summary (identity, rationale codes, candidate payload fingerprints, module assessability including abstain reasons / adapterClaims / projections, provenance limitations); **not** cryptographic attestation.
 
+## Forged-bundle participant integrity (P2-C4 W2)
+
+Before identity admission or pairwise work, P2-C3 re-validates adapted participant headers against candidate inventories:
+
+- `ABSTAINED` / `NOT_OBSERVED` + positive proxy classification → fail-closed (`PARTICIPANT_CONTRADICTORY_POSITIVE_*`).
+- `adapterClaimsPositiveEvidence` must agree with recomputed adapter gate (classifications + trip status + B4 dual-`NOT_ASSESSABLE` block).
+- B2 subtype assessability, B3 `tripEvidenceClassification`, B4 facet assessability/classification constraints mirror P2-C2 consistency (no kernel re-run).
+- A1 descriptive inventory vs `highEpisodesStatus` / episode plane multiplicity.
+- A1 `providerSourceLinkId` and reported `v1bInputFingerprint` cross-checked against proxy participants when A1 reports them.
+- Duplicate proxy participant planes with identical canonical identity → `DUPLICATE_PARTICIPANT_PLANE_IDENTITY`.
+- Malformed bundle roots → `BUNDLE_INPUT_SHAPE_INVALID` (stable failure, no `TypeError`).
+
+Failure returns `ok: false`, sorted diagnostic codes only — **no** inventory, identity admission, pairwise edges, or digest.
+
 ## Bundle validation
 
 Fail-closed on adapter contract version mismatch, non-`researchOnly` participants, candidate/parent module mismatch, A1 descriptive guard violations, and runtime module-plane coherence:

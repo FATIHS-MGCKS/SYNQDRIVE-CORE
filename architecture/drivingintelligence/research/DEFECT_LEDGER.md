@@ -3,7 +3,7 @@
 Significant defects discovered during the 2026-08-30 → 2026-09-06 workstream.  
 **Rejected hypotheses are NOT defects** — see `HYPOTHESIS_REGISTER.md`.
 
-**Summary:** TOTAL=**27** | FIXED=**23** (DI-DEF-003–017, 019 production-validated; DI-DEF-021–027 W1) | OPEN=**4** (DI-DEF-001, 002, 018, 020)
+**Summary:** TOTAL=**29** | FIXED=**25** (DI-DEF-003–017, 019 production-validated; DI-DEF-021–029 W1/W2) | OPEN=**4** (DI-DEF-001, 002, 018, 020)
 
 | ID | Phase | Symptom | Cause | Risk | Fix | Tests | Status |
 |----|-------|---------|-------|------|-----|-------|--------|
@@ -34,3 +34,5 @@ Significant defects discovered during the 2026-08-30 → 2026-09-06 workstream.
 | DI-DEF-025 | W1 closeout (B3) | Load run counted across 60s label gaps | Array-adjacent only in negative gate | False local NOT_OBSERVED | Gap-aware `computeLongestLoadPresentRunLabelCount` | sustained-load opus closeout tests | FIXED |
 | DI-DEF-026 | W1 closeout (B2) | Global cold-bucket channel + any triple → ASSESSABLE | Decoupled triple vs channel | False subtype assessability | Per-subtype channel-in-triple predicate | cold-engine opus closeout tests | FIXED |
 | DI-DEF-027 | B2 detector parity | HIGH_RPM/FULL_THROTTLE assessable with 1-of-3 channel in triple | Assessability looser than 3-bucket detector | False ASSESSABLE → NOT_OBSERVED | Require channel on all three triple labels | `detector-assessability.spec.ts` | FIXED |
+| DI-DEF-028 | P2-C3 P1-04 | ABSTAINED B1 + forged positive duplicates → SAME_SOURCE_DUPLICATE | No participant re-validation before pairwise | Forged positive edges under abstain | `validateParticipantEvidenceIntegrity` pre-pairwise gate | `w2-integrity.spec.ts` #01 | FIXED |
+| DI-DEF-029 | P2-C3 integrity | Malformed bundle / duplicate planes / A1 binding drift | Shape + integrity after structural-only validation | TypeError or silent admission | `bundle-shape` + `participant-integrity` + A1 identity cross-check | `w2-integrity.spec.ts` | FIXED |

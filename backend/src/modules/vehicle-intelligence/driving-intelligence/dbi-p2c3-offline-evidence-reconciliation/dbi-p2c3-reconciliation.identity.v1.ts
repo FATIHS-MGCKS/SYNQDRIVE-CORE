@@ -61,7 +61,7 @@ export function evaluateProxyIdentityAdmission(input: {
   readonly proxyParticipants: readonly DbiP2c2PowertrainProxyParticipantV1[];
   readonly a1CoreBindings: Pick<
     DbiP2c2ParticipantIdentityV1,
-    'organizationId' | 'vehicleId' | 'tripId'
+    'organizationId' | 'vehicleId' | 'tripId' | 'providerSourceLinkId' | 'v1bInputFingerprint'
   > | null;
 }): DbiP2c3IdentityAdmissionDetailV1 {
   const contradictionFields: string[] = [];
@@ -145,6 +145,24 @@ export function evaluateProxyIdentityAdmission(input: {
       const a1Value = input.a1CoreBindings[field];
       if (proxyValues.some((v) => v !== a1Value)) {
         contradictionFields.push(`A1_${field}`);
+      }
+    }
+    if (
+      typeof input.a1CoreBindings.providerSourceLinkId === 'string' &&
+      input.a1CoreBindings.providerSourceLinkId.trim().length > 0
+    ) {
+      const linkValues = [...new Set(identities.map((id) => id.providerSourceLinkId))];
+      if (linkValues.some((v) => v !== input.a1CoreBindings!.providerSourceLinkId)) {
+        contradictionFields.push('A1_providerSourceLinkId');
+      }
+    }
+    if (
+      typeof input.a1CoreBindings.v1bInputFingerprint === 'string' &&
+      input.a1CoreBindings.v1bInputFingerprint.trim().length > 0
+    ) {
+      const fpValues = identities.map((id) => id.v1bInputFingerprint);
+      if (fpValues.some((v) => v !== input.a1CoreBindings!.v1bInputFingerprint)) {
+        contradictionFields.push('A1_v1bInputFingerprint');
       }
     }
     limitationCodes.push('A1_MULTICHANNEL_FINGERPRINT_NOT_REQUIRED_FOR_DESCRIPTIVE_PARTICIPANT');

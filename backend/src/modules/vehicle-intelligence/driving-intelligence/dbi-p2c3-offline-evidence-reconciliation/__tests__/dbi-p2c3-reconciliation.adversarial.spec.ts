@@ -197,7 +197,10 @@ describe('dbi-p2c3 offline evidence reconciliation adversarial matrix', () => {
 
   it('16 A1 descriptive authority emits zero candidate edges and no A1 inventory', () => {
     const a1 = adaptA1DescriptivePlaneFromS14();
-    const b1 = adaptKickdownPlaneFromScenario();
+    const b1 = withIdentityOverride(adaptKickdownPlaneFromScenario(), {
+      providerSourceLinkId: a1!.participant.identity.providerSourceLinkId,
+      v1bInputFingerprint: a1!.participant.identity.v1bInputFingerprint,
+    });
     const out = expectSuccess(assembleP2c2Bundle({ descriptive: a1, powertrainProxies: [b1] }));
     expect(out.candidateInventory.every((c) => c.sourceModule !== 'P2-A1')).toBe(true);
     expect(out.pairwiseDecisions).toHaveLength(0);
@@ -285,6 +288,7 @@ describe('dbi-p2c3 offline evidence reconciliation adversarial matrix', () => {
   it('21 no candidates but valid participants still reconciles', () => {
     const plane = cloneMutablePlane(adaptKickdownPlaneFromScenario());
     plane.candidates = [];
+    plane.participant = { ...plane.participant, adapterClaimsPositiveEvidence: false };
     const out = expectSuccess(assembleP2c2Bundle({ descriptive: null, powertrainProxies: [plane] }));
     expect(out.candidateInventory).toHaveLength(0);
     expect(out.pairwiseDecisions).toHaveLength(0);
