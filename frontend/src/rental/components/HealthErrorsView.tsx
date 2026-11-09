@@ -12,13 +12,10 @@ import {
   buildBokraftComplianceDisplay,
   buildNextServiceDisplay,
   buildTuvComplianceDisplay,
-  formatServiceEventType,
-  formatServiceEventTypeDe,
   nextServicePanelClass,
   nextServiceToneClass,
-  serviceHistoryDisclaimer,
 } from '../lib/service-info-display';
-import { ServiceMaintenanceForecastPanel } from './health/ServiceMaintenanceForecastPanel';
+import { ServiceInfoV3Panel } from './health/ServiceInfoV3Panel';
 import { ComplianceTaskActions } from './ComplianceTaskActions';
 import { DashboardWarningLightsPanel } from './DashboardWarningLightsPanel';
 import { isBatteryTelltaleActive } from '../lib/dashboard-warning-lights-display';
@@ -420,10 +417,6 @@ export function HealthErrorsView({
   const [serviceInfo, setServiceInfo] = useState<ServiceInfoStatus | null>(null);
   const [serviceInfoLoading, setServiceInfoLoading] = useState(true);
   const [serviceInfoError, setServiceInfoError] = useState(false);
-  const [serviceHistoryExtra, setServiceHistoryExtra] = useState<ServiceInfoStatus['serviceHistory']>([]);
-  const [serviceHistoryNextCursor, setServiceHistoryNextCursor] = useState<string | null>(null);
-  const [serviceHistoryHasMore, setServiceHistoryHasMore] = useState(false);
-  const [serviceHistoryLoadingMore, setServiceHistoryLoadingMore] = useState(false);
   const [hmTirePressure, setHmTirePressure] = useState<import('../../lib/api').HmTirePressureSignals | null>(null);
 
   useEffect(() => {
@@ -450,14 +443,9 @@ export function HealthErrorsView({
     api.vehicleIntelligence.tireHealthSummary(vehicleId).then(setTireHealth).catch(() => null);
     setServiceInfoLoading(true);
     setServiceInfoError(false);
-    setServiceHistoryExtra([]);
-    setServiceHistoryNextCursor(null);
-    setServiceHistoryHasMore(false);
     api.vehicleIntelligence.serviceInfoStatus(vehicleId)
       .then((status) => {
         setServiceInfo(status);
-        setServiceHistoryNextCursor(status.serviceHistoryNextCursor ?? null);
-        setServiceHistoryHasMore(Boolean(status.serviceHistoryHasMore));
       })
       .catch(() => {
         setServiceInfo(null);
@@ -490,15 +478,10 @@ export function HealthErrorsView({
     if (!showService || !vehicleId) return;
     setServiceInfoLoading(true);
     setServiceInfoError(false);
-    setServiceHistoryExtra([]);
-    setServiceHistoryNextCursor(null);
-    setServiceHistoryHasMore(false);
     api.vehicleIntelligence
       .serviceInfoStatus(vehicleId)
       .then((status) => {
         setServiceInfo(status);
-        setServiceHistoryNextCursor(status.serviceHistoryNextCursor ?? null);
-        setServiceHistoryHasMore(Boolean(status.serviceHistoryHasMore));
       })
       .catch(() => {
         setServiceInfo(null);
@@ -514,9 +497,6 @@ export function HealthErrorsView({
     try {
       const status = await api.vehicleIntelligence.serviceInfoStatus(vehicleId);
       setServiceInfo(status);
-      setServiceHistoryExtra([]);
-      setServiceHistoryNextCursor(status.serviceHistoryNextCursor ?? null);
-      setServiceHistoryHasMore(Boolean(status.serviceHistoryHasMore));
     } catch {
       setServiceInfo(null);
       setServiceInfoError(true);
@@ -2389,7 +2369,7 @@ export function HealthErrorsView({
             <button onClick={() => closeModal(setShowService)} className={`absolute top-5 right-5 p-1 rounded-full transition-colors z-10 ${'text-muted-foreground hover:text-foreground hover:bg-muted'}`}><Icon name="x" className="w-5 h-5" /></button>
             <h2 className={`text-sm font-semibold tracking-tight mb-5 text-foreground`}>Service & Compliance</h2>
 
-            <ServiceMaintenanceForecastPanel
+            <ServiceInfoV3Panel
               className="mb-5"
               serviceInfo={serviceInfo}
               loading={serviceInfoLoading}
@@ -2398,6 +2378,7 @@ export function HealthErrorsView({
               orgId={orgId}
               onUploadProof={vehicleId ? openHealthDocumentIntake : undefined}
               onChanged={refreshServiceInfo}
+              onRetryServiceInfo={() => void refreshServiceInfo()}
             />
 
             {vehicleId && serviceInfo?.taskSignals && serviceInfo.taskSignals.length > 0 && (
@@ -2465,72 +2446,6 @@ export function HealthErrorsView({
               })()}
             </div>
 
-            <div className="mb-5">
-              <h3 className={`text-sm font-semibold mb-2 text-foreground`}>Servicehistorie</h3>
-              <p className="text-xs text-muted-foreground mb-4">{serviceHistoryDisclaimer(t)}</p>
-              {serviceInfo && (serviceInfo.serviceHistory.length > 0 || serviceHistoryExtra.length > 0) ? (
-                <div className="space-y-3">
-                  {[...serviceInfo.serviceHistory, ...serviceHistoryExtra].map((item) => (
-                    <div key={item.id} className="flex items-start gap-3 py-2 border-b border-border last:border-0">
-                      <div className="shrink-0 min-w-0 flex-1">
-                        <p className={`text-sm font-semibold text-foreground`}>{formatServiceEventType(item.eventType, t)}</p>
-                        <p className={`text-xs text-muted-foreground`}>
-                          {new Date(item.date).toLocaleDateString(locale === 'de' ? 'de-DE' : locale, { day: 'numeric', month: 'long', year: 'numeric' })}
-                          {item.odometerKm != null ? ` · ${item.odometerKm.toLocaleString(locale === 'de' ? 'de-DE' : locale)} km` : ''}
-                          {item.workshopName ? ` · ${item.workshopName}` : ''}
-                        </p>
-                        {item.providerServiceType ? (
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            {t('health.serviceHistory.providerType' as never)}: {item.providerServiceType}
-                          </p>
-                        ) : null}
-                        {item.performedActions && item.performedActions.length > 0 ? (
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            {t('health.serviceHistory.performedActions' as never)}: {item.performedActions.join(' · ')}
-                          </p>
-                        ) : null}
-                        {item.externalSource ? (
-                          <p className="text-[10px] text-muted-foreground/80 mt-1">
-                            {t('health.serviceHistory.incompleteExternalHint' as never)}
-                          </p>
-                        ) : null}
-                      </div>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground shrink-0">
-                        {item.externalSource
-                          ? t('health.serviceHistory.sourceOneAuto' as never)
-                          : t('health.serviceHistory.sourceManual' as never)}
-                      </span>
-                    </div>
-                  ))}
-                  {serviceHistoryHasMore && serviceHistoryNextCursor ? (
-                    <button
-                      type="button"
-                      disabled={serviceHistoryLoadingMore || !vehicleId}
-                      className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
-                      onClick={() => {
-                        if (!vehicleId || !serviceHistoryNextCursor) return;
-                        setServiceHistoryLoadingMore(true);
-                        api.vehicleIntelligence
-                          .serviceHistoryPage(vehicleId, { cursor: serviceHistoryNextCursor })
-                          .then((page) => {
-                            setServiceHistoryExtra((prev) => [...prev, ...page.items]);
-                            setServiceHistoryNextCursor(page.nextCursor);
-                            setServiceHistoryHasMore(page.hasMore);
-                          })
-                          .catch(() => null)
-                          .finally(() => setServiceHistoryLoadingMore(false));
-                      }}
-                    >
-                      {serviceHistoryLoadingMore
-                        ? '…'
-                        : t('health.serviceHistory.loadMore' as never)}
-                    </button>
-                  ) : null}
-                </div>
-              ) : (
-                <p className={`text-xs text-muted-foreground/70`}>Noch keine Serviceereignisse dokumentiert</p>
-              )}
-            </div>
           </div>
         </div>,
         document.body
