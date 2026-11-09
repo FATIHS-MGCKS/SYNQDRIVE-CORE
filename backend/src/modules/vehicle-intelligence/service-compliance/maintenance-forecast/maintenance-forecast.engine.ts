@@ -1,5 +1,5 @@
 import { addCalendarMonths, diffCalendarMonths, diffDays, startOfUtcDay } from './calendar-math.util';
-import { findLatestCoveringEvent } from './maintenance-coverage.util';
+import { eventCoversPosition, findLatestCoveringEvent } from './maintenance-coverage.util';
 import type {
   MaintenanceBaselineRef,
   MaintenanceConflict,
@@ -49,6 +49,50 @@ function baselineFromEvent(event: MaintenanceEvidenceEvent): MaintenanceBaseline
   };
 }
 
+function latestOneAutoInspectionEvent(
+  events: MaintenanceEvidenceEvent[],
+  now: Date,
+): MaintenanceEvidenceEvent | null {
+  let best: MaintenanceEvidenceEvent | null = null;
+  for (const ev of events) {
+    if (ev.eventDate.getTime() > now.getTime()) continue;
+    if (ev.eventSource !== 'SERVICE_EVENT_ONEAUTO') continue;
+    if (ev.eventType !== 'FULL_SERVICE' && ev.eventType !== 'GENERAL_INSPECTION') continue;
+    if (
+      !best ||
+      ev.eventDate.getTime() > best.eventDate.getTime() ||
+      (ev.eventDate.getTime() === best.eventDate.getTime() &&
+        (ev.odometerKm ?? -1) > (best.odometerKm ?? -1))
+    ) {
+      best = ev;
+    }
+  }
+  return best;
+}
+
+/** Do not resurrect a rejected OneAuto inspection via vehicle master-data denorm. */
+function inspectionMasterDataBaselineAllowed(
+  position: MaintenanceSchedulePosition,
+  input: MaintenanceForecastInput,
+): boolean {
+  if (!INSPECTION_KINDS.has(position.kind)) return true;
+  const md = input.masterDataBaselines?.inspection;
+  if (!md?.date && md?.odometerKm == null) return true;
+
+  const latestOneAuto = latestOneAutoInspectionEvent(input.events, input.now);
+  if (!latestOneAuto) return true;
+  if (eventCoversPosition(latestOneAuto, position)) return true;
+
+  const mdMatchesRejectedOneAuto =
+    (md.date != null &&
+      startOfUtcDay(md.date).getTime() === startOfUtcDay(latestOneAuto.eventDate).getTime()) ||
+    (md.odometerKm != null &&
+      latestOneAuto.odometerKm != null &&
+      Math.abs(md.odometerKm - latestOneAuto.odometerKm) <= 50);
+
+  return !mdMatchesRejectedOneAuto;
+}
+
 function resolveBaseline(
   position: MaintenanceSchedulePosition,
   input: MaintenanceForecastInput,
@@ -64,6 +108,9 @@ function resolveBaseline(
     // Engine-oil baselines must come from proven events — denormalized vehicle fields alone are not proof.
     const candidate = INSPECTION_KINDS.has(position.kind) ? md.inspection : null;
     if (candidate && (candidate.date || candidate.odometerKm != null)) {
+      if (!inspectionMasterDataBaselineAllowed(position, input)) {
+        return { baseline: null, flags };
+      }
       flags.push('BASELINE_FROM_MASTER_DATA');
       return {
         baseline: {

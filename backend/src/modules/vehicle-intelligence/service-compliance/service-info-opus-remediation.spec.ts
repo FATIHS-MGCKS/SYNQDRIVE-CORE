@@ -211,4 +211,76 @@ describe('SERVICE_INFO_V2_OPUS_REMEDIATION regressions', () => {
       expect(eventCoversPosition(ev, large)).toBe(false);
     });
   });
+
+  describe('P2368 final closeout — F1 inspection baseline', () => {
+    function inspectionPosition(intervalKm: number): MaintenanceSchedulePosition {
+      return {
+        positionId: `oneauto:${intervalKm}`,
+        kind: 'INSPECTION',
+        label: `${intervalKm / 1000}k`,
+        intervalMode: 'RECURRING',
+        intervalKm,
+        intervalMonths: 24,
+        componentTerms: [],
+        scheduleSource: 'ONEAUTO_SCHEDULE',
+        rawIntervalDescription: null,
+      };
+    }
+
+    it('small service at 70k km does not reset 60k generic INSPECTION without work proof', () => {
+      const pos60k = inspectionPosition(60_000);
+      const ev: MaintenanceEvidenceEvent = {
+        eventId: 'e-small',
+        eventType: 'FULL_SERVICE',
+        eventDate: new Date('2026-08-01T00:00:00.000Z'),
+        odometerKm: 70_000,
+        performedWork: [],
+        serviceKind: 'INSPECTION_SMALL',
+        eventSource: 'SERVICE_EVENT_ONEAUTO',
+      };
+      expect(eventCoversPosition(ev, pos60k)).toBe(false);
+      const forecast = computeMaintenanceForecast({
+        now: NOW,
+        positions: [pos60k],
+        events: [ev],
+        masterDataBaselines: { inspection: { date: null, odometerKm: null }, oilChange: { date: null, odometerKm: null } },
+        odometer: { km: 72_000, observedAt: NOW, source: 'VEHICLE_LATEST_STATE' },
+        hm: null,
+        thresholds: baseThresholds(),
+      });
+      expect(forecast.positions[0]!.dueState).toBe('NO_BASELINE');
+    });
+
+    it('rejected OneAuto inspection is not accepted via vehicle master data', () => {
+      const pos60k = inspectionPosition(60_000);
+      const eventDate = new Date('2026-08-01T00:00:00.000Z');
+      const eventOdo = 70_000;
+      const forecast = computeMaintenanceForecast({
+        now: NOW,
+        positions: [pos60k],
+        events: [
+          {
+            eventId: 'e-oneauto',
+            eventType: 'FULL_SERVICE',
+            eventDate,
+            odometerKm: eventOdo,
+            performedWork: [],
+            serviceKind: 'INSPECTION_SMALL',
+            eventSource: 'SERVICE_EVENT_ONEAUTO',
+          },
+        ],
+        masterDataBaselines: {
+          inspection: { date: eventDate, odometerKm: eventOdo },
+          oilChange: { date: null, odometerKm: null },
+        },
+        odometer: { km: 72_000, observedAt: NOW, source: 'VEHICLE_LATEST_STATE' },
+        hm: null,
+        thresholds: baseThresholds(),
+      });
+      const pos = forecast.positions[0]!;
+      expect(pos.dueState).toBe('NO_BASELINE');
+      expect(pos.baseline).toBeNull();
+      expect(pos.dataQuality).not.toContain('BASELINE_FROM_MASTER_DATA');
+    });
+  });
 });

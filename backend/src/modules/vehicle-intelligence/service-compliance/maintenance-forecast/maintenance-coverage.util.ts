@@ -88,8 +88,29 @@ const COMPONENT_CHANGE_ACTION_TERMS = [
   'renewed',
   'drain',
   'entleeren',
-  'service',
-  'serviced',
+  'ölwechsel',
+  'oil change',
+  'filter change',
+  'filter replaced',
+];
+
+const COMPONENT_WEAK_SERVICE_PHRASES = ['service check', 'service interval', 'serviced check'];
+
+const COMPONENT_STRONG_CHANGE_TERMS = [
+  'replace',
+  'replaced',
+  'change',
+  'changed',
+  'wechsel',
+  'gewechselt',
+  'tausch',
+  'getauscht',
+  'erneuern',
+  'erneuert',
+  'renew',
+  'renewed',
+  'drain',
+  'entleeren',
   'ölwechsel',
   'oil change',
   'filter change',
@@ -115,6 +136,11 @@ const FILTER_INSPECTION_TERMS = ['inspect', 'inspection', 'check', 'kontrolle', 
 
 function hasComponentChangeAction(text: string): boolean {
   const t = normalizeWorkText(text);
+  if (COMPONENT_WEAK_SERVICE_PHRASES.some((phrase) => t.includes(phrase))) return false;
+  const hasStrongChange = COMPONENT_STRONG_CHANGE_TERMS.some((term) => t.includes(term));
+  if (!hasStrongChange) return false;
+  const mentionsInspection = FILTER_INSPECTION_TERMS.some((term) => t.includes(term));
+  if (mentionsInspection) return false;
   return COMPONENT_CHANGE_ACTION_TERMS.some((term) => t.includes(term));
 }
 
@@ -235,11 +261,6 @@ export function eventCoversPosition(
     }
     // Generic INSPECTION tier: never blanket-reset every interval row from an unscoped event.
     if (event.serviceKind === 'INSPECTION_LARGE') return true;
-    if (event.serviceKind === 'INSPECTION_SMALL') {
-      if (position.intervalKm == null) return true;
-      if (event.odometerKm == null) return false;
-      return position.intervalKm <= event.odometerKm + 5000;
-    }
     if (isExplicitManualInspectionBaseline(event)) return true;
   /* v1 multi-tier: events without confirmed scope do not reset all INSPECTION positions (M-3). */
     return false;

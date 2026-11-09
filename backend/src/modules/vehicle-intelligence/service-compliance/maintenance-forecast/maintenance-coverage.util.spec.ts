@@ -196,18 +196,31 @@ describe('maintenance-coverage.util (oil classification)', () => {
     });
     expect(eventCoversPosition(unscoped, small)).toBe(false);
     expect(eventCoversPosition(unscoped, large)).toBe(false);
+    const smallServiceAt70k = {
+      ...unscoped,
+      serviceKind: 'INSPECTION_SMALL' as const,
+      odometerKm: 70_000,
+    };
+    expect(eventCoversPosition(smallServiceAt70k, large)).toBe(false);
     expect(
-      eventCoversPosition(
-        { ...unscoped, serviceKind: 'INSPECTION_SMALL' },
-        small,
-      ),
+      eventCoversPosition(smallServiceAt70k, { ...small, kind: 'INSPECTION_SMALL' }),
     ).toBe(true);
-    expect(
-      eventCoversPosition(
-        { ...unscoped, serviceKind: 'INSPECTION_SMALL' },
-        large,
-      ),
-    ).toBe(false);
+  });
+
+  it('rejects brake-fluid checks and weak service phrases for OTHER positions (F2)', () => {
+    const pos: MaintenanceSchedulePosition = {
+      ...oilPosition(),
+      kind: 'OTHER',
+      positionId: 'oneauto:brake_fluid',
+      componentTerms: ['brake_fluid'],
+    };
+    const ev = (work: string) =>
+      event({ eventType: 'FULL_SERVICE', eventSource: 'SERVICE_EVENT_ONEAUTO', performedWork: [work] });
+    expect(eventCoversPosition(ev('Brake fluid service check'), pos)).toBe(false);
+    expect(eventCoversPosition(ev('service interval brake fluid'), pos)).toBe(false);
+    expect(eventCoversPosition(ev('Brake fluid check'), pos)).toBe(false);
+    expect(eventCoversPosition(ev('Brake fluid replaced'), pos)).toBe(true);
+    expect(eventCoversPosition(ev('Bremsflüssigkeit gewechselt'), pos)).toBe(true);
   });
 
   it('covers engine oil when OneAuto lists engine oil actions', () => {
