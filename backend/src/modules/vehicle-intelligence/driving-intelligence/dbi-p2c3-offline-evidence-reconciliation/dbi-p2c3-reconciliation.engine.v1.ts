@@ -19,6 +19,11 @@ import {
 } from './dbi-p2c3-reconciliation.contract.v1';
 import { countBundleFootprint, resolveReconciliationBudget } from './dbi-p2c3-reconciliation.budget.v1';
 import { buildCandidateEnvelopeIdentityPayload } from './dbi-p2c3-reconciliation.canonical.v1';
+import {
+  projectA1ModuleAssessability,
+  projectProxyModuleAssessability,
+} from './dbi-p2c3-reconciliation.assessability.v1';
+import { canonicalJsonStringify } from './dbi-p2c3-reconciliation.canonical-json.v1';
 import { buildReconciliationResultDigest } from './dbi-p2c3-reconciliation.digest.v1';
 import { evaluateProxyIdentityAdmission } from './dbi-p2c3-reconciliation.identity.v1';
 import { deepIsolate } from './dbi-p2c3-reconciliation.isolation.v1';
@@ -92,14 +97,12 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
       evidencePlane: 'DESCRIPTIVE_RPM_EPISODES',
       adapterContractVersion: DBI_P2C2_EVIDENCE_ADAPTER_CONTRACT_VERSION,
     });
-    moduleAssessabilitySummary.push({
-      participantRef: participantRef('P2-A1', 0),
-      sourceModule: 'P2-A1',
-      originalKernelStatus: part.originalKernelStatus,
-      originalAbstainReasons: [...part.originalAbstainReasons],
-      adapterClaimsPositiveEvidence: part.adapterClaimsPositiveEvidence,
-      descriptiveOnly: true,
-    });
+    moduleAssessabilitySummary.push(
+      projectA1ModuleAssessability({
+        participantRef: participantRef('P2-A1', 0),
+        participant: part,
+      }),
+    );
     provenanceLimitations.push({
       participantRef: participantRef('P2-A1', 0),
       sourceModule: 'P2-A1',
@@ -117,7 +120,9 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
       MODULE_ORDER.indexOf(m) >= 0 ? MODULE_ORDER.indexOf(m) : 99;
     const moduleCmp = order(a.participant.sourceModule) - order(b.participant.sourceModule);
     if (moduleCmp !== 0) return moduleCmp;
-    return JSON.stringify(a.participant.identity).localeCompare(JSON.stringify(b.participant.identity));
+    return canonicalJsonStringify(a.participant.identity).localeCompare(
+      canonicalJsonStringify(b.participant.identity),
+    );
   });
 
   for (let planeIndex = 0; planeIndex < planesSorted.length; planeIndex++) {
@@ -129,14 +134,12 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
       evidencePlane: 'POWERTRAIN_PROXY_CANDIDATES',
       adapterContractVersion: DBI_P2C2_EVIDENCE_ADAPTER_CONTRACT_VERSION,
     });
-    moduleAssessabilitySummary.push({
-      participantRef: participantRef(part.sourceModule, planeIndex),
-      sourceModule: part.sourceModule,
-      originalKernelStatus: part.originalKernelStatus,
-      originalAbstainReasons: [...part.originalAbstainReasons],
-      adapterClaimsPositiveEvidence: part.adapterClaimsPositiveEvidence,
-      descriptiveOnly: false,
-    });
+    moduleAssessabilitySummary.push(
+      projectProxyModuleAssessability({
+        participantRef: participantRef(part.sourceModule, planeIndex),
+        participant: part,
+      }),
+    );
     provenanceLimitations.push({
       participantRef: participantRef(part.sourceModule, planeIndex),
       sourceModule: part.sourceModule,

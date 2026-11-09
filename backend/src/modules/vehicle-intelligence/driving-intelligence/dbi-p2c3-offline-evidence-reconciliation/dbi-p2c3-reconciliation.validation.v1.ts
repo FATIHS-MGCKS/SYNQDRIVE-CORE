@@ -2,10 +2,18 @@ import {
   DBI_P2C2_EVIDENCE_ADAPTER_CONTRACT_VERSION,
   type DbiP2c2OfflineEvidenceBundleV1,
   type DbiP2c2ProxyCandidateEnvelopeV1,
+  type DbiP2c2SourceModuleV1,
 } from '../dbi-p2c2-offline-evidence-adapters/dbi-p2c2-evidence-adapter.contract.v1';
 import type { DbiP2c3ReconciliationDiagnosticCodeV1 } from './dbi-p2c3-reconciliation.contract.v1';
 
 const CORE_BINDING_KEYS = ['organizationId', 'vehicleId', 'tripId', 'providerSourceLinkId'] as const;
+
+const ALLOWED_POWERTRAIN_MODULES: readonly DbiP2c2SourceModuleV1[] = [
+  'P2-B1',
+  'P2-B2',
+  'P2-B3',
+  'P2-B4',
+] as const;
 
 export function validateBundleAndParticipants(
   bundle: DbiP2c2OfflineEvidenceBundleV1,
@@ -52,8 +60,14 @@ export function validateBundleAndParticipants(
       continue;
     }
     if (!part.researchOnly) codes.push('PARTICIPANT_NOT_RESEARCH_ONLY');
-    if (part.sourceModule !== plane.participant.sourceModule) {
-      codes.push('PARTICIPANT_SOURCE_MODULE_MISMATCH');
+    const runtimeSourceModule = part.sourceModule as string;
+    if (runtimeSourceModule === 'P2-A1') {
+      codes.push('A1_IN_POWERTRAIN_PROXY_PLANE');
+      continue;
+    }
+    if (!ALLOWED_POWERTRAIN_MODULES.includes(part.sourceModule)) {
+      codes.push('PROXY_PLANE_INVALID_SOURCE_MODULE');
+      continue;
     }
     for (const key of CORE_BINDING_KEYS) {
       if (!nonemptyString(part.identity[key])) {
@@ -62,8 +76,11 @@ export function validateBundleAndParticipants(
     }
 
     for (const cand of plane.candidates) {
-      if (!candidateMatchesParent(cand, part.sourceModule)) {
+      if (cand.sourceModule !== part.sourceModule) {
         codes.push('CANDIDATE_SOURCE_MODULE_MISMATCH');
+      }
+      if (!candidateEnvelopeCoherent(cand, part.sourceModule)) {
+        codes.push('CANDIDATE_ENVELOPE_INCOHERENT');
       }
     }
   }
@@ -75,9 +92,37 @@ function nonemptyString(value: string): boolean {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function candidateMatchesParent(
+function candidateEnvelopeCoherent(
   cand: DbiP2c2ProxyCandidateEnvelopeV1,
-  parentModule: DbiP2c2OfflineEvidenceBundleV1['powertrainProxies'][number]['participant']['sourceModule'],
+  parentModule: DbiP2c2SourceModuleV1,
 ): boolean {
-  return cand.sourceModule === parentModule;
+  switch (parentModule) {
+    case 'P2-B1':
+      return (
+        cand.sourceModule === 'P2-B1' &&
+        cand.originalCandidate.episodeKey === cand.sourceEpisodeKey &&
+        'originalCandidateSupportTier' in cand
+      );
+    case 'P2-B2':
+      return (
+        cand.sourceModule === 'P2-B2' &&
+        cand.originalCandidate.episodeKey === cand.sourceEpisodeKey &&
+        'proxyKind' in cand &&
+        cand.proxyKind === cand.originalCandidate.proxyKind
+      );
+    case 'P2-B3':
+      return (
+        cand.sourceModule === 'P2-B3' &&
+        cand.originalCandidate.episodeKey === cand.sourceEpisodeKey
+      );
+    case 'P2-B4':
+      return (
+        cand.sourceModule === 'P2-B4' &&
+        cand.originalCandidate.episodeKey === cand.sourceEpisodeKey &&
+        'facet' in cand &&
+        cand.originalClassification === cand.originalClassification
+      );
+    default:
+      return false;
+  }
 }

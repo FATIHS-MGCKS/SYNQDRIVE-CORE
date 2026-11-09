@@ -1,5 +1,6 @@
 import type { DbiP2c3ReconciliationSuccessV1 } from './dbi-p2c3-reconciliation.contract.v1';
 import { buildCandidateEnvelopeIdentityPayload } from './dbi-p2c3-reconciliation.canonical.v1';
+import { canonicalJsonStringify } from './dbi-p2c3-reconciliation.canonical-json.v1';
 
 /** Deterministic digest — excludes volatile metadata; not a cryptographic attestation digest. */
 export function buildReconciliationResultDigest(result: Omit<DbiP2c3ReconciliationSuccessV1, 'resultDigest'>): string {
@@ -13,6 +14,12 @@ export function buildReconciliationResultDigest(result: Omit<DbiP2c3Reconciliati
       limitationCodes: [...result.identityAdmission.limitationCodes].sort(),
     },
     relationshipReconciliation: result.relationshipReconciliation,
+    moduleAssessability: result.moduleAssessabilitySummary.map((m) => ({
+      ref: m.participantRef,
+      module: m.sourceModule,
+      status: m.originalKernelStatus,
+      projection: m.moduleProjection,
+    })),
     participantRefs: result.participantReferences.map((p) => p.participantRef).sort(),
     candidateIdentity: result.candidateInventory
       .map((c) => ({
@@ -32,5 +39,5 @@ export function buildReconciliationResultDigest(result: Omit<DbiP2c3Reconciliati
     unresolved: result.unresolvedRelationships.map((u) => u),
     scientificLimitationCodes: [...result.scientificLimitationCodes].sort(),
   };
-  return JSON.stringify(payload);
+  return canonicalJsonStringify(payload);
 }

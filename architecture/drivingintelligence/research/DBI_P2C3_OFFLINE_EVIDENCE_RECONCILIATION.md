@@ -64,19 +64,36 @@ No `overlapLabelCount` synthesis. No timestamp-only cross-module edges.
 
 Original kernel statuses and module assessability summaries are carried forward without invention. No negative inference from abstain states.
 
+`moduleAssessabilitySummary` retains cross-cutting fields (`originalKernelStatus`, `originalAbstainReasons`, `adapterClaimsPositiveEvidence`, `descriptiveOnly`) and adds a discriminated `moduleProjection` (read-only, no recomputation):
+
+| Kind | Module-specific projection |
+|------|----------------------------|
+| `A1_DESCRIPTIVE` | `highEpisodesStatus`, `normalizedEpisodesEligible`, descriptive-only authority guards |
+| `B1_PROXY` | `moduleCoverage` (movement-local coverage; no fabricated assessability) |
+| `B2_PROXY` | all three `subtypeAssessability` statuses + reason codes; ECT coverage scope |
+| `B3_PROXY` | `tripEvidenceClassification`, partial trusted load coverage, original abstain semantics |
+| `B4_PROXY` | facet A/B assessability, both `tripEvidenceClassifications`, relevant facet reason codes |
+
+`NOT_ASSESSABLE`, `NOT_OBSERVED`, and `ABSTAINED` remain distinct outcomes; no scoring or positive promotion from projections.
+
 ## Determinism and bounds
 
 - Pure function: no clock, randomness, network, or persistence.
 - Stable sorts for participants, candidates, pairwise decisions, diagnostics.
 - Candidate ties: `sourceEpisodeKey` → canonical payload → `sourceCandidateIndex`.
+- Canonical candidate identity uses recursive JSON canonicalization (`canonicalJsonStringify`): lexically sorted object keys, stable array order, deterministic primitives, explicit unsupported-value sentinel (no property-insertion-order dependence).
 - Budget options validated (finite safe integers, hard caps) **before** deep cloning or pairwise traversal.
 - Footprint check uses array lengths and theoretical pair count prior to isolation.
 - Default budgets: 6 participants, 4096 candidate pairs; hard caps 32 / 65536 — fail-closed `BUDGET_*_EXCEEDED`.
-- `resultDigest`: canonical JSON summary (identity details, rationale codes, candidate payload fingerprints); **not** cryptographic attestation.
+- `resultDigest`: canonical JSON summary (identity, rationale codes, candidate payload fingerprints, full module assessability projections); **not** cryptographic attestation.
 
 ## Bundle validation
 
-Fail-closed on adapter contract version mismatch, non-`researchOnly` participants, candidate/parent module mismatch, and A1 descriptive guard violations.
+Fail-closed on adapter contract version mismatch, non-`researchOnly` participants, candidate/parent module mismatch, A1 descriptive guard violations, and runtime module-plane coherence:
+
+- Powertrain proxy participants must be `P2-B1`–`P2-B4` only (`PROXY_PLANE_INVALID_SOURCE_MODULE` otherwise).
+- `P2-A1` in a powertrain proxy plane → `A1_IN_POWERTRAIN_PROXY_PLANE`.
+- Candidate envelopes must be coherent with their parent participant module (`CANDIDATE_ENVELOPE_INCOHERENT` / `CANDIDATE_SOURCE_MODULE_MISMATCH`).
 
 ## Non-goals
 
@@ -84,4 +101,4 @@ No Nest module, API, worker, Prisma, ClickHouse, DIMO, scoring, DS4 motion fusio
 
 ## Tests
 
-Adversarial matrix `01–22` in `dbi-p2c3-reconciliation.adversarial.spec.ts` using P2-C1.5 scenarios → kernels → P2-C2 adapters → P2-C3 engine. Runtime import boundary excludes P2-C1.5 fixture package (tests only).
+Adversarial matrix `01–22` in `dbi-p2c3-reconciliation.adversarial.spec.ts` using P2-C1.5 scenarios → kernels → P2-C2 adapters → P2-C3 engine. Integrity closeout and `canonical-closeout` specs cover identity/budget gates, canonical JSON duplicates, module validation, assessability mirroring, and digest fidelity. Runtime import boundary excludes P2-C1.5 fixture package (tests only).

@@ -1,10 +1,16 @@
 import { DBI_P2C2_EVIDENCE_ADAPTER_CONTRACT_VERSION } from '../dbi-p2c2-offline-evidence-adapters/dbi-p2c2-evidence-adapter.contract.v1';
 import type {
+  DbiP2c2A1ModuleAssessabilityV1,
+  DbiP2c2B1ModuleCoverageV1,
+  DbiP2c2B2ModuleCoverageV1,
+  DbiP2c2B2SubtypeAssessabilityV1,
+  DbiP2c2B4FacetProjectionV1,
   DbiP2c2EvidencePlaneV1,
   DbiP2c2OfflineEvidenceBundleV1,
   DbiP2c2ProxyCandidateEnvelopeV1,
   DbiP2c2SourceModuleV1,
 } from '../dbi-p2c2-offline-evidence-adapters/dbi-p2c2-evidence-adapter.contract.v1';
+import type { Ds4SustainedLoadTripEvidenceClassificationV1 } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
 
 export const DBI_P2C3_RECONCILIATION_CONTRACT_VERSION = 'dbi-p2c3-reconciliation-v1' as const;
 
@@ -36,7 +42,10 @@ export type DbiP2c3ReconciliationDiagnosticCodeV1 =
   | 'PARTICIPANT_SOURCE_MODULE_MISMATCH'
   | 'CANDIDATE_SOURCE_MODULE_MISMATCH'
   | 'PARTICIPANT_NOT_RESEARCH_ONLY'
-  | 'REQUIRED_CORE_BINDING_EMPTY';
+  | 'REQUIRED_CORE_BINDING_EMPTY'
+  | 'PROXY_PLANE_INVALID_SOURCE_MODULE'
+  | 'A1_IN_POWERTRAIN_PROXY_PLANE'
+  | 'CANDIDATE_ENVELOPE_INCOHERENT';
 
 export type DbiP2c3RelationshipReconciliationSkipReasonV1 =
   | 'IDENTITY_REJECTED'
@@ -69,6 +78,41 @@ export type DbiP2c3ParticipantReferenceV1 = {
   readonly adapterContractVersion: typeof DBI_P2C2_EVIDENCE_ADAPTER_CONTRACT_VERSION;
 };
 
+export type DbiP2c3ModuleProjectionV1 =
+  | {
+      readonly kind: 'A1_DESCRIPTIVE';
+      readonly highEpisodesStatus: DbiP2c2A1ModuleAssessabilityV1['highEpisodesStatus'];
+      readonly normalizedEpisodesEligible: boolean;
+      readonly semanticGuards: DbiP2c2A1ModuleAssessabilityV1['semanticGuards'];
+    }
+  | {
+      readonly kind: 'B1_PROXY';
+      readonly moduleCoverage: DbiP2c2B1ModuleCoverageV1;
+    }
+  | {
+      readonly kind: 'B2_PROXY';
+      readonly subtypeAssessability: DbiP2c2B2SubtypeAssessabilityV1;
+      readonly moduleCoverage: DbiP2c2B2ModuleCoverageV1;
+    }
+  | {
+      readonly kind: 'B3_PROXY';
+      readonly tripEvidenceClassification: Ds4SustainedLoadTripEvidenceClassificationV1;
+      readonly partialCoverage: {
+        readonly canonicalRowsFullKey: number;
+        readonly distinctMsLabelsInTrip: number;
+        readonly identicalDuplicateCollapsedCount: number;
+        readonly loadPresentBucketCount: number;
+        readonly loadMissingBucketCount: number;
+        readonly gridBucketCount: number;
+        readonly entryLabelCount: number;
+      };
+    }
+  | {
+      readonly kind: 'B4_PROXY';
+      readonly facetA: DbiP2c2B4FacetProjectionV1;
+      readonly facetB: DbiP2c2B4FacetProjectionV1;
+    };
+
 export type DbiP2c3ModuleAssessabilitySummaryV1 = {
   readonly participantRef: string;
   readonly sourceModule: DbiP2c2SourceModuleV1;
@@ -76,6 +120,7 @@ export type DbiP2c3ModuleAssessabilitySummaryV1 = {
   readonly originalAbstainReasons: readonly string[];
   readonly adapterClaimsPositiveEvidence: boolean;
   readonly descriptiveOnly: boolean;
+  readonly moduleProjection: DbiP2c3ModuleProjectionV1;
 };
 
 export type DbiP2c3CandidateInventoryRecordV1 = {

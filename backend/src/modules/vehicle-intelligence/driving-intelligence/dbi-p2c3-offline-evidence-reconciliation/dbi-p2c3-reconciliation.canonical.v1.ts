@@ -1,9 +1,7 @@
 import type { DbiP2c2ProxyCandidateEnvelopeV1 } from '../dbi-p2c2-offline-evidence-adapters/dbi-p2c2-evidence-adapter.contract.v1';
+import { canonicalJsonStringify } from './dbi-p2c3-reconciliation.canonical-json.v1';
 
-/** Stable JSON for same-source duplicate detection — full relevant adapter envelope, not episodeKey alone. */
-export function buildCandidateEnvelopeIdentityPayload(
-  envelope: DbiP2c2ProxyCandidateEnvelopeV1,
-): string {
+function envelopeIdentityObject(envelope: DbiP2c2ProxyCandidateEnvelopeV1): Record<string, unknown> {
   const base = {
     sourceModule: envelope.sourceModule,
     sourceEpisodeKey: envelope.sourceEpisodeKey,
@@ -11,18 +9,20 @@ export function buildCandidateEnvelopeIdentityPayload(
     originalCandidate: envelope.originalCandidate,
   };
   if (envelope.sourceModule === 'P2-B1') {
-    return JSON.stringify({
-      ...base,
-      originalCandidateSupportTier: envelope.originalCandidateSupportTier,
-    });
+    return { ...base, originalCandidateSupportTier: envelope.originalCandidateSupportTier };
   }
   if (envelope.sourceModule === 'P2-B2') {
-    return JSON.stringify({ ...base, proxyKind: envelope.proxyKind });
+    return { ...base, proxyKind: envelope.proxyKind };
   }
   if (envelope.sourceModule === 'P2-B4') {
-    return JSON.stringify({ ...base, facet: envelope.facet });
+    return { ...base, facet: envelope.facet };
   }
-  return JSON.stringify(base);
+  return base;
+}
+
+/** Stable canonical JSON for same-source duplicate detection — full relevant adapter envelope, not episodeKey alone. */
+export function buildCandidateEnvelopeIdentityPayload(envelope: DbiP2c2ProxyCandidateEnvelopeV1): string {
+  return canonicalJsonStringify(envelopeIdentityObject(envelope));
 }
 
 export function compareIsoIntervalOverlapOnly(left: unknown, right: unknown): boolean {
