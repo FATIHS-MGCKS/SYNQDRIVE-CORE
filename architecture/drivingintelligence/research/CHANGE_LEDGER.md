@@ -2999,4 +2999,7 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | DBI P2-C4 W2 P2-C3 reconciliation integrity (2026-11-09) | Forged-bundle participant integrity gate (P1-04), A1 binding cross-check, duplicate-plane policy, bundle shape safety; W2 adversarial matrix 01–18 |
 | DBI P2-C4 W2 closeout (2026-11-09, PR #2381) | Deep nested bundle shape, kernel status enum gate, status-independent duplicate planes, A1/B4 metadata coherence |
 | DBI P2-C4 W2 required shape + B2 subtype (2026-11-09, PR #2381) | Adapter-required nested fields gate; B2 three-subtype assessability completeness |
+| DBI P2-C4 W2 Opus remediation (2026-11-09) | Independent re-audit A-1..A-9: isolate-before-validate, classification enum + ABSTAINED inventory gates, B2 proxyKind parity, B3 bidirectional parity, runtime enum validation, canonical identity keys, positive-only `SAME_SOURCE_DUPLICATE`; `w2-opus-remediation.spec.ts` (33 probes) |
+| DBI P2-C4 W2 oracle closeout (2026-11-09) | Hardened AUD-15/16/20/22/41/42; canonical max depth 64; candidate `limitationCodes` array bound in bundle-shape |
+| DBI P2-C4 W2 Opus final two-blocker (2026-11-09) | `PARTICIPANT_PROJECTION_CANONICAL_INVALID` pre-digest gate; B3 `ABSTAINED`/`COMPUTED` vs `NOT_OBSERVED` parity; oracles N-03..09 + `w2-final-reaudit.probe.spec.ts` |
 

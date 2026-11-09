@@ -80,6 +80,11 @@ function validateCandidateEnvelope(cand: unknown, codes: DbiP2c3ReconciliationDi
   if (!boundedString(cand.sourceEpisodeKey)) push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
   if (!boundedString(cand.originalClassification)) push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
   if (!isPlainObject(cand.originalCandidate)) push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
+  if (isPlainObject(cand.originalCandidate) && 'limitationCodes' in cand.originalCandidate) {
+    if (!isStringArray((cand.originalCandidate as Record<string, unknown>).limitationCodes, MAX_REASON_CODE_ENTRIES)) {
+      push(codes, 'BUNDLE_NESTED_SHAPE_INVALID');
+    }
+  }
 }
 
 function validatePowertrainPlane(plane: unknown, codes: DbiP2c3ReconciliationDiagnosticCodeV1[]): void {

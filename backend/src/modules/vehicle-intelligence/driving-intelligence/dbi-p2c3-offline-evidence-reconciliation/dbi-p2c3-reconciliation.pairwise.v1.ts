@@ -9,6 +9,7 @@ import {
   buildCandidateEnvelopeIdentityPayload,
   compareIsoIntervalOverlapOnly,
 } from './dbi-p2c3-reconciliation.canonical.v1';
+import { classificationIsPositiveProxy } from '../dbi-p2c2-offline-evidence-adapters/dbi-p2c2-evidence-adapter.shared.v1';
 
 function buildPairDecision(input: {
   left: DbiP2c3CandidateInventoryRecordV1;
@@ -86,14 +87,27 @@ export function computePairwiseReconciliation(input: {
 
       if (left.sourceModule === right.sourceModule) {
         if (leftPayload === rightPayload) {
-          pairwiseDecisions.push(
-            buildPairDecision({
-              left,
-              right,
-              relationshipDecision: 'SAME_SOURCE_DUPLICATE',
-              decisionRationaleCodes: ['SAME_MODULE_SAME_SOURCE_IDENTITY_AND_PAYLOAD'],
-            }),
-          );
+          const leftPositive = classificationIsPositiveProxy(left.originalClassification);
+          const rightPositive = classificationIsPositiveProxy(right.originalClassification);
+          if (leftPositive && rightPositive) {
+            pairwiseDecisions.push(
+              buildPairDecision({
+                left,
+                right,
+                relationshipDecision: 'SAME_SOURCE_DUPLICATE',
+                decisionRationaleCodes: ['SAME_MODULE_SAME_SOURCE_IDENTITY_AND_PAYLOAD'],
+              }),
+            );
+          } else {
+            pairwiseDecisions.push(
+              buildPairDecision({
+                left,
+                right,
+                relationshipDecision: 'INSUFFICIENT_ALIGNMENT_EVIDENCE',
+                decisionRationaleCodes: ['NON_POSITIVE_DUPLICATE_NOT_AUTHORIZED_V1_EDGE'],
+              }),
+            );
+          }
           continue;
         }
 

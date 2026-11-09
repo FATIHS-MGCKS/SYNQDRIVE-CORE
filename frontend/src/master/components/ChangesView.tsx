@@ -36,6 +36,24 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'dbi-p2c4-w2-opus-two-blocker-2026-11-09',
+    version: '4.9.5033',
+    title: 'DBI P2-C4 W2 — Opus final two-blocker (projection JSON safety + B3 negative parity)',
+    summary: [
+      'P2-C3 reconciliation: `PARTICIPANT_PROJECTION_CANONICAL_INVALID` pre-digest gate on moduleCoverage, facets, partialCoverage, A1 assessability metadata.',
+      'B3 status/trip rules: ABSTAINED only with NOT_ASSESSABLE or INSUFFICIENT_OBSERVATIONS; COMPUTED forbids NOT_OBSERVED trip class.',
+      'Oracles N-03..N-09 in w2-opus-remediation + w2-final-reaudit.probe specs; governance DEFECT_LEDGER 043–045.',
+    ],
+    reason: 'Close independent re-audit P1-A8 projection throws and P2-A4 forged B3 negatives without redesign.',
+    previousBehavior:
+      'Projection fields passed isPlainObject checks only; digest could throw. B3 admitted ABSTAINED/COMPUTED with NOT_OBSERVED trip class.',
+    details:
+      'backend/.../dbi-p2c3-reconciliation.participant-projection-json-safety.v1.ts, participant-integrity B3; architecture/drivingintelligence/research/DBI_P2C4_W2_RECONCILIATION_INTEGRITY.md.',
+    affectsArchitecture: true,
+    module: 'Vehicle Intelligence',
+    createdAt: '2026-11-09T22:00:00.000Z',
+  },
+  {
     id: 'fsd-p6c-fleet-discovery-prep-2026-11-08',
     version: '4.9.5032',
     title: 'FSD P6C — four-vehicle full fleet discovery preparation',

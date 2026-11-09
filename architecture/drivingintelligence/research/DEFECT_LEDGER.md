@@ -3,7 +3,7 @@
 Significant defects discovered during the 2026-08-30 → 2026-09-06 workstream.  
 **Rejected hypotheses are NOT defects** — see `HYPOTHESIS_REGISTER.md`.
 
-**Summary:** TOTAL=**33** | FIXED=**29** (DI-DEF-003–017, 019 production-validated; DI-DEF-021–033 W1/W2) | OPEN=**4** (DI-DEF-001, 002, 018, 020)
+**Summary:** TOTAL=**45** | FIXED=**40** (DI-DEF-003–017, 019 production-validated; DI-DEF-021–044 W1/W2/Opus) | OPEN=**5** (DI-DEF-001, 002, 018, 020, 045; DI-DEF-045 is W3-tier descriptive-debt only)
 
 | ID | Phase | Symptom | Cause | Risk | Fix | Tests | Status |
 |----|-------|---------|-------|------|-----|-------|--------|
@@ -40,3 +40,15 @@ Significant defects discovered during the 2026-08-30 → 2026-09-06 workstream.
 | DI-DEF-031 | W2 closeout P1-02/P2 | Cast-trusted kernel status; status in dup key | TS cast + status-scoped identity | Forged `UNRECOGNIZED_STATUS` positives; dup bypass | `kernel-status.v1` + identity key without status | `w2-closeout.spec.ts` | FIXED |
 | DI-DEF-032 | W2 required shape | Nested adapter fields optional by presence-only checks | Shallow participant header | Missing semanticGuards / limitation arrays reach digest | `bundle-required-fields.v1` | `w2-required-shape-subtype.spec.ts` | FIXED |
 | DI-DEF-033 | W2 B2 subtype | Empty or partial subtype map + positive bypass | Presence-only `subtypeAssessability` object | False admission / undefined subtype reads | `b2-subtype-completeness.v1` | `w2-required-shape-subtype.spec.ts` | FIXED |
+| DI-DEF-034 | Opus A-1 | Validate-then-isolate TOCTOU on `candidates` getter | Pre-isolation validation on live input | P1-04 bypass → forged `SAME_SOURCE_DUPLICATE` | `tryDeepIsolate` before all validation | `w2-opus-remediation.spec.ts` AUD-15 | FIXED |
+| DI-DEF-035 | Opus A-2 | Unknown/non-positive class duplicates + ABSTAINED inventory | No classification enum; positive-only duplicate gate | Forged positive edges | `candidate-eligibility.v1`, `pairwise.v1` | AUD-03..05 | FIXED |
+| DI-DEF-036 | Opus A-3 | B2 classification ≠ `proxyKind` | Subtype keyed by `proxyKind` only | Positive under `NOT_ASSESSABLE` subtype | classification↔kind parity + subtype resolve by class | AUD-06, AUD-40 | FIXED |
+| DI-DEF-037 | Opus A-4 | B3 status/trip class one-way only | Missing reverse parity rules | Forged B3 positives | `participant-integrity` B3 extensions | AUD-35..38 | FIXED |
+| DI-DEF-038 | Opus A-5 | Unvalidated trip/facet/A1 status strings | `boundedString` only | Enum bypass | `participant-enums.v1` | AUD-07,08,31 | FIXED |
+| DI-DEF-039 | Opus A-6 | `NOT_APPLICABLE` + episodes | No A1 kernel/episodes rule | Descriptive authority violation | `A1_NOT_APPLICABLE_WITH_EPISODES` | AUD-32 | FIXED |
+| DI-DEF-040 | Opus A-7 | Extra identity keys in dup key | Whole-object canonical key | Dup-plane bypass | `identity-canon.v1` | AUD-10,11 | FIXED |
+| DI-DEF-041 | Opus A-8 | Uncaught clone/canonical throws | No fail-closed wrapper | DoS / silent success | `tryDeepIsolate` + canonical diagnostics | AUD-11..14 | FIXED |
+| DI-DEF-042 | Opus A-9 | Extra B2 subtype keys ignored | Required-key loop only | Digest/projection drift | `B2_SUBTYPE_ASSESSABILITY_EXTRA_KEY` | AUD-17 | FIXED |
+| DI-DEF-043 | Opus final A-8 | Non-JSON-safe values in projection fields reached digest | Shape-only `isPlainObject` on coverage/facets | Uncaught `DBI_P2C3_CANONICAL_INVARIANT_VIOLATION` | `participant-projection-json-safety.v1` | N-03..06 | FIXED |
+| DI-DEF-044 | Opus final A-4 | B3 `ABSTAINED`/`COMPUTED` + `NOT_OBSERVED` trip admitted | Missing negative status/trip rules | Forged kernel-impossible negatives | `participant-integrity` B3 | N-08, N-09 | FIXED |
+| DI-DEF-045 | Opus final P3 / W3 descriptive debt (non-W2 blocker) | B1 `candidateSupportTier` not runtime enum-checked | Equality-only validation | Low-severity forgery surface | — | N-12 record-only | OPEN |
