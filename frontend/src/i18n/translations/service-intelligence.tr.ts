@@ -190,6 +190,7 @@ export const serviceIntelligenceTr = {
   'health.serviceInfo.v3.history.origin.oem': 'OEM verisi',
   'health.serviceInfo.v3.history.origin.import': 'İçe aktarma',
   'health.serviceInfo.v3.history.origin.unknown': 'Bilinmiyor',
+  'health.serviceInfo.v3.history.origin.ambiguous': 'Belirsiz kaynak',
   'health.serviceInfo.v3.devFixture.title': 'Service Info V3 — DEV demi verisi',
   'health.serviceInfo.v3.devFixture.subtitle': 'Arteon tam plan + Mercedes tahmin payloadu yok',
 } as const;

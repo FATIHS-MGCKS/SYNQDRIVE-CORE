@@ -190,6 +190,7 @@ export const serviceIntelligenceNl = {
   'health.serviceInfo.v3.history.origin.oem': 'OEM-gegevens',
   'health.serviceInfo.v3.history.origin.import': 'Import',
   'health.serviceInfo.v3.history.origin.unknown': 'Onbekend',
+  'health.serviceInfo.v3.history.origin.ambiguous': 'Onduidelijke herkomst',
   'health.serviceInfo.v3.devFixture.title': 'Service Info V3 — DEV-fixture',
   'health.serviceInfo.v3.devFixture.subtitle': 'Arteon volledig schema + Mercedes zonder forecast-payload',
 } as const;

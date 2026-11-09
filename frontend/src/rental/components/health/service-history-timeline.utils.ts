@@ -3,6 +3,46 @@ import type { TranslationKey } from '../../../i18n/LanguageContext';
 
 export type ServiceHistoryItem = ServiceInfoStatus['serviceHistory'][number];
 
+/**
+ * Backend (`mapServiceHistoryEvent`) sets `externalSource === (origin === 'ONEAUTO')`.
+ * UI labels must follow canonical `origin` first; `externalSource` is only a derived
+ * flag for external-evidence limitations, not an override for conflicting metadata.
+ */
+export function isOriginMetadataInconsistent(item: ServiceHistoryItem): boolean {
+  const origin = item.origin as ServiceEventOrigin | undefined;
+  return Boolean(item.externalSource) && Boolean(origin) && origin !== 'ONEAUTO';
+}
+
+export function shouldShowExternalEvidenceLimitation(item: ServiceHistoryItem): boolean {
+  if (isOriginMetadataInconsistent(item)) return true;
+  return Boolean(item.externalSource) || item.origin === 'ONEAUTO';
+}
+
+export function resolveServiceHistoryOriginKey(item: ServiceHistoryItem): TranslationKey {
+  if (isOriginMetadataInconsistent(item)) {
+    return 'health.serviceInfo.v3.history.origin.ambiguous';
+  }
+
+  const origin = item.origin as ServiceEventOrigin | undefined;
+  switch (origin) {
+    case 'ONEAUTO':
+      return 'health.serviceInfo.v3.history.origin.oneAuto';
+    case 'MANUAL':
+      return 'health.serviceInfo.v3.history.origin.manual';
+    case 'AI_UPLOAD':
+      return 'health.serviceInfo.v3.history.origin.aiUpload';
+    case 'WORKSHOP_DOCUMENT':
+      return 'health.serviceInfo.v3.history.origin.workshop';
+    case 'OEM':
+      return 'health.serviceInfo.v3.history.origin.oem';
+    case 'IMPORT':
+      return 'health.serviceInfo.v3.history.origin.import';
+    default:
+      if (item.externalSource) return 'health.serviceInfo.v3.history.origin.oneAuto';
+      return 'health.serviceInfo.v3.history.origin.unknown';
+  }
+}
+
 function parseEventTime(iso: string): number {
   const t = new Date(iso).getTime();
   return Number.isNaN(t) ? 0 : t;
@@ -57,25 +97,4 @@ export function groupServiceHistoryByYear(items: ServiceHistoryItem[]): ServiceH
     }
   }
   return groups;
-}
-
-export function resolveServiceHistoryOriginKey(item: ServiceHistoryItem): TranslationKey {
-  if (item.externalSource) return 'health.serviceInfo.v3.history.origin.oneAuto';
-  const origin = item.origin as ServiceEventOrigin | undefined;
-  switch (origin) {
-    case 'ONEAUTO':
-      return 'health.serviceInfo.v3.history.origin.oneAuto';
-    case 'MANUAL':
-      return 'health.serviceInfo.v3.history.origin.manual';
-    case 'AI_UPLOAD':
-      return 'health.serviceInfo.v3.history.origin.aiUpload';
-    case 'WORKSHOP_DOCUMENT':
-      return 'health.serviceInfo.v3.history.origin.workshop';
-    case 'OEM':
-      return 'health.serviceInfo.v3.history.origin.oem';
-    case 'IMPORT':
-      return 'health.serviceInfo.v3.history.origin.import';
-    default:
-      return 'health.serviceInfo.v3.history.origin.unknown';
-  }
 }

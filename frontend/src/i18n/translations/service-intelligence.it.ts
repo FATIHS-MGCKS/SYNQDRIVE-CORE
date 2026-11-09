@@ -190,6 +190,7 @@ export const serviceIntelligenceIt = {
   'health.serviceInfo.v3.history.origin.oem': 'Dati OEM',
   'health.serviceInfo.v3.history.origin.import': 'Importazione',
   'health.serviceInfo.v3.history.origin.unknown': 'Sconosciuto',
+  'health.serviceInfo.v3.history.origin.ambiguous': 'Origine ambigua',
   'health.serviceInfo.v3.devFixture.title': 'Service Info V3 — fixture DEV',
   'health.serviceInfo.v3.devFixture.subtitle': 'Arteon piano completo + Mercedes senza payload previsione',
 } as const;

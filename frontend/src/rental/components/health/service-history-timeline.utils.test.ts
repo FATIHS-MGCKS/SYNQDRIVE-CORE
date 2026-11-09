@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ServiceInfoStatus } from '../../../lib/api';
 import {
   groupServiceHistoryByYear,
+  isOriginMetadataInconsistent,
   mergeServiceHistoryPages,
   resolveServiceHistoryOriginKey,
   sortServiceHistoryItems,
@@ -45,12 +46,37 @@ describe('service-history-timeline.utils', () => {
     expect(groups[0]?.items.map((i) => i.id)).toEqual(['b', 'a']);
   });
 
-  it('resolves origin keys without certified manufacturer wording', () => {
-    expect(resolveServiceHistoryOriginKey({ ...item({ id: 'x', date: '2025-01-01' }), origin: 'OEM' })).toBe(
-      'health.serviceInfo.v3.history.origin.oem',
-    );
+  it('prefers canonical origin over externalSource for labels', () => {
     expect(
-      resolveServiceHistoryOriginKey({ ...item({ id: 'y', date: '2025-01-01' }), externalSource: true, origin: 'MANUAL' }),
+      resolveServiceHistoryOriginKey({
+        ...item({ id: 'm', date: '2025-01-01' }),
+        origin: 'MANUAL',
+        externalSource: false,
+      }),
+    ).toBe('health.serviceInfo.v3.history.origin.manual');
+    expect(
+      resolveServiceHistoryOriginKey({
+        ...item({ id: 'o', date: '2025-01-01' }),
+        origin: 'OEM',
+        externalSource: false,
+      }),
+    ).toBe('health.serviceInfo.v3.history.origin.oem');
+    expect(
+      resolveServiceHistoryOriginKey({
+        ...item({ id: 'x', date: '2025-01-01' }),
+        origin: 'ONEAUTO',
+        externalSource: true,
+      }),
     ).toBe('health.serviceInfo.v3.history.origin.oneAuto');
+  });
+
+  it('flags inconsistent metadata without mapping to OneAuto', () => {
+    const inconsistent = {
+      ...item({ id: 'bad', date: '2025-01-01' }),
+      origin: 'MANUAL' as const,
+      externalSource: true,
+    };
+    expect(isOriginMetadataInconsistent(inconsistent)).toBe(true);
+    expect(resolveServiceHistoryOriginKey(inconsistent)).toBe('health.serviceInfo.v3.history.origin.ambiguous');
   });
 });

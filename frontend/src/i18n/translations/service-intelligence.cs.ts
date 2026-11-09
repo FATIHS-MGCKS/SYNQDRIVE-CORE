@@ -190,6 +190,7 @@ export const serviceIntelligenceCs = {
   'health.serviceInfo.v3.history.origin.oem': 'OEM data',
   'health.serviceInfo.v3.history.origin.import': 'Import',
   'health.serviceInfo.v3.history.origin.unknown': 'Neznámé',
+  'health.serviceInfo.v3.history.origin.ambiguous': 'Nejednoznačný původ',
   'health.serviceInfo.v3.devFixture.title': 'Service Info V3 — DEV fixture',
   'health.serviceInfo.v3.devFixture.subtitle': 'Arteon plný plán + Mercedes bez forecast payloadu',
 } as const;
