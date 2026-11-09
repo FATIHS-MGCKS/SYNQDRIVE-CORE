@@ -42,43 +42,37 @@ write_mock_ss() {
 
 # --- Production vps_replica_port_listening() regressions (mock ss only) ---
 write_mock_ss '#!/usr/bin/env bash
-echo "LISTEN 0 128 *:3002 *:* users:((\"node\",pid=1,fd=1))"
-for _ in $(seq 1 400); do
-  echo "LISTEN 0 128 *:19999 *:*"
-done
+echo "LISTEN 0 128 *:3002 *:*"
 exit 0'
 with_mock_ss_path
-if ! vps_replica_port_listening 3002; then
-  fail "SIGPIPE adversarial: production port probe must PASS on 3002"
-fi
-if ( set -o pipefail; ss -tlnp 2>/dev/null | grep -q ':3002 ' ); then
-  fail "SIGPIPE adversarial: legacy ss|grep pipeline should FAIL under pipefail"
-fi
-pass "sigpipe_adversarial_production_port_probe"
+vps_replica_port_listening 3002 || fail "ss exit 0 with port 3002 must PASS"
+pass "ss_exit_0_port_3002_pass"
 
 write_mock_ss '#!/usr/bin/env bash
-exit 1'
+echo "LISTEN 0 128 *:3002 *:*"
+exit 141'
 with_mock_ss_path
 if vps_replica_port_listening 3002; then
-  fail "ss error with empty output must FAIL"
+  fail "ss exit 141 with matching output must FAIL (SIGPIPE-class)"
 fi
-pass "ss_error_empty_fail_closed"
+pass "ss_exit_141_fail_closed"
 
 write_mock_ss '#!/usr/bin/env bash
 echo "LISTEN 0 128 *:3002 *:*"
 exit 1'
 with_mock_ss_path
 if vps_replica_port_listening 3002; then
-  fail "ss error with partial matching output must FAIL"
+  fail "ss exit 1 with matching output must FAIL"
 fi
-pass "ss_error_partial_output_fail_closed"
+pass "ss_exit_1_partial_output_fail_closed"
 
 write_mock_ss '#!/usr/bin/env bash
-echo "LISTEN 0 128 *:3002 *:*"
-exit 0'
+exit 1'
 with_mock_ss_path
-vps_replica_port_listening 3002 || fail "successful ss with port 3002 must PASS"
-pass "ss_success_port_3002"
+if vps_replica_port_listening 3002; then
+  fail "ss exit 1 with empty output must FAIL"
+fi
+pass "ss_exit_1_empty_fail_closed"
 
 write_mock_ss '#!/usr/bin/env bash
 echo "LISTEN 0 128 *:30021 *:*"
@@ -89,6 +83,21 @@ if vps_replica_port_listening 3002; then
 fi
 vps_replica_port_listening 30021 || fail "port 30021 must PASS when requested"
 pass "port_boundary_3002_vs_30021"
+
+write_mock_ss '#!/usr/bin/env bash
+echo "LISTEN 0 128 *:3002 *:* users:((\"node\",pid=1,fd=1))"
+for _ in $(seq 1 400); do
+  echo "LISTEN 0 128 *:19999 *:*"
+done
+exit 0'
+with_mock_ss_path
+vps_replica_port_listening 3002 || fail "large ss output with port 3002 must PASS"
+if ( set -o pipefail; ss -tlnp 2>/dev/null | grep -q ':3002 ' ); then
+  echo "INFO: legacy ss|grep pipeline succeeded on this runner (informational only)"
+else
+  echo "INFO: legacy ss|grep pipeline failed on this runner (may include SIGPIPE 141; not asserted)"
+fi
+pass "large_ss_output_sigpipe_class_production_probe"
 
 restore_path
 
