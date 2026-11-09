@@ -8,6 +8,7 @@ import OperatorApp from './operator/OperatorApp';
 import LoginPage from './pages/LoginPage';
 import VerificationDonePage from './pages/VerificationDonePage';
 import ServiceInfoV3DevFixturePage from './pages/dev/ServiceInfoV3DevFixturePage';
+import HealthErrorsServiceModalDevPage from './pages/dev/HealthErrorsServiceModalDevPage';
 
 function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string }) {
   if (!isAuthenticated()) {
@@ -53,7 +54,10 @@ export default function App() {
             <Route path="/login" element={<LoginRoute />} />
             <Route path="/verification/done" element={<VerificationDonePage />} />
             {import.meta.env.DEV ? (
-              <Route path="/dev/service-info-v3" element={<ServiceInfoV3DevFixturePage />} />
+              <>
+                <Route path="/dev/service-info-v3" element={<ServiceInfoV3DevFixturePage />} />
+                <Route path="/dev/health-errors-service-modal" element={<HealthErrorsServiceModalDevPage />} />
+              </>
             ) : null}
             <Route
               path="/master"

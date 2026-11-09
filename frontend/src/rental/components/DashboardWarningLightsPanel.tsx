@@ -75,7 +75,7 @@ export function DashboardWarningLightsPanel({
   const disabled = !presentation.isConnected;
 
   const tiles = DASHBOARD_TELLTALE_KEYS.map((key) => {
-    const light = telltales?.lights.find((l) => l.key === key);
+    const light = telltales?.lights?.find((l) => l.key === key);
     const tone: TelltaleTone = disabled || !light ? 'neutral' : telltaleToneFromLight(light);
     const statusLabel = telltaleTileStatusLabel(light, presentation.isConnected, envelopeFreshness);
     return {

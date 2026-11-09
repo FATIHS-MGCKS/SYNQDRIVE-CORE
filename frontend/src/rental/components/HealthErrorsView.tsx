@@ -2,7 +2,7 @@
 import { Activity, AlertTriangle, Gauge, Snowflake, Sun, Thermometer, Wind, Wrench, Zap } from 'lucide-react';
 import { Icon } from './ui/Icon';
 import tellTaleBatteryIcon from '../../assets/icons/telltale/battery.svg';
-import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { XAxis, YAxis, ResponsiveContainer, Tooltip, Line, LineChart, ReferenceArea } from 'recharts';
 import { api, streamAiTireSpecs, type AgentStep, type AiTireSpecsStreamEvent, type DashboardWarningLightsResponse, type VehicleHealthTabSummaryDto, type TireWearAnalysis, type ServiceInfoStatus, type BatteryHealthSummary, type BatteryHealthDetail, type HvBatteryStatus, type BrakeHealthSummary as BrakeHealthSummaryType, type BrakeHealthDetail, type BrakeAlert, type TripProfile, type TireHealthSummaryResponse, type TireHealthDetailResponse, type TireAlert, type DtcKnowledgeDto, type BatteryHealthStatus, type BatteryRestingVoltageStatus, type VehicleTripAnalytics } from '../../lib/api';
@@ -16,7 +16,9 @@ import {
   nextServiceToneClass,
 } from '../lib/service-info-display';
 import { ServiceInfoV3Panel } from './health/ServiceInfoV3Panel';
-import { ComplianceTaskActions } from './ComplianceTaskActions';
+import { ServiceInfoV3ComplianceCards } from './health/ServiceInfoV3ComplianceCards';
+import { ServiceInfoV3OperationalSection } from './health/ServiceInfoV3OperationalSection';
+import { usePortalModalA11y } from '../lib/use-portal-modal-a11y';
 import { DashboardWarningLightsPanel } from './DashboardWarningLightsPanel';
 import { isBatteryTelltaleActive } from '../lib/dashboard-warning-lights-display';
 import {
@@ -419,6 +421,11 @@ export function HealthErrorsView({
   const [serviceInfoError, setServiceInfoError] = useState(false);
   const [serviceInfoSyncEpoch, setServiceInfoSyncEpoch] = useState(0);
   const [hmTirePressure, setHmTirePressure] = useState<import('../../lib/api').HmTirePressureSignals | null>(null);
+
+  const healthViewRootRef = useRef<HTMLDivElement>(null);
+  const serviceModalDialogRef = useRef<HTMLDivElement>(null);
+  const serviceModalCloseRef = useRef<HTMLButtonElement>(null);
+  const serviceModalOpenTriggerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!vehicleId) return;
@@ -1229,6 +1236,36 @@ export function HealthErrorsView({
     }, 400);
   };
 
+  const requestCloseServiceModal = useCallback(() => {
+    closeModal(setShowService);
+  }, []);
+
+  usePortalModalA11y({
+    active: showService,
+    containerRef: serviceModalDialogRef,
+    initialFocusRef: serviceModalCloseRef,
+    restoreFocusRef: serviceModalOpenTriggerRef,
+    onRequestClose: requestCloseServiceModal,
+    focusReady: showService && !isModalClosing,
+  });
+
+  useLayoutEffect(() => {
+    const root = healthViewRootRef.current;
+    if (!root) return;
+    if (showService) {
+      root.setAttribute('inert', '');
+    } else {
+      root.removeAttribute('inert');
+    }
+  }, [showService]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const onDevOpenService = () => openModal(setShowService);
+    window.addEventListener('synqdrive-dev-open-service-modal', onDevOpenService);
+    return () => window.removeEventListener('synqdrive-dev-open-service-modal', onDevOpenService);
+  }, []);
+
   useEffect(() => {
     if (!initialModuleTab || initialModuleTab === 'overview') {
       onConsumeInitialModuleTab?.();
@@ -1445,7 +1482,7 @@ export function HealthErrorsView({
   const quickCardFooterClass = 'mt-1 pt-1 border-t border-border/50 relative z-10';
 
   return (
-    <div className="relative">
+    <div ref={healthViewRootRef} className="relative" data-testid="health-errors-view-root">
       <div
         className="grid grid-cols-1 lg:grid-cols-[1.4fr_2.55fr] gap-3 transition-all duration-500 ease-out origin-center items-start"
         style={{
@@ -1465,7 +1502,7 @@ export function HealthErrorsView({
             onOpenBooking={onOpenBooking}
             onOpenTrips={onOpenTrips}
             syncErrorMessage={
-              healthTabSummary?.sourceStatus.highMobility === 'sync_error'
+              healthTabSummary?.sourceStatus?.highMobility === 'sync_error'
                 ? 'High Mobility synchronization failed'
                 : aiHealthCare?.hmLastErrorAt && aiHealthCare?.hmLastErrorMessage
                   ? aiHealthCare.hmLastErrorMessage
@@ -1623,7 +1660,20 @@ export function HealthErrorsView({
           const serviceAccent = quickCardAccentFromRentalState(rentalHealth?.modules.service_compliance.state);
 
           return (
-            <div onClick={() => openModal(setShowService)} className={`${quickCardClass} order-3 ${borderHighlight}`}>
+            <div
+              ref={serviceModalOpenTriggerRef}
+              role="button"
+              tabIndex={0}
+              data-testid="health-service-quick-card"
+              onClick={() => openModal(setShowService)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  openModal(setShowService);
+                }
+              }}
+              className={`${quickCardClass} order-3 ${borderHighlight}`}
+            >
               <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl pointer-events-none ${serviceAccent.backdrop}`} />
               <div className={quickCardHeaderClass}>
                 <div className="flex items-center gap-2">
@@ -2056,7 +2106,7 @@ export function HealthErrorsView({
                       Historical Fault Codes
                     </h3>
 
-                    {(!d || d.history.length === 0) ? (
+                    {(!d || Array.isArray(d) || (d.history?.length ?? 0) === 0) ? (
                       <p className="text-sm text-muted-foreground/70">No historical DTC records yet</p>
                     ) : (
                       <div className="rounded-lg border overflow-x-auto border-border">
@@ -2070,7 +2120,7 @@ export function HealthErrorsView({
                           <span>Status</span>
                         </div>
                         {/* Table rows */}
-                        {d.history.map((item: any, idx: number) => (
+                        {(d.history ?? []).map((item: any, idx: number) => (
                           <div key={item.id ?? idx} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-3 px-4 py-3 items-center text-xs border-t border-border hover:bg-muted/50 transition-colors min-w-[520px]">
                             <span className="font-bold font-mono text-[11px] text-[color:var(--brand)]">{item.code}</span>
                             <span className="truncate text-foreground/80">{item.label}</span>
@@ -2367,90 +2417,66 @@ export function HealthErrorsView({
 
       {/* ─── Service Modal ─── */}
       {showService && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => closeModal(setShowService)}>
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+          onClick={() => closeModal(setShowService)}
+        >
           <div className="absolute inset-0 overlay-scrim transition-opacity duration-500 ease-out" style={{ opacity: isModalAnimating ? 1 : 0 }} />
-          <div onClick={(e) => e.stopPropagation()} className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto p-5 transition-all duration-500 ease-out surface-premium`} style={{ transform: isModalAnimating ? 'scale(1) translateY(0)' : 'scale(0.9) translateY(30px)', opacity: isModalAnimating ? 1 : 0 }}>
-            <button onClick={() => closeModal(setShowService)} className={`absolute top-5 right-5 p-1 rounded-full transition-colors z-10 ${'text-muted-foreground hover:text-foreground hover:bg-muted'}`}><Icon name="x" className="w-5 h-5" /></button>
-            <h2 className={`text-sm font-semibold tracking-tight mb-5 text-foreground`}>Service & Compliance</h2>
-
-            <ServiceInfoV3Panel
-              className="mb-5"
-              serviceInfo={serviceInfo}
-              loading={serviceInfoLoading}
-              error={serviceInfoError}
-              vehicleId={vehicleId}
-              orgId={orgId}
-              onUploadProof={vehicleId ? openHealthDocumentIntake : undefined}
-              onChanged={refreshServiceInfo}
-              onRetryServiceInfo={() => void refreshServiceInfo()}
-              historySyncEpoch={serviceInfoSyncEpoch}
-            />
-
-            {vehicleId && serviceInfo?.taskSignals && serviceInfo.taskSignals.length > 0 && (
-              <div className="mb-5">
-                <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">
-                  Aufgaben & Vorschläge
-                </p>
-                <ComplianceTaskActions vehicleId={vehicleId} signals={serviceInfo.taskSignals} />
-              </div>
-            )}
-
-            {/* Active auto-tasks (V4.7.59) — materialized by the Insight→Task bridge */}
-            {serviceAutoTasks.length > 0 && (
-              <div className="rounded-lg p-4 mb-5 border border-amber-300/50 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10">
-                <div className="flex items-center gap-2 mb-2.5">
-                  <Icon name="list-todo" className="w-4 h-4 text-amber-600 dark:text-amber-300" />
-                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
-                    Automatisch erzeugte Tasks ({serviceAutoTasks.length})
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  {serviceAutoTasks.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between gap-3">
-                      <span className="text-xs text-amber-900 dark:text-amber-100 truncate">{t.title}</span>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${t.priority === 'URGENT' ? 'bg-red-500/15 text-red-600 dark:text-red-300' : 'bg-amber-500/20 text-amber-700 dark:text-amber-300'}`}>
-                        {t.priority === 'URGENT' ? 'Überfällig' : 'Bald fällig'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[10px] mt-2.5 text-amber-700/80 dark:text-amber-300/70">
-                  Sichtbar unter Task Management — wird automatisch geschlossen, sobald der Termin erledigt ist.
-                </p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-              {(() => {
-                const tuv = buildTuvComplianceDisplay(serviceInfo);
-                return (
-                  <div className={`rounded-lg p-4 border bg-muted border-border`}>
-                    <h3 className="text-sm font-semibold mb-3 text-foreground">TÜV</h3>
-                    <p className={`text-lg font-bold ${nextServiceToneClass(tuv.tone)}`}>{tuv.label}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Gültig bis: {tuv.validTill ?? '—'}</p>
-                    <p className={`text-xs mt-1 font-medium ${nextServiceToneClass(tuv.tone)}`}>{tuv.detail}</p>
-                    {tuv.blocksRentalHint && (
-                      <p className="text-xs mt-2 font-bold text-red-600 dark:text-red-400">Nicht vermieten — TÜV abgelaufen</p>
-                    )}
-                  </div>
-                );
-              })()}
-              {(() => {
-                const bok = buildBokraftComplianceDisplay(serviceInfo);
-                return (
-                  <div className={`rounded-lg p-4 border bg-muted border-border`}>
-                    <h3 className="text-sm font-semibold mb-3 text-foreground">BOKraft</h3>
-                    <p className={`text-lg font-bold ${nextServiceToneClass(bok.tone)}`}>{bok.label}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Gültig bis: {bok.validTill ?? '—'}</p>
-                    <p className={`text-xs mt-1 font-medium ${nextServiceToneClass(bok.tone)}`}>{bok.detail}</p>
-                    {bok.blocksRentalHint && (
-                      <p className="text-xs mt-2 font-bold text-red-600 dark:text-red-400">Nicht vermieten — BOKraft abgelaufen</p>
-                    )}
-                  </div>
-                );
-              })()}
+          <div
+            ref={serviceModalDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="service-info-v3-modal-title"
+            tabIndex={-1}
+            onClick={(e) => e.stopPropagation()}
+            className="relative flex max-h-[min(90vh,100dvh)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-border surface-premium shadow-xl transition-all duration-500 ease-out sm:rounded-2xl"
+            style={{
+              transform: isModalAnimating ? 'scale(1) translateY(0)' : 'scale(0.98) translateY(12px)',
+              opacity: isModalClosing ? 0 : 1,
+            }}
+            data-testid="service-info-v3-modal"
+          >
+            <div className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-5 sm:py-4">
+              <h2 id="service-info-v3-modal-title" className="pr-8 text-base font-semibold tracking-tight text-foreground">
+                {t('health.serviceInfo.v3.pageTitle')}
+              </h2>
+              <button
+                ref={serviceModalCloseRef}
+                type="button"
+                onClick={() => closeModal(setShowService)}
+                aria-label={t('common.close')}
+                className="absolute right-3 top-3 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:right-4 sm:top-4"
+              >
+                <Icon name="x" className="h-5 w-5" aria-hidden />
+              </button>
             </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+              <ServiceInfoV3Panel
+                presentation="modal"
+                className="mb-5"
+                serviceInfo={serviceInfo}
+                loading={serviceInfoLoading}
+                error={serviceInfoError}
+                vehicleId={vehicleId}
+                orgId={orgId}
+                onUploadProof={vehicleId ? openHealthDocumentIntake : undefined}
+                onChanged={refreshServiceInfo}
+                onRetryServiceInfo={() => void refreshServiceInfo()}
+                historySyncEpoch={serviceInfoSyncEpoch}
+              />
 
+              <ServiceInfoV3ComplianceCards
+                idPrefix="service-info-v3-modal"
+                serviceInfo={serviceInfo}
+                className="mb-5"
+              />
+
+              <ServiceInfoV3OperationalSection
+                vehicleId={vehicleId}
+                taskSignals={serviceInfo?.taskSignals}
+                autoTasks={serviceAutoTasks}
+              />
+            </div>
           </div>
         </div>,
         document.body

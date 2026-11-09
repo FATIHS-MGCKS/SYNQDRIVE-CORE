@@ -32,6 +32,8 @@ export interface ServiceMaintenanceForecastPanelProps {
   compact?: boolean;
   /** When set with `compact=false`, splits overview vs plan for tabbed V3 navigation. */
   surface?: 'full' | 'overview' | 'plan';
+  /** When false, suppresses the V3 page title (e.g. modal supplies a single header). */
+  showPageTitle?: boolean;
   className?: string;
 }
 
@@ -193,7 +195,7 @@ function PositionDetails({
   const eventSourceLabel = t(`health.serviceInfo.v2.eventSource.${p.provenance.eventSource}` as TranslationKey);
   const odometerSourceLabel = t(`health.serviceInfo.v2.odometerSource.${p.provenance.odometerSource}` as TranslationKey);
   const baselineDate = formatServiceDate(p.baseline?.date ?? null, fmtLocale);
-  const hasFlags = p.dataQuality.length > 0;
+  const hasFlags = (p.dataQuality?.length ?? 0) > 0;
   const hasRaw = Boolean(p.rawIntervalDescription);
   const showBaselineMissing = !baselineDate && (p.dueState === 'NO_BASELINE' || p.baseline == null);
 
@@ -442,6 +444,7 @@ export function ServiceMaintenanceForecastPanel({
   onChanged,
   compact = false,
   surface = 'full',
+  showPageTitle = true,
   className = '',
 }: ServiceMaintenanceForecastPanelProps) {
   const { t, formattingLocale } = useLanguage();
@@ -470,7 +473,7 @@ export function ServiceMaintenanceForecastPanel({
     return [...new Set(merged)];
   }, [display.dataQuality, forecast?.dataQuality]);
 
-  const conflicts = display.conflicts.length > 0 ? display.conflicts : (forecast?.conflicts ?? []);
+  const conflicts = (display.conflicts?.length ?? 0) > 0 ? (display.conflicts ?? []) : (forecast?.conflicts ?? []);
   const hasProviderSchedule = (forecast?.scheduleSources ?? []).some((s) => s === 'ONEAUTO_SCHEDULE' || s === 'HM_OEM');
 
   const lastMaint = forecast?.lastRelevantMaintenance ?? null;
@@ -504,7 +507,7 @@ export function ServiceMaintenanceForecastPanel({
 
   return (
     <div className={`min-w-0 space-y-4 ${className}`}>
-      {!compact && surface !== 'plan' && (
+      {!compact && showPageTitle && surface !== 'plan' && (
         <h2 id={pageTitleId} className="text-base font-semibold tracking-tight text-foreground">
           {t('health.serviceInfo.v3.pageTitle')}
         </h2>
