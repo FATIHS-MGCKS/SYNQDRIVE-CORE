@@ -22,6 +22,76 @@ pass() { echo "PASS: $*"; }
 TARGET_SHA='1111111111111111111111111111111111111111'
 BAD_SHA='2222222222222222222222222222222222222222'
 
+MOCK_SS_DIR="$(mktemp -d)"
+trap 'rm -rf "${SYNQDRIVE_DEPLOY_STATE_DIR}" "${MOCK_SS_DIR}"' EXIT
+_SAVED_PATH="$PATH"
+
+with_mock_ss_path() {
+  PATH="${MOCK_SS_DIR}:${_SAVED_PATH}"
+}
+
+restore_path() {
+  PATH="$_SAVED_PATH"
+}
+
+write_mock_ss() {
+  local body=$1
+  printf '%s\n' "$body" >"${MOCK_SS_DIR}/ss"
+  chmod +x "${MOCK_SS_DIR}/ss"
+}
+
+# --- Production vps_replica_port_listening() regressions (mock ss only) ---
+write_mock_ss '#!/usr/bin/env bash
+echo "LISTEN 0 128 *:3002 *:* users:((\"node\",pid=1,fd=1))"
+for _ in $(seq 1 400); do
+  echo "LISTEN 0 128 *:19999 *:*"
+done
+exit 0'
+with_mock_ss_path
+if ! vps_replica_port_listening 3002; then
+  fail "SIGPIPE adversarial: production port probe must PASS on 3002"
+fi
+if ( set -o pipefail; ss -tlnp 2>/dev/null | grep -q ':3002 ' ); then
+  fail "SIGPIPE adversarial: legacy ss|grep pipeline should FAIL under pipefail"
+fi
+pass "sigpipe_adversarial_production_port_probe"
+
+write_mock_ss '#!/usr/bin/env bash
+exit 1'
+with_mock_ss_path
+if vps_replica_port_listening 3002; then
+  fail "ss error with empty output must FAIL"
+fi
+pass "ss_error_empty_fail_closed"
+
+write_mock_ss '#!/usr/bin/env bash
+echo "LISTEN 0 128 *:3002 *:*"
+exit 1'
+with_mock_ss_path
+if vps_replica_port_listening 3002; then
+  fail "ss error with partial matching output must FAIL"
+fi
+pass "ss_error_partial_output_fail_closed"
+
+write_mock_ss '#!/usr/bin/env bash
+echo "LISTEN 0 128 *:3002 *:*"
+exit 0'
+with_mock_ss_path
+vps_replica_port_listening 3002 || fail "successful ss with port 3002 must PASS"
+pass "ss_success_port_3002"
+
+write_mock_ss '#!/usr/bin/env bash
+echo "LISTEN 0 128 *:30021 *:*"
+exit 0'
+with_mock_ss_path
+if vps_replica_port_listening 3002; then
+  fail "port 30021 must not satisfy probe for 3002"
+fi
+vps_replica_port_listening 30021 || fail "port 30021 must PASS when requested"
+pass "port_boundary_3002_vs_30021"
+
+restore_path
+
 vps_replica_current_release_dir() { echo "${SYNQDRIVE_DEPLOY_STATE_DIR}/current-release"; }
 vps_replica_release_sha() { echo "$TARGET_SHA"; }
 
@@ -119,46 +189,9 @@ if run_verify 2>/dev/null; then
 fi
 pass "missing_pm2"
 
-# 6) pipefail / SIGPIPE: captured ss output must not false-negative when ss would get SIGPIPE on a pipeline
-MOCK_SS_DIR="$(mktemp -d)"
-cat >"${MOCK_SS_DIR}/ss" <<'EOF'
-#!/usr/bin/env bash
-echo "LISTEN 0 128 *:3002 *:* users:(("node",pid=1,fd=1))"
-for _ in $(seq 1 400); do
-  echo "LISTEN 0 128 *:19999 *:*"
-done
-EOF
-chmod +x "${MOCK_SS_DIR}/ss"
-
-port_probe_capture_impl() {
-  local port=$1
-  local listening_lines
-  listening_lines="$(PATH="${MOCK_SS_DIR}:${PATH}" ss -tlnp 2>/dev/null || true)"
-  if [[ -z "$listening_lines" ]]; then
-    return 1
-  fi
-  grep -qE ":${port}([^0-9]|$)" <<<"$listening_lines"
-}
-
-if ! port_probe_capture_impl 3002; then
-  fail "pipefail_sigpipe scenario should detect port 3002 listening"
-fi
-
-if PATH="${MOCK_SS_DIR}:${PATH}" ss -tlnp 2>/dev/null | grep -q ':3002 '; then
-  :
-else
-  if port_probe_capture_impl 3002; then
-    pass "pipefail_sigpipe_pipeline_would_fail_capture_succeeds"
-  else
-    fail "pipefail regression harness inconclusive"
-  fi
-fi
-pass "pipefail_sigpipe_no_false_negative"
-
 reset_mocks
-install_probe_mocks
 
-# 7) dual-replica + uptime gate unchanged (mixed-SHA / rollback path still requires fresh PM2 uptime)
+# 6) dual-replica + uptime gate unchanged (mixed-SHA / rollback path still requires fresh PM2 uptime)
 _UPTIME_LOG="${SYNQDRIVE_DEPLOY_STATE_DIR}/uptime-calls.log"
 : >"$_UPTIME_LOG"
 vps_replica_pm2_uptime_sec() {

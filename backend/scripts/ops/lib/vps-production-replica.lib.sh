@@ -37,10 +37,14 @@ vps_replica_pm2_exists() {
 vps_replica_port_listening() {
   local port=$1
   local listening_lines
-  # Capture ss output once — avoids `ss | grep -q` SIGPIPE + `set -o pipefail` false negatives
-  # when grep exits after the first match while ss is still writing.
-  listening_lines="$(ss -tlnp 2>/dev/null || true)"
-  if [[ -z "$listening_lines" ]]; then
+  local ss_rc=0
+  # Capture ss output once — avoids `ss | grep -q` SIGPIPE + `set -o pipefail` false negatives.
+  # Fail closed on non-zero ss exit even when partial stdout contained a matching line.
+  listening_lines="$(ss -tlnp 2>/dev/null)" || ss_rc=$?
+  if [[ "$ss_rc" -ne 0 ]]; then
+    return 1
+  fi
+  if [[ -z "${listening_lines//[[:space:]]/}" ]]; then
     return 1
   fi
   grep -qE ":${port}([^0-9]|$)" <<<"$listening_lines"
