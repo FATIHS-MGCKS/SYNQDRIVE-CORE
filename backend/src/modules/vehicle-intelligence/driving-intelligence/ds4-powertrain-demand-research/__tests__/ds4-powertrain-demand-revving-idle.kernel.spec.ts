@@ -31,6 +31,7 @@ import {
 } from './ds4-powertrain-demand-research.test-helpers';
 
 const TRIP = 'trip-revving-idle-b4';
+const V1B_SEQUENCE_MAX_GAP_SECONDS = 2;
 
 function v1bPrefixGrid() {
   return buildObservationSeries('2026-01-01T10:00:01.000Z', 8, 1, () => ({
@@ -380,6 +381,7 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
         fuelType: 'ELECTRIC',
         isEvPowertrain: true,
         canon,
+        sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
       });
       expect(d.facetA.candidates).toHaveLength(0);
       expect(d.facetB.candidates).toHaveLength(0);
@@ -408,7 +410,7 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
   it('23 P39 literal policy drift pins', () => {
     expect(HIGH_RPM_STATIONARY_SHADOW_POLICY_VERSION).toBe('high-rpm-stationary-shadow-v1');
     expect(EXCESSIVE_IDLING_SHADOW_POLICY_VERSION).toBe('excessive-idling-shadow-v1');
-    expect(DS4_REVIVING_IDLE_DUAL_FACET_RESEARCH_POLICY_VERSION).toBe('revving-idle-dual-facet-research-v1');
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_RESEARCH_POLICY_VERSION).toBe('revving-idle-dual-facet-research-v1.1');
     expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.rpmEntryThreshold).toBe(2000);
     expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.rpmContinueThreshold).toBe(1440);
     expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.idleRpmBandMinExclusive).toBe(
@@ -472,20 +474,30 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
     });
 
     it('P1_02 dense 100s run plus 190s coarse run: Facet B assessable via second run only', () => {
-      const dense = buildObservationSeries('2026-01-01T10:00:01.000Z', 101, 1, () => ({
+      const coarse = buildObservationSeries('2026-01-01T10:00:12.000Z', 201, 1, () => ({
         speedKmh: 0,
         rpm: 850,
       }));
-      const coarse = buildObservationSeries('2026-01-01T10:01:56.000Z', 19, 10, () => ({
+      const dense = buildObservationSeries('2026-01-01T10:03:40.000Z', 101, 1, () => ({
         speedKmh: 0,
         rpm: 850,
       }));
-      const grid = [...dense, ...coarse];
+      expect(
+        evaluateRevvingIdleFacetBAssessability(
+          canonicalizeMultichannelObservations(coarse),
+          V1B_SEQUENCE_MAX_GAP_SECONDS,
+        ).assessable,
+      ).toBe(true);
+      const shortTrip = computeDs4PowertrainDemandRevvingIdleResearchV1(
+        buildBoundPowertrainInput({ multichannelObservations: [...v1bMovingPrefixGrid(), ...dense], tripId: TRIP }),
+      );
+      expect(shortTrip.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
+      const grid = [...v1bMovingPrefixGrid(), ...coarse];
       const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
         buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
       );
-      expect(out.revvingIdle.facetB.assessability).toBe('ASSESSABLE');
       expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(1);
+      expect(out.revvingIdle.facetB.assessability).toBe('ASSESSABLE');
       expect(out.revvingIdle.facetB.coverageDiagnostics.longestCoherentRunLabelCount).toBeGreaterThan(100);
       expect(out.revvingIdle.facetB.coverageDiagnostics.maxQualifyingCoherentResearchLabelSpanMs).toBeGreaterThanOrEqual(
         180_000,
@@ -611,21 +623,24 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
       expect(out.revvingIdle.facetB.coverageDiagnostics.longestCoherentResearchLabelSpanMs).toBeLessThan(180_000);
     });
 
-    it('F coarse 10s labels over 200s: Facet B may qualify, Facet A not high-res assessable for revving', () => {
-      const coarse = buildObservationSeries('2026-01-01T10:00:01.000Z', 29, 10, () => ({
-        speedKmh: 0,
-        rpm: 850,
-      }));
+    it('F v1b-admitted 1s idle labels over 200s: Facet B may qualify, Facet A not high-res assessable for revving', () => {
       const out = computeDs4PowertrainDemandRevvingIdleResearchV1(
         buildBoundPowertrainInput({
-          multichannelObservations: coarse,
+          multichannelObservations: [
+            ...v1bMovingPrefixGrid(),
+            ...buildObservationSeries('2026-01-01T10:00:12.000Z', 201, 1, () => ({
+              speedKmh: 0,
+              rpm: 850,
+            })),
+          ],
           tripId: TRIP,
         }),
       );
       expect(out.revvingIdle.facetB.assessability).toBe('ASSESSABLE');
       expect(out.revvingIdle.facetB.deduplicatedCandidateCount).toBe(1);
-      expect(out.revvingIdle.facetA.assessability).toBe('NOT_ASSESSABLE');
-      expect(out.revvingIdle.facetA.tripEvidenceClassification).toBe('INSUFFICIENT_OBSERVATIONS');
+      expect(out.revvingIdle.facetA.assessability).toBe('ASSESSABLE');
+      expect(out.revvingIdle.facetA.deduplicatedCandidateCount).toBe(0);
+      expect(out.revvingIdle.facetA.tripEvidenceClassification).toBe('NOT_OBSERVED');
     });
 
     it('G Facet A insufficient, Facet B positive preserved', () => {
@@ -727,20 +742,24 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
         at(30000, { speedKmh: 0, rpm: 2100 }),
         at(40000, { speedKmh: 0, rpm: 2100 }),
       ];
-      const verdict = evaluateRevvingIdleFacetAAssessability(canonicalizeMultichannelObservations(grid));
+      const verdict = evaluateRevvingIdleFacetAAssessability(
+        canonicalizeMultichannelObservations(grid),
+        V1B_SEQUENCE_MAX_GAP_SECONDS,
+      );
       expect(verdict.assessable).toBe(false);
       expect(verdict.diagnostics.assessabilityReasonCodes).toContain(
-        'NO_SINGLE_COHERENT_RUN_MEETS_LABEL_AND_SPAN',
+        'INSUFFICIENT_LABEL_SPAN_OPPORTUNITY',
       );
       expect(verdict.diagnostics).toMatchObject({
         longestCoherentRunLabelCount: 3,
         spanMsInMaxLabelCountRun: 2000,
-        longestCoherentResearchLabelSpanMs: 4000,
-        labelsInMaxSpanRun: 2,
+        longestCoherentResearchLabelSpanMs: 2000,
+        labelsInMaxSpanRun: 3,
         maxQualifyingCoherentResearchLabelSpanMs: 0,
       });
       const reversed = evaluateRevvingIdleFacetAAssessability(
         canonicalizeMultichannelObservations([...grid].reverse()),
+        V1B_SEQUENCE_MAX_GAP_SECONDS,
       );
       expect(reversed.diagnostics).toEqual(verdict.diagnostics);
     });
@@ -750,21 +769,26 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
         speedKmh: 0,
         rpm: 850,
       }));
-      const coarse = buildObservationSeries('2026-01-01T10:01:56.000Z', 19, 10, () => ({
+      const coarse = buildObservationSeries('2026-01-01T10:01:56.000Z', 201, 1, () => ({
         speedKmh: 0,
         rpm: 850,
       }));
       const grid = [...dense, ...coarse];
-      const forward = evaluateRevvingIdleFacetBAssessability(canonicalizeMultichannelObservations(grid));
+      const forward = evaluateRevvingIdleFacetBAssessability(
+        canonicalizeMultichannelObservations(grid),
+        V1B_SEQUENCE_MAX_GAP_SECONDS,
+      );
       const reversed = evaluateRevvingIdleFacetBAssessability(
         canonicalizeMultichannelObservations([...grid].reverse()),
+        V1B_SEQUENCE_MAX_GAP_SECONDS,
       );
+      expect(forward.assessable).toBe(true);
       expect(forward.diagnostics).toMatchObject({
-        longestCoherentRunLabelCount: 101,
-        spanMsInMaxLabelCountRun: 100_000,
-        longestCoherentResearchLabelSpanMs: 180_000,
-        labelsInMaxSpanRun: 19,
-        maxQualifyingCoherentResearchLabelSpanMs: 180_000,
+        longestCoherentRunLabelCount: 201,
+        spanMsInMaxLabelCountRun: 200_000,
+        longestCoherentResearchLabelSpanMs: 200_000,
+        labelsInMaxSpanRun: 201,
+        maxQualifyingCoherentResearchLabelSpanMs: 200_000,
       });
       expect(reversed.diagnostics).toEqual(forward.diagnostics);
     });
@@ -860,13 +884,14 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
         expect(high.revvingIdle.facetA.deduplicatedCandidateCount).toBe(0);
       });
 
-      it('gap 4000ms vs 4001ms', () => {
+      it('gap 4000ms vs 4001ms (v1b-admitted 1s run vs v1b break at 4001)', () => {
         const allow = computeDs4PowertrainDemandRevvingIdleResearchV1(
           buildBoundPowertrainInput({
             multichannelObservations: withPrefix([
               at(0, revRow(2100)),
-              at(4000, revRow(2100)),
-              at(8000, revRow(2100)),
+              at(1000, revRow(2100)),
+              at(2000, revRow(2100)),
+              at(3000, revRow(2100)),
               ...pad(),
             ]),
             tripId: TRIP,
@@ -876,8 +901,10 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
           buildBoundPowertrainInput({
             multichannelObservations: withPrefix([
               at(0, revRow(2100)),
-              at(4001, revRow(2100)),
-              at(8002, revRow(2100)),
+              at(1000, revRow(2100)),
+              at(2000, revRow(2100)),
+              at(6001, revRow(2100)),
+              at(7001, revRow(2100)),
               ...pad(),
             ]),
             tripId: TRIP,
@@ -938,21 +965,26 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
         expect(high.revvingIdle.facetB.deduplicatedCandidateCount).toBe(0);
       });
 
-      it('gap 10000ms vs 10001ms', () => {
+      it('gap 10000ms vs 10001ms (single v1b run vs split below duration floor)', () => {
+        const idle = () => ({ speedKmh: 0, rpm: 850 });
         const allow = computeDs4PowertrainDemandRevvingIdleResearchV1(
           buildBoundPowertrainInput({
-            multichannelObservations: buildObservationSeries('2026-01-01T10:00:01.000Z', 19, 10, () => ({
-              speedKmh: 0,
-              rpm: 850,
-            })),
+            multichannelObservations: [
+              ...v1bMovingPrefixGrid(),
+              ...buildObservationSeries('2026-01-01T10:00:12.000Z', 201, 1, idle),
+            ],
             tripId: TRIP,
           }),
         );
+        const runStart = Date.parse('2026-01-01T10:00:12.000Z');
+        const splitGrid = [
+          ...v1bMovingPrefixGrid(),
+          ...buildObservationSeries(new Date(runStart).toISOString(), 101, 1, idle),
+          ...buildObservationSeries(new Date(runStart + 100_000 + 10_001).toISOString(), 101, 1, idle),
+        ];
         const split = computeDs4PowertrainDemandRevvingIdleResearchV1(
           buildBoundPowertrainInput({
-            multichannelObservations: Array.from({ length: 19 }, (_, k) =>
-              at(k * 10_001, { speedKmh: 0, rpm: 850 }),
-            ),
+            multichannelObservations: splitGrid,
             tripId: TRIP,
           }),
         );

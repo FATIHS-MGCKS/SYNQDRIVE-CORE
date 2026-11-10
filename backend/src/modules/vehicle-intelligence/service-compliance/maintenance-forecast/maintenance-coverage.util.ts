@@ -1,3 +1,4 @@
+import { isAuthoritativeForecastEventSource } from './baseline-evidence.util';
 import type {
   MaintenanceEvidenceEvent,
   MaintenancePositionKind,
@@ -248,6 +249,8 @@ export function eventCoversPosition(
   event: MaintenanceEvidenceEvent,
   position: MaintenanceSchedulePosition,
 ): boolean {
+  if (!isAuthoritativeForecastEventSource(event.eventSource)) return false;
+
   const type = event.eventType;
   const kind = position.kind;
 

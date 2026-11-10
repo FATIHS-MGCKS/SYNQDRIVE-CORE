@@ -11,6 +11,7 @@ import type {
 } from './ds4-powertrain-demand-research.contract.v1';
 import type { Ds4CanonicalMultichannelBucketV1 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
 import type { Ds4MultichannelCanonicalizeResultV1 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
+import { gapCrossesAdmittedSequenceBoundary } from './ds4-powertrain-demand-multichannel-sequence-boundary.v1';
 import { classifySustainedLoadNegativeEvidence } from './ds4-powertrain-demand-sustained-load-negative-evidence.v1';
 import { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from './ds4-powertrain-demand-sustained-load-reference.v1';
 
@@ -99,34 +100,22 @@ export type Ds4GapAwareSustainedLoadDetectResultV1 = {
   longestRunLabelCount: number;
 };
 
-export function detectGapAwareSustainedLoadCandidates(input: {
+function detectGapAwareSustainedLoadOnAdmittedSequence(input: {
   tripId: string;
   providerSourceLinkId: string;
-  fuelType: string | null;
-  isEvPowertrain: boolean;
-  canon: Ds4MultichannelCanonicalizeResultV1;
-}): Ds4GapAwareSustainedLoadDetectResultV1 {
-  const { powertrainClass, contradictoryEvIceClaim } = classifySustainedLoadPowertrainV1(
-    input.fuelType,
-    input.isEvPowertrain,
-  );
-  if (contradictoryEvIceClaim || powertrainClass === 'BEV' || powertrainClass === 'UNKNOWN') {
-    return { candidates: [], entryLabelCount: 0, longestRunLabelCount: 0 };
-  }
-
-  const sorted = [...input.canon.buckets].sort((a, b) => a.recordedAtMs - b.recordedAtMs);
+  powertrainClass: ReturnType<typeof classifySustainedLoadPowertrainV1>['powertrainClass'];
+  sorted: readonly Ds4CanonicalMultichannelBucketV1[];
+  countedEntryLabelMs: Set<number>;
+  sequenceMaxGapSeconds: number;
+}): { candidates: Ds4GapAwareSustainedLoadCandidateV1[]; longestRunLabelCount: number } {
   const candidates: Ds4GapAwareSustainedLoadCandidateV1[] = [];
-  let entryLabelCount = 0;
   let longestRunLabelCount = 0;
-  const countedEntryLabelMs = new Set<number>();
-
   let active: SequenceSlice | null = null;
 
   const countEntryLabelIfNew = (bucket: Ds4CanonicalMultichannelBucketV1): Ds4SustainedLoadEntryBranchV1 | null => {
     const entry = resolveSustainedLoadEntryBranch(bucket);
-    if (entry != null && !countedEntryLabelMs.has(bucket.recordedAtMs)) {
-      countedEntryLabelMs.add(bucket.recordedAtMs);
-      entryLabelCount += 1;
+    if (entry != null && !input.countedEntryLabelMs.has(bucket.recordedAtMs)) {
+      input.countedEntryLabelMs.add(bucket.recordedAtMs);
     }
     return entry;
   };
@@ -137,7 +126,7 @@ export function detectGapAwareSustainedLoadCandidates(input: {
       return;
     }
     longestRunLabelCount = Math.max(longestRunLabelCount, active.buckets.length);
-    const admission = sequenceMeetsAdmission(active, powertrainClass);
+    const admission = sequenceMeetsAdmission(active, input.powertrainClass);
     if (!admission.ok) {
       active = null;
       return;
@@ -171,7 +160,7 @@ export function detectGapAwareSustainedLoadCandidates(input: {
     active = null;
   };
 
-  for (const bucket of sorted) {
+  for (const bucket of input.sorted) {
     if (bucket.loadPct == null) {
       flush();
       continue;
@@ -182,7 +171,15 @@ export function detectGapAwareSustainedLoadCandidates(input: {
     if (active) {
       const prev = active.buckets[active.buckets.length - 1]!;
       const gap = bucket.recordedAtMs - prev.recordedAtMs;
-      if (gap > DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.maxAdjacentLabelGapMs || !continuesHighLoad(bucket)) {
+      const sequenceBoundary = gapCrossesAdmittedSequenceBoundary({
+        labelGapMs: gap,
+        sequenceMaxGapSeconds: input.sequenceMaxGapSeconds,
+      });
+      if (
+        gap > DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.maxAdjacentLabelGapMs ||
+        sequenceBoundary ||
+        !continuesHighLoad(bucket)
+      ) {
         flush();
       } else {
         active.buckets.push(bucket);
@@ -196,10 +193,40 @@ export function detectGapAwareSustainedLoadCandidates(input: {
   }
   flush();
 
+  return { candidates, longestRunLabelCount };
+}
+
+export function detectGapAwareSustainedLoadCandidates(input: {
+  tripId: string;
+  providerSourceLinkId: string;
+  fuelType: string | null;
+  isEvPowertrain: boolean;
+  canon: Ds4MultichannelCanonicalizeResultV1;
+  sequenceMaxGapSeconds: number;
+}): Ds4GapAwareSustainedLoadDetectResultV1 {
+  const { powertrainClass, contradictoryEvIceClaim } = classifySustainedLoadPowertrainV1(
+    input.fuelType,
+    input.isEvPowertrain,
+  );
+  if (contradictoryEvIceClaim || powertrainClass === 'BEV' || powertrainClass === 'UNKNOWN') {
+    return { candidates: [], entryLabelCount: 0, longestRunLabelCount: 0 };
+  }
+
+  const sorted = [...input.canon.buckets].sort((a, b) => a.recordedAtMs - b.recordedAtMs);
+  const countedEntryLabelMs = new Set<number>();
+  const partial = detectGapAwareSustainedLoadOnAdmittedSequence({
+    tripId: input.tripId,
+    providerSourceLinkId: input.providerSourceLinkId,
+    powertrainClass,
+    sorted,
+    countedEntryLabelMs,
+    sequenceMaxGapSeconds: input.sequenceMaxGapSeconds,
+  });
+
   return {
-    candidates,
-    entryLabelCount,
-    longestRunLabelCount,
+    candidates: partial.candidates,
+    entryLabelCount: countedEntryLabelMs.size,
+    longestRunLabelCount: partial.longestRunLabelCount,
   };
 }
 
