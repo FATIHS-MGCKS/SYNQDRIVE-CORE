@@ -37,6 +37,8 @@ export function VsiProfilesCadenceTab({ profile, formatTimestamp }: Props) {
 
   const lv = mapSummaryToLvBadge(profile);
   const rpm = mapSummaryToRpmBadge(profile);
+  const rpmSignal = profile.signals.find((s) => s.canonicalSignalKey === 'engine_rpm');
+  const cadenceIntel = rpmSignal?.cadenceIntelligence;
 
   return (
     <div className="space-y-4" data-testid="vsi-tab-profiles">
@@ -118,6 +120,14 @@ export function VsiProfilesCadenceTab({ profile, formatTimestamp }: Props) {
               </div>
             </dl>
             <p className="mt-2 text-[10px] text-muted-foreground">{t('master.intelligence.vsi.profiles.rpmFsdNote' as never)}</p>
+            {cadenceIntel && Object.keys(cadenceIntel).length ? (
+              <details className="mt-3 rounded border border-border/40 p-2">
+                <summary className="cursor-pointer text-[11px] font-medium">
+                  {t('master.intelligence.vsi.profiles.signalCadenceDetail' as never)}
+                </summary>
+                <pre className="mt-2 max-h-40 overflow-auto text-[10px]">{JSON.stringify(cadenceIntel, null, 2)}</pre>
+              </details>
+            ) : null}
           </div>
         ) : null}
       </section>

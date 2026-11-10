@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../lib/api';
 import type {
   MasterFsdRunHistoryPageDtoV1,
@@ -6,6 +6,12 @@ import type {
   MasterFsdSignalExplorerPageDtoV1,
   MasterFsdSummaryDtoV1,
 } from './vsi-master-fsd-read-api.types';
+import {
+  FSD_SIGNAL_PAGE_LIMIT,
+  mergeSignalCatalogItems,
+  searchFsdSignalCatalog,
+  type FsdCatalogSearchOutcome,
+} from './vsi-fsd-signal-catalog.util';
 
 export type VsiFsdReadScope = {
   orgId: string;
@@ -36,6 +42,7 @@ export type VsiMasterFsdReadState = {
   signals: MasterFsdSignalExplorerPageDtoV1 | null;
   signalsLoading: boolean;
   signalsError: string | null;
+  signalsSearch: FsdCatalogSearchOutcome | null;
   runs: MasterFsdRunHistoryPageDtoV1 | null;
   runsLoading: boolean;
   runsError: string | null;
@@ -52,6 +59,7 @@ const emptyFsd: VsiMasterFsdReadState = {
   signals: null,
   signalsLoading: false,
   signalsError: null,
+  signalsSearch: null,
   runs: null,
   runsLoading: false,
   runsError: null,
@@ -61,6 +69,16 @@ const emptyFsd: VsiMasterFsdReadState = {
   selectedRunId: null,
 };
 
+async function fetchSignalPage(
+  scope: VsiFsdReadScope,
+  cursor: string | null,
+): Promise<MasterFsdSignalExplorerPageDtoV1> {
+  return api.admin.masterIntelligenceVsi.fsd.signals(scope.orgId, scope.vehicleId, scope.providerSourceLinkId, {
+    limit: FSD_SIGNAL_PAGE_LIMIT,
+    cursor,
+  });
+}
+
 export function useVsiMasterFsdReadData(input: {
   orgId: string | null;
   vehicleId: string | null;
@@ -68,28 +86,41 @@ export function useVsiMasterFsdReadData(input: {
 }) {
   const { orgId, vehicleId, providerSourceLinkId } = input;
   const [state, setState] = useState<VsiMasterFsdReadState>(emptyFsd);
-  const generationRef = useRef(0);
+
+  const scopeKey = useMemo(() => {
+    if (!orgId || !vehicleId || !providerSourceLinkId) return null;
+    return `${orgId}\u0001${vehicleId}\u0001${providerSourceLinkId}`;
+  }, [orgId, vehicleId, providerSourceLinkId]);
+
+  const scope = useMemo((): VsiFsdReadScope | null => {
+    if (!orgId || !vehicleId || !providerSourceLinkId) return null;
+    return { orgId, vehicleId, providerSourceLinkId };
+  }, [orgId, vehicleId, providerSourceLinkId]);
+
   const scopeRef = useRef<VsiFsdReadScope | null>(null);
-
-  const reset = useCallback(() => {
-    generationRef.current += 1;
-    scopeRef.current = null;
-    setState({ ...emptyFsd });
-  }, []);
-
-  const scope: VsiFsdReadScope | null =
-    orgId && vehicleId && providerSourceLinkId
-      ? { orgId, vehicleId, providerSourceLinkId }
-      : null;
+  const summaryReqRef = useRef(0);
+  const signalsReqRef = useRef(0);
+  const searchReqRef = useRef(0);
+  const runsReqRef = useRef(0);
+  const inspectorReqRef = useRef(0);
 
   useEffect(() => {
+    scopeRef.current = scope;
     if (!scope) {
-      reset();
+      summaryReqRef.current += 1;
+      signalsReqRef.current += 1;
+      searchReqRef.current += 1;
+      runsReqRef.current += 1;
+      inspectorReqRef.current += 1;
+      setState({ ...emptyFsd });
       return;
     }
-    const generation = ++generationRef.current;
-    scopeRef.current = scope;
-    const isCurrent = () => generationRef.current === generation;
+
+    const reqId = ++summaryReqRef.current;
+    signalsReqRef.current += 1;
+    searchReqRef.current += 1;
+    runsReqRef.current += 1;
+    inspectorReqRef.current += 1;
 
     setState((prev) => ({
       ...prev,
@@ -97,6 +128,7 @@ export function useVsiMasterFsdReadData(input: {
       summaryError: null,
       signals: null,
       signalsError: null,
+      signalsSearch: null,
       runs: null,
       runsError: null,
       inspector: null,
@@ -111,7 +143,8 @@ export function useVsiMasterFsdReadData(input: {
           scope.vehicleId,
           scope.providerSourceLinkId,
         );
-        if (!isCurrent() || !matchesScope(scopeRef.current, summary)) return;
+        if (summaryReqRef.current !== reqId) return;
+        if (!matchesScope(scopeRef.current, summary)) return;
         setState((prev) => ({
           ...prev,
           summary,
@@ -119,7 +152,7 @@ export function useVsiMasterFsdReadData(input: {
           summaryError: null,
         }));
       } catch (e) {
-        if (!isCurrent()) return;
+        if (summaryReqRef.current !== reqId) return;
         setState((prev) => ({
           ...prev,
           summary: null,
@@ -128,35 +161,91 @@ export function useVsiMasterFsdReadData(input: {
         }));
       }
     })();
-  }, [scope?.orgId, scope?.vehicleId, scope?.providerSourceLinkId, reset, scope]);
+  }, [scopeKey, scope]);
 
-  const loadSignals = useCallback(
-    async (params?: { cursor?: string | null; q?: string | null; append?: boolean }) => {
+  const loadSignalsPage = useCallback(
+    async (params?: { cursor?: string | null; append?: boolean }) => {
       if (!scope) return;
-      const generation = generationRef.current;
-      const isCurrent = () => generationRef.current === generation;
+      const reqId = ++signalsReqRef.current;
+      searchReqRef.current += 1;
 
-      setState((prev) => ({ ...prev, signalsLoading: true, signalsError: null }));
+      setState((prev) => ({
+        ...prev,
+        signalsLoading: true,
+        signalsError: null,
+        signalsSearch: null,
+      }));
+
       try {
-        const page = await api.admin.masterIntelligenceVsi.fsd.signals(
-          scope.orgId,
-          scope.vehicleId,
-          scope.providerSourceLinkId,
-          { limit: 50, cursor: params?.cursor ?? null, q: params?.q ?? null },
-        );
-        if (!isCurrent() || !matchesScope(scopeRef.current, page)) return;
+        const page = await fetchSignalPage(scope, params?.cursor ?? null);
+        if (signalsReqRef.current !== reqId) return;
+        if (!matchesScope(scopeRef.current, page)) return;
+
         setState((prev) => {
-          const merged =
+          const mergedItems =
             params?.append && prev.signals
-              ? {
-                  ...page,
-                  items: [...prev.signals.items, ...page.items],
-                }
-              : page;
-          return { ...prev, signals: merged, signalsLoading: false, signalsError: null };
+              ? mergeSignalCatalogItems(prev.signals.items, page.items)
+              : page.items;
+          return {
+            ...prev,
+            signals: { ...page, items: mergedItems },
+            signalsLoading: false,
+            signalsError: null,
+            signalsSearch: null,
+          };
         });
       } catch (e) {
-        if (!isCurrent()) return;
+        if (signalsReqRef.current !== reqId) return;
+        setState((prev) => ({
+          ...prev,
+          signalsLoading: false,
+          signalsError: errorMessage(e),
+        }));
+      }
+    },
+    [scope],
+  );
+
+  const searchSignals = useCallback(
+    async (query: string) => {
+      if (!scope) return;
+      const reqId = ++searchReqRef.current;
+      signalsReqRef.current += 1;
+
+      setState((prev) => ({ ...prev, signalsLoading: true, signalsError: null }));
+
+      try {
+        const outcome = await searchFsdSignalCatalog(scope, query, fetchSignalPage, {
+          isCancelled: () => searchReqRef.current !== reqId,
+        });
+        if (searchReqRef.current !== reqId) return;
+
+        const base = outcome.basePage;
+        if (base && !matchesScope(scopeRef.current, base)) return;
+
+        const displayPage: MasterFsdSignalExplorerPageDtoV1 | null = base
+          ? {
+              ...base,
+              items: outcome.query ? outcome.items : base.items,
+              aggregates: {
+                ...base.aggregates,
+                logicalSignalsReturned: outcome.query ? outcome.items.length : base.aggregates.logicalSignalsReturned,
+              },
+              page: outcome.query
+                ? { limit: FSD_SIGNAL_PAGE_LIMIT, nextCursor: null, hasMore: false }
+                : base.page,
+            }
+          : null;
+
+        setState((prev) => ({
+          ...prev,
+          signals: displayPage,
+          signalsSearch: outcome,
+          signalsLoading: false,
+          signalsError: null,
+        }));
+      } catch (e) {
+        if (searchReqRef.current !== reqId) return;
         setState((prev) => ({
           ...prev,
           signalsLoading: false,
@@ -170,8 +259,7 @@ export function useVsiMasterFsdReadData(input: {
   const loadRuns = useCallback(
     async (params?: { cursor?: string | null; append?: boolean }) => {
       if (!scope) return;
-      const generation = generationRef.current;
-      const isCurrent = () => generationRef.current === generation;
+      const reqId = ++runsReqRef.current;
 
       setState((prev) => ({ ...prev, runsLoading: true, runsError: null }));
       try {
@@ -181,7 +269,8 @@ export function useVsiMasterFsdReadData(input: {
           scope.providerSourceLinkId,
           { limit: 25, cursor: params?.cursor ?? null },
         );
-        if (!isCurrent() || !matchesScope(scopeRef.current, page)) return;
+        if (runsReqRef.current !== reqId) return;
+        if (!matchesScope(scopeRef.current, page)) return;
         setState((prev) => {
           const merged =
             params?.append && prev.runs
@@ -190,7 +279,7 @@ export function useVsiMasterFsdReadData(input: {
           return { ...prev, runs: merged, runsLoading: false, runsError: null };
         });
       } catch (e) {
-        if (!isCurrent()) return;
+        if (runsReqRef.current !== reqId) return;
         setState((prev) => ({
           ...prev,
           runsLoading: false,
@@ -204,8 +293,7 @@ export function useVsiMasterFsdReadData(input: {
   const loadInspector = useCallback(
     async (runId: string) => {
       if (!scope) return;
-      const generation = generationRef.current;
-      const isCurrent = () => generationRef.current === generation;
+      const reqId = ++inspectorReqRef.current;
 
       setState((prev) => ({
         ...prev,
@@ -221,21 +309,29 @@ export function useVsiMasterFsdReadData(input: {
           scope.providerSourceLinkId,
           runId,
         );
-        if (!isCurrent() || !matchesScope(scopeRef.current, inspector)) return;
-        setState((prev) => ({
-          ...prev,
-          inspector,
-          inspectorLoading: false,
-          inspectorError: null,
-        }));
+        if (inspectorReqRef.current !== reqId) return;
+        if (!matchesScope(scopeRef.current, inspector)) return;
+        if (inspector.runId !== runId) return;
+        setState((prev) => {
+          if (prev.selectedRunId !== runId) return prev;
+          return {
+            ...prev,
+            inspector,
+            inspectorLoading: false,
+            inspectorError: null,
+          };
+        });
       } catch (e) {
-        if (!isCurrent()) return;
-        setState((prev) => ({
-          ...prev,
-          inspector: null,
-          inspectorLoading: false,
-          inspectorError: errorMessage(e),
-        }));
+        if (inspectorReqRef.current !== reqId) return;
+        setState((prev) => {
+          if (prev.selectedRunId !== runId) return prev;
+          return {
+            ...prev,
+            inspector: null,
+            inspectorLoading: false,
+            inspectorError: errorMessage(e),
+          };
+        });
       }
     },
     [scope],
@@ -243,9 +339,7 @@ export function useVsiMasterFsdReadData(input: {
 
   const refreshSummary = useCallback(async () => {
     if (!scope) return;
-    const generation = ++generationRef.current;
-    scopeRef.current = scope;
-    const isCurrent = () => generationRef.current === generation;
+    const reqId = ++summaryReqRef.current;
     setState((prev) => ({ ...prev, summaryLoading: true, summaryError: null }));
     try {
       const summary = await api.admin.masterIntelligenceVsi.fsd.summary(
@@ -253,10 +347,11 @@ export function useVsiMasterFsdReadData(input: {
         scope.vehicleId,
         scope.providerSourceLinkId,
       );
-      if (!isCurrent() || !matchesScope(scopeRef.current, summary)) return;
+      if (summaryReqRef.current !== reqId) return;
+      if (!matchesScope(scopeRef.current, summary)) return;
       setState((prev) => ({ ...prev, summary, summaryLoading: false, summaryError: null }));
     } catch (e) {
-      if (!isCurrent()) return;
+      if (summaryReqRef.current !== reqId) return;
       setState((prev) => ({
         ...prev,
         summaryLoading: false,
@@ -268,10 +363,11 @@ export function useVsiMasterFsdReadData(input: {
   return {
     ...state,
     scope,
-    loadSignals,
+    scopeKey,
+    loadSignalsPage,
+    searchSignals,
     loadRuns,
     loadInspector,
     refreshSummary,
-    reset,
   };
 }

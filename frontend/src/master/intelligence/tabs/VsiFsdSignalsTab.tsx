@@ -7,18 +7,22 @@ import type {
   MasterFsdSignalExplorerItemV1,
   MasterFsdSignalExplorerPageDtoV1,
 } from '../vsi-master-fsd-read-api.types';
+import type { FsdCatalogSearchOutcome } from '../vsi-fsd-signal-catalog.util';
 import {
   fsdHistoricalColumnKey,
   fsdPresentationStateKey,
   fsdStageEvidenceKey,
 } from '../vsi-fsd-display.utils';
+import { VsiFsdQueryCell } from './VsiFsdQueryCell';
 
 type Props = {
   scopeKey: string | null;
   signals: MasterFsdSignalExplorerPageDtoV1 | null;
+  signalsSearch: FsdCatalogSearchOutcome | null;
   signalsLoading: boolean;
   signalsError: string | null;
-  onLoad: (params?: { cursor?: string | null; q?: string | null; append?: boolean }) => void;
+  onLoadPage: (params?: { cursor?: string | null; append?: boolean }) => void;
+  onSearch: (query: string) => void;
   catalogAuthoritative: boolean;
   historicalLink: string;
 };
@@ -26,9 +30,11 @@ type Props = {
 export function VsiFsdSignalsTab({
   scopeKey,
   signals,
+  signalsSearch,
   signalsLoading,
   signalsError,
-  onLoad,
+  onLoadPage,
+  onSearch,
   catalogAuthoritative,
   historicalLink,
 }: Props) {
@@ -40,18 +46,27 @@ export function VsiFsdSignalsTab({
     if (!scopeKey) return;
     setQuery('');
     setDetail(null);
-    onLoad({ q: null, cursor: null });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when scope changes
+    onLoadPage({ cursor: null, append: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scope only
   }, [scopeKey]);
 
   const submitSearch = useCallback(() => {
-    onLoad({ q: query.trim() || null, cursor: null });
-  }, [onLoad, query]);
+    const q = query.trim();
+    if (!q) {
+      onLoadPage({ cursor: null, append: false });
+      return;
+    }
+    onSearch(q);
+  }, [onLoadPage, onSearch, query]);
 
   const loadMore = useCallback(() => {
+    if (signalsSearch?.query) return;
     if (!signals?.page.nextCursor) return;
-    onLoad({ cursor: signals.page.nextCursor, q: query.trim() || null, append: true });
-  }, [onLoad, query, signals?.page.nextCursor]);
+    onLoadPage({ cursor: signals.page.nextCursor, append: true });
+  }, [onLoadPage, signals?.page.nextCursor, signalsSearch?.query]);
+
+  const showIncompleteSearch =
+    signalsSearch?.query && signalsSearch.catalogExhaustive === false;
 
   return (
     <div className="space-y-3" data-testid="vsi-tab-signals">
@@ -92,6 +107,14 @@ export function VsiFsdSignalsTab({
             {t('master.intelligence.vsi.fsd.signals.searchAction' as never)}
           </button>
         </div>
+        {showIncompleteSearch ? (
+          <p className="mt-2 text-xs text-amber-800 dark:text-amber-200" role="status">
+            {t('master.intelligence.vsi.fsd.signals.searchIncomplete' as never, {
+              pages: signalsSearch!.pagesScanned,
+              loaded: signalsSearch!.totalRowsLoaded,
+            })}
+          </p>
+        ) : null}
         {signalsError ? (
           <div className="mt-2 rounded border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive" role="alert">
             {signalsError}
@@ -112,7 +135,7 @@ export function VsiFsdSignalsTab({
               })}
             </p>
             <div className="mt-2 overflow-x-auto rounded border border-border/50">
-              <table className="w-full min-w-[40rem] text-left text-[11px]">
+              <table className="w-full min-w-[48rem] text-left text-[11px]">
                 <caption className="sr-only">{t('master.intelligence.vsi.fsd.signals.tableCaption' as never)}</caption>
                 <thead className="border-b border-border/50 bg-muted/20 text-[10px] uppercase text-muted-foreground">
                   <tr>
@@ -120,7 +143,9 @@ export function VsiFsdSignalsTab({
                     <th className="px-2 py-1.5">{t('master.intelligence.vsi.fsd.signals.col.state' as never)}</th>
                     <th className="px-2 py-1.5">{t('master.intelligence.vsi.fsd.signals.col.snapshot' as never)}</th>
                     <th className="px-2 py-1.5">{t('master.intelligence.vsi.fsd.signals.col.historical' as never)}</th>
-                    <th className="px-2 py-1.5">{t('master.intelligence.vsi.fsd.signals.col.query' as never)}</th>
+                    <th className="px-2 py-1.5">{t('master.intelligence.vsi.fsd.signals.col.catalogQuery' as never)}</th>
+                    <th className="px-2 py-1.5">{t('master.intelligence.vsi.fsd.signals.col.snapshotQuery' as never)}</th>
+                    <th className="px-2 py-1.5">{t('master.intelligence.vsi.fsd.signals.col.historicalQuery' as never)}</th>
                     <th className="px-2 py-1.5" />
                   </tr>
                 </thead>
@@ -130,15 +155,21 @@ export function VsiFsdSignalsTab({
                       <td className="px-2 py-1.5 font-mono">{row.providerNativeSignalName}</td>
                       <td className="px-2 py-1.5">{t(fsdPresentationStateKey(row.presentationState) as never)}</td>
                       <td className="px-2 py-1.5">
-                        {row.snapshotEvidence === 'PARTIAL' || row.snapshotEvidence === 'NOT_AVAILABLE' || row.snapshotEvidence === 'NOT_EXECUTED'
+                        {row.snapshotEvidence === 'PARTIAL' ||
+                        row.snapshotEvidence === 'NOT_AVAILABLE' ||
+                        row.snapshotEvidence === 'NOT_EXECUTED'
                           ? t(fsdStageEvidenceKey(row.snapshotEvidence) as never)
                           : t(fsdPresentationStateKey(row.snapshotEvidence as never) as never)}
                       </td>
                       <td className="px-2 py-1.5">{t(fsdHistoricalColumnKey(row.historicalEvidence) as never)}</td>
                       <td className="px-2 py-1.5">
-                        {row.catalogQuery.queryPlanned
-                          ? t('master.intelligence.vsi.fsd.signals.queryPlanned' as never)
-                          : t('master.intelligence.vsi.fsd.signals.queryNotPlanned' as never)}
+                        <VsiFsdQueryCell triple={row.catalogQuery} stage="catalog" />
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <VsiFsdQueryCell triple={row.snapshotQuery} stage="snapshot" />
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <VsiFsdQueryCell triple={row.historicalQuery} stage="historical" />
                       </td>
                       <td className="px-2 py-1.5">
                         <button
@@ -154,7 +185,10 @@ export function VsiFsdSignalsTab({
                 </tbody>
               </table>
             </div>
-            {signals.page.hasMore ? (
+            {signals.items.length === 0 && !signalsLoading ? (
+              <p className="mt-2 text-xs text-muted-foreground">{t('master.intelligence.vsi.fsd.signals.empty' as never)}</p>
+            ) : null}
+            {signals.page.hasMore && !signalsSearch?.query ? (
               <button
                 type="button"
                 className="mt-2 text-xs underline"
@@ -183,6 +217,7 @@ export function VsiFsdSignalsTab({
                 <dt className="text-muted-foreground">{t('master.intelligence.vsi.fsd.signals.detail.declared' as never)}</dt>
                 <dd>{detail.declaredByProvider ? t('master.intelligence.vsi.common.yes' as never) : t('master.intelligence.vsi.common.no' as never)}</dd>
               </div>
+              <p className="text-[10px] text-muted-foreground">{t('master.intelligence.vsi.fsd.signals.declaredNotObserved' as never)}</p>
               {detail.sourceRunId ? (
                 <div>
                   <dt className="text-muted-foreground">{t('master.intelligence.vsi.fsd.signals.detail.runId' as never)}</dt>

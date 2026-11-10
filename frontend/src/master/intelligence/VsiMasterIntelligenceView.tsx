@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { MasterPageHeader, MasterPageSection, MasterPageTabs } from '../shell';
 import { MasterIntelligenceContextProvider } from './MasterIntelligenceContextProvider';
@@ -27,6 +27,7 @@ import {
   pruneLedgerFiltersForSignals,
 } from './vsi-ledger-url.util';
 import { applyVerifiedProviderSourceLink } from './master-intelligence-context-hygiene.util';
+import { resolveEffectiveProviderSourceLink } from './vsi-effective-link.util';
 
 function formatUtcProvenance(iso: string | null | undefined, locale: string): string {
   if (!iso) return '—';
@@ -109,7 +110,21 @@ function VsiMasterIntelligenceContent() {
     [overview],
   );
 
-  const selectedLinkId = context.providerSourceLinkId;
+  const linkResolution = useMemo(
+    () =>
+      resolveEffectiveProviderSourceLink({
+        urlLinkId: context.providerSourceLinkId,
+        overview: overview ?? null,
+      }),
+    [context.providerSourceLinkId, overview],
+  );
+
+  const selectedLinkId = linkResolution.effectiveLinkId;
+
+  useEffect(() => {
+    if (!linkResolution.shouldPersistInUrl || !selectedLinkId) return;
+    setContextInUrl({ providerSourceLinkId: selectedLinkId }, { replace: true });
+  }, [linkResolution.shouldPersistInUrl, selectedLinkId, setContextInUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,12 +220,22 @@ function VsiMasterIntelligenceContent() {
     providerSourceLinkId: selectedLinkId,
   });
 
-  const scopeKey =
-    context.orgId && context.vehicleId && selectedLinkId
-      ? `${context.orgId}:${context.vehicleId}:${selectedLinkId}`
-      : null;
+  const scopeKey = fsd.scopeKey;
+  const runsPrimedForScopeRef = useRef<string | null>(null);
 
   const renderTab = resolveVsiTabForRender(context.vsiTab);
+
+  useEffect(() => {
+    if (!scopeKey) {
+      runsPrimedForScopeRef.current = null;
+      return;
+    }
+    const tab = resolveVsiTabForRender(context.vsiTab);
+    if (tab !== 'runs' && tab !== 'queries') return;
+    if (runsPrimedForScopeRef.current === scopeKey) return;
+    runsPrimedForScopeRef.current = scopeKey;
+    void fsd.loadRuns();
+  }, [scopeKey, context.vsiTab, fsd.loadRuns]);
 
   const selectedOverviewProfile = useMemo(
     () => overview?.profiles.find((p) => p.providerSourceLinkId === selectedLinkId) ?? null,
@@ -390,12 +415,24 @@ function VsiMasterIntelligenceContent() {
           />
         ) : null}
 
-        {hasScope && !loading && !error && overview && overview.profiles.length === 0 ? (
+        {hasScope &&
+        !loading &&
+        !error &&
+        overview &&
+        overview.profiles.length === 0 &&
+        !fsd.summary &&
+        !fsd.summaryLoading &&
+        !selectedLinkId ? (
           <IntelligenceEmptyState
             titleKey="master.intelligence.vsi.noProfiles.title"
             bodyKey="master.intelligence.vsi.noProfiles.body"
             className="mt-4"
           />
+        ) : null}
+        {hasScope && selectedLinkId && overview?.profiles.length === 0 && !profile && !loading ? (
+          <p className="mt-3 text-xs text-amber-800 dark:text-amber-200" role="status">
+            {t('master.intelligence.vsi.link.vsiProfileMissing' as never)}
+          </p>
         ) : null}
       </MasterPageSection>
 
@@ -430,9 +467,11 @@ function VsiMasterIntelligenceContent() {
         <VsiFsdSignalsTab
           scopeKey={scopeKey}
           signals={fsd.signals}
+          signalsSearch={fsd.signalsSearch}
           signalsLoading={fsd.signalsLoading}
           signalsError={fsd.signalsError}
-          onLoad={fsd.loadSignals}
+          onLoadPage={fsd.loadSignalsPage}
+          onSearch={fsd.searchSignals}
           catalogAuthoritative={fsd.summary?.catalog.availability === 'AUTHORITATIVE_LIVE'}
           historicalLink={fsd.summary?.execution.fsd4.historicalCrossStreamLink ?? 'NOT_AVAILABLE'}
         />
@@ -444,7 +483,6 @@ function VsiMasterIntelligenceContent() {
 
       {hasScope && activeTab === 'queries' && selectedLinkId ? (
         <VsiQueriesFrequenciesTab
-          scopeKey={scopeKey}
           runs={fsd.runs}
           runsLoading={fsd.runsLoading}
           runsError={fsd.runsError}
@@ -453,6 +491,7 @@ function VsiMasterIntelligenceContent() {
           inspectorError={fsd.inspectorError}
           selectedRunId={fsd.selectedRunId}
           onLoadRuns={() => void fsd.loadRuns()}
+          onLoadMoreRuns={() => void fsd.loadRuns({ cursor: fsd.runs?.page.nextCursor ?? null, append: true })}
           onSelectRun={(runId) => void fsd.loadInspector(runId)}
           formatTimestamp={formatTimestamp}
         />
@@ -468,10 +507,12 @@ function VsiMasterIntelligenceContent() {
           runsLoading={fsd.runsLoading}
           runsError={fsd.runsError}
           onLoadRuns={() => void fsd.loadRuns()}
+          onLoadMoreRuns={() => void fsd.loadRuns({ cursor: fsd.runs?.page.nextCursor ?? null, append: true })}
           onSelectRun={(runId) => void fsd.loadInspector(runId)}
           selectedRunId={fsd.selectedRunId}
           inspector={fsd.inspector}
           inspectorLoading={fsd.inspectorLoading}
+          inspectorError={fsd.inspectorError}
           revisions={revisions}
           revisionsLoading={revisionsLoading}
           revisionsError={revisionsError}

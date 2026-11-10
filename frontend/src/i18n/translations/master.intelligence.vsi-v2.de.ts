@@ -157,4 +157,36 @@ export const masterIntelligenceVsiV2De: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.runs.legacyRevisions': 'Legacy-URL tab=revisions — Läufe mit VSI-Revisionshistorie.',
   'master.intelligence.vsi.runs.fsdTitle': 'FSD-Discovery-Läufe',
   'master.intelligence.vsi.runs.refresh': 'Run-Liste aktualisieren',
+  'master.intelligence.vsi.runs.loadMore': 'Weitere Runs laden',
+
+  'master.intelligence.vsi.link.vsiProfileMissing':
+    'Kein materialisiertes VSI-Profil für diesen Link. FSD-Read-Modelle können dennoch laden, wenn ein Source-Link im Scope ist.',
+
+  'master.intelligence.vsi.fsd.signals.col.catalogQuery': 'Katalogabfrage',
+  'master.intelligence.vsi.fsd.signals.col.snapshotQuery': 'Snapshot-Abfrage',
+  'master.intelligence.vsi.fsd.signals.col.historicalQuery': 'Historische Abfrage',
+  'master.intelligence.vsi.fsd.signals.searchIncomplete':
+    'Katalogscan nach {{pages}} Seiten gestoppt ({{loaded}} Zeilen geladen). Treffer können unvollständig sein.',
+  'master.intelligence.vsi.fsd.signals.empty': 'Keine Signale passen zum aktuellen Filter.',
+  'master.intelligence.vsi.fsd.signals.declaredNotObserved':
+    'Provider-Katalogdeklaration belegt keine beobachtete Messung.',
+
+  'master.intelligence.vsi.fsd.query.planned': 'Abfrage geplant',
+  'master.intelligence.vsi.fsd.query.accepted': 'Abfrage akzeptiert',
+  'master.intelligence.vsi.fsd.query.observed': 'Beobachteter Wert',
+  'master.intelligence.vsi.fsd.query.notPlanned': 'Nicht geplant',
+  'master.intelligence.vsi.fsd.query.unknown': 'Unbekannt',
+  'master.intelligence.vsi.fsd.query.acceptedFlag': 'Akzeptiert',
+  'master.intelligence.vsi.fsd.query.observedFlag': 'Beobachtet',
+
+  'master.intelligence.vsi.inspector.runId': 'Run-ID',
+  'master.intelligence.vsi.inspector.stream': 'Discovery-Stream',
+  'master.intelligence.vsi.inspector.status': 'Run-Status',
+  'master.intelligence.vsi.inspector.stages': 'Stages',
+  'master.intelligence.vsi.inspector.budgetByStage': 'Budget pro Stage',
+  'master.intelligence.vsi.inspector.col.outcome': 'Ergebnis',
+  'master.intelligence.vsi.inspector.col.finished': 'Abgeschlossen',
+  'master.intelligence.vsi.inspector.col.fingerprint': 'Abfrage-Fingerprint',
+
+  'master.intelligence.vsi.profiles.signalCadenceDetail': 'Signal-Cadence-Intelligence (autoritatives JSON)',
 };

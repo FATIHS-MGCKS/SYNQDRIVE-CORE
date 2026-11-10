@@ -10,16 +10,19 @@ import type {
   MasterVsiRevisionHistoryPageDto,
 } from '../vsi-master-intelligence-api.types';
 import { cn } from '../../../components/ui/utils';
+import { VsiFsdRunInspectorPanel } from './VsiFsdRunInspectorPanel';
 
 type Props = {
   runs: MasterFsdRunHistoryPageDtoV1 | null;
   runsLoading: boolean;
   runsError: string | null;
   onLoadRuns: () => void;
+  onLoadMoreRuns: () => void;
   onSelectRun: (runId: string) => void;
   selectedRunId: string | null;
   inspector: MasterFsdRunInspectorDtoV1 | null;
   inspectorLoading: boolean;
+  inspectorError: string | null;
   revisions: MasterVsiRevisionHistoryPageDto | null;
   revisionsLoading: boolean;
   revisionsError: string | null;
@@ -36,10 +39,12 @@ export function VsiRunsRevisionsTab({
   runsLoading,
   runsError,
   onLoadRuns,
+  onLoadMoreRuns,
   onSelectRun,
   selectedRunId,
   inspector,
   inspectorLoading,
+  inspectorError,
   revisions,
   revisionsLoading,
   revisionsError,
@@ -61,7 +66,7 @@ export function VsiRunsRevisionsTab({
       ) : null}
 
       <MasterPageSection title={t('master.intelligence.vsi.runs.fsdTitle' as never)}>
-        <button type="button" className="mb-2 text-xs underline" onClick={() => onLoadRuns()}>
+        <button type="button" className="mb-2 text-xs underline" onClick={onLoadRuns}>
           {t('master.intelligence.vsi.runs.refresh' as never)}
         </button>
         {runsLoading && !runs ? (
@@ -84,26 +89,36 @@ export function VsiRunsRevisionsTab({
               selectedRunId === run.runId ? 'border-primary bg-primary/5' : 'border-border/50',
             )}
             onClick={() => onSelectRun(run.runId)}
+            aria-pressed={selectedRunId === run.runId}
           >
             {run.runId} · {run.status}
             <span className="ml-2 text-muted-foreground">{formatTimestamp(run.completedAt ?? run.createdAt)}</span>
           </button>
         ))}
-        {inspectorLoading ? (
-          <p className="text-xs text-muted-foreground">{t('master.intelligence.vsi.fsd.loading' as never)}</p>
+        {runs?.page.hasMore ? (
+          <button
+            type="button"
+            className="mt-2 text-xs underline"
+            disabled={runsLoading}
+            onClick={onLoadMoreRuns}
+          >
+            {runsLoading ? t('master.intelligence.vsi.fsd.loading' as never) : t('master.intelligence.vsi.runs.loadMore' as never)}
+          </button>
         ) : null}
-        {inspector ? (
-          <pre className="mt-2 max-h-48 overflow-auto rounded border bg-muted/10 p-2 text-[10px]">
-            {JSON.stringify(
-              {
-                runId: inspector.runId,
-                stages: inspector.stages,
-                catalogProvenance: inspector.catalogProvenance,
-              },
-              null,
-              2,
-            )}
-          </pre>
+        {selectedRunId ? (
+          <div className="mt-4">
+            {inspectorLoading ? (
+              <p className="text-xs text-muted-foreground">{t('master.intelligence.vsi.fsd.loading' as never)}</p>
+            ) : null}
+            {inspectorError ? (
+              <p className="text-xs text-destructive" role="alert">
+                {inspectorError}
+              </p>
+            ) : null}
+            {inspector && inspector.runId === selectedRunId ? (
+              <VsiFsdRunInspectorPanel inspector={inspector} formatTimestamp={formatTimestamp} />
+            ) : null}
+          </div>
         ) : null}
       </MasterPageSection>
 
@@ -161,6 +176,12 @@ export function VsiRunsRevisionsTab({
           <p className="mt-1 text-xs">
             {t('master.intelligence.vsi.asOf.authority' as never)}: {revisionAsOf.authority}
           </p>
+          {revisionAsOf.selectedRevision ? (
+            <p className="mt-1 font-mono text-xs">
+              rev {revisionAsOf.selectedRevision.profileRevision} · LV {revisionAsOf.selectedRevision.lvStandbyProfile}{' '}
+              · RPM {revisionAsOf.selectedRevision.rpmActiveProfile}
+            </p>
+          ) : null}
         </MasterPageSection>
       ) : null}
 

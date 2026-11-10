@@ -3753,12 +3753,12 @@ export const api = {
           organizationId: string,
           vehicleId: string,
           providerSourceLinkId: string,
-          params?: { limit?: number; cursor?: string | null; q?: string | null },
+          params?: { limit?: number; cursor?: string | null; runId?: string | null },
         ) => {
           const q = new URLSearchParams();
           if (params?.limit != null) q.set('limit', String(params.limit));
           if (params?.cursor) q.set('cursor', params.cursor);
-          if (params?.q) q.set('q', params.q);
+          if (params?.runId) q.set('runId', params.runId);
           const suffix = q.toString() ? `?${q.toString()}` : '';
           return get<import('../master/intelligence/vsi-master-fsd-read-api.types').MasterFsdSignalExplorerPageDtoV1>(
             `/admin/master-intelligence/vsi/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/links/${encodeURIComponent(providerSourceLinkId)}/fsd/signals${suffix}`,

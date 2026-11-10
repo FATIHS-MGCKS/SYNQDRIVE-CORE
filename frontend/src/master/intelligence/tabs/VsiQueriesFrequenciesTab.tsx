@@ -1,12 +1,10 @@
-import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useLanguage } from '../../../i18n/LanguageContext';
 import { MasterPageSection } from '../../shell';
 import type { MasterFsdRunHistoryPageDtoV1, MasterFsdRunInspectorDtoV1 } from '../vsi-master-fsd-read-api.types';
-import { fsdLedgerLifecycleKey } from '../vsi-fsd-display.utils';
+import { VsiFsdRunInspectorPanel } from './VsiFsdRunInspectorPanel';
 
 type Props = {
-  scopeKey: string | null;
   runs: MasterFsdRunHistoryPageDtoV1 | null;
   runsLoading: boolean;
   runsError: string | null;
@@ -15,12 +13,12 @@ type Props = {
   inspectorError: string | null;
   selectedRunId: string | null;
   onLoadRuns: () => void;
+  onLoadMoreRuns: () => void;
   onSelectRun: (runId: string) => void;
   formatTimestamp: (iso: string | null | undefined) => string;
 };
 
 export function VsiQueriesFrequenciesTab({
-  scopeKey,
   runs,
   runsLoading,
   runsError,
@@ -29,16 +27,11 @@ export function VsiQueriesFrequenciesTab({
   inspectorError,
   selectedRunId,
   onLoadRuns,
+  onLoadMoreRuns,
   onSelectRun,
   formatTimestamp,
 }: Props) {
   const { t } = useLanguage();
-
-  useEffect(() => {
-    if (!scopeKey) return;
-    onLoadRuns();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeKey]);
 
   return (
     <div className="space-y-4" data-testid="vsi-tab-queries">
@@ -53,6 +46,9 @@ export function VsiQueriesFrequenciesTab({
       </MasterPageSection>
 
       <MasterPageSection title={t('master.intelligence.vsi.queries.runsTitle' as never)}>
+        <button type="button" className="mb-2 text-xs underline" onClick={onLoadRuns}>
+          {t('master.intelligence.vsi.runs.refresh' as never)}
+        </button>
         {runsLoading && !runs ? (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -93,10 +89,21 @@ export function VsiQueriesFrequenciesTab({
         ) : runs && !runsLoading ? (
           <p className="text-xs text-muted-foreground">{t('master.intelligence.vsi.queries.noRuns' as never)}</p>
         ) : null}
+        {runs?.page.hasMore ? (
+          <button
+            type="button"
+            className="mt-2 text-xs underline"
+            disabled={runsLoading}
+            onClick={onLoadMoreRuns}
+          >
+            {runsLoading ? t('master.intelligence.vsi.fsd.loading' as never) : t('master.intelligence.vsi.runs.loadMore' as never)}
+          </button>
+        ) : null}
       </MasterPageSection>
 
       {selectedRunId ? (
         <MasterPageSection title={t('master.intelligence.vsi.queries.inspectorTitle' as never)}>
+          <p className="mb-2 font-mono text-[10px] text-muted-foreground">{selectedRunId}</p>
           {inspectorLoading ? (
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -108,44 +115,8 @@ export function VsiQueriesFrequenciesTab({
               {inspectorError}
             </p>
           ) : null}
-          {inspector ? (
-            <div className="space-y-3 text-xs">
-              <p className="text-muted-foreground">
-                {t('master.intelligence.vsi.queries.pollingProven' as never)}:{' '}
-                {inspector.cadence.nativePollingFrequencyProven
-                  ? t('master.intelligence.vsi.common.yes' as never)
-                  : t('master.intelligence.vsi.fsd.notProven' as never)}
-              </p>
-              <p className="text-[10px] text-muted-foreground">{inspector.cadence.note}</p>
-              <p className="text-[10px] text-muted-foreground">{inspector.aggregationSemantics.note}</p>
-              <p className="font-mono text-[10px]">{inspector.ledger.reconciliationNote}</p>
-              {inspector.ledger.attempts.length ? (
-                <div className="overflow-x-auto rounded border border-border/40">
-                  <table className="w-full min-w-[36rem] text-left text-[10px]">
-                    <thead className="bg-muted/20 text-muted-foreground">
-                      <tr>
-                        <th className="px-2 py-1">{t('master.intelligence.vsi.queries.col.stage' as never)}</th>
-                        <th className="px-2 py-1">{t('master.intelligence.vsi.queries.col.lifecycle' as never)}</th>
-                        <th className="px-2 py-1">{t('master.intelligence.vsi.queries.col.http' as never)}</th>
-                        <th className="px-2 py-1">{t('master.intelligence.vsi.queries.col.reserved' as never)}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {inspector.ledger.attempts.map((a) => (
-                        <tr key={a.attemptKey} className="border-t border-border/30">
-                          <td className="px-2 py-1 font-mono">{a.stageType}</td>
-                          <td className="px-2 py-1">{t(fsdLedgerLifecycleKey(a.lifecycle) as never)}</td>
-                          <td className="px-2 py-1 tabular-nums">{a.httpStatus ?? '—'}</td>
-                          <td className="px-2 py-1">{formatTimestamp(a.reservedAt)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-muted-foreground">{t('master.intelligence.vsi.queries.noAttempts' as never)}</p>
-              )}
-            </div>
+          {inspector && inspector.runId === selectedRunId ? (
+            <VsiFsdRunInspectorPanel inspector={inspector} formatTimestamp={formatTimestamp} />
           ) : null}
         </MasterPageSection>
       ) : null}
