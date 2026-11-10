@@ -4,6 +4,7 @@ import {
   type DbiP2c2ProxyCandidateEnvelopeV1,
   type DbiP2c2SourceModuleV1,
 } from '../dbi-p2c2-offline-evidence-adapters/dbi-p2c2-evidence-adapter.contract.v1';
+import type { Ds4KickdownCandidateSupportTier } from '../ds4-powertrain-demand-research/ds4-powertrain-demand-research.contract.v1';
 import type { DbiP2c3ReconciliationDiagnosticCodeV1 } from './dbi-p2c3-reconciliation.contract.v1';
 import { tryBuildCandidateEnvelopeIdentityPayload } from './dbi-p2c3-reconciliation.canonical.v1';
 import { validateParticipantIdentityShape } from './dbi-p2c3-reconciliation.identity-canon.v1';
@@ -19,6 +20,8 @@ const ALLOWED_POWERTRAIN_MODULES: readonly DbiP2c2SourceModuleV1[] = [
   'P2-B3',
   'P2-B4',
 ] as const;
+
+const B1_CANDIDATE_SUPPORT_TIERS = new Set<Ds4KickdownCandidateSupportTier>(['STRONG', 'MODERATE', 'WEAK']);
 
 export function validateBundleAndParticipants(
   bundle: DbiP2c2OfflineEvidenceBundleV1,
@@ -86,7 +89,9 @@ export function validateBundleAndParticipants(
       if (cand.sourceModule !== part.sourceModule) {
         codes.push('CANDIDATE_SOURCE_MODULE_MISMATCH');
       }
-      if (!candidateEnvelopeCoherent(cand)) {
+      if (cand.sourceModule === 'P2-B1' && !b1CandidateSupportTiersValid(cand)) {
+        codes.push('B1_CANDIDATE_SUPPORT_TIER_INVALID');
+      } else if (!candidateEnvelopeCoherent(cand)) {
         codes.push('CANDIDATE_ENVELOPE_INCOHERENT');
       }
       if (!tryBuildCandidateEnvelopeIdentityPayload(cand).ok) {
@@ -102,6 +107,19 @@ function nonemptyString(value: string): boolean {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function isAuthorizedB1SupportTier(value: unknown): value is Ds4KickdownCandidateSupportTier {
+  return typeof value === 'string' && B1_CANDIDATE_SUPPORT_TIERS.has(value as Ds4KickdownCandidateSupportTier);
+}
+
+function b1CandidateSupportTiersValid(
+  cand: Extract<DbiP2c2ProxyCandidateEnvelopeV1, { sourceModule: 'P2-B1' }>,
+): boolean {
+  return (
+    isAuthorizedB1SupportTier(cand.originalCandidateSupportTier) &&
+    isAuthorizedB1SupportTier(cand.originalCandidate.candidateSupportTier)
+  );
+}
+
 function candidateEnvelopeCoherent(cand: DbiP2c2ProxyCandidateEnvelopeV1): boolean {
   if (cand.originalCandidate.episodeKey !== cand.sourceEpisodeKey) {
     return false;
@@ -110,8 +128,11 @@ function candidateEnvelopeCoherent(cand: DbiP2c2ProxyCandidateEnvelopeV1): boole
     return false;
   }
   switch (cand.sourceModule) {
-    case 'P2-B1':
-      return cand.originalCandidateSupportTier === cand.originalCandidate.candidateSupportTier;
+    case 'P2-B1': {
+      const b1 = cand as Extract<DbiP2c2ProxyCandidateEnvelopeV1, { sourceModule: 'P2-B1' }>;
+      if (!b1CandidateSupportTiersValid(b1)) return false;
+      return b1.originalCandidateSupportTier === b1.originalCandidate.candidateSupportTier;
+    }
     case 'P2-B2':
       return cand.proxyKind === cand.originalCandidate.proxyKind;
     case 'P2-B3':
