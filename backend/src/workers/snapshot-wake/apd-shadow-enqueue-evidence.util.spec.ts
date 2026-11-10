@@ -12,7 +12,17 @@ describe('apd-shadow-enqueue-evidence.util', () => {
   });
 
   it('builds frozen enqueue evidence payload', () => {
-    expect(buildApdShadowEnqueueEvidence('ENQUEUED', 1_234)).toEqual({
+    expect(
+      buildApdShadowEnqueueEvidence({
+        outcome: 'ENQUEUED',
+        observedAtMs: 1_234,
+        attemptId: 'a1',
+        canonicalJobId: 'snapshot-v1',
+      }),
+    ).toEqual({
+      attemptId: 'a1',
+      canonicalJobId: 'snapshot-v1',
+      binding: 'PHYSICAL_JOB_PAYLOAD',
       outcome: 'ENQUEUED',
       observedAtMs: 1_234,
     });

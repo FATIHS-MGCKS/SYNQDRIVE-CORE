@@ -42,8 +42,9 @@ describe('reconcilePriorSkipDiscoveryDelay pagination and budget (H3)', () => {
       ];
     });
 
+    const count = jest.fn().mockResolvedValue(opportunityIds.length);
     const service = new ApdShadowBaselinePollEvidenceService({
-      apdShadowReconciliationDecision: { findMany, updateMany },
+      apdShadowReconciliationDecision: { findMany, updateMany, count },
       dimoPollLog: { findFirst },
     } as never);
 
@@ -69,8 +70,9 @@ describe('reconcilePriorSkipDiscoveryDelay pagination and budget (H3)', () => {
       .mockResolvedValue([]);
     const findFirst = jest.fn().mockResolvedValue(null);
     const updateMany = jest.fn();
+    const count = jest.fn().mockResolvedValue(1);
     const service = new ApdShadowBaselinePollEvidenceService({
-      apdShadowReconciliationDecision: { findMany, updateMany },
+      apdShadowReconciliationDecision: { findMany, updateMany, count },
       dimoPollLog: { findFirst },
     } as never);
 
@@ -102,8 +104,9 @@ describe('reconcilePriorSkipDiscoveryDelay pagination and budget (H3)', () => {
       ]);
     const findFirst = jest.fn().mockResolvedValue({ id: 'p-next', startedAt: new Date() });
     const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const count = jest.fn().mockResolvedValue(1);
     const service = new ApdShadowBaselinePollEvidenceService({
-      apdShadowReconciliationDecision: { findMany, updateMany },
+      apdShadowReconciliationDecision: { findMany, updateMany, count },
       dimoPollLog: { findFirst },
     } as never);
 

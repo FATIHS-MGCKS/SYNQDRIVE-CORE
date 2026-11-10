@@ -138,10 +138,14 @@ describe('ApdShadowBaselinePollEvidenceService idempotency', () => {
       .mockResolvedValueOnce([{ opportunityId: 'opp-prior' }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
-    const findFirst = jest.fn().mockResolvedValue({ id: 'observing-poll-id' });
+    const findFirst = jest.fn().mockResolvedValue({
+      id: 'observing-poll-id',
+      startedAt: new Date('2026-10-25T10:30:02.808Z'),
+    });
+    const count = jest.fn().mockResolvedValue(1);
     const service = new ApdShadowBaselinePollEvidenceService(
       {
-        apdShadowReconciliationDecision: { findMany, updateMany },
+        apdShadowReconciliationDecision: { findMany, updateMany, count },
         dimoPollLog: { findFirst },
       } as never,
     );

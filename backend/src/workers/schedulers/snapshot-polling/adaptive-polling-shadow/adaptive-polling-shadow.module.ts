@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '@shared/database/prisma.module';
+import { RedisModule } from '@shared/redis/redis.module';
 import { ObservabilityModule } from '@modules/observability/observability.module';
 import { AdaptivePollingShadowRepository } from './adaptive-polling-shadow.repository';
 import { AdaptivePollingShadowMetricsService } from './adaptive-polling-shadow-metrics.service';
@@ -9,7 +10,7 @@ import { ApdShadowVsiLvAvailabilityLoader } from './apd-shadow-vsi-lv-availabili
 import { ApdShadowBaselinePollEvidenceService } from './apd-shadow-baseline-poll-evidence.service';
 
 @Module({
-  imports: [PrismaModule, ObservabilityModule],
+  imports: [PrismaModule, ObservabilityModule, RedisModule],
   providers: [
     AdaptivePollingShadowRepository,
     AdaptivePollingShadowMetricsService,

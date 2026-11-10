@@ -223,6 +223,7 @@ export class AdaptivePollingShadowService {
     opportunityId: string;
     enqueueOutcome: ApdShadowCanonicalEnqueueOutcome;
     observedAtMs: number;
+    enqueueAttemptId?: string;
   }): Promise<void> {
     if (!this.assertCohortVehicleAllowed(input.organizationId, input.vehicleId)) {
       return;

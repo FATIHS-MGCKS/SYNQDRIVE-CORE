@@ -12,6 +12,7 @@ import {
   P25_APD_DELAY_EVIDENCE_V1_0_LEGACY,
   P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT,
 } from '../../src/workers/schedulers/snapshot-polling/adaptive-polling-shadow/p25-apd-shadow-baseline-poll-evidence';
+import { queryExactJointSkipSavings } from './apds-scientific-savings-sql';
 
 type Args = {
   vehicleIds: string[];
@@ -111,46 +112,33 @@ async function main(): Promise<void> {
     },
   });
 
-  const savings = await prisma.$queryRaw<
-    Array<{
-      joint_skip_opportunities: bigint;
-      distinct_joint_skip_physical_polls: bigint;
-      union_any_skip_success_opportunities: bigint;
-    }>
-  >`
-    SELECT
-      COUNT(DISTINCT b2.opportunity_id)::bigint AS joint_skip_opportunities,
-      COUNT(DISTINCT b2.real_poll_id)::bigint AS distinct_joint_skip_physical_polls,
-      (
-        SELECT COUNT(DISTINCT r.opportunity_id)::bigint
-        FROM apd_shadow_reconciliation_decisions r
-        WHERE r.vehicle_id = ANY(${args.vehicleIds}::text[])
-          AND r.activation_epoch_id = ${args.activationEpochId}
-          AND r.decision_at >= ${windowStart}
-          AND r.decision_at <= ${args.evaluationCompletedAtUtc}
-          AND r.decision = 'WOULD_SKIP'
-          AND r.real_poll_status = 'SUCCESS'
-      ) AS union_any_skip_success_opportunities
-    FROM apd_shadow_reconciliation_decisions b2
-    INNER JOIN apd_shadow_reconciliation_decisions b4
-      ON b2.organization_id = b4.organization_id
-      AND b2.vehicle_id = b4.vehicle_id
-      AND b2.activation_epoch_id = b4.activation_epoch_id
-      AND b2.opportunity_id = b4.opportunity_id
-      AND b2.real_poll_id = b4.real_poll_id
-      AND b2.real_poll_id IS NOT NULL
-    WHERE b2.vehicle_id = ANY(${args.vehicleIds}::text[])
-      AND b2.activation_epoch_id = ${args.activationEpochId}
-      AND b2.decision_at >= ${windowStart}
-      AND b2.decision_at <= ${args.evaluationCompletedAtUtc}
-      AND b4.decision_at >= ${windowStart}
-      AND b4.decision_at <= ${args.evaluationCompletedAtUtc}
-      AND b2.policy_version = ${P25_APD_B2_V1}
-      AND b4.policy_version = ${P25_APD_B4_V1}
-      AND b2.decision = 'WOULD_SKIP'
-      AND b4.decision = 'WOULD_SKIP'
-      AND b2.real_poll_status = 'SUCCESS'
-      AND b4.real_poll_status = 'SUCCESS'`;
+  const savingsRow = await queryExactJointSkipSavings(prisma, {
+    vehicleIds: args.vehicleIds,
+    activationEpochId: args.activationEpochId,
+    windowStart,
+    windowEnd: args.evaluationCompletedAtUtc,
+  });
+
+  const unionAnySkipRows = await prisma.apdShadowReconciliationDecision.groupBy({
+    by: ['opportunityId'],
+    where: {
+      vehicleId: { in: args.vehicleIds },
+      activationEpochId: args.activationEpochId,
+      decisionAt: { gte: windowStart, lte: args.evaluationCompletedAtUtc },
+      decision: 'WOULD_SKIP',
+      realPollStatus: 'SUCCESS',
+    },
+  });
+  const unionAnySkip = unionAnySkipRows.length;
+
+  const savings = [
+    {
+      joint_skip_opportunities: savingsRow.joint_skip_opportunities,
+      distinct_joint_skip_physical_polls:
+        savingsRow.distinct_joint_skip_physical_polls,
+      union_any_skip_success_opportunities: BigInt(unionAnySkip),
+    },
+  ];
 
   const strictLvDistinct = await prisma.$queryRaw<Array<{ cnt: bigint }>>`
     SELECT COUNT(DISTINCT real_poll_id)::bigint AS cnt

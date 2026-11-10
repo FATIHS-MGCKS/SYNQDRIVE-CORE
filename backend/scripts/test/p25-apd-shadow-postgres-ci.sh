@@ -27,7 +27,8 @@ DATABASE_URL="${DATABASE_URL}" npx jest \
   apd-shadow-activation-epoch.t0-timezone.postgres.integration.spec.ts \
   apd-shadow-activation-epoch.write-race.postgres.integration.spec.ts \
   apd-shadow-epoch-lifecycle-concurrency.postgres.integration.spec.ts \
-  apd-shadow-baseline-poll-evidence.postgres.integration.spec.ts
+  apd-shadow-baseline-poll-evidence.postgres.integration.spec.ts \
+  apds-scientific-savings.postgres.integration.spec.ts
 
 log "migration ephemeral gate"
 bash scripts/test/p25-apd-shadow-migration-ephemeral.sh

@@ -6,9 +6,10 @@ import {
 import type { DimoSnapshotJobData } from './snapshot-wake.types';
 import { buildApdShadowEnqueueEvidence } from './apd-shadow-enqueue-evidence.util';
 import {
-  consumeStagedApdShadowEnqueueEvidence,
-  stageApdShadowEnqueueEvidence,
+  claimCoalescedEnqueueAttemptById,
+  recordCoalescedEnqueueAttempt,
 } from './apd-shadow-enqueue-evidence.redis-store';
+import { snapshotJobId } from './snapshot-wake.util';
 
 function createImmutableQueueHarness(
   initial: Record<string, SnapshotQueueJobState> = {},
@@ -72,17 +73,23 @@ describe('APDS enqueue immutability (H1)', () => {
       jobId,
       data: baseData,
       beforePhysicalAdd: (kind) => {
-        baseData.apdShadowEnqueueEvidence = buildApdShadowEnqueueEvidence(
-          kind,
+        baseData.apdShadowEnqueueEvidence = buildApdShadowEnqueueEvidence({
+          outcome: kind,
           observedAtMs,
-        );
+          attemptId: 'physical-attempt-1',
+          canonicalJobId: jobId,
+        });
       },
     });
 
     expect(queue.add).toHaveBeenCalledTimes(1);
     expect(queue.lastAddPayload?.data).toEqual(
       expect.objectContaining({
-        apdShadowEnqueueEvidence: { outcome: 'ENQUEUED', observedAtMs },
+        apdShadowEnqueueEvidence: expect.objectContaining({
+          outcome: 'ENQUEUED',
+          observedAtMs,
+          binding: 'PHYSICAL_JOB_PAYLOAD',
+        }),
         dimoTokenId: 99,
         origin: 'SCHEDULED',
       }),
@@ -112,40 +119,54 @@ describe('APDS enqueue immutability (H1)', () => {
       jobId,
       data,
       beforePhysicalAdd: (kind) => {
-        data.apdShadowEnqueueEvidence = buildApdShadowEnqueueEvidence(kind, 42);
+        data.apdShadowEnqueueEvidence = buildApdShadowEnqueueEvidence({
+          outcome: kind,
+          observedAtMs: 42,
+          attemptId: 'physical-attempt-2',
+          canonicalJobId: jobId,
+        });
       },
     });
     expect(queue.lastAddPayload?.data).toEqual(
       expect.objectContaining({
-        apdShadowEnqueueEvidence: { outcome: 'RECOVERED_TERMINAL', observedAtMs: 42 },
+        apdShadowEnqueueEvidence: expect.objectContaining({
+          outcome: 'RECOVERED_TERMINAL',
+          observedAtMs: 42,
+        }),
       }),
     );
   });
 
-  it('redis staging consumes once for coalesced attribution', async () => {
+  it('coalesced attempt claim is atomic per attemptId', async () => {
+    const store = new Map<string, string>();
     const redis = {
-      set: jest.fn().mockResolvedValue('OK'),
-      get: jest.fn().mockResolvedValueOnce(
-        JSON.stringify({
-          attemptId: 'a1',
-          vehicleId: 'veh-a',
-          enqueueOutcome: 'COALESCED',
-          observedAtMs: 100,
-          canonicalJobId: jobId,
-        }),
-      ),
-      del: jest.fn().mockResolvedValue(1),
+      set: jest.fn(async (key: string, value: string) => {
+        store.set(key, value);
+        return 'OK';
+      }),
+      rpush: jest.fn().mockResolvedValue(1),
+      expire: jest.fn().mockResolvedValue(1),
+      get: jest.fn(async (key: string) => store.get(key) ?? null),
+      del: jest.fn(async (key: string) => {
+        store.delete(key);
+        return 1;
+      }),
+      eval: jest.fn(async (_s: string, _n: number, key: string) => {
+        const raw = store.get(key) ?? null;
+        if (raw) store.delete(key);
+        return raw;
+      }),
     };
-    await stageApdShadowEnqueueEvidence(redis, {
+    const attempt = await recordCoalescedEnqueueAttempt(redis, {
       vehicleId: 'veh-a',
-      canonicalJobId: jobId,
+      canonicalJobId: snapshotJobId('veh-a'),
       enqueueOutcome: 'COALESCED',
       observedAtMs: 100,
+      requestOpportunityId: null,
     });
-    const first = await consumeStagedApdShadowEnqueueEvidence(redis, 'veh-a');
-    const second = await consumeStagedApdShadowEnqueueEvidence(redis, 'veh-a');
+    const first = await claimCoalescedEnqueueAttemptById(redis, attempt.attemptId);
+    const second = await claimCoalescedEnqueueAttemptById(redis, attempt.attemptId);
     expect(first?.enqueueOutcome).toBe('COALESCED');
     expect(second).toBeNull();
-    expect(redis.del).toHaveBeenCalledTimes(1);
   });
 });

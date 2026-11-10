@@ -89,9 +89,14 @@ export const P25_APD_DELAY_EVIDENCE_V1_0_LEGACY = 'P25_APD_DELAY_EVIDENCE_V1_0' 
 export const P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT =
   'P25_APD_DELAY_EVIDENCE_V1_1' as const;
 
+/** Prospective reconciliation closed without rediscovery attribution (no delay rewrite). */
+export const P25_APD_DELAY_EVIDENCE_NOT_ASSESSABLE =
+  'P25_APD_DELAY_EVIDENCE_NOT_ASSESSABLE' as const;
+
 export type ApdShadowDiscoveryDelayEvidenceVersion =
   | typeof P25_APD_DELAY_EVIDENCE_V1_0_LEGACY
-  | typeof P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT;
+  | typeof P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT
+  | typeof P25_APD_DELAY_EVIDENCE_NOT_ASSESSABLE;
 
 export type BaselineSkipDiscoveryDelayEvidence =
   | {

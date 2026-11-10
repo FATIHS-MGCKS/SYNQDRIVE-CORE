@@ -11,7 +11,14 @@ import {
   parseSnapshotCorrelationId,
   P25_APD_DELAY_EVIDENCE_V1_0_LEGACY,
   P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT,
+  P25_APD_DELAY_EVIDENCE_NOT_ASSESSABLE,
 } from './p25-apd-shadow-baseline-poll-evidence';
+import type { RedisService } from '@shared/redis/redis.service';
+import {
+  clearDelayReconcileOpportunityCursor,
+  loadDelayReconcileOpportunityCursor,
+  saveDelayReconcileOpportunityCursor,
+} from './apd-shadow-delay-reconcile-cursor.redis';
 import type { AdaptivePollingShadowPostPollContext } from './adaptive-polling-shadow.types';
 
 export type BaselinePollObservationalPatch = {
@@ -38,6 +45,7 @@ export class ApdShadowBaselinePollEvidenceService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly metrics?: AdaptivePollingShadowMetricsService,
+    @Optional() private readonly redis?: RedisService,
   ) {}
 
   buildObservationalPatch(input: {
@@ -109,14 +117,50 @@ export class ApdShadowBaselinePollEvidenceService {
     observingPollStartedAtMs: number;
     observingPollCompletedAtMs: number;
     maxOpportunitiesPerRun?: number;
+    maxDbQueriesPerRun?: number;
   }): Promise<{ processedOpportunities: number; budgetExhausted: boolean }> {
     const OPPORTUNITY_PAGE_SIZE = 25;
     const maxOpportunities = input.maxOpportunitiesPerRun ?? 200;
+    const maxDbQueries = input.maxDbQueriesPerRun ?? maxOpportunities * 4 + 8;
+    let dbQueries = 0;
+
+    const pendingCount = await this.prisma.apdShadowReconciliationDecision.count({
+      where: {
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        activationEpochId: input.activationEpochId,
+        decision: 'WOULD_SKIP',
+        realPollStatus: 'SUCCESS',
+        additionalDiscoveryDelayMs: null,
+        discoveryDelayEvidenceVersion: null,
+        OR: [{ newLvSourceObserved: true }, { newTopLevelSourceObserved: true }],
+        realPollCompletedAt: {
+          lt: new Date(input.observingPollStartedAtMs),
+        },
+      },
+    });
+    dbQueries += 1;
+    if (pendingCount === 0) {
+      return { processedOpportunities: 0, budgetExhausted: false };
+    }
+
+    const scope = {
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      activationEpochId: input.activationEpochId,
+    };
+
     let opportunityCursor: string | undefined;
+    if (this.redis) {
+      opportunityCursor = await loadDelayReconcileOpportunityCursor(this.redis, scope);
+      dbQueries += 0;
+    }
+
     let processedOpportunities = 0;
     let budgetExhausted = false;
+    let wrapped = false;
 
-    while (processedOpportunities < maxOpportunities) {
+    while (processedOpportunities < maxOpportunities && dbQueries < maxDbQueries) {
       const opportunityBatch = await this.prisma.apdShadowReconciliationDecision.findMany({
         where: {
           organizationId: input.organizationId,
@@ -137,11 +181,27 @@ export class ApdShadowBaselinePollEvidenceService {
         take: OPPORTUNITY_PAGE_SIZE,
         select: { opportunityId: true },
       });
+      dbQueries += 1;
 
-      if (opportunityBatch.length === 0) break;
+      if (opportunityBatch.length === 0) {
+        if (opportunityCursor && !wrapped) {
+          opportunityCursor = undefined;
+          if (this.redis) {
+            await clearDelayReconcileOpportunityCursor(this.redis, scope);
+          }
+          wrapped = true;
+          continue;
+        }
+        break;
+      }
 
       for (const { opportunityId } of opportunityBatch) {
         if (processedOpportunities >= maxOpportunities) {
+          budgetExhausted = true;
+          break;
+        }
+
+        if (dbQueries >= maxDbQueries) {
           budgetExhausted = true;
           break;
         }
@@ -168,11 +228,18 @@ export class ApdShadowBaselinePollEvidenceService {
             realPollCompletedAt: true,
           },
         });
+        dbQueries += 1;
 
         const completedAtMs = priorRows[0]?.realPollCompletedAt?.getTime();
         if (completedAtMs == null) {
           processedOpportunities += 1;
+          opportunityCursor = opportunityId;
           continue;
+        }
+
+        if (dbQueries >= maxDbQueries) {
+          budgetExhausted = true;
+          break;
         }
 
         const immediateNext = await this.prisma.dimoPollLog.findFirst({
@@ -185,6 +252,28 @@ export class ApdShadowBaselinePollEvidenceService {
           orderBy: [{ startedAt: 'asc' }, { id: 'asc' }],
           select: { id: true, startedAt: true },
         });
+        dbQueries += 1;
+
+        if (immediateNext?.startedAt) {
+          const nextStartedMs = immediateNext.startedAt.getTime();
+          if (
+            nextStartedMs < input.observingPollStartedAtMs &&
+            !isImmediateNextBaselineSuccessPoll({
+              immediateNextPollId: immediateNext.id,
+              observingPollId: input.observingPollId,
+            })
+          ) {
+            await this.markDiscoveryDelayNotAssessable({
+              organizationId: input.organizationId,
+              vehicleId: input.vehicleId,
+              activationEpochId: input.activationEpochId,
+              opportunityId,
+            });
+            processedOpportunities += 1;
+            opportunityCursor = opportunityId;
+            continue;
+          }
+        }
 
         if (
           !isImmediateNextBaselineSuccessPoll({
@@ -193,6 +282,7 @@ export class ApdShadowBaselinePollEvidenceService {
           })
         ) {
           processedOpportunities += 1;
+          opportunityCursor = opportunityId;
           continue;
         }
 
@@ -204,10 +294,15 @@ export class ApdShadowBaselinePollEvidenceService {
         });
         if (delayEvidence.kind !== 'NEXT_BASELINE_POLL_OBSERVED') {
           processedOpportunities += 1;
+          opportunityCursor = opportunityId;
           continue;
         }
 
         for (const row of priorRows) {
+          if (dbQueries >= maxDbQueries) {
+            budgetExhausted = true;
+            break;
+          }
           const updated = await this.prisma.apdShadowReconciliationDecision.updateMany({
             where: {
               organizationId: input.organizationId,
@@ -225,6 +320,7 @@ export class ApdShadowBaselinePollEvidenceService {
               discoveryDelayEvidenceVersion: P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT,
             },
           });
+          dbQueries += 1;
           if (updated.count !== 1) {
             this.logger.debug(
               `APD discovery delay reconcile skipped row count=${updated.count} opp=${opportunityId}`,
@@ -233,14 +329,39 @@ export class ApdShadowBaselinePollEvidenceService {
         }
 
         processedOpportunities += 1;
+        opportunityCursor = opportunityId;
       }
 
       if (budgetExhausted) break;
-      opportunityCursor = opportunityBatch[opportunityBatch.length - 1]?.opportunityId;
       if (opportunityBatch.length < OPPORTUNITY_PAGE_SIZE) break;
     }
 
-    return { processedOpportunities, budgetExhausted };
+    if (this.redis && opportunityCursor) {
+      await saveDelayReconcileOpportunityCursor(this.redis, scope, opportunityCursor);
+    }
+
+  return { processedOpportunities, budgetExhausted };
+  }
+
+  private async markDiscoveryDelayNotAssessable(input: {
+    organizationId: string;
+    vehicleId: string;
+    activationEpochId: string;
+    opportunityId: string;
+  }): Promise<void> {
+    await this.prisma.apdShadowReconciliationDecision.updateMany({
+      where: {
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        opportunityId: input.opportunityId,
+        activationEpochId: input.activationEpochId,
+        additionalDiscoveryDelayMs: null,
+        discoveryDelayEvidenceVersion: null,
+      },
+      data: {
+        discoveryDelayEvidenceVersion: P25_APD_DELAY_EVIDENCE_NOT_ASSESSABLE,
+      },
+    });
   }
 
   /**

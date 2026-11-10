@@ -35,9 +35,17 @@ export function snapshotWakeOutcomeToCanonical(
   }
 }
 
-export function buildApdShadowEnqueueEvidence(
-  outcome: ApdShadowCanonicalEnqueueOutcome,
-  observedAtMs: number,
-): ApdShadowEnqueueEvidence {
-  return { outcome, observedAtMs };
+export function buildApdShadowEnqueueEvidence(input: {
+  outcome: ApdShadowCanonicalEnqueueOutcome;
+  observedAtMs: number;
+  attemptId: string;
+  canonicalJobId: string;
+}): ApdShadowEnqueueEvidence {
+  return {
+    attemptId: input.attemptId,
+    canonicalJobId: input.canonicalJobId,
+    binding: 'PHYSICAL_JOB_PAYLOAD',
+    outcome: input.outcome,
+    observedAtMs: input.observedAtMs,
+  };
 }

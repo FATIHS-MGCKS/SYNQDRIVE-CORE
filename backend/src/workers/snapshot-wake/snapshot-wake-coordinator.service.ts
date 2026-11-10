@@ -1,4 +1,5 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { TripDetectionState, VehicleStatus } from '@prisma/client';
@@ -46,7 +47,8 @@ import {
   buildApdShadowEnqueueEvidence,
   stableEnqueueOutcomeToCanonical,
 } from './apd-shadow-enqueue-evidence.util';
-import { stageApdShadowEnqueueEvidence } from './apd-shadow-enqueue-evidence.redis-store';
+import { recordCoalescedEnqueueAttempt } from './apd-shadow-enqueue-evidence.redis-store';
+import { AdaptivePollingShadowService } from '../schedulers/snapshot-polling/adaptive-polling-shadow/adaptive-polling-shadow.service';
 import {
   classifyWakeContinuation,
   mayScheduleWakeSuccessor,
@@ -117,24 +119,48 @@ export class SnapshotWakeCoordinatorService {
     private readonly redis: RedisService,
     private readonly prisma: PrismaService,
     @Optional() private readonly tripMetrics?: TripMetricsService,
+    @Optional()
+    @Inject(forwardRef(() => AdaptivePollingShadowService))
+    private readonly apdShadow?: AdaptivePollingShadowService,
   ) {}
 
-  private async stageCoalescedEnqueueEvidence(
-    vehicleId: string,
+  private async recordCoalescedEnqueueBoundary(
+    input: RequestSnapshotInput,
     jobId: string,
     stableOutcome: SnapshotStableEnqueueOutcome,
   ): Promise<void> {
     const canonical = stableEnqueueOutcomeToCanonical(stableOutcome);
+    const observedAtMs = Date.now();
     try {
-      await stageApdShadowEnqueueEvidence(this.redis, {
-        vehicleId,
+      const attempt = await recordCoalescedEnqueueAttempt(this.redis, {
+        vehicleId: input.vehicleId,
         canonicalJobId: jobId,
         enqueueOutcome: canonical,
-        observedAtMs: Date.now(),
+        observedAtMs,
+        requestOpportunityId: input.apdShadowOpportunityId ?? null,
       });
+      if (
+        input.apdShadowOpportunityId &&
+        this.apdShadow
+      ) {
+        const vehicle = await this.prisma.vehicle.findUnique({
+          where: { id: input.vehicleId },
+          select: { organizationId: true },
+        });
+        if (vehicle) {
+          await this.apdShadow.observeCanonicalEnqueueOutcome({
+            organizationId: vehicle.organizationId,
+            vehicleId: input.vehicleId,
+            opportunityId: input.apdShadowOpportunityId,
+            enqueueOutcome: canonical,
+            observedAtMs,
+            enqueueAttemptId: attempt.attemptId,
+          });
+        }
+      }
     } catch (err) {
       this.logger.debug(
-        `APD coalesced enqueue evidence stage skipped for ${vehicleId}: ${(err as Error).message}`,
+        `APD coalesced enqueue evidence record skipped for ${input.vehicleId}: ${(err as Error).message}`,
       );
     }
   }
@@ -165,6 +191,7 @@ export class SnapshotWakeCoordinatorService {
       apdShadowOpportunityId: input.apdShadowOpportunityId,
     };
     const enqueueObservedAtMs = Date.now();
+    const physicalAttemptId = randomUUID();
 
     try {
       const enqueueOutcome = await enqueueStableSnapshotJob({
@@ -174,10 +201,12 @@ export class SnapshotWakeCoordinatorService {
         data,
         delayMs: input.delayMs,
         beforePhysicalAdd: (kind) => {
-          data.apdShadowEnqueueEvidence = buildApdShadowEnqueueEvidence(
-            kind,
-            enqueueObservedAtMs,
-          );
+          data.apdShadowEnqueueEvidence = buildApdShadowEnqueueEvidence({
+            outcome: kind,
+            observedAtMs: enqueueObservedAtMs,
+            attemptId: physicalAttemptId,
+            canonicalJobId: jobId,
+          });
         },
       });
 
@@ -185,11 +214,7 @@ export class SnapshotWakeCoordinatorService {
         isQueuedCoalesce(enqueueOutcome) ||
         coalesceNeedsPostTerminalSuccessor(enqueueOutcome)
       ) {
-        await this.stageCoalescedEnqueueEvidence(
-          input.vehicleId,
-          jobId,
-          enqueueOutcome,
-        );
+        await this.recordCoalescedEnqueueBoundary(input, jobId, enqueueOutcome);
       }
 
       if (isQueuedCoalesce(enqueueOutcome) && input.wakeContext) {

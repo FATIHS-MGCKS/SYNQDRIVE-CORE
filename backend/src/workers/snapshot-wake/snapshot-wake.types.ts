@@ -22,6 +22,12 @@ export interface SnapshotWakeContext {
 
 /** Durable enqueue boundary evidence for APD shadow (no poll authority). */
 export interface ApdShadowEnqueueEvidence {
+  /** Unique enqueue/coalesce boundary attempt (not the BullMQ job id). */
+  attemptId: string;
+  /** BullMQ stable job id (`snapshot-<vehicleId>`) this attempt targeted. */
+  canonicalJobId: string;
+  /** Only physical `queue.add` payloads may bind poll-start enqueue attribution. */
+  binding: 'PHYSICAL_JOB_PAYLOAD';
   outcome:
     | 'ENQUEUED'
     | 'RECOVERED_TERMINAL'

@@ -1,6 +1,9 @@
 import { DimoPollJobType, DimoPollStatus } from '@prisma/client';
 import { ApdShadowBaselinePollEvidenceService } from './apd-shadow-baseline-poll-evidence.service';
-import { P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT } from './p25-apd-shadow-baseline-poll-evidence';
+import {
+  P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT,
+  P25_APD_DELAY_EVIDENCE_NOT_ASSESSABLE,
+} from './p25-apd-shadow-baseline-poll-evidence';
 import { P25_APD_B2_V1, P25_APD_B4_V1 } from '../adaptive-polling-policy/p25-apd-policy-versions';
 
 describe('ApdShadowBaselinePollEvidenceService immediate-next discovery delay (V3 P1A)', () => {
@@ -16,7 +19,10 @@ describe('ApdShadowBaselinePollEvidenceService immediate-next discovery delay (V
 
   function mockPrismaForOpp(immediatePollId: string) {
     const updateMany = jest.fn().mockResolvedValue({ count: 1 });
-    const findFirst = jest.fn().mockResolvedValue({ id: immediatePollId });
+    const findFirst = jest.fn().mockResolvedValue({
+      id: immediatePollId,
+      startedAt: new Date(poll2Start),
+    });
     const findMany = jest
       .fn()
       .mockResolvedValueOnce([{ opportunityId: skippedOpp }])
@@ -35,7 +41,11 @@ describe('ApdShadowBaselinePollEvidenceService immediate-next discovery delay (V
       .mockResolvedValueOnce([]);
     return {
       service: new ApdShadowBaselinePollEvidenceService({
-        apdShadowReconciliationDecision: { findMany, updateMany },
+        apdShadowReconciliationDecision: {
+          findMany,
+          updateMany,
+          count: jest.fn().mockResolvedValue(1),
+        },
         dimoPollLog: { findFirst },
       } as never),
       findFirst,
@@ -86,6 +96,15 @@ describe('ApdShadowBaselinePollEvidenceService immediate-next discovery delay (V
       observingPollCompletedAtMs: poll3End,
     });
 
-    expect(updateMany).not.toHaveBeenCalled();
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          discoveryDelayEvidenceVersion: P25_APD_DELAY_EVIDENCE_NOT_ASSESSABLE,
+        }),
+      }),
+    );
+    expect(updateMany.mock.calls.some((c) => c[0]?.data?.additionalDiscoveryDelayMs != null)).toBe(
+      false,
+    );
   });
 });
