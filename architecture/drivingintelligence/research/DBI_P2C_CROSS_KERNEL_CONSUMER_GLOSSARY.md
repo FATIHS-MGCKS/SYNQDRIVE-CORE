@@ -1,7 +1,7 @@
 # DBI P2-C — Cross-kernel consumer glossary (research-only)
 
 **Status:** Preflight authority (P2-C1).  
-**Scope:** P2-A1 RPM Episode, P2-B1 Kickdown, P2-B2 Cold Engine, P2-B3 Sustained Load, P2-B4 Revving/Idle.  
+**Scope:** P2-A1 RPM Episode, **P2-A2 RPM Dynamics**, P2-B1 Kickdown, P2-B2 Cold Engine, P2-B3 Sustained Load, P2-B4 Revving/Idle.  
 **Not in scope:** P2-C2 adapters, reconciliation engine, P2-D DS4×RPM fusion, production detectors.
 
 ## Mandatory consumer rules
@@ -13,6 +13,17 @@
 5. **Label spans are not physical duration** — `researchLabelSpanMs`, bucket spans, and A1 grid spans are MODE_A bucket-label semantics (`BUCKET_LABEL_UNVERIFIED`).
 
 ## Per-module semantics
+
+### P2-A2 RPM Dynamics (research-only)
+
+| Layer | Field | Meaning |
+|-------|--------|---------|
+| Kernel status | `status` | `COMPUTED` \| `ABSTAINED` — binding reuse from P2-A1 (no trip-level `NOT_OBSERVED`) |
+| Dynamics plane | `observedDynamics.status` | `SUPPORTED_DESCRIPTIVE` \| `NOT_ASSESSABLE` — **independent** of trip `COMPUTED` when zero adjacent pairs exist |
+| Indices | `fromGlobalIdx`, `toGlobalIdx`, run `startGlobalIdx`/`endGlobalIdx` | **`CanonPoint.globalIdx`** on fingerprint-bound canonicalized RPM labels only — **not** raw `rpmPoints[]` indices |
+| Runs | `monotonicRuns[].pointCount`, `stepCount` | Step-sign chains; **adjacent runs share boundary labels**; `stepCount = pointCount - 1`; **do not sum `pointCount`** across runs |
+| R1 | `r1HistoricalObdRecordTimeUncertain`, `unsupportedScientificClaims` | Parity with A1; includes `R1_HISTORICAL_OBD_RECORD_TIME_UNCERTAIN` when family is `RUPTELA_R1` — **not** eligible for DS4×RPM temporal fusion |
+| Trust | Same as A1 | `timeAuthority: BUCKET_LABEL_UNVERIFIED`; `semanticGuards.notEvidenceCandidate=true` |
 
 ### P2-A1 RPM Episode
 
@@ -84,6 +95,7 @@ A1 may appear as a **descriptive participant** in a reconciliation bundle **with
 |-----------|--------|-------------------|-------------------|
 | **A1 RPM episode** | `sequenceIndex` | Index of the **segmented RPM sequence** passed into v1a episode detection for this item | **MUST NOT** be read as B-grid bucket index or adapter list ordinal |
 | **A1 RPM episode** | `startIdx`, `endIdx` | Inclusive **`CanonPoint.globalIdx`** bounds from kernel (`seq[start].globalIdx` … `seq[end].globalIdx`); global canonicalized RPM points, not local indices within one sequence | **MUST NOT** be read as `startBucketIndex`/`endBucketIndex` |
+| **A2 RPM dynamics** | `fromGlobalIdx`, `toGlobalIdx`, run bounds | Same **`CanonPoint.globalIdx`** lattice as A1 after `canonicalizeDs4RpmResearchPoints` | **MUST NOT** index raw `tripInput.rpmPoints`; **MUST NOT** sum run `pointCount` as disjoint coverage |
 | **A1 adapter plane** | `sourceSequenceIndex`, `crossDomainJoinEligible: false` | `sourceSequenceIndex` = kernel `sequenceIndex` copy; explicit join prohibition | Never eligible for B-side relationship inventory |
 | **B1/B2 proxy** | `startBucketIndex`, `endBucketIndex` | Multichannel bucket grid windows for kickdown/cold-engine proxies | Comparable **only within** the same B module envelope |
 | **P2-C2 temporal normalization** | Maps A1 `startIdx`/`endIdx` into temporal interval **validator** slots | Shared ISO/order checks only; **not** a semantic merge of namespaces | Does not authorize joins or inventory promotion |
