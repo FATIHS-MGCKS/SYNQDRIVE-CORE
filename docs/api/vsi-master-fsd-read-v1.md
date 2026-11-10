@@ -23,7 +23,8 @@ Pagination:
 ## Authoritative catalog vs latest activity
 
 - **Latest activity** (`execution.fsd3.latestActivityRunId`) — newest FSD3 run for the link (any status).
-- **Authoritative catalog** (`catalog.authoritativeRunId`) — newest **valid** persisted catalog with `LIVE_DIMO_VERIFIED` provenance (`catalog.availability = AUTHORITATIVE_LIVE`). A newer `FAILED`, `PENDING`, or `IN_PROGRESS` run does **not** hide an older still-valid catalog.
+- **Authoritative catalog** (`catalog.authoritativeRunId`) — newest **valid** `COMPLETED` run with `LIVE_DIMO_VERIFIED` provenance (`catalog.availability = AUTHORITATIVE_LIVE`). A newer `FAILED`, `PENDING`, or `IN_PROGRESS` run does **not** hide an older still-valid catalog.
+- **Scan safety** — recent-run scan is bounded; when no catalog is found in the first window, a targeted DB lookup for completed catalog stages runs. `catalog.selectionLimitation` explains `NO_AUTHORITATIVE_CATALOG_IN_RECENT_RUNS` / `TARGETED_LOOKUP_NO_AUTHORITATIVE_CATALOG` instead of implying absence of any historical catalog beyond the window.
 - Explicit `runId` on signal explorer is scoped to org/vehicle/link; non-authoritative runs are returned with `catalogAuthoritative: false` and must not be presented as verified live catalog.
 
 ## FSD3 / FSD4 cross-stream historical
@@ -33,8 +34,10 @@ FSD3 (`FSD3_CATALOG_SNAPSHOT`) and FSD4 (`FSD4_HISTORICAL`) are separate runs. H
 ## Stage evidence semantics
 
 - `CATALOG_VERIFIED` / catalog declaration does **not** imply snapshot or historical observed.
-- Unexecuted snapshot/historical stages → `NOT_EXECUTED` (never numeric zero as a proxy).
-- Stage columns use per-stage presentation (`OBSERVED`, `NULL_OBSERVED`, `MISSING`, `QUERY_FAILED`, …). Aggregate stage availability may be `PARTIAL` when row counts or `UNKNOWN_OUTCOME` stages warrant it.
+- Unexecuted (`PLANNED`/`SKIPPED`) snapshot/historical stages → `NOT_EXECUTED` (never numeric zero as a proxy).
+- `IN_PROGRESS`, `UNKNOWN_OUTCOME`, and `FAILED` stages with persisted rows → aggregate `PARTIAL`, not `NOT_EXECUTED`.
+- Completeness uses the **planned/eligible** evidence subset (`queryPlanned` rows), not full catalog declaration count alone.
+- Stage columns use per-stage presentation (`OBSERVED`, `NULL_OBSERVED`, `MISSING`, `QUERY_FAILED`, …).
 - `catalogQuery` / `snapshotQuery` / `historicalQuery` reflect **that stage’s** evidence row flags, not copied from catalog.
 - FSD4 `AGGREGATED_1S` is never proven native 1Hz in this projection.
 

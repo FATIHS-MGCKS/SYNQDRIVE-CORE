@@ -48,6 +48,7 @@ export type MasterFsdSummaryDtoV1 = {
     authoritativeRunId: string | null;
     declaredCatalogFingerprint: string | null;
     rejectionReason: string | null;
+    selectionLimitation: string | null;
   };
   execution: {
     fsd3: {

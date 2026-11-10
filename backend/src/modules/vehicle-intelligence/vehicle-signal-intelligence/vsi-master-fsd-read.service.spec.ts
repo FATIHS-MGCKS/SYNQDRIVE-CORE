@@ -91,10 +91,16 @@ describe('VsiMasterFsdReadService', () => {
     scopeOk();
     const older = catalogRunRow('run-old', 'COMPLETED', '2026-11-09T19:41:00Z');
     const newerFailed = catalogRunRow('run-new', 'FAILED', '2026-11-10T19:41:00Z');
-    prisma.fsdDiscoveryRun.findMany.mockImplementation(async (args: { where: { discoveryStream: string } }) => {
-      if (args.where.discoveryStream === 'FSD3_CATALOG_SNAPSHOT') return [newerFailed, older];
-      return [];
-    });
+    prisma.fsdDiscoveryRun.findMany.mockImplementation(
+      async (args: { where: { discoveryStream?: string; stages?: { some: unknown } } }) => {
+        if (args.where.discoveryStream === 'FSD3_CATALOG_SNAPSHOT') {
+          if (args.where.stages?.some) return [older];
+          return [newerFailed, older];
+        }
+        return [];
+      },
+    );
+    prisma.fsdDiscoverySignalEvidence.findMany.mockResolvedValue([]);
     prisma.fsdDiscoverySignalEvidence.count.mockResolvedValue(0);
 
     const summary = await service.getSummary('org-a', 'veh-1', 'link-1');
@@ -198,7 +204,7 @@ describe('VsiMasterFsdReadService', () => {
   it('does not invoke provider orchestration (read-only prisma)', async () => {
     scopeOk();
     prisma.fsdDiscoveryRun.findMany.mockResolvedValue([]);
-    prisma.fsdDiscoverySignalEvidence.count.mockResolvedValue(0);
+    prisma.fsdDiscoverySignalEvidence.findMany.mockResolvedValue([]);
     await service.getSummary('org-a', 'veh-1', 'link-1');
     expect(prisma.fsdDiscoveryRun.findMany).toHaveBeenCalled();
   });

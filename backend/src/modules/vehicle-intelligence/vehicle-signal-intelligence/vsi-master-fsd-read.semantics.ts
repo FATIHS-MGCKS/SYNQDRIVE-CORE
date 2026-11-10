@@ -4,28 +4,44 @@ import type {
   MasterFsdStageEvidenceAvailabilityV1,
 } from './vsi-master-fsd-read.types';
 
+const TERMINAL_PARTIAL_STAGE_STATUSES = new Set(['UNKNOWN_OUTCOME', 'FAILED', 'DEFERRED']);
+
+export function isStageNotStarted(stageStatus: string | null | undefined): boolean {
+  return !stageStatus || stageStatus === 'PLANNED' || stageStatus === 'SKIPPED';
+}
+
 export function mapEvidenceStageAvailability(input: {
-  stageExecuted: boolean;
   stageStatus: string | null;
   rowCount: number;
-  declaredSignalCount?: number | null;
+  eligibleSignalCount?: number | null;
 }): MasterFsdStageEvidenceAvailabilityV1 {
-  if (!input.stageExecuted) {
+  const { stageStatus, rowCount } = input;
+
+  if (isStageNotStarted(stageStatus)) {
     return 'NOT_EXECUTED';
   }
-  if (input.stageStatus === 'UNKNOWN_OUTCOME') {
-    return 'PARTIAL';
+
+  if (stageStatus === 'IN_PROGRESS') {
+    return rowCount > 0 ? 'PARTIAL' : 'PARTIAL';
   }
-  if (input.rowCount === 0) {
+
+  if (stageStatus && TERMINAL_PARTIAL_STAGE_STATUSES.has(stageStatus)) {
+    return rowCount > 0 ? 'PARTIAL' : 'NOT_AVAILABLE';
+  }
+
+  if (stageStatus !== 'SUCCEEDED') {
+    return rowCount > 0 ? 'PARTIAL' : 'NOT_AVAILABLE';
+  }
+
+  if (rowCount === 0) {
     return 'NOT_AVAILABLE';
   }
-  if (
-    input.declaredSignalCount != null &&
-    input.declaredSignalCount > 0 &&
-    input.rowCount < input.declaredSignalCount
-  ) {
+
+  const denominator = input.eligibleSignalCount;
+  if (denominator != null && denominator > 0 && rowCount < denominator) {
     return 'PARTIAL';
   }
+
   return 'AVAILABLE';
 }
 
@@ -61,12 +77,12 @@ export type MasterFsdStageColumnValueV1 =
   | MasterFsdSignalPresentationStateV1;
 
 export function stageEvidenceColumnValue(
-  stageExecuted: boolean,
+  stageStatus: string | null,
   state: MasterFsdSignalPresentationStateV1 | null,
   options?: { unverifiedLink?: boolean },
 ): MasterFsdStageColumnValueV1 {
   if (options?.unverifiedLink) return 'UNVERIFIED_LINK';
-  if (!stageExecuted) return 'NOT_EXECUTED';
+  if (isStageNotStarted(stageStatus)) return 'NOT_EXECUTED';
   if (state == null) return 'NOT_AVAILABLE';
   return state;
 }

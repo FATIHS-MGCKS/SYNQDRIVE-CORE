@@ -10,13 +10,16 @@ import {
   extractCatalogCheckpointFromRun,
   pickAuthoritativeFsd3Catalog,
   type FsdRunWithStages,
+  type ResolvedAuthoritativeFsd3CatalogV1,
 } from './vsi-master-fsd-read.catalog-resolution';
+import { isInternalFsdEvidenceSignalName } from './vsi-master-fsd-read.internal-signals';
 import type { HistoricalCrossStreamLinkV1 } from './vsi-master-fsd-read.cross-stream';
 import { resolveFsd4HistoricalCrossStreamLink } from './vsi-master-fsd-read.cross-stream';
 import { aggregateLedgersFromStages } from './vsi-master-fsd-read.ledger';
 import { paginateSortedUniqueSignalNames } from './vsi-master-fsd-read.signal-pagination';
 import {
   extractStageQueryFlags,
+  isStageNotStarted,
   mapEvidenceStageAvailability,
   mapRunExecutionAvailability,
   mapSignalPresentationState,
@@ -117,6 +120,48 @@ export class VsiMasterFsdReadService {
     return stages.find((s) => s.stageType === stageType)?.status ?? null;
   }
 
+  private async resolveAuthoritativeFsd3Catalog(
+    organizationId: string,
+    vehicleId: string,
+    providerSourceLinkId: string,
+  ): Promise<{ authoritative: ResolvedAuthoritativeFsd3CatalogV1 | null; selectionLimitation: string | null }> {
+    const recent = await this.listRunsForStream(
+      organizationId,
+      vehicleId,
+      providerSourceLinkId,
+      'FSD3_CATALOG_SNAPSHOT',
+    );
+    let authoritative = pickAuthoritativeFsd3Catalog(recent);
+    let selectionLimitation: string | null = null;
+
+    if (!authoritative) {
+      if (recent.length >= MAX_RUN_SCAN) {
+        const targeted = await this.prisma.fsdDiscoveryRun.findMany({
+          where: {
+            organizationId,
+            vehicleId,
+            providerSourceLinkId,
+            discoveryStream: 'FSD3_CATALOG_SNAPSHOT',
+            invalidatedAt: null,
+            status: 'COMPLETED',
+            stages: { some: { stageType: 'CATALOG', status: 'SUCCEEDED' } },
+          },
+          orderBy: [{ createdAt: 'desc' }],
+          take: 32,
+          include: { stages: { orderBy: { stageType: 'asc' } } },
+        });
+        authoritative = pickAuthoritativeFsd3Catalog(targeted);
+        if (!authoritative) {
+          selectionLimitation = 'TARGETED_LOOKUP_NO_AUTHORITATIVE_CATALOG';
+        }
+      } else if (recent.length > 0) {
+        selectionLimitation = 'NO_AUTHORITATIVE_CATALOG_IN_RECENT_RUNS';
+      }
+    }
+
+    return { authoritative, selectionLimitation };
+  }
+
   private async loadScopedContext(
     organizationId: string,
     vehicleId: string,
@@ -135,7 +180,11 @@ export class VsiMasterFsdReadService {
       'FSD4_HISTORICAL',
     );
     const latestActivity = fsd3Runs[0] ?? null;
-    const authoritative = pickAuthoritativeFsd3Catalog(fsd3Runs);
+    const { authoritative, selectionLimitation } = await this.resolveAuthoritativeFsd3Catalog(
+      organizationId,
+      vehicleId,
+      providerSourceLinkId,
+    );
     const historicalLink = authoritative
       ? resolveFsd4HistoricalCrossStreamLink({
           authoritative: {
@@ -149,13 +198,28 @@ export class VsiMasterFsdReadService {
           fsd4RunsNewestFirst: fsd4Runs,
         })
       : ({ kind: 'NOT_AVAILABLE' } as const);
-    return { fsd3Runs, fsd4Runs, latestActivity, authoritative, historicalLink };
+    return { fsd3Runs, fsd4Runs, latestActivity, authoritative, historicalLink, selectionLimitation };
+  }
+
+  private async countStageEvidenceMetrics(
+    runId: string,
+    stageType: FsdDiscoveryStageType,
+  ): Promise<{ rowCount: number; eligibleSignalCount: number | null }> {
+    const rows = await this.prisma.fsdDiscoverySignalEvidence.findMany({
+      where: { runId, stageType },
+      select: { signalName: true, queryPlanned: true },
+    });
+    const filtered = rows.filter((r) => !isInternalFsdEvidenceSignalName(r.signalName));
+    const planned = filtered.filter((r) => r.queryPlanned).length;
+    return {
+      rowCount: filtered.length,
+      eligibleSignalCount: planned > 0 ? planned : null,
+    };
   }
 
   private async countEvidenceForRun(runId: string, stageType: FsdDiscoveryStageType): Promise<number> {
-    return this.prisma.fsdDiscoverySignalEvidence.count({
-      where: { runId, stageType },
-    });
+    const metrics = await this.countStageEvidenceMetrics(runId, stageType);
+    return metrics.rowCount;
   }
 
   private async batchEvidenceCounts(
@@ -194,7 +258,7 @@ export class VsiMasterFsdReadService {
     providerSourceLinkId: string,
   ): Promise<MasterFsdSummaryDtoV1> {
     await this.assertSourceLinkScope(organizationId, vehicleId, providerSourceLinkId);
-    const { latestActivity, authoritative, historicalLink } = await this.loadScopedContext(
+    const { latestActivity, authoritative, historicalLink, selectionLimitation } = await this.loadScopedContext(
       organizationId,
       vehicleId,
       providerSourceLinkId,
@@ -214,6 +278,7 @@ export class VsiMasterFsdReadService {
           authoritativeRunId: authoritative.run.id,
           declaredCatalogFingerprint: authoritative.provenance.declaredCatalogFingerprint,
           rejectionReason: authoritative.provenance.rejectionReason,
+          selectionLimitation: null,
         }
       : {
           availability: 'NOT_AVAILABLE' as const,
@@ -221,24 +286,22 @@ export class VsiMasterFsdReadService {
           declaredSignalCount: null,
           authoritativeRunId: null,
           declaredCatalogFingerprint: null,
-          rejectionReason: latestActivity ? 'NO_AUTHORITATIVE_CATALOG' : null,
+          rejectionReason: selectionLimitation ?? (latestActivity ? 'NO_AUTHORITATIVE_CATALOG' : null),
+          selectionLimitation,
         };
 
     const authStages = authoritative?.run.stages ?? [];
-    const snapshotRows = authoritative
-      ? await this.countEvidenceForRun(authoritative.run.id, 'SNAPSHOT')
-      : 0;
+    const snapshotMetrics = authoritative
+      ? await this.countStageEvidenceMetrics(authoritative.run.id, 'SNAPSHOT')
+      : { rowCount: 0, eligibleSignalCount: null as number | null };
 
-    let historicalRows = 0;
-    let historicalStageExecuted = false;
+    let historicalMetrics = { rowCount: 0, eligibleSignalCount: null as number | null };
     let historicalStageStatus: string | null = null;
     let historicalLimitation: string | null = null;
-    let declaredForHistorical: number | null = authoritative?.provenance.declaredSignalCount ?? null;
 
     if (historicalLink.kind === 'LINKED') {
-      historicalStageExecuted = this.stageExecuted(historicalLink.fsd4Run.stages, 'HISTORICAL');
       historicalStageStatus = this.stageStatus(historicalLink.fsd4Run.stages, 'HISTORICAL');
-      historicalRows = await this.countEvidenceForRun(historicalLink.fsd4Run.id, 'HISTORICAL');
+      historicalMetrics = await this.countStageEvidenceMetrics(historicalLink.fsd4Run.id, 'HISTORICAL');
     } else if (historicalLink.kind === 'UNVERIFIED_LINK') {
       historicalLimitation = historicalLink.limitation;
     }
@@ -280,16 +343,14 @@ export class VsiMasterFsdReadService {
       },
       evidence: {
         snapshot: mapEvidenceStageAvailability({
-          stageExecuted: this.stageExecuted(authStages, 'SNAPSHOT'),
           stageStatus: this.stageStatus(authStages, 'SNAPSHOT'),
-          rowCount: snapshotRows,
-          declaredSignalCount: declaredForHistorical,
+          rowCount: snapshotMetrics.rowCount,
+          eligibleSignalCount: snapshotMetrics.eligibleSignalCount,
         }),
         historical: mapEvidenceStageAvailability({
-          stageExecuted: historicalStageExecuted,
           stageStatus: historicalStageStatus,
-          rowCount: historicalRows,
-          declaredSignalCount: declaredForHistorical,
+          rowCount: historicalMetrics.rowCount,
+          eligibleSignalCount: historicalMetrics.eligibleSignalCount,
         }),
         historicalCrossStreamLimitation: historicalLimitation,
       },
@@ -420,11 +481,9 @@ export class VsiMasterFsdReadService {
     }
 
     const catalogStages = catalogRun?.stages ?? [];
-    const snapshotExecuted = this.stageExecuted(catalogStages, 'SNAPSHOT');
-    const historicalExecuted =
-      historicalLink.kind === 'LINKED'
-        ? this.stageExecuted(historicalLink.fsd4Run.stages, 'HISTORICAL')
-        : false;
+    const snapshotStageStatus = this.stageStatus(catalogStages, 'SNAPSHOT');
+    const historicalStageStatus =
+      historicalLink.kind === 'LINKED' ? this.stageStatus(historicalLink.fsd4Run.stages, 'HISTORICAL') : null;
     const historicalUnverified = historicalLink.kind === 'UNVERIFIED_LINK';
 
     const items = pageNames.map((signalName) => {
@@ -459,8 +518,8 @@ export class VsiMasterFsdReadService {
         schemaShape: catalogRow?.schemaShape ?? null,
         presentationState: presentation,
         catalogDeclared: true,
-        snapshotEvidence: stageEvidenceColumnValue(snapshotExecuted, snapshotState) as import('./vsi-master-fsd-read.types').MasterFsdSignalExplorerItemV1['snapshotEvidence'],
-        historicalEvidence: stageEvidenceColumnValue(historicalExecuted, historicalState, {
+        snapshotEvidence: stageEvidenceColumnValue(snapshotStageStatus, snapshotState) as import('./vsi-master-fsd-read.types').MasterFsdSignalExplorerItemV1['snapshotEvidence'],
+        historicalEvidence: stageEvidenceColumnValue(historicalStageStatus, historicalState, {
           unverifiedLink: historicalUnverified,
         }) as import('./vsi-master-fsd-read.types').MasterFsdHistoricalColumnV1,
         catalogQuery: extractStageQueryFlags(
@@ -557,8 +616,8 @@ export class VsiMasterFsdReadService {
         stages: run.stages.map((s) => ({ stageType: s.stageType, status: s.status })),
         catalogSignalCount: this.catalogSignalCountFromStages(run.stages),
         evidenceCounts: {
-          snapshotRows: this.stageExecuted(run.stages, 'SNAPSHOT') ? counts.snapshot : null,
-          historicalRows: this.stageExecuted(run.stages, 'HISTORICAL') ? counts.historical : null,
+          snapshotRows: !isStageNotStarted(this.stageStatus(run.stages, 'SNAPSHOT')) ? counts.snapshot : null,
+          historicalRows: !isStageNotStarted(this.stageStatus(run.stages, 'HISTORICAL')) ? counts.historical : null,
         },
         ledgerSummary: {
           persistedAttemptCount: ledgerAgg?.ledgerAttemptCount ?? null,
@@ -619,12 +678,11 @@ export class VsiMasterFsdReadService {
       run.stages.map((s) => ({ stageType: s.stageType, checkpointJson: s.checkpointJson })),
     );
 
-    const snapshotRows = await this.countEvidenceForRun(run.id, 'SNAPSHOT');
-    const historicalRows = await this.countEvidenceForRun(run.id, 'HISTORICAL');
-    const declaredCount = this.catalogSignalCountFromStages(run.stages);
+    const snapshotMetrics = await this.countStageEvidenceMetrics(run.id, 'SNAPSHOT');
+    const historicalMetrics = await this.countStageEvidenceMetrics(run.id, 'HISTORICAL');
 
     let observationCounts: MasterFsdRunInspectorDtoV1['evidenceCoverage']['observationCounts'] = null;
-    if (this.stageExecuted(run.stages, 'SNAPSHOT')) {
+  if (!isStageNotStarted(this.stageStatus(run.stages, 'SNAPSHOT'))) {
       const evidenceRows = await this.prisma.fsdDiscoverySignalEvidence.findMany({
         where: { runId: run.id, stageType: 'SNAPSHOT' },
         select: { evidenceState: true, qualityJson: true },
@@ -689,16 +747,14 @@ export class VsiMasterFsdReadService {
       },
       evidenceCoverage: {
         snapshot: mapEvidenceStageAvailability({
-          stageExecuted: this.stageExecuted(run.stages, 'SNAPSHOT'),
           stageStatus: this.stageStatus(run.stages, 'SNAPSHOT'),
-          rowCount: snapshotRows,
-          declaredSignalCount: declaredCount,
+          rowCount: snapshotMetrics.rowCount,
+          eligibleSignalCount: snapshotMetrics.eligibleSignalCount,
         }),
         historical: mapEvidenceStageAvailability({
-          stageExecuted: this.stageExecuted(run.stages, 'HISTORICAL'),
           stageStatus: this.stageStatus(run.stages, 'HISTORICAL'),
-          rowCount: historicalRows,
-          declaredSignalCount: declaredCount,
+          rowCount: historicalMetrics.rowCount,
+          eligibleSignalCount: historicalMetrics.eligibleSignalCount,
         }),
         observationCounts,
       },

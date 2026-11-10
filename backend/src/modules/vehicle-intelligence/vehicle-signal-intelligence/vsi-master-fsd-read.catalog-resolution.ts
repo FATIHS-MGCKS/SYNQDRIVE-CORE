@@ -42,13 +42,23 @@ export function resolveCatalogProvenanceForRun(run: FsdRunWithStages): MasterFsd
   });
 }
 
+export function isAuthoritativeCatalogRunCandidate(run: FsdRunWithStages): boolean {
+  if (run.discoveryStream !== 'FSD3_CATALOG_SNAPSHOT') return false;
+  if (run.invalidatedAt != null || run.status === 'INVALIDATED') return false;
+  if (run.status !== 'COMPLETED') return false;
+  return true;
+}
+
 /**
- * Latest activity = newest run by createdAt. Authoritative catalog = newest valid LIVE_DIMO_VERIFIED catalog (completed catalog stage).
+ * Latest activity = newest run by createdAt. Authoritative catalog = newest valid LIVE_DIMO_VERIFIED catalog (completed run + catalog stage).
  */
 export function pickAuthoritativeFsd3Catalog(
   runsNewestFirst: readonly FsdRunWithStages[],
 ): ResolvedAuthoritativeFsd3CatalogV1 | null {
   for (const run of runsNewestFirst) {
+    if (!isAuthoritativeCatalogRunCandidate(run)) {
+      continue;
+    }
     const provenance = resolveCatalogProvenanceForRun(run);
     if (!provenance || provenance.availability !== 'AUTHORITATIVE_LIVE') {
       continue;

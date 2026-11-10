@@ -25,8 +25,7 @@ import {
 } from './__fixtures__/vsi-master-fsd-read.fixture.v1';
 import { VsiMasterFsdReadService } from './vsi-master-fsd-read.service';
 
-const LIVE =
-  process.env.VSI_MASTER_FSD_READ_PG === '1' || process.env.FSD_DISCOVERY_PERSISTENCE_PG === '1';
+const LIVE = process.env.FSD_DISCOVERY_PERSISTENCE_PG === '1';
 
 async function seedOrgVehicleLink(prisma: PrismaClient) {
   const organizationId = randomUUID();
@@ -127,7 +126,7 @@ async function seedOrgVehicleLink(prisma: PrismaClient) {
               checkpointJson: checkpoint as object,
               lastHttpStatus: 200,
             },
-            { stageType: 'SNAPSHOT', status: 'SUCCEEDED', checkpointJson: {}, lastHttpStatus: 200 },
+            { stageType: 'SNAPSHOT', status: 'UNKNOWN_OUTCOME', checkpointJson: {}, lastHttpStatus: 200 },
           ],
         },
       },
@@ -168,39 +167,82 @@ async function seedOrgVehicleLink(prisma: PrismaClient) {
     const fsd4Stages = await prisma.fsdDiscoveryStage.findMany({ where: { runId: fsd4RunId } });
     const historicalStage = fsd4Stages.find((s) => s.stageType === 'HISTORICAL')!;
 
-    const evidenceCreate = names.flatMap((signalName) => [
-      {
+    const partialSnapshotNames = names.slice(0, 10);
+    const evidenceCreate: Array<{
+      runId: string;
+      stageId: string;
+      stageType: 'CATALOG' | 'SNAPSHOT' | 'HISTORICAL';
+      signalName: string;
+      evidenceState: 'DECLARED_ONLY' | 'OBSERVED';
+      queryPlanned: boolean;
+      queryAccepted?: boolean;
+      observedValue?: boolean;
+      qualityJson?: object;
+    }> = [];
+
+    for (const signalName of names) {
+      evidenceCreate.push({
         runId: fsd3RunId,
         stageId: catalogStage.id,
-        stageType: 'CATALOG' as const,
+        stageType: 'CATALOG',
         signalName,
-        evidenceState: 'DECLARED_ONLY' as const,
+        evidenceState: 'DECLARED_ONLY',
         queryPlanned: false,
-      },
-      {
-        runId: fsd3RunId,
-        stageId: snapshotStage.id,
-        stageType: 'SNAPSHOT' as const,
-        signalName,
-        evidenceState: 'OBSERVED' as const,
-        queryPlanned: true,
-        queryAccepted: true,
-        observedValue: true,
-        qualityJson: { observationKind: 'OBSERVED' },
-      },
-      {
+      });
+      if (partialSnapshotNames.includes(signalName)) {
+        evidenceCreate.push({
+          runId: fsd3RunId,
+          stageId: snapshotStage.id,
+          stageType: 'SNAPSHOT',
+          signalName,
+          evidenceState: 'OBSERVED',
+          queryPlanned: true,
+          queryAccepted: true,
+          observedValue: true,
+          qualityJson: { observationKind: 'OBSERVED' },
+        });
+      }
+      evidenceCreate.push({
         runId: fsd4RunId,
         stageId: historicalStage.id,
-        stageType: 'HISTORICAL' as const,
+        stageType: 'HISTORICAL',
         signalName,
-        evidenceState: 'OBSERVED' as const,
+        evidenceState: 'OBSERVED',
         queryPlanned: true,
         queryAccepted: true,
         observedValue: true,
         qualityJson: { observationKind: 'OBSERVED' },
-      },
-    ]);
+      });
+    }
     await prisma.fsdDiscoverySignalEvidence.createMany({ data: evidenceCreate });
+
+    await prisma.fsdDiscoveryRun.create({
+      data: {
+        id: randomUUID(),
+        organizationId,
+        vehicleId,
+        providerSourceLinkId: linkId,
+        runKey: `fsd4-failed-${randomUUID()}`,
+        runRevision: 4,
+        discoveryStream: 'FSD4_HISTORICAL',
+        status: 'FAILED',
+        dimoTokenId: tokenId,
+        connectionIdentityFingerprint: 'pg-fp',
+        createdAt: new Date('2026-11-11T12:00:00Z'),
+        stages: {
+          create: [
+            {
+              stageType: 'CATALOG',
+              status: 'SUCCEEDED',
+              checkpointJson: {
+                catalogFetch: { declaredCatalogFingerprint: fp, providerKind: 'live', catalogFetchSucceeded: true },
+              },
+            },
+            { stageType: 'HISTORICAL', status: 'PLANNED', checkpointJson: {} },
+          ],
+        },
+      },
+    });
 
     await prisma.fsdDiscoveryRun.create({
       data: {
@@ -221,7 +263,9 @@ async function seedOrgVehicleLink(prisma: PrismaClient) {
     const summary = await service.getSummary(organizationId, vehicleId, linkId);
     expect(summary.catalog.authoritativeRunId).toBe(fsd3RunId);
     expect(summary.execution.fsd3.state).toBe('FAILED');
+    expect(summary.evidence.snapshot).toBe('PARTIAL');
     expect(summary.evidence.historical).toBe('AVAILABLE');
+    expect(summary.catalog.selectionLimitation).toBeNull();
 
     const page = await service.getSignalExplorer({
       organizationId,
