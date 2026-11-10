@@ -92,15 +92,7 @@ function buildMonotonicRuns(sequences: Ds4RpmResearchCanonPointV1[][]): Ds4RpmDy
   for (let sequenceIndex = 0; sequenceIndex < sequences.length; sequenceIndex += 1) {
     const seq = sequences[sequenceIndex]!;
     if (seq.length === 0) continue;
-    if (seq.length === 1) {
-      runs.push({
-        sequenceIndex,
-        kind: 'FLAT',
-        startGlobalIdx: seq[0]!.globalIdx,
-        endGlobalIdx: seq[0]!.globalIdx,
-        pointCount: 1,
-        netDeltaRpm: 0,
-      });
+    if (seq.length < 2) {
       continue;
     }
     let start = 0;
@@ -135,21 +127,32 @@ function buildMonotonicRuns(sequences: Ds4RpmResearchCanonPointV1[][]): Ds4RpmDy
   return runs;
 }
 
+/**
+ * Consecutive non-FLAT trend kind changes within each admitted sequence only.
+ * Intervening FLAT step-sign runs do not reset the prior trend.
+ */
 function countReversals(runs: readonly Ds4RpmDynamicsResearchMonotonicRunV1[]): number {
+  const bySequence = new Map<number, Ds4RpmDynamicsResearchMonotonicRunV1[]>();
+  for (const run of runs) {
+    const bucket = bySequence.get(run.sequenceIndex) ?? [];
+    bucket.push(run);
+    bySequence.set(run.sequenceIndex, bucket);
+  }
   let reversals = 0;
-  for (let i = 1; i < runs.length; i += 1) {
-    const a = runs[i - 1]!;
-    const b = runs[i]!;
-    if (a.sequenceIndex !== b.sequenceIndex) continue;
-    if (a.kind === 'FLAT' || b.kind === 'FLAT') continue;
-    if (a.kind !== b.kind) reversals += 1;
+  for (const seqRuns of bySequence.values()) {
+    let lastNonFlat: Ds4RpmDynamicsResearchMonotonicRunKindV1 | null = null;
+    for (const run of seqRuns) {
+      if (run.kind === 'FLAT') continue;
+      if (lastNonFlat != null && lastNonFlat !== run.kind) reversals += 1;
+      lastNonFlat = run.kind;
+    }
   }
   return reversals;
 }
 
 function resolveDynamicsStatus(adjacentPairCount: number): Ds4RpmDynamicsResearchDynamicsStatus {
   if (adjacentPairCount > 0) return 'SUPPORTED_DESCRIPTIVE';
-  return 'NOT_OBSERVED';
+  return 'NOT_ASSESSABLE';
 }
 
 type Ds4RpmDynamicsResearchAbstainReasonV1 =

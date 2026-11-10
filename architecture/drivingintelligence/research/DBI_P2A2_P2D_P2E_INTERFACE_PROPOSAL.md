@@ -6,7 +6,8 @@
 |-------|------|
 | `Ds4RpmDynamicsResearchResultV1` | Sidecar research artifact alongside `Ds4RpmEpisodeResearchResultV1` |
 | Shared `bindings.*` | Same org/vehicle/trip/link/v1b fingerprint as A1 for join eligibility review |
-| `observedDynamics.adjacentDeltas[]` | Optional enrichment for shadow-correlation windows — **no** automatic edge creation |
+| `observedDynamics.adjacentDeltas[]` | Optional enrichment for shadow-correlation windows — **no** automatic edge creation; pairs reference bucket label indices/values under `BUCKET_LABEL_UNVERIFIED` |
+| Label-time for P2-D fusion (requirement) | Consumers needing wall-clock alignment must join **bound original RPM label timestamps** from the admitted V1A trip input, or a future additive **label-time projection** — not implemented in PR #2398 |
 | `observedDynamics.monotonicRuns[]` | Descriptive context for P2-D fusion reviewers only |
 | `timeAuthority` | Must remain `BUCKET_LABEL_UNVERIFIED` in any P2-D consumer |
 

@@ -3010,4 +3010,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | DBI P2-C4 W3-048 A1 index namespace priming (2026-11-10) | Cross-kernel glossary index authority; W3-048 consumer guard spec; preventive classification (no reconciliation behavior change) |
 | DBI P2-C4 W3-C B1 support tier enum closeout (2026-11-10) | `B1_CANDIDATE_SUPPORT_TIER_INVALID`; envelope + candidate enum check (`STRONG`/`MODERATE`/`WEAK`); DI-DEF-045 FIXED; `w3c-b1-support-tier.enum.spec.ts` |
 | P2-A2 RPM dynamics research V1 (2026-11-10) | `ds4-rpm-dynamics-research` kernel + shared canon helper; A1 binding reuse; synthetic tests; P2-D/E interface proposal |
+| P2-A2 scientific semantics remediation (2026-11-10, PR #2398) | P1: zero-pair `NOT_ASSESSABLE`, no singleton FLAT runs; P2: plateau-aware non-FLAT reversal counting; P2-D label-time requirement doc |
 

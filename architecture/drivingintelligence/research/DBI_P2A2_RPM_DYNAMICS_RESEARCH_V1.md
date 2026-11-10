@@ -20,8 +20,9 @@ Shared `canonicalizeDs4RpmResearchPoints` + `splitDs4RpmResearchSequences` (`ds4
 
 - Adjacent observed ΔRPM between consecutive admitted labels **within** a sequence only
 - Positive / negative / zero delta counts
-- Step-sign monotonic runs (`RISING` | `FALLING` | `FLAT`)
-- Observed direction reversal count (non-FLAT run kind changes)
+- Step-sign monotonic runs (`RISING` | `FALLING` | `FLAT`) — **requires ≥2 labels in sequence** (no singleton synthetic FLAT runs)
+- `observedDynamics.status`: `SUPPORTED_DESCRIPTIVE` when ≥1 adjacent pair exists; `NOT_ASSESSABLE` when trip is `COMPUTED` but pair evidence is insufficient (independent of admission)
+- Observed direction reversal count: consecutive **non-FLAT** trend kind changes within one sequence; intervening FLAT plateaus do not conceal a RISING↔FALLING change; never across sequence gaps
 - Denominators: unique labels, sequence count, adjacent pair count
 
 ## Scientific boundaries
