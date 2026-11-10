@@ -23,7 +23,13 @@ export async function queryExactJointSkipSavings(
 ): Promise<JointSkipSqlRow> {
   const rows = await prisma.$queryRaw<JointSkipSqlRow[]>`
     SELECT
-      COUNT(DISTINCT b2.opportunity_id)::bigint AS joint_skip_opportunities,
+      COUNT(
+        DISTINCT (
+          b2.organization_id,
+          b2.vehicle_id,
+          b2.opportunity_id
+        )
+      )::bigint AS joint_skip_opportunities,
       COUNT(DISTINCT b2.real_poll_id)::bigint AS distinct_joint_skip_physical_polls
     FROM apd_shadow_reconciliation_decisions b2
     INNER JOIN apd_shadow_reconciliation_decisions b4

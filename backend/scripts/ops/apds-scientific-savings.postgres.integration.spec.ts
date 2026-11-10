@@ -84,6 +84,73 @@ async function seedScope(prisma: PrismaClient): Promise<TestScope> {
   };
 }
 
+async function seedDualVehicleSameEpoch(
+  prisma: PrismaClient,
+): Promise<TestScope & { vehicleIdB: string }> {
+  const windowStart = new Date('2026-10-25T10:00:00.000Z');
+  const windowEnd = new Date('2026-10-26T10:00:00.000Z');
+  const org = await prisma.organization.create({
+    data: {
+      companyName: `apds-savings-dual-${randomUUID()}`,
+      businessType: BusinessType.RENTAL,
+    },
+    select: { id: true },
+  });
+  const vehicleA = await prisma.vehicle.create({
+    data: {
+      organizationId: org.id,
+      make: 'Test',
+      model: 'A',
+      year: 2026,
+      vin: `VIN${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+      fuelType: FuelType.GASOLINE,
+      vehicleName: 'apd-savings-veh-a',
+    },
+    select: { id: true },
+  });
+  const vehicleB = await prisma.vehicle.create({
+    data: {
+      organizationId: org.id,
+      make: 'Test',
+      model: 'B',
+      year: 2026,
+      vin: `VIN${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+      fuelType: FuelType.GASOLINE,
+      vehicleName: 'apd-savings-veh-b',
+    },
+    select: { id: true },
+  });
+  const cohort: ApdShadowCohortConfig = {
+    version: P25_APD_LTE_R1_COHORT_V1,
+    members: [
+      { organizationId: org.id, vehicleId: vehicleA.id },
+      { organizationId: org.id, vehicleId: vehicleB.id },
+    ],
+  };
+  const cohortFingerprint = computeApdShadowCohortFingerprintSha256(cohort);
+  const epoch = await prisma.apdShadowActivationEpoch.create({
+    data: {
+      activationScopeKey: buildApdShadowActivationScopeKey(cohortFingerprint),
+      organizationId: org.id,
+      cohortConfigFingerprintSha256: cohortFingerprint,
+      cohortConfigVersion: P25_APD_LTE_R1_COHORT_V1,
+      b2PolicyVersion: P25_APD_B2_V1,
+      b4PolicyVersion: P25_APD_B4_V1,
+      lifecycleState: ApdShadowActivationEpochLifecycle.ACTIVE,
+      activatedAt: windowStart,
+    },
+    select: { id: true },
+  });
+  return {
+    organizationId: org.id,
+    vehicleId: vehicleA.id,
+    vehicleIdB: vehicleB.id,
+    epochId: epoch.id,
+    windowStart,
+    windowEnd,
+  };
+}
+
 async function createSuccessPoll(
   prisma: PrismaClient,
   vehicleId: string,
@@ -349,6 +416,42 @@ describePg('apds-scientific-savings SQL parity (H2)', () => {
       windowEnd: scopeA.windowEnd,
     });
     expect(Number(sqlCross.joint_skip_opportunities)).toBe(1);
+  });
+
+  it('counts two vehicles in the same epoch separately when opportunity id collides', async () => {
+    const scope = await seedDualVehicleSameEpoch(prisma);
+    orgIds.push(scope.organizationId);
+    vehicleIds.push(scope.vehicleId, scope.vehicleIdB);
+    const sharedOpp = 'shared-opportunity-same-epoch';
+    const pollA = await createSuccessPoll(prisma, scope.vehicleId);
+    const pollB = await createSuccessPoll(
+      prisma,
+      scope.vehicleIdB,
+      new Date('2026-10-25T12:00:00.000Z'),
+    );
+    const baseA = decisionBase(scope, sharedOpp, pollA.id);
+    const baseB = {
+      ...decisionBase(scope, sharedOpp, pollB.id),
+      vehicleId: scope.vehicleIdB,
+    };
+
+    await prisma.apdShadowReconciliationDecision.createMany({
+      data: [
+        { ...baseA, policyVersion: P25_APD_B2_V1 },
+        { ...baseA, policyVersion: P25_APD_B4_V1 },
+        { ...baseB, policyVersion: P25_APD_B2_V1 },
+        { ...baseB, policyVersion: P25_APD_B4_V1 },
+      ],
+    });
+
+    const sql = await queryExactJointSkipSavings(prisma, {
+      vehicleIds: [scope.vehicleId, scope.vehicleIdB],
+      activationEpochId: scope.epochId,
+      windowStart: scope.windowStart,
+      windowEnd: scope.windowEnd,
+    });
+    expect(Number(sql.joint_skip_opportunities)).toBe(2);
+    expect(Number(sql.distinct_joint_skip_physical_polls)).toBe(2);
   });
 
   it('counts duplicate policy rows for one opportunity once', async () => {

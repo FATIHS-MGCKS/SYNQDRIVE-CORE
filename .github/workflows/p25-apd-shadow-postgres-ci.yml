@@ -1,0 +1,62 @@
+name: APDS P25 shadow PostgreSQL integration
+
+on:
+  pull_request:
+    paths:
+      - 'backend/src/workers/schedulers/snapshot-polling/adaptive-polling-shadow/**'
+      - 'backend/src/workers/schedulers/snapshot-polling/adaptive-polling-policy/**'
+      - 'backend/src/workers/snapshot-wake/apd-shadow-*'
+      - 'backend/scripts/ops/apds-scientific-savings-*'
+      - 'backend/scripts/test/p25-apd-shadow-*'
+      - 'backend/prisma/migrations/*apd_shadow*'
+      - 'backend/prisma/schema.prisma'
+      - '.github/workflows/p25-apd-shadow-postgres-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: p25-apd-shadow-postgres-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  DATABASE_URL: postgresql://synqdrive:synqdrive@127.0.0.1:5432/synqdrive_ci_ephemeral?schema=public
+
+jobs:
+  apds-postgres:
+    name: APDS disposable PostgreSQL certification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start ephemeral PostgreSQL
+        run: bash backend/scripts/test/ci-start-postgres.sh
+        env:
+          CI_PG_CONTAINER: apds-p25-shadow-ci-postgres
+
+      - name: Fail closed on non-ephemeral DATABASE_URL
+        run: |
+          set -euo pipefail
+          case "$DATABASE_URL" in
+            *127.0.0.1*|*localhost*) ;;
+            *)
+              echo "DATABASE_URL must target ephemeral CI-local PostgreSQL"
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: APDS P25 shadow PostgreSQL gates
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: |
+          npm ci
+          bash scripts/test/p25-apd-shadow-postgres-ci.sh
