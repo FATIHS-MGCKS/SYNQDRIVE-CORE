@@ -44,7 +44,12 @@ function b3(tripClass: string, status: string, nCands: number) {
     sourceModule: 'P2-B3',
     sourceEpisodeKey: 'k',
     originalClassification: 'GAP_AWARE_SUSTAINED_PROXY_CANDIDATE',
-    originalCandidate: { episodeKey: 'k', classification: 'GAP_AWARE_SUSTAINED_PROXY_CANDIDATE' },
+    originalCandidate: {
+      episodeKey: 'k',
+      classification: 'GAP_AWARE_SUSTAINED_PROXY_CANDIDATE',
+      startProviderBucketLabelIso: '2026-01-01T10:00:01.000Z',
+      endProviderBucketLabelIso: '2026-01-01T10:00:05.000Z',
+    },
   };
   plane.candidates = Array.from({ length: nCands }, () => structuredClone(cand)) as never;
   plane.participant = {

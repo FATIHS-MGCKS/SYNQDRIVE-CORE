@@ -31,6 +31,7 @@ import { tryCanonicalJsonStringify } from './dbi-p2c3-reconciliation.canonical-j
 import { computePairwiseReconciliation } from './dbi-p2c3-reconciliation.pairwise.v1';
 import { validateBundleInputShape } from './dbi-p2c3-reconciliation.bundle-shape.v1';
 import { validateParticipantEvidenceIntegrity } from './dbi-p2c3-reconciliation.participant-integrity.v1';
+import { validateParticipantBundleTemporalIntegrity } from './dbi-p2c3-reconciliation.participant-temporal.v1';
 import { validateBundleAndParticipants } from './dbi-p2c3-reconciliation.validation.v1';
 
 const MODULE_ORDER: readonly DbiP2c2SourceModuleV1[] = ['P2-A1', 'P2-B1', 'P2-B2', 'P2-B3', 'P2-B4'] as const;
@@ -82,6 +83,11 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
   const structureDiagnostics = validateBundleAndParticipants(bundle);
   if (structureDiagnostics.length > 0) {
     return buildFailure(structureDiagnostics);
+  }
+
+  const temporalDiagnostics = validateParticipantBundleTemporalIntegrity(bundle);
+  if (temporalDiagnostics.length > 0) {
+    return buildFailure(temporalDiagnostics);
   }
 
   const integrityDiagnostics = validateParticipantEvidenceIntegrity(bundle);
