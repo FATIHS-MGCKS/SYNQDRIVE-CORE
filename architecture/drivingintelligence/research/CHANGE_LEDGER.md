@@ -3012,4 +3012,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | P2-A2 RPM dynamics research V1 (2026-11-10) | `ds4-rpm-dynamics-research` kernel + shared canon helper; A1 binding reuse; synthetic tests; P2-D/E interface proposal |
 | P2-A2 scientific semantics remediation (2026-11-10, PR #2398) | P1: zero-pair `NOT_ASSESSABLE`, no singleton FLAT runs; P2: plateau-aware non-FLAT reversal counting; P2-D label-time requirement doc |
 | P2-A2 Fable scientific closeout (2026-11-10, PR #2398) | C1 R1 claim parity; C2 run `stepCount` + boundary docs; C3 noise/cadence semantics; C4 canonical `globalIdx` authority; consumer glossary A2 row |
+| P2-D1 DS4×RPM dynamics offline fusion V1 (2026-11-10) | `ds4-rpm-dynamics-fusion-research` — reuses shadow join + A2 + provenance/R1 gates; event-local adjacent-delta filtering; 20 synthetic adversarial tests; `DBI_P2D1_*` + P2-D2 real-data requirements |
 
