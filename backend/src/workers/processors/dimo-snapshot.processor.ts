@@ -41,6 +41,7 @@ import {
 import { DeviceConnectionEpisodeResolutionOutboxProcessorService } from '../../modules/dimo/device-connection-episode-resolution/device-connection-episode-resolution-outbox-processor.service';
 import { SnapshotWakeCoordinatorService } from '../snapshot-wake/snapshot-wake-coordinator.service';
 import { AdaptivePollingShadowService } from '../schedulers/snapshot-polling/adaptive-polling-shadow/adaptive-polling-shadow.service';
+import { ApdsV3ShadowService } from '../schedulers/snapshot-polling/adaptive-polling-policy/apds-v3-offline/apds-v3-shadow.service';
 import { findLatestHistoricallyVisibleLiveVoltageProviderTimestampMs } from '../schedulers/snapshot-polling/adaptive-polling-policy/p25-apd-historical-lv-visibility';
 import type { DimoSnapshotJobData } from '../snapshot-wake/snapshot-wake.types';
 import { snapshotJobId } from '../snapshot-wake/snapshot-wake.util';
@@ -96,6 +97,8 @@ export class DimoSnapshotProcessor extends WorkerHost {
     private readonly physicalAuthorityCutover?: PhysicalStateAuthorityCutoverService,
     @Optional()
     private readonly apdShadow?: AdaptivePollingShadowService,
+    @Optional()
+    private readonly apdsV3Shadow?: ApdsV3ShadowService,
     @Optional()
     private readonly vsiSourceObservationWriter?: VsiProviderSourceObservationWriterService,
     @Optional()
@@ -237,6 +240,41 @@ export class DimoSnapshotProcessor extends WorkerHost {
           enqueueAttemptId: enqueueEvidence.attemptId,
         });
       }
+    }
+
+    if (this.apdsV3Shadow?.isRuntimeReady()) {
+      const lvTrustMs = previousLv?.providerTimestamp?.getTime() ?? null;
+      const [tripState, latestStateForV3] = await Promise.all([
+        this.prisma.vehicleTripDetectionState.findUnique({
+          where: { vehicleId },
+          select: { state: true },
+        }),
+        this.prisma.vehicleLatestState.findUnique({
+          where: { vehicleId },
+          select: { providerFetchedAt: true },
+        }),
+      ]);
+      const activityTier =
+        tripState?.state === TripDetectionState.ACTIVE_TRIP ||
+        tripState?.state === TripDetectionState.IDLE_WITHIN_TRIP ||
+        tripState?.state === TripDetectionState.POSSIBLE_END
+          ? 'ACTIVE_DRIVING'
+          : 'RESTING_STANDBY';
+      await this.apdsV3Shadow.observeActualBaselinePollStart({
+        organizationId: vehicle.organizationId,
+        vehicleId,
+        pollStartedAtMs: startedAt.getTime(),
+        tripDetectionState: tripState?.state ?? null,
+        lastProviderFetchedAtMs: latestStateForV3?.providerFetchedAt?.getTime() ?? null,
+        lastTrustworthyLvSourceMs: lvTrustMs,
+        lvProviderTimestampsMs: [],
+        providerGapOpen: false,
+        r9WakeKnown: jobDataWithWake.wakeContext != null,
+        deviceReconnectRecent: false,
+        providerReconnectRecent: false,
+        activityTierLabel: activityTier,
+        realPollId: null,
+      });
     }
 
     try {
