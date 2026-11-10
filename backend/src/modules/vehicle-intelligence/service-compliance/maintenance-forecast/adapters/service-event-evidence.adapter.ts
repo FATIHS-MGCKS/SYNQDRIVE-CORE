@@ -29,14 +29,20 @@ export function readServiceKind(sourcePayloadJson: unknown): 'INSPECTION_SMALL' 
 
 export function eventSourceFromOrigin(origin: string): MaintenanceEventSource {
   switch (origin) {
+    case 'MANUAL':
+      return 'SERVICE_EVENT_MANUAL';
     case 'ONEAUTO':
       return 'SERVICE_EVENT_ONEAUTO';
     case 'AI_UPLOAD':
       return 'SERVICE_EVENT_OCR';
     case 'WORKSHOP_DOCUMENT':
       return 'SERVICE_EVENT_WORKSHOP';
+    case 'IMPORT':
+      return 'SERVICE_EVENT_IMPORT';
+    case 'OEM':
+      return 'SERVICE_EVENT_OEM';
     default:
-      return 'SERVICE_EVENT_MANUAL';
+      return 'SERVICE_EVENT_UNSUPPORTED';
   }
 }
 

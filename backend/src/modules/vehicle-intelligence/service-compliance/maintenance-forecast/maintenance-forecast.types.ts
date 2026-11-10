@@ -22,8 +22,18 @@ export type MaintenanceEventSource =
   | 'SERVICE_EVENT_OCR'
   | 'SERVICE_EVENT_ONEAUTO'
   | 'SERVICE_EVENT_WORKSHOP'
+  | 'SERVICE_EVENT_IMPORT'
+  | 'SERVICE_EVENT_OEM'
+  | 'SERVICE_EVENT_UNSUPPORTED'
   | 'VEHICLE_MASTER_DATA'
   | 'NONE';
+
+/** Authoritative UI/API distinction for how a position baseline was established. */
+export type MaintenanceBaselineEvidenceClass =
+  | 'DOCUMENTED'
+  | 'USER_DECLARED'
+  | 'CALCULATION_BASIS'
+  | 'UNSUPPORTED';
 
 export type MaintenanceOdometerSource =
   | 'HM_OEM'
@@ -53,6 +63,8 @@ export type MaintenanceDataQualityFlag =
   | 'SCHEDULE_VARIANTS_COLLAPSED'
   | 'SCHEDULE_MISSING'
   | 'HISTORY_MISSING'
+  | 'HISTORY_EVIDENCE_TRUNCATED'
+  | 'HISTORY_EVIDENCE_LOAD_FAILED'
   | 'CONFLICT_HM_VS_COMPUTED';
 
 export interface MaintenanceSchedulePosition {
@@ -123,6 +135,7 @@ export interface MaintenanceForecastInput {
   odometer: MaintenanceOdometerReading | null;
   hm: MaintenanceHmSignal | null;
   scheduleFlags?: MaintenanceDataQualityFlag[];
+  evidenceLoadFlags?: MaintenanceDataQualityFlag[];
   scheduleFetchedAt?: Date | null;
   thresholds: MaintenanceForecastThresholds;
 }
@@ -133,6 +146,8 @@ export interface MaintenanceBaselineRef {
   eventId: string | null;
   eventType: string | null;
   eventSource: MaintenanceEventSource;
+  /** Set for position baselines from the engine; absent on legacy payloads is treated fail-closed in UI. */
+  evidenceClass?: MaintenanceBaselineEvidenceClass;
 }
 
 export interface MaintenanceProvenance {
