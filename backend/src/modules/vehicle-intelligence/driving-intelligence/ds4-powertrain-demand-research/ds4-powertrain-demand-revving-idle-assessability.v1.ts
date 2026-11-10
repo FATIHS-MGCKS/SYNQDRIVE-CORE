@@ -6,6 +6,7 @@ import type {
 } from './ds4-powertrain-demand-research.contract.v1';
 import type { Ds4CanonicalMultichannelBucketV1 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
 import type { Ds4MultichannelCanonicalizeResultV1 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
+import { splitBucketsAtAdmittedSequenceBoundaries } from './ds4-powertrain-demand-multichannel-sequence-boundary.v1';
 import { DS4_REVIVING_IDLE_DUAL_FACET_POLICY } from './ds4-powertrain-demand-revving-idle-reference.v1';
 
 export type { Ds4RevvingIdleFacetCoverageDiagnosticsV1 };
@@ -103,6 +104,7 @@ const EMPTY_PAIRED_DIAGNOSTICS = {
 
 function evaluateFacetOpportunity(input: {
   canon: Ds4MultichannelCanonicalizeResultV1;
+  sequenceMaxGapSeconds: number;
   minLabels: number;
   minSpanMs: number;
   maxAdjacentGapMs: number;
@@ -123,7 +125,10 @@ function evaluateFacetOpportunity(input: {
     };
   }
 
-  const runs = enumerateCoherentCoRpmSpeedRuns(sorted, input.maxAdjacentGapMs);
+  const admittedGroups = splitBucketsAtAdmittedSequenceBoundaries(sorted, input.sequenceMaxGapSeconds);
+  const runs = admittedGroups.flatMap((group) =>
+    enumerateCoherentCoRpmSpeedRuns(group, input.maxAdjacentGapMs),
+  );
   const qualifying = runs.filter((r) => r.labelCount >= input.minLabels && r.spanMs >= input.minSpanMs);
   const maxLabelCount = runs.reduce((m, r) => Math.max(m, r.labelCount), 0);
   const maxSpan = runs.reduce((m, r) => Math.max(m, r.spanMs), 0);
@@ -162,9 +167,11 @@ function evaluateFacetOpportunity(input: {
 
 export function evaluateRevvingIdleFacetAAssessability(
   canon: Ds4MultichannelCanonicalizeResultV1,
+  sequenceMaxGapSeconds: number,
 ): Ds4RevvingIdleFacetAssessabilityVerdictV1 {
   return evaluateFacetOpportunity({
     canon,
+    sequenceMaxGapSeconds,
     minLabels: FACET_A.minObservations,
     minSpanMs: FACET_A.minResearchLabelSpanMs,
     maxAdjacentGapMs: FACET_A.maxAdjacentLabelGapMs,
@@ -173,9 +180,11 @@ export function evaluateRevvingIdleFacetAAssessability(
 
 export function evaluateRevvingIdleFacetBAssessability(
   canon: Ds4MultichannelCanonicalizeResultV1,
+  sequenceMaxGapSeconds: number,
 ): Ds4RevvingIdleFacetAssessabilityVerdictV1 {
   return evaluateFacetOpportunity({
     canon,
+    sequenceMaxGapSeconds,
     minLabels: FACET_B.minObservations,
     minSpanMs: FACET_B.minResearchLabelSpanMs,
     maxAdjacentGapMs: FACET_B.maxAdjacentLabelGapMs,

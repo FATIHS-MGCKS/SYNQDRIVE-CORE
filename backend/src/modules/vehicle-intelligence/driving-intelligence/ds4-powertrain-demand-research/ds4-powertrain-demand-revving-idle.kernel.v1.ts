@@ -173,8 +173,9 @@ export function computeDs4PowertrainDemandRevvingIdleResearchV1(
 
   const canon = binding.canon;
   const globalCoverage = buildGlobalCoverageFromCanon(canon);
-  const facetAAssess = evaluateRevvingIdleFacetAAssessability(canon);
-  const facetBAssess = evaluateRevvingIdleFacetBAssessability(canon);
+  const sequenceMaxGapSeconds = binding.cadenceProfile.sequenceMaxGapSeconds;
+  const facetAAssess = evaluateRevvingIdleFacetAAssessability(canon, sequenceMaxGapSeconds);
+  const facetBAssess = evaluateRevvingIdleFacetBAssessability(canon, sequenceMaxGapSeconds);
 
   const detect = detectRevvingIdleDualFacetCandidates({
     tripId: input.tripId,
@@ -182,6 +183,7 @@ export function computeDs4PowertrainDemandRevvingIdleResearchV1(
     fuelType: input.fuelType,
     isEvPowertrain: input.isEvPowertrain,
     canon,
+    sequenceMaxGapSeconds,
     runFacetA: facetAAssess.assessable,
     runFacetB: facetBAssess.assessable,
   });
