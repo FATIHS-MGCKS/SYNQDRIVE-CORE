@@ -87,6 +87,8 @@ export const serviceIntelligenceTr = {
   'health.serviceInfo.v2.flag.SCHEDULE_VARIANTS_COLLAPSED': 'Birebir aynı plan varyantları birleştirildi.',
   'health.serviceInfo.v2.flag.SCHEDULE_MISSING': 'Bakım planı mevcut değil.',
   'health.serviceInfo.v2.flag.HISTORY_MISSING': 'Belgelenmiş bakım geçmişi yok.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_TRUNCATED': 'Servis geçmişi tam olarak değerlendirilemedi. Daha eski bakım kanıtları eksik olabilir.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_LOAD_FAILED': 'Servis geçmişi yüklenemedi. Bakım bilgileri eksik olabilir.',
   'health.serviceInfo.v2.flag.CONFLICT_HM_VS_COMPUTED': 'OEM değerleri ile hesaplanan değerler farklı.',
   'health.serviceInfo.v2.conflict.title': 'Kaynak çakışması',
   'health.serviceInfo.v2.conflict.hmVsComputed': 'OEM: {hm} · Hesaplanan: {computed}',

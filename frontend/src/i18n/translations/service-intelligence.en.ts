@@ -87,6 +87,8 @@ export const serviceIntelligenceEn = {
   'health.serviceInfo.v2.flag.SCHEDULE_VARIANTS_COLLAPSED': 'Identical schedule variants were merged.',
   'health.serviceInfo.v2.flag.SCHEDULE_MISSING': 'No maintenance schedule available.',
   'health.serviceInfo.v2.flag.HISTORY_MISSING': 'No proven service history.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_TRUNCATED': 'Service history could not be fully evaluated. Older maintenance records may be missing.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_LOAD_FAILED': 'Service history could not be loaded. Maintenance details may be incomplete.',
   'health.serviceInfo.v2.flag.CONFLICT_HM_VS_COMPUTED': 'OEM values and calculated values differ.',
   'health.serviceInfo.v2.conflict.title': 'Source conflict',
   'health.serviceInfo.v2.conflict.hmVsComputed': 'OEM: {hm} · Calculated: {computed}',

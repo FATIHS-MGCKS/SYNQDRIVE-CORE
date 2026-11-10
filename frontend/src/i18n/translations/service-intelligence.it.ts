@@ -87,6 +87,8 @@ export const serviceIntelligenceIt = {
   'health.serviceInfo.v2.flag.SCHEDULE_VARIANTS_COLLAPSED': 'Varianti identiche del piano sono state unite.',
   'health.serviceInfo.v2.flag.SCHEDULE_MISSING': 'Nessun piano di manutenzione disponibile.',
   'health.serviceInfo.v2.flag.HISTORY_MISSING': 'Nessuno storico di manutenzione documentato.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_TRUNCATED': 'La cronologia di servizio non ha potuto essere valutata completamente. Potrebbero mancare prove di manutenzione più vecchie.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_LOAD_FAILED': 'Impossibile caricare la cronologia di servizio. I dati di manutenzione potrebbero essere incompleti.',
   'health.serviceInfo.v2.flag.CONFLICT_HM_VS_COMPUTED': 'I valori OEM e quelli calcolati divergono.',
   'health.serviceInfo.v2.conflict.title': 'Conflitto tra fonti',
   'health.serviceInfo.v2.conflict.hmVsComputed': 'OEM: {hm} · Calcolato: {computed}',

@@ -87,6 +87,10 @@ export const serviceIntelligenceFr = {
   'health.serviceInfo.v2.flag.SCHEDULE_VARIANTS_COLLAPSED': 'Des variantes de plan identiques ont été fusionnées.',
   'health.serviceInfo.v2.flag.SCHEDULE_MISSING': 'Aucun plan d’entretien disponible.',
   'health.serviceInfo.v2.flag.HISTORY_MISSING': 'Aucun historique d’entretien justifié.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_TRUNCATED':
+    "L'historique de service n'a pas pu être entièrement évalué. Des justificatifs d'entretien plus anciens peuvent manquer.",
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_LOAD_FAILED':
+    "L'historique de service n'a pas pu être chargé. Les informations d'entretien peuvent être incomplètes.",
   'health.serviceInfo.v2.flag.CONFLICT_HM_VS_COMPUTED': 'Les valeurs OEM et calculées divergent.',
   'health.serviceInfo.v2.conflict.title': 'Conflit de sources',
   'health.serviceInfo.v2.conflict.hmVsComputed': 'OEM : {hm} · Calculé : {computed}',

@@ -87,6 +87,8 @@ export const serviceIntelligenceCs = {
   'health.serviceInfo.v2.flag.SCHEDULE_VARIANTS_COLLAPSED': 'Identické varianty plánu byly sloučeny.',
   'health.serviceInfo.v2.flag.SCHEDULE_MISSING': 'Servisní plán není k dispozici.',
   'health.serviceInfo.v2.flag.HISTORY_MISSING': 'Chybí doložená servisní historie.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_TRUNCATED': 'Servisní historie nemohla být plně vyhodnocena. Starší servisní záznamy mohou chybět.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_LOAD_FAILED': 'Servisní historii se nepodařilo načíst. Servisní údaje mohou být neúplné.',
   'health.serviceInfo.v2.flag.CONFLICT_HM_VS_COMPUTED': 'Hodnoty OEM a vypočtené hodnoty se liší.',
   'health.serviceInfo.v2.conflict.title': 'Konflikt zdrojů',
   'health.serviceInfo.v2.conflict.hmVsComputed': 'OEM: {hm} · Vypočteno: {computed}',

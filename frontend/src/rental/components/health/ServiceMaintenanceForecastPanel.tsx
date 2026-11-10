@@ -147,9 +147,37 @@ function valueOrUnknown(km: number | null, days: number | null, t: Translator, f
   return parts.length ? parts.join(' / ') : t('health.serviceInfo.v2.value.unknown');
 }
 
+const HISTORY_UNCERTAINTY_FLAGS: MaintenanceDataQualityFlag[] = [
+  'HISTORY_EVIDENCE_TRUNCATED',
+  'HISTORY_EVIDENCE_LOAD_FAILED',
+];
+
+function HistoryEvidenceNotice({ flags, t }: { flags: MaintenanceDataQualityFlag[]; t: Translator }) {
+  const showLoadFailed = flags.includes('HISTORY_EVIDENCE_LOAD_FAILED');
+  const showTruncated = flags.includes('HISTORY_EVIDENCE_TRUNCATED');
+  if (!showLoadFailed && !showTruncated) return null;
+  return (
+    <div
+      role="status"
+      data-testid="service-info-history-evidence-notice"
+      className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+    >
+      {showLoadFailed && (
+        <p className="font-medium">{t('health.serviceInfo.v2.flag.HISTORY_EVIDENCE_LOAD_FAILED')}</p>
+      )}
+      {showTruncated && (
+        <p className={showLoadFailed ? 'mt-1.5 font-medium' : 'font-medium'}>
+          {t('health.serviceInfo.v2.flag.HISTORY_EVIDENCE_TRUNCATED')}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function FlagList({ flags, t }: { flags: MaintenanceDataQualityFlag[]; t: Translator }) {
-  if (flags.length === 0) return null;
-  const unique = [...new Set(flags)];
+  const filtered = flags.filter((f) => !HISTORY_UNCERTAINTY_FLAGS.includes(f));
+  if (filtered.length === 0) return null;
+  const unique = [...new Set(filtered)];
   return (
     <ul className="space-y-1">
       {unique.map((flag) => (
@@ -541,10 +569,15 @@ export function ServiceMaintenanceForecastPanel({
 
   const emptyPlanHint = useMemo(() => {
     if (!forecast || totalPlanRows > 0) return null;
+    if (flags.includes('HISTORY_EVIDENCE_LOAD_FAILED')) return null;
     if (flags.includes('SCHEDULE_MISSING') && !flags.includes('HISTORY_MISSING')) {
       return t('health.serviceInfo.v2.noBasis.historyOnly');
     }
-    if (flags.includes('HISTORY_MISSING') && !flags.includes('SCHEDULE_MISSING')) {
+    if (
+      flags.includes('HISTORY_MISSING') &&
+      !flags.includes('SCHEDULE_MISSING') &&
+      !flags.includes('HISTORY_EVIDENCE_TRUNCATED')
+    ) {
       return t('health.serviceInfo.v2.noBasis.scheduleOnly');
     }
     return t('health.serviceInfo.v3.plan.empty');
@@ -559,6 +592,10 @@ export function ServiceMaintenanceForecastPanel({
         <h2 id={pageTitleId} className="text-base font-semibold tracking-tight text-foreground">
           {t('health.serviceInfo.v3.pageTitle')}
         </h2>
+      )}
+
+      {!loading && !error && forecast && (surface === 'full' || surface === 'overview' || surface === 'plan') && (
+        <HistoryEvidenceNotice flags={flags} t={t} />
       )}
 
       {showHero && (

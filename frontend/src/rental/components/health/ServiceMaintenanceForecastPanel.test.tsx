@@ -240,6 +240,39 @@ describe('ServiceMaintenanceForecastPanel UX-1.1', () => {
     expect((details as HTMLDetailsElement).open).toBe(false);
   });
 
+  it('shows distinct history load-failed notice without implying empty history', () => {
+    const view = renderPanel(
+      {
+        maintenanceForecast: baseForecast({
+          dataQuality: ['HISTORY_EVIDENCE_LOAD_FAILED', 'SCHEDULE_MISSING'],
+          positions: [],
+        }),
+      } as unknown as ServiceInfoStatus,
+      { surface: 'overview' },
+    );
+    cleanup = view.cleanup;
+    const notice = view.container.querySelector('[data-testid="service-info-history-evidence-notice"]');
+    expect(notice?.textContent).toContain('konnte nicht geladen werden');
+    expect(notice?.textContent).not.toContain('Keine nachgewiesene Servicehistorie');
+    expect(view.container.textContent).not.toContain('HISTORY_EVIDENCE_LOAD_FAILED');
+  });
+
+  it('shows truncated history notice separately from HISTORY_MISSING', () => {
+    const view = renderPanel(
+      {
+        maintenanceForecast: baseForecast({
+          dataQuality: ['HISTORY_EVIDENCE_TRUNCATED'],
+          scheduleSources: ['ONEAUTO_SCHEDULE'],
+          positions: [overduePosition('p1')],
+        }),
+      } as unknown as ServiceInfoStatus,
+      { surface: 'plan' },
+    );
+    cleanup = view.cleanup;
+    const notice = view.container.querySelector('[data-testid="service-info-history-evidence-notice"]');
+    expect(notice?.textContent).toContain('nicht vollständig ausgewertet');
+  });
+
   it('overview omits global last-maintenance summary card (trust fix)', () => {
     const view = renderPanel(iphoneUx32OverdueFixture(), { surface: 'overview' });
     cleanup = view.cleanup;

@@ -87,6 +87,8 @@ export const serviceIntelligencePl = {
   'health.serviceInfo.v2.flag.SCHEDULE_VARIANTS_COLLAPSED': 'Identyczne warianty planu zostały scalone.',
   'health.serviceInfo.v2.flag.SCHEDULE_MISSING': 'Brak planu przeglądów.',
   'health.serviceInfo.v2.flag.HISTORY_MISSING': 'Brak udokumentowanej historii serwisowej.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_TRUNCATED': 'Historia serwisowa nie mogła zostać w pełni oceniona. Starsze dowody serwisowe mogą brakować.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_LOAD_FAILED': 'Nie udało się wczytać historii serwisowej. Dane serwisowe mogą być niekompletne.',
   'health.serviceInfo.v2.flag.CONFLICT_HM_VS_COMPUTED': 'Wartości OEM i obliczone różnią się.',
   'health.serviceInfo.v2.conflict.title': 'Konflikt źródeł',
   'health.serviceInfo.v2.conflict.hmVsComputed': 'OEM: {hm} · Obliczone: {computed}',

@@ -87,6 +87,8 @@ export const serviceIntelligenceNl = {
   'health.serviceInfo.v2.flag.SCHEDULE_VARIANTS_COLLAPSED': 'Identieke schemavarianten zijn samengevoegd.',
   'health.serviceInfo.v2.flag.SCHEDULE_MISSING': 'Geen onderhoudsschema beschikbaar.',
   'health.serviceInfo.v2.flag.HISTORY_MISSING': 'Geen aantoonbare onderhoudshistorie.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_TRUNCATED': 'De servicehistorie kon niet volledig worden beoordeeld. Oudere onderhoudsbewijzen kunnen ontbreken.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_LOAD_FAILED': 'De servicehistorie kon niet worden geladen. Onderhoudsgegevens zijn mogelijk onvolledig.',
   'health.serviceInfo.v2.flag.CONFLICT_HM_VS_COMPUTED': 'OEM-waarden en berekende waarden wijken af.',
   'health.serviceInfo.v2.conflict.title': 'Bronconflict',
   'health.serviceInfo.v2.conflict.hmVsComputed': 'OEM: {hm} · Berekend: {computed}',

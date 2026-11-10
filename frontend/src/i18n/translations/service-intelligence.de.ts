@@ -87,6 +87,10 @@ export const serviceIntelligenceDe = {
   'health.serviceInfo.v2.flag.SCHEDULE_VARIANTS_COLLAPSED': 'Identische Planvarianten wurden zusammengeführt.',
   'health.serviceInfo.v2.flag.SCHEDULE_MISSING': 'Kein Wartungsplan vorhanden.',
   'health.serviceInfo.v2.flag.HISTORY_MISSING': 'Keine nachgewiesene Servicehistorie.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_TRUNCATED':
+    'Die Servicehistorie konnte nicht vollständig ausgewertet werden. Ältere Wartungsnachweise können fehlen.',
+  'health.serviceInfo.v2.flag.HISTORY_EVIDENCE_LOAD_FAILED':
+    'Die Servicehistorie konnte nicht geladen werden. Wartungsangaben sind möglicherweise unvollständig.',
   'health.serviceInfo.v2.flag.CONFLICT_HM_VS_COMPUTED': 'OEM-Werte und berechnete Werte weichen voneinander ab.',
   'health.serviceInfo.v2.conflict.title': 'Quellenkonflikt',
   'health.serviceInfo.v2.conflict.hmVsComputed': 'OEM: {hm} · Berechnet: {computed}',
