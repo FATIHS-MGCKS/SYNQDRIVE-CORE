@@ -5,6 +5,7 @@ export type MasterFsdCatalogAvailabilityV1 =
   | 'PRESENT_NOT_AUTHORITATIVE'
   | 'CATALOG_PENDING'
   | 'INVALIDATED'
+  | 'SEARCH_INCOMPLETE'
   | 'NOT_AVAILABLE';
 
 export type MasterFsdExecutionAvailabilityV1 =

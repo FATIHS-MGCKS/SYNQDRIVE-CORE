@@ -24,7 +24,7 @@ Pagination:
 
 - **Latest activity** (`execution.fsd3.latestActivityRunId`) — newest FSD3 run for the link (any status).
 - **Authoritative catalog** (`catalog.authoritativeRunId`) — newest **valid** `COMPLETED` run with `LIVE_DIMO_VERIFIED` provenance (`catalog.availability = AUTHORITATIVE_LIVE`). A newer `FAILED`, `PENDING`, or `IN_PROGRESS` run does **not** hide an older still-valid catalog.
-- **Scan safety** — recent-run scan is bounded; when no catalog is found in the first window, a targeted DB lookup for completed catalog stages runs. `catalog.selectionLimitation` explains `NO_AUTHORITATIVE_CATALOG_IN_RECENT_RUNS` / `TARGETED_LOOKUP_NO_AUTHORITATIVE_CATALOG` instead of implying absence of any historical catalog beyond the window.
+- **Scan safety** — recent-run scan is bounded; when no catalog is found in the first window, a targeted DB lookup for completed catalog stages runs. When both windows exhaust without a pick, `catalog.availability = SEARCH_INCOMPLETE` and `catalog.selectionLimitation = CATALOG_SEARCH_INCOMPLETE` (not a definitive absence claim).
 - Explicit `runId` on signal explorer is scoped to org/vehicle/link; non-authoritative runs are returned with `catalogAuthoritative: false` and must not be presented as verified live catalog.
 
 ## FSD3 / FSD4 cross-stream historical

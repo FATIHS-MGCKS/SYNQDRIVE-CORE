@@ -8,7 +8,9 @@ import { PrismaService } from '../../../shared/database/prisma.service';
 import {
   describeExplicitRunCatalog,
   extractCatalogCheckpointFromRun,
+  isCatalogSelectionSearchIndeterminateV1,
   pickAuthoritativeFsd3Catalog,
+  TARGETED_CATALOG_LOOKUP_LIMIT_V1,
   type FsdRunWithStages,
   type ResolvedAuthoritativeFsd3CatalogV1,
 } from './vsi-master-fsd-read.catalog-resolution';
@@ -124,7 +126,11 @@ export class VsiMasterFsdReadService {
     organizationId: string,
     vehicleId: string,
     providerSourceLinkId: string,
-  ): Promise<{ authoritative: ResolvedAuthoritativeFsd3CatalogV1 | null; selectionLimitation: string | null }> {
+  ): Promise<{
+    authoritative: ResolvedAuthoritativeFsd3CatalogV1 | null;
+    selectionLimitation: string | null;
+    catalogSearchIndeterminate: boolean;
+  }> {
     const recent = await this.listRunsForStream(
       organizationId,
       vehicleId,
@@ -133,33 +139,66 @@ export class VsiMasterFsdReadService {
     );
     let authoritative = pickAuthoritativeFsd3Catalog(recent);
     let selectionLimitation: string | null = null;
+    let targetedScanCount = 0;
+
+    if (!authoritative && recent.length >= MAX_RUN_SCAN) {
+      const targeted = await this.prisma.fsdDiscoveryRun.findMany({
+        where: {
+          organizationId,
+          vehicleId,
+          providerSourceLinkId,
+          discoveryStream: 'FSD3_CATALOG_SNAPSHOT',
+          invalidatedAt: null,
+          status: 'COMPLETED',
+          stages: { some: { stageType: 'CATALOG', status: 'SUCCEEDED' } },
+        },
+        orderBy: [{ createdAt: 'desc' }],
+        take: TARGETED_CATALOG_LOOKUP_LIMIT_V1,
+        include: { stages: { orderBy: { stageType: 'asc' } } },
+      });
+      targetedScanCount = targeted.length;
+      authoritative = pickAuthoritativeFsd3Catalog(targeted);
+    }
 
     if (!authoritative) {
-      if (recent.length >= MAX_RUN_SCAN) {
-        const targeted = await this.prisma.fsdDiscoveryRun.findMany({
-          where: {
-            organizationId,
-            vehicleId,
-            providerSourceLinkId,
-            discoveryStream: 'FSD3_CATALOG_SNAPSHOT',
-            invalidatedAt: null,
-            status: 'COMPLETED',
-            stages: { some: { stageType: 'CATALOG', status: 'SUCCEEDED' } },
-          },
-          orderBy: [{ createdAt: 'desc' }],
-          take: 32,
-          include: { stages: { orderBy: { stageType: 'asc' } } },
-        });
-        authoritative = pickAuthoritativeFsd3Catalog(targeted);
-        if (!authoritative) {
-          selectionLimitation = 'TARGETED_LOOKUP_NO_AUTHORITATIVE_CATALOG';
-        }
+      const indeterminate = isCatalogSelectionSearchIndeterminateV1({
+        authoritativeFound: false,
+        recentScanCount: recent.length,
+        maxRunScan: MAX_RUN_SCAN,
+        targetedScanCount,
+      });
+      if (indeterminate) {
+        selectionLimitation = 'CATALOG_SEARCH_INCOMPLETE';
       } else if (recent.length > 0) {
         selectionLimitation = 'NO_AUTHORITATIVE_CATALOG_IN_RECENT_RUNS';
       }
     }
 
-    return { authoritative, selectionLimitation };
+    const catalogSearchIndeterminate =
+      !authoritative &&
+      isCatalogSelectionSearchIndeterminateV1({
+        authoritativeFound: !!authoritative,
+        recentScanCount: recent.length,
+        maxRunScan: MAX_RUN_SCAN,
+        targetedScanCount,
+      });
+
+    return { authoritative, selectionLimitation, catalogSearchIndeterminate };
+  }
+
+  private async historicalEvidenceRowCounts(runIds: readonly string[]): Promise<Record<string, number>> {
+    const out: Record<string, number> = {};
+    for (const id of runIds) out[id] = 0;
+    if (runIds.length === 0) return out;
+    const grouped = await this.prisma.fsdDiscoverySignalEvidence.groupBy({
+      by: ['runId'],
+      where: { runId: { in: [...runIds] }, stageType: 'HISTORICAL' },
+      _count: { _all: true },
+    });
+    for (const row of grouped) {
+      out[row.runId] = row._count._all;
+    }
+    return out;
   }
 
   private async loadScopedContext(
@@ -180,11 +219,9 @@ export class VsiMasterFsdReadService {
       'FSD4_HISTORICAL',
     );
     const latestActivity = fsd3Runs[0] ?? null;
-    const { authoritative, selectionLimitation } = await this.resolveAuthoritativeFsd3Catalog(
-      organizationId,
-      vehicleId,
-      providerSourceLinkId,
-    );
+    const { authoritative, selectionLimitation, catalogSearchIndeterminate } =
+      await this.resolveAuthoritativeFsd3Catalog(organizationId, vehicleId, providerSourceLinkId);
+    const fsd4RowCounts = await this.historicalEvidenceRowCounts(fsd4Runs.map((r) => r.id));
     const historicalLink = authoritative
       ? resolveFsd4HistoricalCrossStreamLink({
           authoritative: {
@@ -196,9 +233,18 @@ export class VsiMasterFsdReadService {
             declaredCatalogFingerprint: authoritative.provenance.declaredCatalogFingerprint,
           },
           fsd4RunsNewestFirst: fsd4Runs,
+          historicalEvidenceRowCountByRunId: fsd4RowCounts,
         })
       : ({ kind: 'NOT_AVAILABLE' } as const);
-    return { fsd3Runs, fsd4Runs, latestActivity, authoritative, historicalLink, selectionLimitation };
+    return {
+      fsd3Runs,
+      fsd4Runs,
+      latestActivity,
+      authoritative,
+      historicalLink,
+      selectionLimitation,
+      catalogSearchIndeterminate,
+    };
   }
 
   private async countStageEvidenceMetrics(
@@ -258,11 +304,8 @@ export class VsiMasterFsdReadService {
     providerSourceLinkId: string,
   ): Promise<MasterFsdSummaryDtoV1> {
     await this.assertSourceLinkScope(organizationId, vehicleId, providerSourceLinkId);
-    const { latestActivity, authoritative, historicalLink, selectionLimitation } = await this.loadScopedContext(
-      organizationId,
-      vehicleId,
-      providerSourceLinkId,
-    );
+    const { latestActivity, authoritative, historicalLink, selectionLimitation, catalogSearchIndeterminate } =
+      await this.loadScopedContext(organizationId, vehicleId, providerSourceLinkId);
     const fsd4Latest = (await this.listRunsForStream(
       organizationId,
       vehicleId,
@@ -281,7 +324,9 @@ export class VsiMasterFsdReadService {
           selectionLimitation: null,
         }
       : {
-          availability: 'NOT_AVAILABLE' as const,
+          availability: catalogSearchIndeterminate
+            ? ('SEARCH_INCOMPLETE' as const)
+            : ('NOT_AVAILABLE' as const),
           provenanceClass: 'UNVERIFIED' as const,
           declaredSignalCount: null,
           authoritativeRunId: null,
@@ -426,6 +471,13 @@ export class VsiMasterFsdReadService {
 
     if (input.runId && catalogRun) {
       const described = describeExplicitRunCatalog(catalogRun);
+      const fsd4Runs = await this.listRunsForStream(
+        input.organizationId,
+        input.vehicleId,
+        input.providerSourceLinkId,
+        'FSD4_HISTORICAL',
+      );
+      const fsd4RowCounts = await this.historicalEvidenceRowCounts(fsd4Runs.map((r) => r.id));
       historicalLink = resolveFsd4HistoricalCrossStreamLink({
         authoritative: {
           organizationId: input.organizationId,
@@ -435,12 +487,8 @@ export class VsiMasterFsdReadService {
           connectionIdentityFingerprint: catalogRun.connectionIdentityFingerprint,
           declaredCatalogFingerprint: described.provenance?.declaredCatalogFingerprint ?? null,
         },
-        fsd4RunsNewestFirst: await this.listRunsForStream(
-          input.organizationId,
-          input.vehicleId,
-          input.providerSourceLinkId,
-          'FSD4_HISTORICAL',
-        ),
+        fsd4RunsNewestFirst: fsd4Runs,
+        historicalEvidenceRowCountByRunId: fsd4RowCounts,
       });
     }
 

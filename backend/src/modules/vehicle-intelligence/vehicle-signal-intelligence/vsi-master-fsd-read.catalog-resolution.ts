@@ -84,9 +84,25 @@ export function describeExplicitRunCatalog(
   const { checkpoint } = extractCatalogCheckpointFromRun(run);
   const raw = checkpoint?.catalogFetch?.availableSignalNames ?? [];
   const names = filterAuthoritativeCatalogSignalNames(raw);
+  const runLevelEligible = isAuthoritativeCatalogRunCandidate(run);
   return {
-    authoritative: provenance?.availability === 'AUTHORITATIVE_LIVE',
+    authoritative: runLevelEligible && provenance?.availability === 'AUTHORITATIVE_LIVE',
     provenance,
     declaredSignalNames: names,
   };
+}
+
+export const TARGETED_CATALOG_LOOKUP_LIMIT_V1 = 32;
+
+/** Bounded lookup exhausted without a pick — not proof that no valid catalog exists anywhere. */
+export function isCatalogSelectionSearchIndeterminateV1(input: {
+  authoritativeFound: boolean;
+  recentScanCount: number;
+  maxRunScan: number;
+  targetedScanCount: number;
+}): boolean {
+  if (input.authoritativeFound) return false;
+  if (input.recentScanCount >= input.maxRunScan) return true;
+  if (input.targetedScanCount >= TARGETED_CATALOG_LOOKUP_LIMIT_V1) return true;
+  return false;
 }

@@ -44,6 +44,8 @@ describe('pickAuthoritativeFsd3Catalog', () => {
     const failedShell = fsd3Run({ id: 'run-failed-shell', status: 'FAILED', createdAt: new Date('2026-11-10T10:00:00Z') });
     failedShell.stages[0]!.status = 'SUCCEEDED';
     expect(pickAuthoritativeFsd3Catalog([failedShell])).toBeNull();
+    const described = describeExplicitRunCatalog(failedShell);
+    expect(described.authoritative).toBe(false);
   });
 
   it('keeps older completed authoritative catalog when newer run is PENDING', () => {

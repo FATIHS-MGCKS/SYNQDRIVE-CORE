@@ -50,19 +50,23 @@ describe('pickValidFsd4HistoricalEvidenceRun', () => {
     const link = pickValidFsd4HistoricalEvidenceRun({
       authoritative: auth,
       fsd4RunsNewestFirst: [fsd4('fsd4-a', { match: true, runStatus: 'COMPLETED', historicalStatus: 'SUCCEEDED' })],
+      historicalEvidenceRowCountByRunId: { 'fsd4-a': 12 },
     });
     expect(link.kind).toBe('LINKED');
-    if (link.kind === 'LINKED') expect(link.fsd4Run.id).toBe('fsd4-a');
+    if (link.kind === 'LINKED') {
+      expect(link.fsd4Run.id).toBe('fsd4-a');
+      expect(link.historicalEvidenceClass).toBe('FULL');
+    }
   });
 
-  it('skips newer failed run without historical evidence and picks older completed run', () => {
+  it('skips newer in-progress shell with zero historical rows and selects older completed evidence', () => {
     const link = pickValidFsd4HistoricalEvidenceRun({
       authoritative: auth,
       fsd4RunsNewestFirst: [
-        fsd4('fsd4-new-failed', {
+        fsd4('fsd4-new', {
           match: true,
-          runStatus: 'FAILED',
-          historicalStatus: 'PLANNED',
+          runStatus: 'IN_PROGRESS',
+          historicalStatus: 'IN_PROGRESS',
           createdAt: '2026-11-11T12:00:00Z',
         }),
         fsd4('fsd4-old-good', {
@@ -72,21 +76,16 @@ describe('pickValidFsd4HistoricalEvidenceRun', () => {
           createdAt: '2026-11-09T12:00:00Z',
         }),
       ],
+      historicalEvidenceRowCountByRunId: { 'fsd4-new': 0, 'fsd4-old-good': 26 },
     });
     expect(link.kind).toBe('LINKED');
     if (link.kind === 'LINKED') expect(link.fsd4Run.id).toBe('fsd4-old-good');
   });
 
-  it('accepts older unknown outcome with persisted historical attempt over newer pending shell', () => {
+  it('labels demonstrated partial historical evidence when newest full completion is absent', () => {
     const link = pickValidFsd4HistoricalEvidenceRun({
       authoritative: auth,
       fsd4RunsNewestFirst: [
-        fsd4('fsd4-pending', {
-          match: true,
-          runStatus: 'PENDING',
-          historicalStatus: 'PLANNED',
-          createdAt: '2026-11-11T12:00:00Z',
-        }),
         fsd4('fsd4-partial', {
           match: true,
           runStatus: 'COMPLETED',
@@ -94,9 +93,10 @@ describe('pickValidFsd4HistoricalEvidenceRun', () => {
           createdAt: '2026-11-08T12:00:00Z',
         }),
       ],
+      historicalEvidenceRowCountByRunId: { 'fsd4-partial': 5 },
     });
     expect(link.kind).toBe('LINKED');
-    if (link.kind === 'LINKED') expect(link.fsd4Run.id).toBe('fsd4-partial');
+    if (link.kind === 'LINKED') expect(link.historicalEvidenceClass).toBe('PARTIAL');
   });
 
   it('does not link FSD4 run on same vehicle with mismatched fingerprint', () => {
@@ -105,6 +105,7 @@ describe('pickValidFsd4HistoricalEvidenceRun', () => {
       fsd4RunsNewestFirst: [
         fsd4('fsd4-b', { match: false, runStatus: 'COMPLETED', historicalStatus: 'SUCCEEDED' }),
       ],
+      historicalEvidenceRowCountByRunId: { 'fsd4-b': 10 },
     });
     expect(link.kind).toBe('UNVERIFIED_LINK');
   });

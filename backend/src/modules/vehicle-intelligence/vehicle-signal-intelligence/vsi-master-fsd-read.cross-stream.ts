@@ -2,8 +2,15 @@ import type { FsdRunWithStages } from './vsi-master-fsd-read.catalog-resolution'
 import { extractCatalogCheckpointFromRun } from './vsi-master-fsd-read.catalog-resolution';
 import { isStageNotStarted } from './vsi-master-fsd-read.semantics';
 
+export type Fsd4HistoricalEvidenceClassV1 = 'FULL' | 'PARTIAL';
+
 export type HistoricalCrossStreamLinkV1 =
-  | { kind: 'LINKED'; fsd4Run: FsdRunWithStages; historicalStageStatus: string }
+  | {
+      kind: 'LINKED';
+      fsd4Run: FsdRunWithStages;
+      historicalStageStatus: string;
+      historicalEvidenceClass: Fsd4HistoricalEvidenceClassV1;
+    }
   | { kind: 'UNVERIFIED_LINK'; limitation: string }
   | { kind: 'NOT_AVAILABLE' };
 
@@ -30,46 +37,65 @@ function scopeAndCatalogMatch(run: FsdRunWithStages, auth: AuthoritativeCatalogI
   return catalogStage?.status === 'SUCCEEDED' && fp === auth.declaredCatalogFingerprint;
 }
 
-/**
- * Historical stage must have left persisted evidence scope — not merely a matching catalog stage on a failed shell run.
- */
-export function isFsd4HistoricalStageEvidenceEligible(historicalStageStatus: string | null): boolean {
-  if (isStageNotStarted(historicalStageStatus)) return false;
-  return true;
+export function classifyFsd4HistoricalEvidenceLink(
+  run: FsdRunWithStages,
+  historicalStageStatus: string | null,
+  historicalEvidenceRowCount: number,
+): Fsd4HistoricalEvidenceClassV1 | null {
+  if (isStageNotStarted(historicalStageStatus)) return null;
+  if (historicalEvidenceRowCount <= 0) {
+    return null;
+  }
+  if (run.status === 'COMPLETED' && historicalStageStatus === 'SUCCEEDED') {
+    return 'FULL';
+  }
+  if (run.status === 'FAILED' && historicalStageStatus === 'PLANNED') {
+    return null;
+  }
+  if (run.status === 'PENDING' && isStageNotStarted(historicalStageStatus)) {
+    return null;
+  }
+  return 'PARTIAL';
 }
 
 export function pickValidFsd4HistoricalEvidenceRun(input: {
   authoritative: AuthoritativeCatalogIdentityV1;
   fsd4RunsNewestFirst: readonly FsdRunWithStages[];
+  historicalEvidenceRowCountByRunId: Readonly<Record<string, number>>;
 }): HistoricalCrossStreamLinkV1 {
   const auth = input.authoritative;
   if (!auth.declaredCatalogFingerprint || !auth.connectionIdentityFingerprint || auth.dimoTokenId == null) {
     return { kind: 'UNVERIFIED_LINK', limitation: 'AUTHORITATIVE_CATALOG_IDENTITY_INCOMPLETE' };
   }
 
+  let bestPartial: HistoricalCrossStreamLinkV1 | null = null;
+
   for (const run of input.fsd4RunsNewestFirst) {
     if (!scopeAndCatalogMatch(run, auth)) continue;
 
     const historicalStage = run.stages.find((s) => s.stageType === 'HISTORICAL');
     const histStatus = historicalStage?.status ?? null;
+    const rowCount = input.historicalEvidenceRowCountByRunId[run.id] ?? 0;
+    const linkClass = classifyFsd4HistoricalEvidenceLink(run, histStatus, rowCount);
+    if (!linkClass) continue;
 
-    if (!isFsd4HistoricalStageEvidenceEligible(histStatus)) {
-      continue;
-    }
-
-    if (run.status === 'FAILED' && histStatus !== 'SUCCEEDED' && histStatus !== 'UNKNOWN_OUTCOME' && histStatus !== 'FAILED') {
-      continue;
-    }
-
-    if (run.status === 'PENDING' && isStageNotStarted(histStatus)) {
-      continue;
-    }
-
-    return {
+    const link: HistoricalCrossStreamLinkV1 = {
       kind: 'LINKED',
       fsd4Run: run,
       historicalStageStatus: histStatus!,
+      historicalEvidenceClass: linkClass,
     };
+
+    if (linkClass === 'FULL') {
+      return link;
+    }
+    if (!bestPartial) {
+      bestPartial = link;
+    }
+  }
+
+  if (bestPartial?.kind === 'LINKED') {
+    return bestPartial;
   }
 
   return {
@@ -82,6 +108,10 @@ export function pickValidFsd4HistoricalEvidenceRun(input: {
 export function resolveFsd4HistoricalCrossStreamLink(input: {
   authoritative: AuthoritativeCatalogIdentityV1;
   fsd4RunsNewestFirst: readonly FsdRunWithStages[];
+  historicalEvidenceRowCountByRunId?: Readonly<Record<string, number>>;
 }): HistoricalCrossStreamLinkV1 {
-  return pickValidFsd4HistoricalEvidenceRun(input);
+  return pickValidFsd4HistoricalEvidenceRun({
+    ...input,
+    historicalEvidenceRowCountByRunId: input.historicalEvidenceRowCountByRunId ?? {},
+  });
 }

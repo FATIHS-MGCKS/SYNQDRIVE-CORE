@@ -25,6 +25,7 @@ describe('VsiMasterFsdReadService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.fsdDiscoverySignalEvidence.groupBy.mockResolvedValue([]);
     service = new VsiMasterFsdReadService(prisma as never);
   });
 
@@ -102,6 +103,8 @@ describe('VsiMasterFsdReadService', () => {
     );
     prisma.fsdDiscoverySignalEvidence.findMany.mockResolvedValue([]);
     prisma.fsdDiscoverySignalEvidence.count.mockResolvedValue(0);
+
+    prisma.fsdDiscoverySignalEvidence.groupBy.mockResolvedValue([]);
 
     const summary = await service.getSummary('org-a', 'veh-1', 'link-1');
     expect(summary.catalog.availability).toBe('AUTHORITATIVE_LIVE');
@@ -199,6 +202,35 @@ describe('VsiMasterFsdReadService', () => {
     }
     expect(page1.items[0]!.snapshotQuery?.queryPlanned).toBe(true);
     expect(page1.items[0]!.catalogQuery.queryPlanned).toBe(false);
+  });
+
+  it('returns SEARCH_INCOMPLETE when bounded catalog lookup exhausts without pick', async () => {
+    scopeOk();
+    const invalidCompleted = Array.from({ length: 64 }, (_, i) =>
+      catalogRunRow(`run-${i}`, 'COMPLETED', `2026-11-0${(i % 9) + 1}T19:41:00Z`),
+    );
+    invalidCompleted.forEach((run) => {
+      run.stages[0]!.checkpointJson = { catalogFetch: { providerKind: 'mock', availableSignalNames: ['x'] } };
+    });
+    const targetedBatch = Array.from({ length: 32 }, (_, i) =>
+      catalogRunRow(`target-${i}`, 'COMPLETED', `2026-10-${String((i % 28) + 1).padStart(2, '0')}T19:41:00Z`),
+    );
+    targetedBatch.forEach((run) => {
+      run.stages[0]!.checkpointJson = { catalogFetch: { providerKind: 'mock', availableSignalNames: ['y'] } };
+    });
+    prisma.fsdDiscoveryRun.findMany.mockImplementation(
+      async (args: { where: { discoveryStream?: string; stages?: { some: unknown } } }) => {
+        if (args.where.discoveryStream === 'FSD3_CATALOG_SNAPSHOT') {
+          if (args.where.stages?.some) return targetedBatch;
+          return invalidCompleted;
+        }
+        return [];
+      },
+    );
+    prisma.fsdDiscoverySignalEvidence.findMany.mockResolvedValue([]);
+    const summary = await service.getSummary('org-a', 'veh-1', 'link-1');
+    expect(summary.catalog.availability).toBe('SEARCH_INCOMPLETE');
+    expect(summary.catalog.selectionLimitation).toBe('CATALOG_SEARCH_INCOMPLETE');
   });
 
   it('does not invoke provider orchestration (read-only prisma)', async () => {
