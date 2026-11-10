@@ -30,6 +30,8 @@ export type SnapshotStableEnqueueOutcome =
   | 'COALESCED_ACTIVE'
   | 'COALESCED_UNKNOWN';
 
+export type SnapshotPhysicalAddKind = 'ENQUEUED' | 'RECOVERED_TERMINAL';
+
 function isDuplicateJobIdError(err: unknown): boolean {
   const msg = (err as Error).message ?? '';
   return (
@@ -62,6 +64,8 @@ export async function enqueueStableSnapshotJob(params: {
   jobId: string;
   data: DimoSnapshotJobData;
   delayMs?: number;
+  /** Called immediately before queue.add — mutate params.data only (no post-add job updates). */
+  beforePhysicalAdd?: (kind: SnapshotPhysicalAddKind) => void;
 }): Promise<SnapshotStableEnqueueOutcome> {
   const delayMs = params.delayMs ?? 0;
   const existing = await params.queue.getJob(params.jobId);
@@ -80,12 +84,16 @@ export async function enqueueStableSnapshotJob(params: {
   }
 
   try {
+    const addKind: SnapshotPhysicalAddKind = recoveredTerminal
+      ? 'RECOVERED_TERMINAL'
+      : 'ENQUEUED';
+    params.beforePhysicalAdd?.(addKind);
     await params.queue.add(params.jobName, params.data, {
       jobId: params.jobId,
       delay: delayMs > 0 ? delayMs : undefined,
       ...DEFAULT_SNAPSHOT_JOB_OPTIONS,
     });
-    return recoveredTerminal ? 'RECOVERED_TERMINAL' : 'ENQUEUED';
+    return addKind;
   } catch (err: unknown) {
     if (isDuplicateJobIdError(err)) {
       return 'COALESCED_UNKNOWN';

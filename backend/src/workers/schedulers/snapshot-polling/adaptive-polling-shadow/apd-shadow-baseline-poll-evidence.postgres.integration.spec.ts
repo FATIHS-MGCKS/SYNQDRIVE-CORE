@@ -15,6 +15,7 @@ import {
 import { buildApdShadowActivationScopeKey } from './apd-shadow-activation-epoch.types';
 import { P25_APD_B2_V1, P25_APD_B4_V1 } from '../adaptive-polling-policy/p25-apd-policy-versions';
 import { P25_APD_SHADOW_EXECUTION_VERSION_CURRENT } from './p25-apd-shadow-execution-versions';
+import { P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT } from './p25-apd-shadow-baseline-poll-evidence';
 
 const databaseUrl = process.env.DATABASE_URL;
 const describePg = databaseUrl ? describe : describe.skip;
@@ -156,6 +157,7 @@ describePg('APDS baseline poll evidence (Postgres integration)', () => {
       organizationId,
       vehicleId,
       activationEpochId: epochId,
+      observingPollId: nextPollId,
       observingPollStartedAtMs: nextStarted.getTime(),
       observingPollCompletedAtMs: nextCompleted.getTime(),
     });
@@ -173,5 +175,9 @@ describePg('APDS baseline poll evidence (Postgres integration)', () => {
     );
     expect(row?.simulatedDiscoveryAt).toBeNull();
     expect(row?.simulatedNextPollAt?.getTime()).toBe(nextStarted.getTime());
+    expect(row?.discoveryDelayEvidenceVersion).toBe(
+      P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT,
+    );
+    expect(row?.simulatedNextPollId).toBe(nextPollId);
   });
 });

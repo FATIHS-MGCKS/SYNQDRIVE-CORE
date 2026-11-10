@@ -11,6 +11,7 @@ import { evaluateP25ApdProfile } from '../adaptive-polling-policy/p25-apd-profil
 import { applyP25ApdShadowSafetyOverlay } from '../adaptive-polling-policy/p25-apd-shadow-overlay';
 import type { P25ApdShadowPrePollInput } from '../adaptive-polling-policy/p25-apd-shadow-decision.types';
 import { toApdShadowCanonicalEnqueueOutcome } from './apd-shadow-enqueue-outcome.util';
+import type { ApdShadowCanonicalEnqueueOutcome } from './p25-apd-shadow-execution-versions';
 import { isApdShadowEnabled } from './adaptive-polling-shadow.config';
 import {
   cohortExcludedReasonForRuntime,
@@ -207,6 +208,23 @@ export class AdaptivePollingShadowService {
     wakeOutcome: SnapshotWakeOutcome;
     observedAtMs: number;
   }): Promise<void> {
+    await this.observeCanonicalEnqueueOutcome({
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      opportunityId: input.opportunityId,
+      enqueueOutcome: toApdShadowCanonicalEnqueueOutcome(input.wakeOutcome),
+      observedAtMs: input.observedAtMs,
+    });
+  }
+
+  async observeCanonicalEnqueueOutcome(input: {
+    organizationId: string;
+    vehicleId: string;
+    opportunityId: string;
+    enqueueOutcome: ApdShadowCanonicalEnqueueOutcome;
+    observedAtMs: number;
+    enqueueAttemptId?: string;
+  }): Promise<void> {
     if (!this.assertCohortVehicleAllowed(input.organizationId, input.vehicleId)) {
       return;
     }
@@ -220,7 +238,7 @@ export class AdaptivePollingShadowService {
         organizationId: input.organizationId,
         vehicleId: input.vehicleId,
         opportunityId: input.opportunityId,
-        enqueueOutcome: toApdShadowCanonicalEnqueueOutcome(input.wakeOutcome),
+        enqueueOutcome: input.enqueueOutcome,
         enqueueOutcomeAt: new Date(input.observedAtMs),
       });
     } catch (err) {
@@ -473,6 +491,7 @@ export class AdaptivePollingShadowService {
       organizationId: ctx.organizationId,
       vehicleId: ctx.vehicleId,
       activationEpochId: activeEpoch.id,
+      observingPollId: ctx.realPollId,
       observingPollStartedAtMs: ctx.pollStartedAtMs,
       observingPollCompletedAtMs: ctx.pollCompletedAtMs,
     });

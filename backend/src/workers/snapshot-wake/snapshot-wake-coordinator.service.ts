@@ -1,4 +1,5 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { TripDetectionState, VehicleStatus } from '@prisma/client';
@@ -40,7 +41,14 @@ import {
   isQueuedCoalesce,
   isActiveQueueState,
   isQueuedQueueState,
+  type SnapshotStableEnqueueOutcome,
 } from './snapshot-wake-queue.util';
+import {
+  buildApdShadowEnqueueEvidence,
+  stableEnqueueOutcomeToCanonical,
+} from './apd-shadow-enqueue-evidence.util';
+import { recordCoalescedEnqueueAttempt } from './apd-shadow-enqueue-evidence.redis-store';
+import { AdaptivePollingShadowService } from '../schedulers/snapshot-polling/adaptive-polling-shadow/adaptive-polling-shadow.service';
 import {
   classifyWakeContinuation,
   mayScheduleWakeSuccessor,
@@ -111,7 +119,51 @@ export class SnapshotWakeCoordinatorService {
     private readonly redis: RedisService,
     private readonly prisma: PrismaService,
     @Optional() private readonly tripMetrics?: TripMetricsService,
+    @Optional()
+    @Inject(forwardRef(() => AdaptivePollingShadowService))
+    private readonly apdShadow?: AdaptivePollingShadowService,
   ) {}
+
+  private async recordCoalescedEnqueueBoundary(
+    input: RequestSnapshotInput,
+    jobId: string,
+    stableOutcome: SnapshotStableEnqueueOutcome,
+  ): Promise<void> {
+    const canonical = stableEnqueueOutcomeToCanonical(stableOutcome);
+    const observedAtMs = Date.now();
+    try {
+      const attempt = await recordCoalescedEnqueueAttempt(this.redis, {
+        vehicleId: input.vehicleId,
+        canonicalJobId: jobId,
+        enqueueOutcome: canonical,
+        observedAtMs,
+        requestOpportunityId: input.apdShadowOpportunityId ?? null,
+      });
+      if (
+        input.apdShadowOpportunityId &&
+        this.apdShadow
+      ) {
+        const vehicle = await this.prisma.vehicle.findUnique({
+          where: { id: input.vehicleId },
+          select: { organizationId: true },
+        });
+        if (vehicle) {
+          await this.apdShadow.observeCanonicalEnqueueOutcome({
+            organizationId: vehicle.organizationId,
+            vehicleId: input.vehicleId,
+            opportunityId: input.apdShadowOpportunityId,
+            enqueueOutcome: canonical,
+            observedAtMs,
+            enqueueAttemptId: attempt.attemptId,
+          });
+        }
+      }
+    } catch (err) {
+      this.logger.debug(
+        `APD coalesced enqueue evidence record skipped for ${input.vehicleId}: ${(err as Error).message}`,
+      );
+    }
+  }
 
   async requestSnapshot(input: RequestSnapshotInput): Promise<SnapshotWakeOutcome> {
     let pendingVersion: number | undefined;
@@ -138,6 +190,8 @@ export class SnapshotWakeCoordinatorService {
       wakeContext: input.wakeContext,
       apdShadowOpportunityId: input.apdShadowOpportunityId,
     };
+    const enqueueObservedAtMs = Date.now();
+    const physicalAttemptId = randomUUID();
 
     try {
       const enqueueOutcome = await enqueueStableSnapshotJob({
@@ -146,7 +200,22 @@ export class SnapshotWakeCoordinatorService {
         jobId,
         data,
         delayMs: input.delayMs,
+        beforePhysicalAdd: (kind) => {
+          data.apdShadowEnqueueEvidence = buildApdShadowEnqueueEvidence({
+            outcome: kind,
+            observedAtMs: enqueueObservedAtMs,
+            attemptId: physicalAttemptId,
+            canonicalJobId: jobId,
+          });
+        },
       });
+
+      if (
+        isQueuedCoalesce(enqueueOutcome) ||
+        coalesceNeedsPostTerminalSuccessor(enqueueOutcome)
+      ) {
+        await this.recordCoalescedEnqueueBoundary(input, jobId, enqueueOutcome);
+      }
 
       if (isQueuedCoalesce(enqueueOutcome) && input.wakeContext) {
         this.recordWakeMetric(input.wakeContext, 'COALESCED');

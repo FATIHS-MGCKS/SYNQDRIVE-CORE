@@ -43,6 +43,7 @@ import { SnapshotWakeCoordinatorService } from '../snapshot-wake/snapshot-wake-c
 import { AdaptivePollingShadowService } from '../schedulers/snapshot-polling/adaptive-polling-shadow/adaptive-polling-shadow.service';
 import { findLatestHistoricallyVisibleLiveVoltageProviderTimestampMs } from '../schedulers/snapshot-polling/adaptive-polling-policy/p25-apd-historical-lv-visibility';
 import type { DimoSnapshotJobData } from '../snapshot-wake/snapshot-wake.types';
+import { snapshotJobId } from '../snapshot-wake/snapshot-wake.util';
 import { TripDetectionState } from '@prisma/client';
 
 import { readWorkerConcurrency } from '@config/worker-concurrency.util';
@@ -218,6 +219,24 @@ export class DimoSnapshotProcessor extends WorkerHost {
         deviceReconnectRecent: false,
         providerReconnectRecent: false,
       });
+      const enqueueEvidence = jobDataWithWake.apdShadowEnqueueEvidence;
+      const canonicalJobId = snapshotJobId(vehicleId);
+      if (
+        apdShadowOpportunityId &&
+        enqueueEvidence?.binding === 'PHYSICAL_JOB_PAYLOAD' &&
+        enqueueEvidence.canonicalJobId === canonicalJobId &&
+        (enqueueEvidence.outcome === 'ENQUEUED' ||
+          enqueueEvidence.outcome === 'RECOVERED_TERMINAL')
+      ) {
+        await this.apdShadow.observeCanonicalEnqueueOutcome({
+          organizationId: vehicle.organizationId,
+          vehicleId,
+          opportunityId: apdShadowOpportunityId,
+          enqueueOutcome: enqueueEvidence.outcome,
+          observedAtMs: enqueueEvidence.observedAtMs,
+          enqueueAttemptId: enqueueEvidence.attemptId,
+        });
+      }
     }
 
     try {

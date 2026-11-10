@@ -8,6 +8,7 @@ export function apdShadowBaselinePollEvidenceForTests(
     apdShadowReconciliationDecision?: {
       findMany?: jest.Mock;
       updateMany?: jest.Mock;
+      count?: jest.Mock;
     };
   } = {},
   metrics?: AdaptivePollingShadowMetricsService,
@@ -18,6 +19,7 @@ export function apdShadowBaselinePollEvidenceForTests(
   const apdShadowReconciliationDecision = {
     findMany: jest.fn().mockResolvedValue([]),
     updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    count: jest.fn().mockResolvedValue(0),
     ...prisma.apdShadowReconciliationDecision,
   };
   return new ApdShadowBaselinePollEvidenceService(
