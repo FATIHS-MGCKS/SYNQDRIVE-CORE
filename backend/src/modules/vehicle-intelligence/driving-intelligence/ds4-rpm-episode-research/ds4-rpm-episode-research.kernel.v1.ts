@@ -1,4 +1,3 @@
-import { parseHfRpmValueFloat } from '@modules/clickhouse/hf-rpm-value-parse.util';
 import { R1_OBD_RECORD_TIME_UNCERTAIN } from '../../r1-temporal-containment';
 import {
   hasUncertainHistoricalObdRecordTime,
@@ -30,14 +29,14 @@ import {
   type Ds4RpmEpisodeResearchResultV1,
   type Ds4RpmEpisodeResearchSemanticGuardV1,
 } from './ds4-rpm-episode-research.contract.v1';
+import {
+  canonicalizeDs4RpmResearchPoints,
+  splitDs4RpmResearchSequences,
+  type Ds4RpmResearchCanonPointV1,
+} from '../ds4-rpm-research-shared/ds4-rpm-research-point-canon.v1';
 import { validateDs4RpmEpisodeResearchInputBinding } from './ds4-rpm-episode-research.input-binding.v1';
 
-type CanonPoint = {
-  recordedAtIso: string;
-  recordedAtMs: number;
-  valueRpm: number;
-  globalIdx: number;
-};
+type CanonPoint = Ds4RpmResearchCanonPointV1;
 
 type EpisodeRun = {
   sequenceIndex: number;
@@ -155,83 +154,8 @@ function buildAbstainedResult(
   };
 }
 
-function canonicalizePoints(
-  raw: ReadonlyArray<{ recordedAtIso: string; valueRpm: number }>,
-): {
-  points: CanonPoint[];
-  identicalDuplicateCollapsedCount: number;
-  conflictingDuplicateLabelCount: number;
-  invalidTimestampOrRpmCount: number;
-  negativeOrNonFiniteRpmExcludedCount: number;
-  hasConflictingDuplicates: boolean;
-} {
-  let invalidTimestampOrRpmCount = 0;
-  let negativeOrNonFiniteRpmExcludedCount = 0;
-  const valid: { valueRpm: number; recordedAtMs: number }[] = [];
-  for (const p of raw) {
-    const ms = Date.parse(p.recordedAtIso);
-    if (!Number.isFinite(ms)) {
-      invalidTimestampOrRpmCount += 1;
-      continue;
-    }
-    const rpm = parseHfRpmValueFloat(p.valueRpm);
-    if (rpm == null) {
-      if (typeof p.valueRpm === 'number' && p.valueRpm < 0) {
-        negativeOrNonFiniteRpmExcludedCount += 1;
-      } else {
-        invalidTimestampOrRpmCount += 1;
-      }
-      continue;
-    }
-    valid.push({ valueRpm: rpm, recordedAtMs: ms });
-  }
-
-  valid.sort((a, b) => {
-    if (a.recordedAtMs !== b.recordedAtMs) return a.recordedAtMs - b.recordedAtMs;
-    return a.valueRpm - b.valueRpm;
-  });
-
-  const byEpoch = new Map<number, number[]>();
-  for (const p of valid) {
-    const arr = byEpoch.get(p.recordedAtMs) ?? [];
-    arr.push(p.valueRpm);
-    byEpoch.set(p.recordedAtMs, arr);
-  }
-
-  let identicalDuplicateCollapsedCount = 0;
-  let conflictingDuplicateLabelCount = 0;
-  let hasConflictingDuplicates = false;
-  const points: CanonPoint[] = [];
-  let globalIdx = 0;
-  const epochs = [...byEpoch.keys()].sort((a, b) => a - b);
-  for (const recordedAtMs of epochs) {
-    const values = byEpoch.get(recordedAtMs)!;
-    const unique = [...new Set(values)];
-    if (unique.length > 1) {
-      conflictingDuplicateLabelCount += 1;
-      hasConflictingDuplicates = true;
-      continue;
-    }
-    if (values.length > 1) {
-      identicalDuplicateCollapsedCount += values.length - 1;
-    }
-    const rpm = unique[0]!;
-    points.push({
-      recordedAtIso: new Date(recordedAtMs).toISOString(),
-      recordedAtMs,
-      valueRpm: rpm,
-      globalIdx: globalIdx++,
-    });
-  }
-
-  return {
-    points,
-    identicalDuplicateCollapsedCount,
-    conflictingDuplicateLabelCount,
-    invalidTimestampOrRpmCount,
-    negativeOrNonFiniteRpmExcludedCount,
-    hasConflictingDuplicates,
-  };
+function canonicalizePoints(raw: ReadonlyArray<{ recordedAtIso: string; valueRpm: number }>) {
+  return canonicalizeDs4RpmResearchPoints(raw);
 }
 
 function lowerBound(sorted: number[], value: number): number {
@@ -297,24 +221,8 @@ function verifyHighEpisodeIndexDisjointness(runs: EpisodeRun[]): boolean {
   return true;
 }
 
-function splitSequences(
-  points: CanonPoint[],
-  sequenceMaxGapSeconds: number,
-): CanonPoint[][] {
-  if (points.length === 0) return [];
-  const sequences: CanonPoint[][] = [];
-  let current: CanonPoint[] = [points[0]!];
-  for (let i = 1; i < points.length; i += 1) {
-    const gap = (points[i]!.recordedAtMs - points[i - 1]!.recordedAtMs) / 1000;
-    if (gap > sequenceMaxGapSeconds) {
-      sequences.push(current);
-      current = [points[i]!];
-    } else {
-      current.push(points[i]!);
-    }
-  }
-  sequences.push(current);
-  return sequences;
+function splitSequences(points: CanonPoint[], sequenceMaxGapSeconds: number): CanonPoint[][] {
+  return splitDs4RpmResearchSequences(points, sequenceMaxGapSeconds);
 }
 
 function computeU(rpm: number, idle: number, span: number): number {
