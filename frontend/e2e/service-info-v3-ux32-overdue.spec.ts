@@ -28,9 +28,10 @@ test.describe('Service Info V3 UX-3.2 overdue clarity', () => {
       const fixture = page.getByTestId('fixture-ux32-iphone');
       await expect(fixture).toBeVisible();
 
-      await expect(fixture.getByText('3 Wartungen überfällig')).toBeVisible();
-      await expect(fixture.getByText('Bremsflüssigkeit')).toBeVisible();
-      await expect(fixture.getByText('963', { exact: false })).toBeVisible();
+      const overdueBlock = fixture.getByTestId('service-info-overdue-overview');
+      await expect(overdueBlock.getByText('3 Wartungen überfällig')).toBeVisible();
+      await expect(fixture.getByTestId('service-overdue-item-p-brake-fluid')).toContainText('Bremsflüssigkeit');
+      await expect(fixture.getByTestId('service-overdue-item-p-brake-fluid')).toContainText('963');
       await expect(fixture.getByText('11 weitere Positionen nicht berechenbar')).toBeVisible();
 
       const overflowOverview = await fixture.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
