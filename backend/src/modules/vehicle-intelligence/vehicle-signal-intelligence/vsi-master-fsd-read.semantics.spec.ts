@@ -6,7 +6,9 @@ import {
 
 describe('VsiMasterFsdRead semantics', () => {
   it('does not treat unexecuted snapshot as zero availability', () => {
-    expect(mapEvidenceStageAvailability({ stageExecuted: false, rowCount: 0 })).toBe('NOT_EXECUTED');
+    expect(mapEvidenceStageAvailability({ stageExecuted: false, stageStatus: null, rowCount: 0 })).toBe(
+      'NOT_EXECUTED',
+    );
     expect(stageEvidenceColumnValue(false, null)).toBe('NOT_EXECUTED');
   });
 

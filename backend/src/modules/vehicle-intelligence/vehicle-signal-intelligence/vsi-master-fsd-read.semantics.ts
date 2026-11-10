@@ -6,13 +6,25 @@ import type {
 
 export function mapEvidenceStageAvailability(input: {
   stageExecuted: boolean;
+  stageStatus: string | null;
   rowCount: number;
+  declaredSignalCount?: number | null;
 }): MasterFsdStageEvidenceAvailabilityV1 {
   if (!input.stageExecuted) {
     return 'NOT_EXECUTED';
   }
+  if (input.stageStatus === 'UNKNOWN_OUTCOME') {
+    return 'PARTIAL';
+  }
   if (input.rowCount === 0) {
     return 'NOT_AVAILABLE';
+  }
+  if (
+    input.declaredSignalCount != null &&
+    input.declaredSignalCount > 0 &&
+    input.rowCount < input.declaredSignalCount
+  ) {
+    return 'PARTIAL';
   }
   return 'AVAILABLE';
 }
@@ -42,13 +54,37 @@ export function mapSignalPresentationState(input: {
   return 'UNKNOWN';
 }
 
+export type MasterFsdStageColumnValueV1 =
+  | 'NOT_EXECUTED'
+  | 'NOT_AVAILABLE'
+  | 'UNVERIFIED_LINK'
+  | MasterFsdSignalPresentationStateV1;
+
 export function stageEvidenceColumnValue(
   stageExecuted: boolean,
   state: MasterFsdSignalPresentationStateV1 | null,
-): 'NOT_EXECUTED' | 'NOT_AVAILABLE' | MasterFsdSignalPresentationStateV1 {
+  options?: { unverifiedLink?: boolean },
+): MasterFsdStageColumnValueV1 {
+  if (options?.unverifiedLink) return 'UNVERIFIED_LINK';
   if (!stageExecuted) return 'NOT_EXECUTED';
   if (state == null) return 'NOT_AVAILABLE';
   return state;
+}
+
+export function extractStageQueryFlags(row: {
+  queryPlanned: boolean;
+  queryAccepted: boolean | null;
+  observedValue: boolean | null;
+}): {
+  queryPlanned: boolean;
+  queryAccepted: boolean | null;
+  observedValue: boolean | null;
+} {
+  return {
+    queryPlanned: row.queryPlanned,
+    queryAccepted: row.queryAccepted,
+    observedValue: row.observedValue,
+  };
 }
 
 export function mapRunExecutionAvailability(input: {

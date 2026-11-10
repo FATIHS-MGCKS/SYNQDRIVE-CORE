@@ -53,6 +53,7 @@ export type MasterFsdSummaryDtoV1 = {
     fsd3: {
       discoveryStream: 'FSD3_CATALOG_SNAPSHOT';
       state: MasterFsdExecutionAvailabilityV1;
+      latestActivityRunId: string | null;
       latestRunId: string | null;
       lastCompletedAt: string | null;
     };
@@ -61,11 +62,13 @@ export type MasterFsdSummaryDtoV1 = {
       state: MasterFsdExecutionAvailabilityV1;
       latestRunId: string | null;
       lastCompletedAt: string | null;
+      historicalCrossStreamLink: 'NOT_AVAILABLE' | 'UNVERIFIED_LINK' | 'LINKED';
     };
   };
   evidence: {
     snapshot: MasterFsdStageEvidenceAvailabilityV1;
     historical: MasterFsdStageEvidenceAvailabilityV1;
+    historicalCrossStreamLimitation: string | null;
   };
   invalidation: {
     isInvalidated: boolean;
@@ -79,17 +82,23 @@ export type MasterFsdSummaryDtoV1 = {
   };
 };
 
+export type MasterFsdHistoricalColumnV1 =
+  | 'NOT_EXECUTED'
+  | 'NOT_AVAILABLE'
+  | 'UNVERIFIED_LINK'
+  | MasterFsdSignalPresentationStateV1;
+
 export type MasterFsdSignalExplorerItemV1 = {
   providerNativeSignalName: string;
   declaredByProvider: boolean;
   schemaShape: string | null;
   presentationState: MasterFsdSignalPresentationStateV1;
   catalogDeclared: boolean;
-  snapshotEvidence: 'NOT_EXECUTED' | 'NOT_AVAILABLE' | MasterFsdSignalPresentationStateV1;
-  historicalEvidence: 'NOT_EXECUTED' | 'NOT_AVAILABLE' | MasterFsdSignalPresentationStateV1;
-  queryPlanned: boolean;
-  queryAccepted: boolean | null;
-  observedValue: boolean | null;
+  snapshotEvidence: 'NOT_EXECUTED' | 'NOT_AVAILABLE' | 'PARTIAL' | MasterFsdSignalPresentationStateV1;
+  historicalEvidence: MasterFsdHistoricalColumnV1;
+  catalogQuery: { queryPlanned: boolean; queryAccepted: boolean | null; observedValue: boolean | null };
+  snapshotQuery: { queryPlanned: boolean; queryAccepted: boolean | null; observedValue: boolean | null } | null;
+  historicalQuery: { queryPlanned: boolean; queryAccepted: boolean | null; observedValue: boolean | null } | null;
   coverageAggregate: {
     observedCount: number | null;
     nullCount: number | null;
@@ -107,11 +116,13 @@ export type MasterFsdSignalExplorerPageDtoV1 = {
   vehicleId: string;
   providerSourceLinkId: string;
   catalogRunId: string | null;
+  catalogAuthoritative: boolean;
+  historicalLink: 'NOT_AVAILABLE' | 'UNVERIFIED_LINK' | 'LINKED';
   items: MasterFsdSignalExplorerItemV1[];
   page: { limit: number; nextCursor: string | null; hasMore: boolean };
   aggregates: {
     declaredSignalCount: number | null;
-    rowsReturned: number;
+    logicalSignalsReturned: number;
   };
 };
 
@@ -149,6 +160,15 @@ export type MasterFsdRunHistoryPageDtoV1 = {
   page: { limit: number; nextCursor: string | null; hasMore: boolean };
 };
 
+export type MasterFsdLedgerAttemptLifecycleV1 =
+  | 'RESERVED_UNDISPATCHED'
+  | 'RESERVED_SETTLING'
+  | 'DISPATCHED'
+  | 'SETTLED_SUCCEEDED'
+  | 'SETTLED_FAILED'
+  | 'SETTLED_UNKNOWN'
+  | 'MALFORMED';
+
 export type MasterFsdSafeLedgerAttemptV1 = {
   stageType: string;
   attemptKey: string;
@@ -157,7 +177,7 @@ export type MasterFsdSafeLedgerAttemptV1 = {
   reservedAt: string;
   finishedAt: string | null;
   httpStatus: number | null;
-  queryPlannedVsAttempted: 'PLANNED_ONLY' | 'ATTEMPT_RECORDED';
+  lifecycle: MasterFsdLedgerAttemptLifecycleV1;
 };
 
 export type MasterFsdRunInspectorDtoV1 = {
@@ -182,9 +202,11 @@ export type MasterFsdRunInspectorDtoV1 = {
   };
   ledger: {
     budgetTotal: number | null;
+    budgetByStage: Record<string, number | null>;
     persistedAttemptCount: number | null;
     deduplicatedAttemptKeys: number | null;
     outcomeCounts: Record<string, number> | null;
+    malformedCheckpointStages: string[];
     reconciliationNote: string;
     attempts: MasterFsdSafeLedgerAttemptV1[];
   };
