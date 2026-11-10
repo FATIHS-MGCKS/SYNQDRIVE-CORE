@@ -111,6 +111,7 @@ describe('p25-apd-shadow-baseline-poll-evidence', () => {
         priorPollCompletedAtMs: 1_000_000,
         nextBaselinePollStartedAtMs: 1_060_000,
         nextBaselinePollCompletedAtMs: 1_065_000,
+        nextBaselinePollId: 'next-poll-id',
       });
       expect(r.kind).toBe('NEXT_BASELINE_POLL_OBSERVED');
       if (r.kind === 'NEXT_BASELINE_POLL_OBSERVED') {

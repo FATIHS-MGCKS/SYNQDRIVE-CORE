@@ -82,10 +82,23 @@ export function evaluateBaselineTopLevelSourceAdvance(input: {
   return { evidence: 'NO_ADVANCE', informative: false };
 }
 
+/** Legacy rows: delay filled without immediate-next binding (pre–V3 P1A backfill). */
+export const P25_APD_DELAY_EVIDENCE_V1_0_LEGACY = 'P25_APD_DELAY_EVIDENCE_V1_0' as const;
+
+/** Immediate chronologic SUCCESS SNAPSHOT after skip completion (V3 P1A). */
+export const P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT =
+  'P25_APD_DELAY_EVIDENCE_V1_1' as const;
+
+export type ApdShadowDiscoveryDelayEvidenceVersion =
+  | typeof P25_APD_DELAY_EVIDENCE_V1_0_LEGACY
+  | typeof P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT;
+
 export type BaselineSkipDiscoveryDelayEvidence =
   | {
       kind: 'NEXT_BASELINE_POLL_OBSERVED';
+      evidenceVersion: typeof P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT;
       simulatedNextPollAtMs: number;
+      simulatedNextPollId: string;
       additionalDiscoveryDelayMs: number;
     }
   | { kind: 'UNKNOWN' };
@@ -99,6 +112,7 @@ export function evaluateBaselineSkipDiscoveryDelay(input: {
   priorPollCompletedAtMs: number;
   nextBaselinePollStartedAtMs: number;
   nextBaselinePollCompletedAtMs: number;
+  nextBaselinePollId: string;
 }): BaselineSkipDiscoveryDelayEvidence {
   const delay = input.nextBaselinePollStartedAtMs - input.priorPollCompletedAtMs;
   if (!Number.isFinite(delay) || delay < 0) {
@@ -111,9 +125,24 @@ export function evaluateBaselineSkipDiscoveryDelay(input: {
   }
   return {
     kind: 'NEXT_BASELINE_POLL_OBSERVED',
+    evidenceVersion: P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT,
     simulatedNextPollAtMs: input.nextBaselinePollStartedAtMs,
+    simulatedNextPollId: input.nextBaselinePollId,
     additionalDiscoveryDelayMs: delay,
   };
+}
+
+/**
+ * Whether this SUCCESS SNAPSHOT is the first baseline poll strictly after prior completion.
+ */
+export function isImmediateNextBaselineSuccessPoll(input: {
+  immediateNextPollId: string | null | undefined;
+  observingPollId: string;
+}): boolean {
+  return (
+    input.immediateNextPollId != null &&
+    input.immediateNextPollId === input.observingPollId
+  );
 }
 
 export type BaselineInformationRediscoveryEvidence =

@@ -5195,6 +5195,8 @@ model ApdShadowReconciliationDecision {
   simulatedNextPollAt       DateTime? @map("simulated_next_poll_at")
   simulatedDiscoveryAt      DateTime? @map("simulated_discovery_at")
   additionalDiscoveryDelayMs  Int?    @map("additional_discovery_delay_ms")
+  discoveryDelayEvidenceVersion String? @map("discovery_delay_evidence_version")
+  simulatedNextPollId         String? @map("simulated_next_poll_id")
 
   legacyAssessmentImpact  String @default("NONE") @map("legacy_assessment_impact")
   legacyPublicationImpact String @default("NONE") @map("legacy_publication_impact")

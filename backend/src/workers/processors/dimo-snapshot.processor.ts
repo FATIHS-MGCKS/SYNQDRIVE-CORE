@@ -218,6 +218,16 @@ export class DimoSnapshotProcessor extends WorkerHost {
         deviceReconnectRecent: false,
         providerReconnectRecent: false,
       });
+      const enqueueEvidence = jobDataWithWake.apdShadowEnqueueEvidence;
+      if (apdShadowOpportunityId && enqueueEvidence) {
+        await this.apdShadow.observeCanonicalEnqueueOutcome({
+          organizationId: vehicle.organizationId,
+          vehicleId,
+          opportunityId: apdShadowOpportunityId,
+          enqueueOutcome: enqueueEvidence.outcome,
+          observedAtMs: enqueueEvidence.observedAtMs,
+        });
+      }
     }
 
     try {

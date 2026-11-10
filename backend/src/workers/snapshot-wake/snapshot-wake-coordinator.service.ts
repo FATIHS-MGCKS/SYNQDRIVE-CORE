@@ -40,7 +40,12 @@ import {
   isQueuedCoalesce,
   isActiveQueueState,
   isQueuedQueueState,
+  type SnapshotStableEnqueueOutcome,
 } from './snapshot-wake-queue.util';
+import {
+  buildApdShadowEnqueueEvidence,
+  stableEnqueueOutcomeToCanonical,
+} from './apd-shadow-enqueue-evidence.util';
 import {
   classifyWakeContinuation,
   mayScheduleWakeSuccessor,
@@ -113,6 +118,37 @@ export class SnapshotWakeCoordinatorService {
     @Optional() private readonly tripMetrics?: TripMetricsService,
   ) {}
 
+  /**
+   * Authoritative enqueue boundary for APD shadow: durable evidence on the BullMQ job
+   * consumed at processor poll-start (no extra provider requests).
+   */
+  private async attachApdShadowEnqueueEvidenceToCanonicalJob(
+    jobId: string,
+    data: DimoSnapshotJobData,
+    stableOutcome: SnapshotStableEnqueueOutcome,
+  ): Promise<void> {
+    const canonical = stableEnqueueOutcomeToCanonical(stableOutcome);
+    const evidence = buildApdShadowEnqueueEvidence(canonical, Date.now());
+    try {
+      const job = await this.queue.getJob(jobId);
+      if (!job) return;
+      const existing = job.data as DimoSnapshotJobData;
+      await job.updateData({
+        ...existing,
+        vehicleId: data.vehicleId,
+        dimoTokenId: data.dimoTokenId,
+        origin: data.origin,
+        wakeContext: data.wakeContext,
+        apdShadowOpportunityId: data.apdShadowOpportunityId,
+        apdShadowEnqueueEvidence: evidence,
+      });
+    } catch (err) {
+      this.logger.debug(
+        `APD enqueue evidence attach skipped for ${data.vehicleId}: ${(err as Error).message}`,
+      );
+    }
+  }
+
   async requestSnapshot(input: RequestSnapshotInput): Promise<SnapshotWakeOutcome> {
     let pendingVersion: number | undefined;
     if (input.wakeContext) {
@@ -147,6 +183,8 @@ export class SnapshotWakeCoordinatorService {
         data,
         delayMs: input.delayMs,
       });
+
+      await this.attachApdShadowEnqueueEvidenceToCanonicalJob(jobId, data, enqueueOutcome);
 
       if (isQueuedCoalesce(enqueueOutcome) && input.wakeContext) {
         this.recordWakeMetric(input.wakeContext, 'COALESCED');

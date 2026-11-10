@@ -124,16 +124,21 @@ describe('ApdShadowBaselinePollEvidenceService idempotency', () => {
       .fn()
       .mockResolvedValueOnce({ count: 1 })
       .mockResolvedValueOnce({ count: 0 });
-    const findMany = jest.fn().mockResolvedValue([
-      {
-        opportunityId: 'opp-prior',
-        policyVersion: 'P25_APD_B2_V1',
-        realPollCompletedAt: new Date('2026-10-25T10:29:05.000Z'),
-      },
-    ]);
+    const findMany = jest
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          opportunityId: 'opp-prior',
+          policyVersion: 'P25_APD_B2_V1',
+          realPollCompletedAt: new Date('2026-10-25T10:29:05.000Z'),
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    const findFirst = jest.fn().mockResolvedValue({ id: 'observing-poll-id' });
     const service = new ApdShadowBaselinePollEvidenceService(
       {
         apdShadowReconciliationDecision: { findMany, updateMany },
+        dimoPollLog: { findFirst },
       } as never,
     );
 
@@ -141,14 +146,16 @@ describe('ApdShadowBaselinePollEvidenceService idempotency', () => {
       organizationId: 'org',
       vehicleId: 'veh',
       activationEpochId: 'epoch',
+      observingPollId: 'observing-poll-id',
       observingPollStartedAtMs: Date.parse('2026-10-25T10:30:02.808Z'),
       observingPollCompletedAtMs: Date.parse('2026-10-25T10:30:08.000Z'),
     };
     await service.reconcilePriorSkipDiscoveryDelayFromObservingPoll(input);
     await service.reconcilePriorSkipDiscoveryDelayFromObservingPoll(input);
 
-    expect(updateMany).toHaveBeenCalledTimes(2);
-    expect(updateMany.mock.calls[1][0].where.additionalDiscoveryDelayMs).toBeNull();
+    expect(updateMany).toHaveBeenCalledTimes(1);
+    expect(updateMany.mock.calls[0][0].where.additionalDiscoveryDelayMs).toBeNull();
+    expect(updateMany.mock.calls[0][0].where.discoveryDelayEvidenceVersion).toBeNull();
   });
 
   it('recordSkippedInformativeAfterDurableTransition only counts explicit transitions', () => {

@@ -20,6 +20,17 @@ export interface SnapshotWakeContext {
   probeGeneration: 0 | 1;
 }
 
+/** Durable enqueue boundary evidence for APD shadow (no poll authority). */
+export interface ApdShadowEnqueueEvidence {
+  outcome:
+    | 'ENQUEUED'
+    | 'RECOVERED_TERMINAL'
+    | 'COALESCED'
+    | 'QUEUE_FAILED'
+    | 'PERSIST_FAILED';
+  observedAtMs: number;
+}
+
 export interface DimoSnapshotJobData {
   vehicleId: string;
   dimoTokenId: number;
@@ -27,6 +38,8 @@ export interface DimoSnapshotJobData {
   wakeContext?: SnapshotWakeContext;
   /** Observe-only APD shadow correlation id (no poll authority). */
   apdShadowOpportunityId?: string;
+  /** Written at snapshot wake/scheduler enqueue boundary; consumed at processor poll-start. */
+  apdShadowEnqueueEvidence?: ApdShadowEnqueueEvidence;
 }
 
 export type SnapshotWakeOutcome =

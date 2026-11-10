@@ -7,7 +7,10 @@ import {
   evaluateBaselineLvSourceEvidence,
   evaluateBaselineSkipDiscoveryDelay,
   evaluateBaselineTopLevelSourceAdvance,
+  isImmediateNextBaselineSuccessPoll,
   parseSnapshotCorrelationId,
+  P25_APD_DELAY_EVIDENCE_V1_0_LEGACY,
+  P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT,
 } from './p25-apd-shadow-baseline-poll-evidence';
 import type { AdaptivePollingShadowPostPollContext } from './adaptive-polling-shadow.types';
 
@@ -102,60 +105,139 @@ export class ApdShadowBaselinePollEvidenceService {
     organizationId: string;
     vehicleId: string;
     activationEpochId: string;
+    observingPollId: string;
     observingPollStartedAtMs: number;
     observingPollCompletedAtMs: number;
   }): Promise<void> {
-    const priorRows = await this.prisma.apdShadowReconciliationDecision.findMany({
-      where: {
-        organizationId: input.organizationId,
-        vehicleId: input.vehicleId,
-        activationEpochId: input.activationEpochId,
-        decision: 'WOULD_SKIP',
-        realPollStatus: 'SUCCESS',
-        additionalDiscoveryDelayMs: null,
-        OR: [{ newLvSourceObserved: true }, { newTopLevelSourceObserved: true }],
-        realPollCompletedAt: {
-          lt: new Date(input.observingPollStartedAtMs),
-        },
-      },
-      select: {
-        opportunityId: true,
-        policyVersion: true,
-        realPollCompletedAt: true,
-      },
-    });
+    const PAGE_SIZE = 100;
+    let cursor: string | undefined;
 
-    for (const row of priorRows) {
-      if (!row.realPollCompletedAt) continue;
-      const delayEvidence = evaluateBaselineSkipDiscoveryDelay({
-        priorPollCompletedAtMs: row.realPollCompletedAt.getTime(),
-        nextBaselinePollStartedAtMs: input.observingPollStartedAtMs,
-        nextBaselinePollCompletedAtMs: input.observingPollCompletedAtMs,
-      });
-      if (delayEvidence.kind !== 'NEXT_BASELINE_POLL_OBSERVED') {
-        continue;
-      }
-
-      const updated = await this.prisma.apdShadowReconciliationDecision.updateMany({
+    for (;;) {
+      const priorRows = await this.prisma.apdShadowReconciliationDecision.findMany({
         where: {
           organizationId: input.organizationId,
           vehicleId: input.vehicleId,
-          opportunityId: row.opportunityId,
-          policyVersion: row.policyVersion,
           activationEpochId: input.activationEpochId,
+          decision: 'WOULD_SKIP',
+          realPollStatus: 'SUCCESS',
           additionalDiscoveryDelayMs: null,
+          discoveryDelayEvidenceVersion: null,
+          OR: [{ newLvSourceObserved: true }, { newTopLevelSourceObserved: true }],
+          realPollCompletedAt: {
+            lt: new Date(input.observingPollStartedAtMs),
+          },
+          ...(cursor ? { opportunityId: { gt: cursor } } : {}),
         },
-        data: {
-          simulatedNextPollAt: new Date(delayEvidence.simulatedNextPollAtMs),
-          additionalDiscoveryDelayMs: delayEvidence.additionalDiscoveryDelayMs,
+        orderBy: { opportunityId: 'asc' },
+        take: PAGE_SIZE,
+        select: {
+          opportunityId: true,
+          policyVersion: true,
+          realPollCompletedAt: true,
         },
       });
-      if (updated.count !== 1) {
-        this.logger.debug(
-          `APD discovery delay reconcile skipped row count=${updated.count} opp=${row.opportunityId}`,
-        );
+      if (priorRows.length === 0) break;
+
+      const completedByOpp = new Map<
+        string,
+        { completedAtMs: number; rows: typeof priorRows }
+      >();
+      for (const row of priorRows) {
+        if (!row.realPollCompletedAt) continue;
+        const existing = completedByOpp.get(row.opportunityId);
+        if (!existing) {
+          completedByOpp.set(row.opportunityId, {
+            completedAtMs: row.realPollCompletedAt.getTime(),
+            rows: [row],
+          });
+        } else {
+          existing.rows.push(row);
+        }
       }
+
+      for (const [opportunityId, group] of completedByOpp) {
+        const immediateNext = await this.prisma.dimoPollLog.findFirst({
+          where: {
+            vehicleId: input.vehicleId,
+            jobType: DimoPollJobType.SNAPSHOT,
+            status: DimoPollStatus.SUCCESS,
+            startedAt: { gt: new Date(group.completedAtMs) },
+          },
+          orderBy: { startedAt: 'asc' },
+          select: { id: true },
+        });
+        if (
+          !isImmediateNextBaselineSuccessPoll({
+            immediateNextPollId: immediateNext?.id ?? null,
+            observingPollId: input.observingPollId,
+          })
+        ) {
+          continue;
+        }
+
+        const delayEvidence = evaluateBaselineSkipDiscoveryDelay({
+          priorPollCompletedAtMs: group.completedAtMs,
+          nextBaselinePollStartedAtMs: input.observingPollStartedAtMs,
+          nextBaselinePollCompletedAtMs: input.observingPollCompletedAtMs,
+          nextBaselinePollId: input.observingPollId,
+        });
+        if (delayEvidence.kind !== 'NEXT_BASELINE_POLL_OBSERVED') {
+          continue;
+        }
+
+        for (const row of group.rows) {
+          const updated = await this.prisma.apdShadowReconciliationDecision.updateMany({
+            where: {
+              organizationId: input.organizationId,
+              vehicleId: input.vehicleId,
+              opportunityId: row.opportunityId,
+              policyVersion: row.policyVersion,
+              activationEpochId: input.activationEpochId,
+              additionalDiscoveryDelayMs: null,
+              discoveryDelayEvidenceVersion: null,
+            },
+            data: {
+              simulatedNextPollAt: new Date(delayEvidence.simulatedNextPollAtMs),
+              simulatedNextPollId: delayEvidence.simulatedNextPollId,
+              additionalDiscoveryDelayMs: delayEvidence.additionalDiscoveryDelayMs,
+              discoveryDelayEvidenceVersion: P25_APD_DELAY_EVIDENCE_V1_1_IMMEDIATE_NEXT,
+            },
+          });
+          if (updated.count !== 1) {
+            this.logger.debug(
+              `APD discovery delay reconcile skipped row count=${updated.count} opp=${opportunityId}`,
+            );
+          }
+        }
+      }
+
+      cursor = priorRows[priorRows.length - 1]?.opportunityId;
+      if (priorRows.length < PAGE_SIZE) break;
     }
+  }
+
+  /**
+   * Tags legacy delay rows that predate V1_1 semantics without rewriting delay values.
+   */
+  markLegacyDiscoveryDelayEvidenceVersion(input: {
+    organizationId: string;
+    vehicleId: string;
+    opportunityId: string;
+    policyVersion: string;
+  }): Promise<{ count: number }> {
+    return this.prisma.apdShadowReconciliationDecision.updateMany({
+      where: {
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        opportunityId: input.opportunityId,
+        policyVersion: input.policyVersion,
+        additionalDiscoveryDelayMs: { not: null },
+        discoveryDelayEvidenceVersion: null,
+      },
+      data: {
+        discoveryDelayEvidenceVersion: P25_APD_DELAY_EVIDENCE_V1_0_LEGACY,
+      },
+    });
   }
 
   /**
