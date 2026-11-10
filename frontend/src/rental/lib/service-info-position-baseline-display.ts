@@ -19,33 +19,41 @@ export function formatPositionBaselineDisplay(
   const km =
     p.baseline?.odometerKm != null ? formatServiceKm(p.baseline.odometerKm, fmtLocale) : null;
 
-  if (classification.evidenceClass === 'verified_service') {
+  const documentedBlock = (labelKey: TranslationKey) => {
     if (date && km) {
       return {
-        kind: 'labeled',
-        label: t('health.serviceInfo.v3.ux32.baseline.verifiedLabel'),
+        kind: 'labeled' as const,
+        label: t(labelKey),
         value: t('health.serviceInfo.v3.ux32.baseline.verifiedValue', { date, km }),
       };
     }
     if (date) {
       return {
-        kind: 'labeled',
-        label: t('health.serviceInfo.v3.ux32.baseline.verifiedLabel'),
+        kind: 'labeled' as const,
+        label: t(labelKey),
         value: t('health.serviceInfo.v3.ux32.baseline.verifiedDateOnly', { date }),
       };
     }
     if (km) {
       return {
-        kind: 'labeled',
-        label: t('health.serviceInfo.v3.ux32.baseline.verifiedLabel'),
+        kind: 'labeled' as const,
+        label: t(labelKey),
         value: t('health.serviceInfo.v3.ux32.baseline.verifiedKmOnly', { km }),
       };
     }
     return {
-      kind: 'labeled',
-      label: t('health.serviceInfo.v3.ux32.baseline.verifiedLabel'),
+      kind: 'labeled' as const,
+      label: t(labelKey),
       value: t('health.serviceInfo.v3.ux32.baseline.odometerUndocumented'),
     };
+  };
+
+  if (classification.evidenceClass === 'documented_service') {
+    return documentedBlock('health.serviceInfo.v3.ux32.baseline.documentedLabel');
+  }
+
+  if (classification.evidenceClass === 'user_declared') {
+    return documentedBlock('health.serviceInfo.v3.ux32.baseline.userDeclaredLabel');
   }
 
   if (classification.evidenceClass === 'calculation_basis') {

@@ -36,6 +36,24 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'service-intelligence-trust-fix-p1-2026-11-10',
+    version: '4.9.5036',
+    title: 'Service Intelligence trust P1 — evidence provenance + overview honesty',
+    summary: [
+      'Backend: IMPORT/OEM/unknown service-event origins no longer map to MANUAL; bounded history load (600 rows, truncation flag).',
+      'Position baselines expose `evidenceClass` (documented / user-declared / calculation basis).',
+      'Overview removes global “last maintenance” card; plan labels distinguish documented vs manual entry (9 locales).',
+    ],
+    reason: 'Independent audit SI-P1-001/P2-002/P2-003 and provenance risk for IMPORT/OEM fallback.',
+    previousBehavior:
+      'Global overview could show inspection over newer oil; 200-event window could drop proof; IMPORT gained manual reset rights; UI treated manual OneAuto equally as “verified”.',
+    details:
+      'backend: maintenance-forecast/*; frontend: ServiceMaintenanceForecastPanel.tsx, service-info-position-baseline*.ts, api.ts.',
+    affectsArchitecture: true,
+    module: 'Vehicle Intelligence',
+    createdAt: '2026-11-10T02:35:00.000Z',
+  },
+  {
     id: 'service-info-v3-ux32-overdue-clarity-2026-11-10',
     version: '4.9.5035',
     title: 'Service Info V3 UX-3.2 — overdue clarity + position baseline on plan rows',

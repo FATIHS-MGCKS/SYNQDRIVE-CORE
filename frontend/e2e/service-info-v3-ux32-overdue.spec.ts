@@ -39,7 +39,7 @@ test.describe('Service Info V3 UX-3.2 overdue clarity', () => {
 
       await fixture.getByRole('tab', { name: 'Wartungsplan' }).click();
       const oil = fixture.locator('[data-testid="service-plan-position-p-oil"]');
-      await expect(oil).toContainText('Zuletzt nachgewiesen');
+      await expect(oil).toContainText('Zuletzt dokumentiert');
       await expect(oil).toContainText('170.430');
       await expect(oil).not.toContainText('Details');
       const md = fixture.locator('[data-testid="service-plan-position-p-md-only"]');

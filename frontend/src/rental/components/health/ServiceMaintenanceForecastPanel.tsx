@@ -147,9 +147,37 @@ function valueOrUnknown(km: number | null, days: number | null, t: Translator, f
   return parts.length ? parts.join(' / ') : t('health.serviceInfo.v2.value.unknown');
 }
 
+const HISTORY_UNCERTAINTY_FLAGS: MaintenanceDataQualityFlag[] = [
+  'HISTORY_EVIDENCE_TRUNCATED',
+  'HISTORY_EVIDENCE_LOAD_FAILED',
+];
+
+function HistoryEvidenceNotice({ flags, t }: { flags: MaintenanceDataQualityFlag[]; t: Translator }) {
+  const showLoadFailed = flags.includes('HISTORY_EVIDENCE_LOAD_FAILED');
+  const showTruncated = flags.includes('HISTORY_EVIDENCE_TRUNCATED');
+  if (!showLoadFailed && !showTruncated) return null;
+  return (
+    <div
+      role="status"
+      data-testid="service-info-history-evidence-notice"
+      className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+    >
+      {showLoadFailed && (
+        <p className="font-medium">{t('health.serviceInfo.v2.flag.HISTORY_EVIDENCE_LOAD_FAILED')}</p>
+      )}
+      {showTruncated && (
+        <p className={showLoadFailed ? 'mt-1.5 font-medium' : 'font-medium'}>
+          {t('health.serviceInfo.v2.flag.HISTORY_EVIDENCE_TRUNCATED')}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function FlagList({ flags, t }: { flags: MaintenanceDataQualityFlag[]; t: Translator }) {
-  if (flags.length === 0) return null;
-  const unique = [...new Set(flags)];
+  const filtered = flags.filter((f) => !HISTORY_UNCERTAINTY_FLAGS.includes(f));
+  if (filtered.length === 0) return null;
+  const unique = [...new Set(filtered)];
   return (
     <ul className="space-y-1">
       {unique.map((flag) => (
@@ -526,8 +554,6 @@ export function ServiceMaintenanceForecastPanel({
   const conflicts = (display.conflicts?.length ?? 0) > 0 ? (display.conflicts ?? []) : (forecast?.conflicts ?? []);
   const hasProviderSchedule = (forecast?.scheduleSources ?? []).some((s) => s === 'ONEAUTO_SCHEDULE' || s === 'HM_OEM');
 
-  const lastMaint = forecast?.lastRelevantMaintenance ?? null;
-  const lastMaintDate = formatServiceDate(lastMaint?.date ?? null, formattingLocale);
   const odometer = forecast?.odometer ?? null;
   const odometerObserved = formatServiceDateTime(odometer?.observedAt ?? null, formattingLocale);
 
@@ -543,10 +569,15 @@ export function ServiceMaintenanceForecastPanel({
 
   const emptyPlanHint = useMemo(() => {
     if (!forecast || totalPlanRows > 0) return null;
+    if (flags.includes('HISTORY_EVIDENCE_LOAD_FAILED')) return null;
     if (flags.includes('SCHEDULE_MISSING') && !flags.includes('HISTORY_MISSING')) {
       return t('health.serviceInfo.v2.noBasis.historyOnly');
     }
-    if (flags.includes('HISTORY_MISSING') && !flags.includes('SCHEDULE_MISSING')) {
+    if (
+      flags.includes('HISTORY_MISSING') &&
+      !flags.includes('SCHEDULE_MISSING') &&
+      !flags.includes('HISTORY_EVIDENCE_TRUNCATED')
+    ) {
       return t('health.serviceInfo.v2.noBasis.scheduleOnly');
     }
     return t('health.serviceInfo.v3.plan.empty');
@@ -561,6 +592,10 @@ export function ServiceMaintenanceForecastPanel({
         <h2 id={pageTitleId} className="text-base font-semibold tracking-tight text-foreground">
           {t('health.serviceInfo.v3.pageTitle')}
         </h2>
+      )}
+
+      {!loading && !error && forecast && (surface === 'full' || surface === 'overview' || surface === 'plan') && (
+        <HistoryEvidenceNotice flags={flags} t={t} />
       )}
 
       {showHero && (
@@ -646,27 +681,7 @@ export function ServiceMaintenanceForecastPanel({
 
       {showInfoCards && !loading && !error && (
         <>
-          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-            <InfoCard>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {t('health.serviceInfo.v2.lastMaintenance.label')}
-              </p>
-              <p className="mt-1 text-xs font-semibold text-foreground">
-                {lastMaint && lastMaintDate
-                  ? lastMaint.odometerKm != null
-                    ? t('health.serviceInfo.v2.lastMaintenance.value', {
-                        date: lastMaintDate,
-                        km: formatServiceKm(lastMaint.odometerKm, formattingLocale),
-                      })
-                    : t('health.serviceInfo.v2.lastMaintenance.valueNoKm', { date: lastMaintDate })
-                  : t('health.serviceInfo.v2.lastMaintenance.none')}
-              </p>
-              {lastMaint && (
-                <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  {t(`health.serviceInfo.v2.eventSource.${lastMaint.eventSource}` as TranslationKey)}
-                </p>
-              )}
-            </InfoCard>
+          <div className="grid min-w-0 grid-cols-1 gap-3">
             <InfoCard>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {t('health.serviceInfo.v2.freshness.odometerLabel')}

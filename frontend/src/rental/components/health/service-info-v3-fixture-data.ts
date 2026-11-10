@@ -270,6 +270,7 @@ export function iphoneUx32OverdueFixture(): ServiceInfoStatus {
         eventId: 'bf-1',
         eventType: 'BRAKE_SERVICE',
         eventSource: 'SERVICE_EVENT_ONEAUTO',
+        evidenceClass: 'DOCUMENTED',
       },
     }),
     position({
@@ -289,6 +290,7 @@ export function iphoneUx32OverdueFixture(): ServiceInfoStatus {
         eventId: 'oil-1',
         eventType: 'OIL_CHANGE',
         eventSource: 'SERVICE_EVENT_ONEAUTO',
+        evidenceClass: 'DOCUMENTED',
       },
     }),
     position({
@@ -304,6 +306,7 @@ export function iphoneUx32OverdueFixture(): ServiceInfoStatus {
         eventId: 'sp-1',
         eventType: 'OTHER',
         eventSource: 'SERVICE_EVENT_MANUAL',
+        evidenceClass: 'USER_DECLARED',
       },
     }),
     position({
@@ -318,6 +321,7 @@ export function iphoneUx32OverdueFixture(): ServiceInfoStatus {
         eventId: null,
         eventType: null,
         eventSource: 'VEHICLE_MASTER_DATA',
+        evidenceClass: 'CALCULATION_BASIS',
       },
       dataQuality: ['BASELINE_FROM_MASTER_DATA'],
     }),
