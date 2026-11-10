@@ -17,7 +17,8 @@ import {
 import { mapManualIntervalsToPositions, masterDataBaselinesFromVehicle } from './adapters/manual-interval.adapter';
 import type { ManualIntervalVehicleFields } from './adapters/manual-interval.adapter';
 import { mapOneAutoScheduleToPositions } from './adapters/oneauto-schedule.adapter';
-import { mapServiceEventsToEvidence } from './adapters/service-event-evidence.adapter';
+import { mapServiceEventsToEvidence, type ServiceEventEvidenceRow } from './adapters/service-event-evidence.adapter';
+import { EVIDENCE_MAX_EVENTS, EVIDENCE_PAGE_SIZE, loadBoundedEvidencePages } from './evidence-loader.util';
 import { computeMaintenanceForecast } from './maintenance-forecast.engine';
 import type {
   MaintenanceDataQualityFlag,
@@ -26,9 +27,6 @@ import type {
   MaintenanceOdometerReading,
   MaintenanceSchedulePosition,
 } from './maintenance-forecast.types';
-
-/** Bounded read window for history evidence (newest first). */
-const EVIDENCE_EVENT_LIMIT = 200;
 
 type VehicleForecastRow = ManualIntervalVehicleFields & {
   id: string;
@@ -73,11 +71,12 @@ export class MaintenanceForecastService {
     })) as VehicleForecastRow | null;
     if (!vehicle) return null;
 
-    const [events, odometer, schedule] = await Promise.all([
+    const [evidenceLoad, odometer, schedule] = await Promise.all([
       this.loadEvidenceEvents(vehicleId),
       this.loadOdometer(vehicle),
       this.loadStoredOneAutoSchedule(vehicle),
     ]);
+    const { events, loadFlags } = evidenceLoad;
 
     const positions: MaintenanceSchedulePosition[] = [...schedule.positions];
     const coveredKinds = new Set(positions.map((p) => p.kind));
@@ -92,6 +91,7 @@ export class MaintenanceForecastService {
       odometer,
       hm,
       scheduleFlags: schedule.flags,
+      evidenceLoadFlags: loadFlags,
       scheduleFetchedAt: schedule.fetchedAt,
       thresholds: {
         warningKm: NEXT_SERVICE_WARNING_KM,
@@ -103,25 +103,39 @@ export class MaintenanceForecastService {
     });
   }
 
-  private async loadEvidenceEvents(vehicleId: string) {
+  private async loadEvidenceEvents(
+    vehicleId: string,
+  ): Promise<{ events: ReturnType<typeof mapServiceEventsToEvidence>; loadFlags: MaintenanceDataQualityFlag[] }> {
+    const select = {
+      id: true,
+      eventType: true,
+      eventDate: true,
+      odometerKm: true,
+      origin: true,
+      sourcePayloadJson: true,
+    } as const;
+    const where = { vehicleId, eventType: { in: SERVICE_HISTORY_EVENT_TYPES } };
+    const orderBy = [{ eventDate: 'desc' as const }, { id: 'desc' as const }];
+
     try {
-      const rows = await this.prisma.vehicleServiceEvent.findMany({
-        where: { vehicleId, eventType: { in: SERVICE_HISTORY_EVENT_TYPES } },
-        orderBy: { eventDate: 'desc' },
-        take: EVIDENCE_EVENT_LIMIT,
-        select: {
-          id: true,
-          eventType: true,
-          eventDate: true,
-          odometerKm: true,
-          origin: true,
-          sourcePayloadJson: true,
-        },
-      });
-      return mapServiceEventsToEvidence(rows);
+      const { rows, loadFlags } = await loadBoundedEvidencePages(
+        (skip, take) =>
+          this.prisma.vehicleServiceEvent.findMany({
+            where,
+            orderBy,
+            skip,
+            take,
+            select,
+          }) as Promise<ServiceEventEvidenceRow[]>,
+        (skip) =>
+          this.prisma.vehicleServiceEvent
+            .findFirst({ where, orderBy, skip, select: { id: true } })
+            .then((row) => row != null),
+      );
+      return { events: mapServiceEventsToEvidence(rows as ServiceEventEvidenceRow[]), loadFlags };
     } catch (err) {
       this.logger.warn(`loadEvidenceEvents(${vehicleId}) failed: ${(err as Error).message}`);
-      return [];
+      return { events: [], loadFlags: [] };
     }
   }
 

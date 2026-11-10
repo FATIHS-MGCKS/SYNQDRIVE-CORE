@@ -1,3 +1,8 @@
+import {
+  baselineRefFromEvent,
+  baselineRefFromMasterData,
+  isAuthoritativeForecastEventSource,
+} from './baseline-evidence.util';
 import { addCalendarMonths, diffCalendarMonths, diffDays, startOfUtcDay } from './calendar-math.util';
 import { eventCoversPosition, findLatestCoveringEvent } from './maintenance-coverage.util';
 import type {
@@ -40,13 +45,7 @@ function uniq<T>(items: T[]): T[] {
 }
 
 function baselineFromEvent(event: MaintenanceEvidenceEvent): MaintenanceBaselineRef {
-  return {
-    date: event.eventDate.toISOString(),
-    odometerKm: event.odometerKm,
-    eventId: event.eventId,
-    eventType: event.eventType,
-    eventSource: event.eventSource,
-  };
+  return baselineRefFromEvent(event);
 }
 
 function latestOneAutoInspectionEvent(
@@ -113,13 +112,7 @@ function resolveBaseline(
       }
       flags.push('BASELINE_FROM_MASTER_DATA');
       return {
-        baseline: {
-          date: candidate.date ? candidate.date.toISOString() : null,
-          odometerKm: candidate.odometerKm,
-          eventId: null,
-          eventType: null,
-          eventSource: 'VEHICLE_MASTER_DATA',
-        },
+        baseline: baselineRefFromMasterData(candidate.date, candidate.odometerKm),
         flags,
       };
     }
@@ -324,20 +317,36 @@ function pickLastRelevantMaintenance(
   positions: MaintenancePositionForecast[],
   input: MaintenanceForecastInput,
 ): MaintenanceBaselineRef | null {
-  const fromPositions = (kinds: Set<string>) =>
-    positions
-      .filter((p) => kinds.has(p.kind) && p.baseline)
-      .map((p) => p.baseline!)
-      .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))[0] ?? null;
+  const fromPositionBaselines = positions
+    .filter((p) => p.baseline)
+    .map((p) => p.baseline!)
+    .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+  if (fromPositionBaselines[0]) return fromPositionBaselines[0];
 
-  const inspection = fromPositions(INSPECTION_KINDS);
-  if (inspection) return inspection;
-  const oil = fromPositions(new Set(['OIL_CHANGE']));
-  if (oil) return oil;
-
-  // No schedule positions — still surface the most recent proven regular service.
+  // No schedule positions — surface the newest authoritative regular-service event (not future-dated).
   const regular = input.events
+    .filter((e) => e.eventDate.getTime() <= input.now.getTime())
+    .filter((e) => isAuthoritativeForecastEventSource(e.eventSource))
     .filter((e) => ['FULL_SERVICE', 'GENERAL_INSPECTION', 'OIL_CHANGE'].includes(e.eventType))
+    .filter((e) => {
+      if (e.eventType === 'FULL_SERVICE' || e.eventType === 'GENERAL_INSPECTION') {
+        return e.eventSource === 'SERVICE_EVENT_MANUAL' || e.performedWork.length > 0;
+      }
+      if (e.eventType === 'OIL_CHANGE') {
+        return eventCoversPosition(e, {
+          positionId: 'synthetic:oil',
+          kind: 'OIL_CHANGE',
+          label: 'Oil',
+          intervalMode: 'RECURRING',
+          intervalKm: 15_000,
+          intervalMonths: 12,
+          componentTerms: [],
+          scheduleSource: 'MANUAL_INTERVAL',
+          rawIntervalDescription: null,
+        });
+      }
+      return false;
+    })
     .sort((a, b) => b.eventDate.getTime() - a.eventDate.getTime())[0];
   return regular ? baselineFromEvent(regular) : null;
 }
@@ -403,7 +412,10 @@ export function computeMaintenanceForecast(input: MaintenanceForecastInput): Mai
     }
   }
 
-  const globalFlags: MaintenanceDataQualityFlag[] = [...(input.scheduleFlags ?? [])];
+  const globalFlags: MaintenanceDataQualityFlag[] = [
+    ...(input.scheduleFlags ?? []),
+    ...(input.evidenceLoadFlags ?? []),
+  ];
   if (input.positions.length === 0) globalFlags.push('SCHEDULE_MISSING');
   if (input.events.length === 0 && !input.masterDataBaselines?.inspection.date && !input.masterDataBaselines?.oilChange.date) {
     globalFlags.push('HISTORY_MISSING');

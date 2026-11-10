@@ -248,6 +248,76 @@ describe('computeMaintenanceForecast — acceptance scenarios', () => {
     expect(result.nextDue).toBeNull();
     expect(result.dataQuality).toContain('SCHEDULE_MISSING');
     expect(result.lastRelevantMaintenance?.eventId).toBe('evt-1');
+    expect(result.lastRelevantMaintenance?.evidenceClass).toBe('USER_DECLARED');
+  });
+
+  it('lastRelevantMaintenance prefers newer oil baseline over older inspection baseline', () => {
+    const result = computeMaintenanceForecast(
+      input({
+        positions: [inspection(), oilChange()],
+        events: [
+          event({
+            eventId: 'insp-ev',
+            eventDate: new Date('2024-06-01T00:00:00Z'),
+            odometerKm: 50_000,
+          }),
+          event({
+            eventId: 'oil-ev',
+            eventType: 'OIL_CHANGE',
+            eventDate: new Date('2025-08-01T00:00:00Z'),
+            odometerKm: 72_000,
+            performedWork: ['Engine oil and filter replaced'],
+          }),
+        ],
+      }),
+    );
+    expect(result.lastRelevantMaintenance?.eventId).toBe('oil-ev');
+  });
+
+  it('lastRelevantMaintenance excludes future-dated and unsupported import claims', () => {
+    const result = computeMaintenanceForecast(
+      input({
+        positions: [],
+        events: [
+          event({
+            eventId: 'future',
+            eventDate: new Date('2027-01-01T00:00:00Z'),
+          }),
+          event({
+            eventId: 'import-oil',
+            eventType: 'OIL_CHANGE',
+            eventSource: 'SERVICE_EVENT_IMPORT',
+            eventDate: new Date('2025-06-01T00:00:00Z'),
+          }),
+        ],
+      }),
+    );
+    expect(result.lastRelevantMaintenance).toBeNull();
+  });
+
+  it('position baseline carries evidenceClass DOCUMENTED vs USER_DECLARED', () => {
+    const documented = computeMaintenanceForecast(
+      input({
+        positions: [oilChange()],
+        events: [
+          event({
+            eventId: 'oa',
+            eventType: 'OIL_CHANGE',
+            eventSource: 'SERVICE_EVENT_ONEAUTO',
+            performedWork: ['Engine oil and filter replaced'],
+          }),
+        ],
+      }),
+    );
+    expect(documented.positions[0]!.baseline?.evidenceClass).toBe('DOCUMENTED');
+
+    const manual = computeMaintenanceForecast(
+      input({
+        positions: [oilChange()],
+        events: [event({ eventId: 'man', eventType: 'OIL_CHANGE' })],
+      }),
+    );
+    expect(manual.positions[0]!.baseline?.evidenceClass).toBe('USER_DECLARED');
   });
 
   it('schedule without history → no invented last service', () => {
