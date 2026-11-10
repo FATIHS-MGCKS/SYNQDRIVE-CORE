@@ -63,10 +63,9 @@ test.describe('Service Info V3 UX-3.2 overdue clarity', () => {
     await page.goto('/dev/service-info-v3');
     const fixture = page.getByTestId('fixture-ux32-iphone');
     const openPlan = fixture.getByRole('button', { name: /Alle im Wartungsplan anzeigen/i });
-    if (await openPlan.count()) {
-      await openPlan.click();
-      await expect(fixture.getByRole('tab', { name: 'Wartungsplan' })).toHaveAttribute('aria-selected', 'true');
-    }
+    await expect(openPlan).toBeVisible();
+    await openPlan.click();
+    await expect(fixture.getByRole('tab', { name: 'Wartungsplan' })).toHaveAttribute('aria-selected', 'true');
   });
 
   test('UX-32 fixture dark @ 390px', async ({ browser }) => {

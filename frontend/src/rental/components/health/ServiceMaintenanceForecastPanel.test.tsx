@@ -186,7 +186,8 @@ describe('ServiceMaintenanceForecastPanel UX-1.1', () => {
       maintenanceForecast: baseForecast({ positions: [bare] }),
     } as unknown as ServiceInfoStatus);
     cleanup = view.cleanup;
-    expect(view.container.textContent).toContain('Kein positionsbezogener Wartungsnachweis');
+    expect(view.container.textContent).toContain('Letzte Durchführung nicht nachgewiesen');
+    expect(view.container.textContent).not.toMatch(/Zuletzt nachgewiesen:.*nicht nachgewiesen/);
     expect(view.container.textContent).not.toContain('health.serviceInfo.v3.details.toggle');
   });
 
@@ -267,6 +268,27 @@ describe('ServiceMaintenanceForecastPanel UX-1.1', () => {
     expect(oilText).toContain('Intervall');
     expect(oilText).not.toMatch(/^\s*Details\s*$/m);
     expect(view.container.querySelector('[data-testid="service-plan-position-p-oil"] details')).toBeNull();
+  });
+
+  it('plan row uses Fällig seit + Fällig bei when only calendar is overdue (UX-3.2 polish)', () => {
+    const mixed = overduePosition('mixed-due', {
+      dueAtDate: '2026-03-20',
+      dueAtKm: 186523,
+      remainingDays: -235,
+      remainingKm: 500,
+      dueState: 'OVERDUE',
+    });
+    const view = renderPanel(
+      {
+        maintenanceForecast: baseForecast({ scheduleSources: ['ONEAUTO_SCHEDULE'], positions: [mixed] }),
+      } as unknown as ServiceInfoStatus,
+      { surface: 'plan' },
+    );
+    cleanup = view.cleanup;
+    const row = view.container.querySelector('[data-testid="service-plan-position-mixed-due"]');
+    const text = row?.textContent ?? '';
+    expect(text).toContain('Fällig seit:');
+    expect(text).toContain('Fällig bei:');
   });
 
   it('master-data baseline uses calculation basis label', () => {

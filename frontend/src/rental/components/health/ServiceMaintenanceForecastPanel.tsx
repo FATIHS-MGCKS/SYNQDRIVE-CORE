@@ -18,10 +18,9 @@ import {
   type NextServiceUiTone,
 } from '../../lib/service-info-display';
 import { ManualServiceEntryDialog, ServiceIntervalsDialog } from './ManualServiceEntryDialog';
-import {
-  classifyPositionBaseline,
-  concisePlanSourceKey,
-} from '../../lib/service-info-position-baseline';
+import { concisePlanSourceKey } from '../../lib/service-info-position-baseline';
+import { formatPositionBaselineDisplay } from '../../lib/service-info-position-baseline-display';
+import { formatPositionDueLines } from '../../lib/service-info-position-due-lines';
 
 export interface ServiceMaintenanceForecastPanelProps {
   serviceInfo: ServiceInfoStatus | null | undefined;
@@ -191,85 +190,6 @@ function positionLabel(p: MaintenancePositionForecast, t: Translator): string {
   return p.kind === 'OTHER' ? p.label : formatPositionKind(p.kind, t);
 }
 
-function formatDueAtLine(p: MaintenancePositionForecast, t: Translator, fmtLocale: string): string | null {
-  const dueDate = formatServiceDate(p.dueAtDate, fmtLocale);
-  const parts: string[] = [];
-  if (dueDate) parts.push(dueDate);
-  if (p.dueAtKm != null) parts.push(t('health.serviceInfo.v2.value.km', { km: formatServiceKm(p.dueAtKm, fmtLocale) }));
-  if (parts.length === 0) return null;
-  const labelKey =
-    p.dueState === 'OVERDUE'
-      ? 'health.serviceInfo.v3.ux32.plan.dueSinceLabel'
-      : 'health.serviceInfo.v3.ux32.plan.dueAtLabel';
-  return `${t(labelKey as TranslationKey)} ${parts.join(' · ')}`;
-}
-
-function formatPositionBaselineBlock(
-  p: MaintenancePositionForecast,
-  t: Translator,
-  fmtLocale: string,
-): { label: string; value: string | null } {
-  const classification = classifyPositionBaseline(p.baseline, p.dataQuality);
-  const date = formatServiceDate(p.baseline?.date ?? null, fmtLocale);
-  const km =
-    p.baseline?.odometerKm != null ? formatServiceKm(p.baseline.odometerKm, fmtLocale) : null;
-
-  if (classification.evidenceClass === 'verified_service') {
-    if (date && km) {
-      return {
-        label: t('health.serviceInfo.v3.ux32.baseline.verifiedLabel'),
-        value: t('health.serviceInfo.v3.ux32.baseline.verifiedValue', { date, km }),
-      };
-    }
-    if (date) {
-      return {
-        label: t('health.serviceInfo.v3.ux32.baseline.verifiedLabel'),
-        value: t('health.serviceInfo.v3.ux32.baseline.verifiedDateOnly', { date }),
-      };
-    }
-    if (km) {
-      return {
-        label: t('health.serviceInfo.v3.ux32.baseline.verifiedLabel'),
-        value: t('health.serviceInfo.v3.ux32.baseline.verifiedKmOnly', { km }),
-      };
-    }
-    return {
-      label: t('health.serviceInfo.v3.ux32.baseline.verifiedLabel'),
-      value: t('health.serviceInfo.v3.ux32.baseline.odometerUndocumented'),
-    };
-  }
-
-  if (classification.evidenceClass === 'calculation_basis') {
-    if (date && km) {
-      return {
-        label: t('health.serviceInfo.v3.ux32.baseline.calculationBasisLabel'),
-        value: t('health.serviceInfo.v3.ux32.baseline.calculationBasisBoth', { date, km }),
-      };
-    }
-    if (date) {
-      return {
-        label: t('health.serviceInfo.v3.ux32.baseline.calculationBasisLabel'),
-        value: t('health.serviceInfo.v3.ux32.baseline.calculationBasisDate', { date }),
-      };
-    }
-    if (km) {
-      return {
-        label: t('health.serviceInfo.v3.ux32.baseline.calculationBasisLabel'),
-        value: t('health.serviceInfo.v3.ux32.baseline.calculationBasisKm', { km }),
-      };
-    }
-    return {
-      label: t('health.serviceInfo.v3.ux32.baseline.calculationBasisLabel'),
-      value: t('health.serviceInfo.v3.ux32.baseline.notProven'),
-    };
-  }
-
-  return {
-    label: t('health.serviceInfo.v3.ux32.baseline.verifiedLabel'),
-    value: t('health.serviceInfo.v3.ux32.baseline.noPositionProof'),
-  };
-}
-
 function conciseEvidenceSource(p: MaintenancePositionForecast, t: Translator): string {
   const baselineSource = p.baseline?.eventSource ?? p.provenance.eventSource;
   return t(concisePlanSourceKey(baselineSource));
@@ -361,8 +281,8 @@ function PositionRow({
 }) {
   const interval = describeInterval(p, t, fmtLocale);
   const label = positionLabel(p, t);
-  const baseline = formatPositionBaselineBlock(p, t, fmtLocale);
-  const dueAtLine = formatDueAtLine(p, t, fmtLocale);
+  const baseline = formatPositionBaselineDisplay(p, t, fmtLocale);
+  const dueAtLines = formatPositionDueLines(p, t, fmtLocale);
   const sourceLine = conciseEvidenceSource(p, t);
 
   return (
@@ -385,16 +305,22 @@ function PositionRow({
       </div>
       <p className="text-[11px] font-medium text-foreground/90">{describeRemaining(p, t, fmtLocale)}</p>
       <div className="space-y-0.5 text-[11px] text-muted-foreground">
-        <p>
-          <span className="font-medium text-foreground/80">{baseline.label}</span>
-          {baseline.value ? ` ${baseline.value}` : null}
-        </p>
+        {baseline.kind === 'labeled' ? (
+          <p>
+            <span className="font-medium text-foreground/80">{baseline.label}</span>
+            {` ${baseline.value}`}
+          </p>
+        ) : (
+          <p className="font-medium text-foreground/80">{baseline.text}</p>
+        )}
         {interval && (
           <p>
             {t('health.serviceInfo.v3.ux32.plan.intervalLabel')} {interval}
           </p>
         )}
-        {dueAtLine && <p>{dueAtLine}</p>}
+        {dueAtLines.map((line) => (
+          <p key={line}>{line}</p>
+        ))}
         <p>
           {t('health.serviceInfo.v3.ux32.plan.sourceLabel')} {sourceLine}
         </p>
