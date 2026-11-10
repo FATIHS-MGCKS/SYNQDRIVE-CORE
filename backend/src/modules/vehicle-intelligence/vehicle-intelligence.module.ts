@@ -311,6 +311,8 @@ import { VsiMasterIntelligenceReadController } from './vehicle-signal-intelligen
 import { VsiMasterIntelligenceReadService } from './vehicle-signal-intelligence/vsi-master-intelligence-read.service';
 import { ApdsMasterIntelligenceReadController } from './vehicle-signal-intelligence/apds-master-intelligence-read.controller';
 import { ApdsMasterIntelligenceReadService } from './vehicle-signal-intelligence/apds-master-intelligence-read.service';
+import { VsiMasterFsdReadController } from './vehicle-signal-intelligence/vsi-master-fsd-read.controller';
+import { VsiMasterFsdReadService } from './vehicle-signal-intelligence/vsi-master-fsd-read.service';
 import { VsiCapabilityResolverService } from './vehicle-signal-intelligence/vsi-capability-resolver.service';
 import { VsiCapabilityResolverRepository } from './vehicle-signal-intelligence/vsi-capability-resolver.repository';
 import { VsiApdsP5ReadonlyService } from './vehicle-signal-intelligence/vsi-apds-p5.service';
@@ -377,12 +379,13 @@ import { FsdDiscoveryIntegrationModule } from './fsd-integration/fsd-integration
       { name: QUEUE_NAMES.REFERENCE_CAPTURE_EXP021_MATURATION_SHADOW },
     ),
   ],
-  controllers: [VehicleIntelligenceController, DamagesOrgController, DrivingDecisionsController, VehicleBatteryReferenceCapacityController, VehicleMotionPhysicsReferenceController, HvCapacityShadowEvaluationController, HvMeasurementQualityController, BatteryShadowValidationController, ReferenceCaptureController, VsiSignalProfileInspectionController, VsiCapabilityResolverController, VsiMasterIntelligenceReadController, ApdsMasterIntelligenceReadController],
+  controllers: [VehicleIntelligenceController, DamagesOrgController, DrivingDecisionsController, VehicleBatteryReferenceCapacityController, VehicleMotionPhysicsReferenceController, HvCapacityShadowEvaluationController, HvMeasurementQualityController, BatteryShadowValidationController, ReferenceCaptureController, VsiSignalProfileInspectionController, VsiCapabilityResolverController, VsiMasterIntelligenceReadController, VsiMasterFsdReadController, ApdsMasterIntelligenceReadController],
   providers: [
     VsiCapabilityResolverRepository,
     VsiApdsP5ReadonlyService,
     VsiCapabilityResolverService,
     VsiMasterIntelligenceReadService,
+    VsiMasterFsdReadService,
     ApdsMasterIntelligenceReadService,
     VehicleIntelligencePermissionGuard,
     BatteryService,
