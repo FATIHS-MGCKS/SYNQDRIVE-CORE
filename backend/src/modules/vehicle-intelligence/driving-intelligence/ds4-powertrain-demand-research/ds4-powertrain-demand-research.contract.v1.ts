@@ -13,10 +13,10 @@ export const DS4_COLD_ENGINE_BUCKET_GRID_RESEARCH_POLICY_VERSION =
   'cold-engine-bucket-grid-research-v1' as const;
 
 export const DS4_SUSTAINED_LOAD_GAP_AWARE_RESEARCH_POLICY_VERSION =
-  'sustained-load-gap-aware-research-v1' as const;
+  'sustained-load-gap-aware-research-v1.1' as const;
 
 export const DS4_REVIVING_IDLE_DUAL_FACET_RESEARCH_POLICY_VERSION =
-  'revving-idle-dual-facet-research-v1' as const;
+  'revving-idle-dual-facet-research-v1.1' as const;
 
 export const DS4_MULTICHANNEL_MANIFEST_VERSION = 'ds4-multichannel-manifest-v1' as const;
 

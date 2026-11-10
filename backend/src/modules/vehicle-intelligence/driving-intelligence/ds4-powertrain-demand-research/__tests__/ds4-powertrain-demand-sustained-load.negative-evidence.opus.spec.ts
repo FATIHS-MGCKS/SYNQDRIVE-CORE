@@ -60,8 +60,8 @@ describe('P2-B3 load coverage gate (Opus P1-03)', () => {
       loadPct: 18,
     }));
     const baseMs = Date.parse('2026-01-01T10:00:12.000Z');
-    const run = Array.from({ length: 5 }, (_, seq) => ({
-      recordedAtIso: new Date(baseMs + seq * 5000).toISOString(),
+    const run = Array.from({ length: 21 }, (_, seq) => ({
+      recordedAtIso: new Date(baseMs + seq * 1000).toISOString(),
       rpm: seq === 0 ? 2000 : 1900,
       throttlePct: 35,
       speedKmh: 60,
