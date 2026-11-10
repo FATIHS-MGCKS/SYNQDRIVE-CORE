@@ -526,8 +526,6 @@ export function ServiceMaintenanceForecastPanel({
   const conflicts = (display.conflicts?.length ?? 0) > 0 ? (display.conflicts ?? []) : (forecast?.conflicts ?? []);
   const hasProviderSchedule = (forecast?.scheduleSources ?? []).some((s) => s === 'ONEAUTO_SCHEDULE' || s === 'HM_OEM');
 
-  const lastMaint = forecast?.lastRelevantMaintenance ?? null;
-  const lastMaintDate = formatServiceDate(lastMaint?.date ?? null, formattingLocale);
   const odometer = forecast?.odometer ?? null;
   const odometerObserved = formatServiceDateTime(odometer?.observedAt ?? null, formattingLocale);
 
@@ -646,27 +644,7 @@ export function ServiceMaintenanceForecastPanel({
 
       {showInfoCards && !loading && !error && (
         <>
-          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-            <InfoCard>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {t('health.serviceInfo.v2.lastMaintenance.label')}
-              </p>
-              <p className="mt-1 text-xs font-semibold text-foreground">
-                {lastMaint && lastMaintDate
-                  ? lastMaint.odometerKm != null
-                    ? t('health.serviceInfo.v2.lastMaintenance.value', {
-                        date: lastMaintDate,
-                        km: formatServiceKm(lastMaint.odometerKm, formattingLocale),
-                      })
-                    : t('health.serviceInfo.v2.lastMaintenance.valueNoKm', { date: lastMaintDate })
-                  : t('health.serviceInfo.v2.lastMaintenance.none')}
-              </p>
-              {lastMaint && (
-                <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  {t(`health.serviceInfo.v2.eventSource.${lastMaint.eventSource}` as TranslationKey)}
-                </p>
-              )}
-            </InfoCard>
+          <div className="grid min-w-0 grid-cols-1 gap-3">
             <InfoCard>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {t('health.serviceInfo.v2.freshness.odometerLabel')}

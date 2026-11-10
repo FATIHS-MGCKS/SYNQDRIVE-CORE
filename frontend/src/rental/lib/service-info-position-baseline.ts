@@ -1,17 +1,16 @@
-import type { MaintenanceBaselineRef, MaintenanceDataQualityFlag, MaintenanceEventSource } from '../../lib/api';
-
-/** Mirrors backend maintenance-forecast semantics (read-only). */
-const VERIFIED_EVENT_SOURCES: ReadonlySet<MaintenanceEventSource> = new Set([
-  'SERVICE_EVENT_ONEAUTO',
-  'SERVICE_EVENT_MANUAL',
-  'SERVICE_EVENT_OCR',
-  'SERVICE_EVENT_WORKSHOP',
-]);
+import type {
+  MaintenanceBaselineEvidenceClass,
+  MaintenanceBaselineRef,
+  MaintenanceDataQualityFlag,
+  MaintenanceEventSource,
+} from '../../lib/api';
 
 export type PositionBaselineEvidenceClass =
-  | 'verified_service'
+  | 'documented_service'
+  | 'user_declared'
   | 'calculation_basis'
-  | 'missing';
+  | 'missing'
+  | 'unsupported';
 
 export interface PositionBaselinePresentation {
   evidenceClass: PositionBaselineEvidenceClass;
@@ -19,14 +18,28 @@ export interface PositionBaselinePresentation {
   hasOdometer: boolean;
 }
 
-export function classifyPositionBaseline(
-  baseline: MaintenanceBaselineRef | null | undefined,
+function mapBackendEvidenceClass(
+  value: MaintenanceBaselineEvidenceClass,
+): PositionBaselineEvidenceClass {
+  switch (value) {
+    case 'DOCUMENTED':
+      return 'documented_service';
+    case 'USER_DECLARED':
+      return 'user_declared';
+    case 'CALCULATION_BASIS':
+      return 'calculation_basis';
+    case 'UNSUPPORTED':
+      return 'unsupported';
+    default:
+      return 'missing';
+  }
+}
+
+/** Legacy fallback when API payload predates `evidenceClass` (fail-closed). */
+function legacyClassify(
+  baseline: MaintenanceBaselineRef,
   dataQuality?: MaintenanceDataQualityFlag[] | null,
 ): PositionBaselinePresentation {
-  if (!baseline) {
-    return { evidenceClass: 'missing', hasDate: false, hasOdometer: false };
-  }
-
   const hasDate = Boolean(baseline.date);
   const hasOdometer = baseline.odometerKm != null;
   const flags = dataQuality ?? [];
@@ -40,11 +53,24 @@ export function classifyPositionBaseline(
   }
 
   if (
-    baseline.eventId &&
-    VERIFIED_EVENT_SOURCES.has(baseline.eventSource) &&
-    baseline.eventSource !== 'NONE'
+    baseline.eventSource === 'SERVICE_EVENT_IMPORT' ||
+    baseline.eventSource === 'SERVICE_EVENT_OEM' ||
+    baseline.eventSource === 'SERVICE_EVENT_UNSUPPORTED'
   ) {
-    return { evidenceClass: 'verified_service', hasDate, hasOdometer };
+    return { evidenceClass: 'unsupported', hasDate, hasOdometer };
+  }
+
+  if (baseline.eventSource === 'SERVICE_EVENT_MANUAL' && baseline.eventId) {
+    return { evidenceClass: 'user_declared', hasDate, hasOdometer };
+  }
+
+  if (
+    baseline.eventId &&
+    (baseline.eventSource === 'SERVICE_EVENT_ONEAUTO' ||
+      baseline.eventSource === 'SERVICE_EVENT_OCR' ||
+      baseline.eventSource === 'SERVICE_EVENT_WORKSHOP')
+  ) {
+    return { evidenceClass: 'documented_service', hasDate, hasOdometer };
   }
 
   if (hasDate || hasOdometer) {
@@ -52,6 +78,28 @@ export function classifyPositionBaseline(
   }
 
   return { evidenceClass: 'missing', hasDate: false, hasOdometer: false };
+}
+
+export function classifyPositionBaseline(
+  baseline: MaintenanceBaselineRef | null | undefined,
+  dataQuality?: MaintenanceDataQualityFlag[] | null,
+): PositionBaselinePresentation {
+  if (!baseline) {
+    return { evidenceClass: 'missing', hasDate: false, hasOdometer: false };
+  }
+
+  const hasDate = Boolean(baseline.date);
+  const hasOdometer = baseline.odometerKm != null;
+
+  if (baseline.evidenceClass) {
+    const evidenceClass = mapBackendEvidenceClass(baseline.evidenceClass);
+    if (evidenceClass === 'missing' && (hasDate || hasOdometer)) {
+      return { evidenceClass: 'calculation_basis', hasDate, hasOdometer };
+    }
+    return { evidenceClass, hasDate, hasOdometer };
+  }
+
+  return legacyClassify(baseline, dataQuality);
 }
 
 export function concisePlanSourceKey(

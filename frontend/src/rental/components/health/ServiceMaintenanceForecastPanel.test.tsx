@@ -240,6 +240,13 @@ describe('ServiceMaintenanceForecastPanel UX-1.1', () => {
     expect((details as HTMLDetailsElement).open).toBe(false);
   });
 
+  it('overview omits global last-maintenance summary card (trust fix)', () => {
+    const view = renderPanel(iphoneUx32OverdueFixture(), { surface: 'overview' });
+    cleanup = view.cleanup;
+    expect(view.container.textContent).not.toContain('Letzte relevante Wartung');
+    expect(view.container.textContent).toContain('Kilometerstand');
+  });
+
   it('overview lists three overdue positions with not-computable footer (UX-3.2)', () => {
     const serviceInfo = iphoneUx32OverdueFixture();
     const view = renderPanel(serviceInfo, { surface: 'overview' });
@@ -263,7 +270,7 @@ describe('ServiceMaintenanceForecastPanel UX-1.1', () => {
     const oil = view.container.querySelector('[data-testid="service-plan-position-p-oil"]');
     expect(oil).toBeTruthy();
     const oilText = oil?.textContent ?? '';
-    expect(oilText).toContain('Zuletzt nachgewiesen');
+    expect(oilText).toContain('Zuletzt dokumentiert');
     expect(oilText).toContain('170.430');
     expect(oilText).toContain('Intervall');
     expect(oilText).not.toMatch(/^\s*Details\s*$/m);
@@ -297,7 +304,7 @@ describe('ServiceMaintenanceForecastPanel UX-1.1', () => {
     cleanup = view.cleanup;
     const md = view.container.querySelector('[data-testid="service-plan-position-p-md-only"]');
     expect(md?.textContent).toContain('Berechnungsgrundlage');
-    expect(md?.textContent).not.toContain('Zuletzt nachgewiesen');
+    expect(md?.textContent).not.toContain('Zuletzt dokumentiert');
   });
 
   it('surfaces conflict list when forecast provides conflicts', () => {

@@ -5,6 +5,8 @@ import { formatPositionBaselineDisplay } from './service-info-position-baseline-
 const t = (key: string, vars?: Record<string, string | number>) => {
   const map: Record<string, string> = {
     'health.serviceInfo.v3.ux32.baseline.verifiedLabel': 'Zuletzt nachgewiesen:',
+    'health.serviceInfo.v3.ux32.baseline.documentedLabel': 'Zuletzt dokumentiert:',
+    'health.serviceInfo.v3.ux32.baseline.userDeclaredLabel': 'Manuell eingetragen:',
     'health.serviceInfo.v3.ux32.baseline.verifiedValue': '{date} · {km} km',
     'health.serviceInfo.v3.ux32.baseline.calculationBasisLabel': 'Berechnungsgrundlage:',
     'health.serviceInfo.v3.ux32.baseline.calculationBasisDate': '{date}',
@@ -49,7 +51,7 @@ function basePos(partial: Partial<MaintenancePositionForecast>): MaintenancePosi
 }
 
 describe('formatPositionBaselineDisplay', () => {
-  it('verified position-specific event', () => {
+  it('documented position-specific event', () => {
     const d = formatPositionBaselineDisplay(
       basePos({
         baseline: {
@@ -58,6 +60,7 @@ describe('formatPositionBaselineDisplay', () => {
           eventId: 'e1',
           eventType: 'OIL_CHANGE',
           eventSource: 'SERVICE_EVENT_ONEAUTO',
+          evidenceClass: 'DOCUMENTED',
         },
       }),
       t as never,
@@ -65,8 +68,28 @@ describe('formatPositionBaselineDisplay', () => {
     );
     expect(d.kind).toBe('labeled');
     if (d.kind === 'labeled') {
-      expect(d.label).toBe('Zuletzt nachgewiesen:');
+      expect(d.label).toBe('Zuletzt dokumentiert:');
       expect(d.value).toContain('170.430');
+    }
+  });
+
+  it('user-declared manual event', () => {
+    const d = formatPositionBaselineDisplay(
+      basePos({
+        baseline: {
+          date: '2025-03-20',
+          odometerKm: 170430,
+          eventId: 'e1',
+          eventType: 'OIL_CHANGE',
+          eventSource: 'SERVICE_EVENT_MANUAL',
+          evidenceClass: 'USER_DECLARED',
+        },
+      }),
+      t as never,
+      'de-DE',
+    );
+    if (d.kind === 'labeled') {
+      expect(d.label).toBe('Manuell eingetragen:');
     }
   });
 
