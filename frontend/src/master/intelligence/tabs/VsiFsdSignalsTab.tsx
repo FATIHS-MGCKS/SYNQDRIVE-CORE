@@ -203,7 +203,11 @@ export function VsiFsdSignalsTab({
       </MasterPageSection>
 
       <Sheet open={detail != null} onOpenChange={(open) => !open && setDetail(null)}>
-        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-md overflow-y-auto"
+          data-testid="vsi-fsd-signal-detail-sheet"
+        >
           <SheetHeader>
             <SheetTitle className="font-mono text-sm">{detail?.providerNativeSignalName}</SheetTitle>
           </SheetHeader>

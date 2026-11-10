@@ -1,4 +1,6 @@
-import type { Page, Route } from '@playwright/test';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import type { Page, Route, TestInfo } from '@playwright/test';
 
 export const VSI_E2E_ORG = '00000000-0000-4000-8000-0000000000e2';
 export const VSI_E2E_VEHICLE = '00000000-0000-4000-8000-0000000000f2';
@@ -104,6 +106,24 @@ export async function installVsiMasterIntelligenceMocks(page: Page) {
           },
         ],
       });
+    }
+
+    if (url.includes('/capability-resolver')) {
+      return json(route, {
+        consumerModule: 'apds',
+        featureId: 'shadow_demand_profile_read',
+        decision: 'ALLOW',
+        limitations: [],
+      });
+    }
+
+    if (
+      url.includes('/master-intelligence/vsi/') &&
+      url.includes('/links/') &&
+      url.includes('/signals') &&
+      !url.includes('/fsd/')
+    ) {
+      return json(route, { items: [] });
     }
 
     if (
@@ -318,6 +338,45 @@ export async function installVsiMasterIntelligenceMocks(page: Page) {
   });
 }
 
+export function viewportLabel(projectName: string): string {
+  if (projectName === 'mobile-390') return 'mobile-390';
+  if (projectName === 'tablet-768') return 'tablet-768';
+  return 'desktop-1440';
+}
+
+export async function waitForVsiDataSettled(page: Page) {
+  const loading = page.getByText(/VSI-Lesemodelle werden geladen/i);
+  const fsdLoading = page.getByText(/FSD-Read-Modell wird geladen/i);
+  if (await loading.isVisible().catch(() => false)) {
+    try {
+      await loading.waitFor({ state: 'hidden', timeout: 45_000 });
+    } catch {
+      // Let per-test visibility assertions report the failure mode.
+    }
+  }
+  if (await fsdLoading.isVisible().catch(() => false)) {
+    try {
+      await fsdLoading.waitFor({ state: 'hidden', timeout: 20_000 });
+    } catch {
+      // optional FSD stripe; downstream assertions gate screenshots.
+    }
+  }
+}
+
+export async function assertNoPageOverflow(page: Page) {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 2);
+  if (overflow) throw new Error('Unexpected horizontal overflow on root layout');
+}
+
+export async function captureVsiScreenshot(page: Page, testInfo: TestInfo, artifactBaseName: string) {
+  const primary = testInfo.outputPath(`${artifactBaseName}.png`);
+  await page.screenshot({ path: primary, fullPage: true });
+  const bundle = path.join('/opt/cursor/artifacts', `${artifactBaseName}.png`);
+  await fs.mkdir(path.dirname(bundle), { recursive: true });
+  await fs.copyFile(primary, bundle);
+  await testInfo.attach(artifactBaseName, { path: bundle, contentType: 'image/png' });
+}
+
 export async function seedVsiMasterIntelligenceAuth(page: Page) {
   await page.addInitScript(
     ({ token, user, locale }) => {
@@ -343,6 +402,7 @@ export async function openVsiMasterIntelligence(
     providerSourceLinkId: VSI_E2E_LINK,
   });
   if (params.tab) qs.set('tab', params.tab);
+
   const pendingSignals =
     params.tab === 'signals'
       ? page.waitForResponse(
@@ -350,6 +410,7 @@ export async function openVsiMasterIntelligence(
           { timeout: 60_000 },
         )
       : null;
+
   await page.goto(`/master?${qs.toString()}`, { waitUntil: 'domcontentloaded' });
   await page.getByTestId('vsi-intelligence-tabbar').waitFor({ state: 'visible', timeout: 90_000 });
   if (pendingSignals) {

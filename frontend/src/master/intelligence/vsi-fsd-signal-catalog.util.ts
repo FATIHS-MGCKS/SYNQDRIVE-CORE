@@ -15,6 +15,8 @@ export type FsdCatalogSearchOutcome = {
   totalRowsLoaded: number;
   query: string;
   basePage: MasterFsdSignalExplorerPageDtoV1 | null;
+  /** Set when a later page disagrees with scope or catalog identity (stale/mixed catalog). */
+  catalogIdentityViolation?: boolean;
 };
 
 export function scopeKeyFrom(scope: VsiFsdReadScope): string {
@@ -52,6 +54,29 @@ export type FetchSignalPageFn = (
   scope: VsiFsdReadScope,
   cursor: string | null,
 ) => Promise<MasterFsdSignalExplorerPageDtoV1>;
+
+function pageMatchesScope(
+  scope: VsiFsdReadScope,
+  page: MasterFsdSignalExplorerPageDtoV1,
+): boolean {
+  return (
+    page.organizationId === scope.orgId &&
+    page.vehicleId === scope.vehicleId &&
+    page.providerSourceLinkId === scope.providerSourceLinkId
+  );
+}
+
+function pageMatchesCatalogAnchor(
+  anchor: MasterFsdSignalExplorerPageDtoV1,
+  page: MasterFsdSignalExplorerPageDtoV1,
+): boolean {
+  return (
+    anchor.catalogRunId === page.catalogRunId &&
+    anchor.organizationId === page.organizationId &&
+    anchor.vehicleId === page.vehicleId &&
+    anchor.providerSourceLinkId === page.providerSourceLinkId
+  );
+}
 
 export async function searchFsdSignalCatalog(
   scope: VsiFsdReadScope,
@@ -94,37 +119,44 @@ export async function searchFsdSignalCatalog(
       };
     }
     const page = await fetchPage(scope, cursor);
-    if (!base) base = page;
+    if (!pageMatchesScope(scope, page)) {
+      return {
+        items: filterSignalsByQuery(all, query),
+        catalogExhaustive: false,
+        pagesScanned,
+        totalRowsLoaded: all.length,
+        query,
+        basePage: base,
+        catalogIdentityViolation: true,
+      };
+    }
+    if (!base) {
+      base = page;
+    } else if (!pageMatchesCatalogAnchor(base, page)) {
+      return {
+        items: filterSignalsByQuery(all, query),
+        catalogExhaustive: false,
+        pagesScanned,
+        totalRowsLoaded: all.length,
+        query,
+        basePage: base,
+        catalogIdentityViolation: true,
+      };
+    }
     all = mergeSignalCatalogItems(all, page.items);
     pagesScanned += 1;
     lastHasMore = page.page.hasMore;
     cursor = page.page.nextCursor;
-    const matches = filterSignalsByQuery(all, query);
-    if (matches.length > 0) {
-      return {
-        items: matches,
-        catalogExhaustive: !lastHasMore && pagesScanned < maxPages,
-        pagesScanned,
-        totalRowsLoaded: all.length,
-        query,
-        basePage: base,
-      };
-    }
     if (!page.page.hasMore || !page.page.nextCursor) {
-      return {
-        items: [],
-        catalogExhaustive: true,
-        pagesScanned,
-        totalRowsLoaded: all.length,
-        query,
-        basePage: base,
-      };
+      break;
     }
   }
 
+  const matches = filterSignalsByQuery(all, query);
+  const hitBoundWithMore = pagesScanned >= maxPages && lastHasMore;
   return {
-    items: filterSignalsByQuery(all, query),
-    catalogExhaustive: false,
+    items: matches,
+    catalogExhaustive: !hitBoundWithMore,
     pagesScanned,
     totalRowsLoaded: all.length,
     query,
