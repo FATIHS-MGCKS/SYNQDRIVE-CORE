@@ -1,3 +1,4 @@
+import { masterIntelligenceVsiV2Nl } from './master.intelligence.vsi-v2.nl';
 export const masterIntelligenceNl = {
   'master.nav.vsiIntelligence': 'VSI – signaalintelligentie',
   'master.nav.apdsIntelligence': 'APDS – adaptief pollen',
@@ -515,4 +516,6 @@ export const masterIntelligenceNl = {
   'master.intelligence.tireCalibration.inventory.attribution.notLinkedToCurrent':
     'Historical measurement is not attributed to the currently mounted tire.',
 
+
+  ...masterIntelligenceVsiV2Nl,
 } as const;

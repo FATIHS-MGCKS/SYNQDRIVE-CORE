@@ -1,4 +1,6 @@
 /** Canonical English keys for Master Intelligence Center (PR1). */
+import { masterIntelligenceVsiV2En } from './master.intelligence.vsi-v2.en';
+
 export const masterIntelligenceEn = {
   'master.nav.vsiIntelligence': 'VSI – Signal Intelligence',
   'master.nav.apdsIntelligence': 'APDS – Adaptive Polling',
@@ -540,6 +542,8 @@ export const masterIntelligenceEn = {
   'master.intelligence.tireCalibration.inventory.attribution.AMBIGUOUS': 'Ambiguous',
   'master.intelligence.tireCalibration.inventory.attribution.notLinkedToCurrent':
     'Historical measurement is not attributed to the currently mounted tire.',
+
+  ...masterIntelligenceVsiV2En,
 } as const;
 
 export type MasterIntelligenceTranslationKey = keyof typeof masterIntelligenceEn;

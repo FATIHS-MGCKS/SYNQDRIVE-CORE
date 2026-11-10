@@ -1,3 +1,5 @@
+import { masterIntelligenceVsiV2De } from './master.intelligence.vsi-v2.de';
+
 export const masterIntelligenceDe = {
   'master.nav.vsiIntelligence': 'VSI – Signal Intelligence',
   'master.nav.apdsIntelligence': 'APDS – Adaptives Polling',
@@ -538,4 +540,6 @@ export const masterIntelligenceDe = {
   'master.intelligence.tireCalibration.inventory.attribution.AMBIGUOUS': 'Mehrdeutig',
   'master.intelligence.tireCalibration.inventory.attribution.notLinkedToCurrent':
     'Die historische Messung ist dem aktuell montierten Reifen nicht zugeordnet.',
+
+  ...masterIntelligenceVsiV2De,
 } as const;

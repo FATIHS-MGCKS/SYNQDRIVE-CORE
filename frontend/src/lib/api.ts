@@ -3744,6 +3744,50 @@ export const api = {
           `/admin/master-intelligence/vsi/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/links/${encodeURIComponent(providerSourceLinkId)}/capability-resolver?${q.toString()}`,
         );
       },
+      fsd: {
+        summary: (organizationId: string, vehicleId: string, providerSourceLinkId: string) =>
+          get<import('../master/intelligence/vsi-master-fsd-read-api.types').MasterFsdSummaryDtoV1>(
+            `/admin/master-intelligence/vsi/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/links/${encodeURIComponent(providerSourceLinkId)}/fsd/summary`,
+          ),
+        signals: (
+          organizationId: string,
+          vehicleId: string,
+          providerSourceLinkId: string,
+          params?: { limit?: number; cursor?: string | null; q?: string | null },
+        ) => {
+          const q = new URLSearchParams();
+          if (params?.limit != null) q.set('limit', String(params.limit));
+          if (params?.cursor) q.set('cursor', params.cursor);
+          if (params?.q) q.set('q', params.q);
+          const suffix = q.toString() ? `?${q.toString()}` : '';
+          return get<import('../master/intelligence/vsi-master-fsd-read-api.types').MasterFsdSignalExplorerPageDtoV1>(
+            `/admin/master-intelligence/vsi/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/links/${encodeURIComponent(providerSourceLinkId)}/fsd/signals${suffix}`,
+          );
+        },
+        runs: (
+          organizationId: string,
+          vehicleId: string,
+          providerSourceLinkId: string,
+          params?: { limit?: number; cursor?: string | null },
+        ) => {
+          const q = new URLSearchParams();
+          if (params?.limit != null) q.set('limit', String(params.limit));
+          if (params?.cursor) q.set('cursor', params.cursor);
+          const suffix = q.toString() ? `?${q.toString()}` : '';
+          return get<import('../master/intelligence/vsi-master-fsd-read-api.types').MasterFsdRunHistoryPageDtoV1>(
+            `/admin/master-intelligence/vsi/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/links/${encodeURIComponent(providerSourceLinkId)}/fsd/runs${suffix}`,
+          );
+        },
+        runInspector: (
+          organizationId: string,
+          vehicleId: string,
+          providerSourceLinkId: string,
+          runId: string,
+        ) =>
+          get<import('../master/intelligence/vsi-master-fsd-read-api.types').MasterFsdRunInspectorDtoV1>(
+            `/admin/master-intelligence/vsi/organizations/${encodeURIComponent(organizationId)}/vehicles/${encodeURIComponent(vehicleId)}/links/${encodeURIComponent(providerSourceLinkId)}/fsd/runs/${encodeURIComponent(runId)}/inspector`,
+          ),
+      },
     },
     masterIntelligenceApds: {
       overview: (organizationId: string, vehicleId: string, providerSourceLinkId?: string | null) => {

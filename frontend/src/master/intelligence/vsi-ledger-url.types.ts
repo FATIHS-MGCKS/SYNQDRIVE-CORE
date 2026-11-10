@@ -1,4 +1,24 @@
-export type VsiIntelligenceTab = 'overview' | 'ledger' | 'revisions';
+export type VsiIntelligenceTab =
+  | 'overview'
+  | 'signals'
+  | 'profiles'
+  | 'queries'
+  | 'evidence'
+  | 'runs'
+  | 'ledger'
+  | 'revisions';
+
+/** Six integrated VSI 2.0 tabs (German labels via i18n). */
+export const VSI_V2_PRIMARY_TAB_VALUES = [
+  'overview',
+  'signals',
+  'profiles',
+  'queries',
+  'evidence',
+  'runs',
+] as const satisfies readonly VsiIntelligenceTab[];
+
+export type VsiV2PrimaryTab = (typeof VSI_V2_PRIMARY_TAB_VALUES)[number];
 
 export type VsiLedgerFilterState = {
   q: string | null;
@@ -22,7 +42,11 @@ export const EMPTY_VSI_LEDGER_FILTERS: VsiLedgerFilterState = {
   hideNA: false,
 };
 
-export const VSI_TAB_VALUES: readonly VsiIntelligenceTab[] = ['overview', 'ledger', 'revisions'];
+export const VSI_TAB_VALUES: readonly VsiIntelligenceTab[] = [
+  ...VSI_V2_PRIMARY_TAB_VALUES,
+  'ledger',
+  'revisions',
+];
 
 export const VSI_LEDGER_APPLICABILITY_VALUES = ['APPLICABLE', 'NOT_APPLICABLE', 'UNKNOWN'] as const;
 export const VSI_LEDGER_OBSERVATION_VALUES = [
