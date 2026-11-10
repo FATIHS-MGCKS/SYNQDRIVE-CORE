@@ -3,7 +3,7 @@
 Significant defects discovered during the 2026-08-30 → 2026-09-06 workstream.  
 **Rejected hypotheses are NOT defects** — see `HYPOTHESIS_REGISTER.md`.
 
-**Summary:** TOTAL=**47** | FIXED=**42** (DI-DEF-003–017, 019 production-validated; DI-DEF-021–044 W1/W2/Opus; DI-DEF-046 W3A; DI-DEF-047 W3B) | OPEN=**5** (DI-DEF-001, 002, 018, 020, 045; DI-DEF-045 is W3-tier descriptive-debt only)
+**Summary:** TOTAL=**48** | FIXED=**42** (DI-DEF-003–017, 019 production-validated; DI-DEF-021–044 W1/W2/Opus; DI-DEF-046 W3A; DI-DEF-047 W3B) | OPEN=**5** (DI-DEF-001, 002, 018, 020, 045) | PREVENTIVE=**1** (DI-DEF-048 W3-048 — documented guards, not runtime fix)
 
 | ID | Phase | Symptom | Cause | Risk | Fix | Tests | Status |
 |----|-------|---------|-------|------|-----|-------|--------|
@@ -54,3 +54,4 @@ Significant defects discovered during the 2026-08-30 → 2026-09-06 workstream.
 | DI-DEF-045 | Opus final P3 / W3 descriptive debt (non-W2 blocker) | B1 `candidateSupportTier` not runtime enum-checked | Equality-only validation | Low-severity forgery surface | — | N-12 record-only | OPEN |
 | DI-DEF-046 | W3 preflight / W3A | B3/B4 merged runs across v1b sequence break; exact detector-max gaps ignored v1b break | Danger-window / detector maxAdjacent overriding continuity | False positives / negative opportunity inflation | Strict `multichannel-sequence-boundary.v1` + policy v1.1 | `w3-sequence-boundary.w3-046.opus.spec.ts`, `w3-exact-boundary.w3-046-closeout.opus.spec.ts` | FIXED |
 | DI-DEF-047 | W3B / P2-C3 | Forged P2-C2-shaped bundles with bad bucket labels reached inventory / pairwise / digest | No P2-C2 temporal replay on P2-C3 isolated snapshot | Invalid research reconciliation on bypassed adapters | `validateParticipantBundleTemporalIntegrity` + shared `collectTemporalViolations` | `w3-047-temporal-ingress.opus.spec.ts` | FIXED |
+| DI-DEF-048 | W3-048 preflight | Equal A1/B index or ISO values could be misread as cross-domain event identity | Consumer confusion between RPM lattice vs multichannel bucket grid | False event joins / alignment if consumers ignore `labelsNotForCrossDomainJoin` | Glossary + `w3-048-index-namespace.opus.spec.ts` (no engine change) | W3-048 guards | PREVENTIVE |
