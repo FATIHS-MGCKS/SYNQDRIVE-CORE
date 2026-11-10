@@ -39,7 +39,10 @@ export type Ds4RpmDynamicsResearchMonotonicRunV1 = {
   kind: Ds4RpmDynamicsResearchMonotonicRunKindV1;
   startGlobalIdx: number;
   endGlobalIdx: number;
+  /** Inclusive RPM label count spanned by this step-sign run (boundary labels may be shared with adjacent runs). */
   pointCount: number;
+  /** Adjacent label steps in this run — always `pointCount - 1` when emitted. */
+  stepCount: number;
   netDeltaRpm: number;
 };
 

@@ -1,6 +1,8 @@
+import { R1_OBD_RECORD_TIME_UNCERTAIN } from '../../r1-temporal-containment';
 import {
   hasUncertainHistoricalObdRecordTime,
   resolveTelemetrySourceFamily,
+  type TelemetrySourceFamily,
 } from '../../telemetry-source-family';
 import { DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS } from '../ds4-rpm-real-data-replay/ds4-rpm-real-data-scientific-claims.v1';
 import { validateDs4RpmEpisodeResearchInputBinding } from '../ds4-rpm-episode-research/ds4-rpm-episode-research.input-binding.v1';
@@ -100,12 +102,14 @@ function buildMonotonicRuns(sequences: Ds4RpmResearchCanonPointV1[][]): Ds4RpmDy
   const pushRun = (end: number, step: Ds4RpmDynamicsResearchObservedDeltaDirectionV1) => {
       const startP = seq[start]!;
       const endP = seq[end]!;
+      const pointCount = end - start + 1;
       runs.push({
         sequenceIndex,
         kind: runKindFromStep(step),
         startGlobalIdx: startP.globalIdx,
         endGlobalIdx: endP.globalIdx,
-        pointCount: end - start + 1,
+        pointCount,
+        stepCount: pointCount - 1,
         netDeltaRpm: endP.valueRpm - startP.valueRpm,
       });
     };
@@ -159,6 +163,16 @@ type Ds4RpmDynamicsResearchAbstainReasonV1 =
   | Ds4RpmEpisodeResearchBindingAbstainReason
   | 'CONFLICTING_RPM_LABELS_AT_SHARED_TIMESTAMP';
 
+function buildUnsupportedScientificClaims(
+  telemetrySourceFamily: TelemetrySourceFamily | null,
+): string[] {
+  const claims: string[] = [...DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS];
+  if (telemetrySourceFamily != null && hasUncertainHistoricalObdRecordTime(telemetrySourceFamily)) {
+    claims.push(R1_OBD_RECORD_TIME_UNCERTAIN);
+  }
+  return claims;
+}
+
 function buildAbstainedResult(
   input: Ds4RpmDynamicsResearchInputV1,
   abstainReasons: readonly Ds4RpmDynamicsResearchAbstainReasonV1[],
@@ -204,7 +218,7 @@ function buildAbstainedResult(
       observedDirectionReversalCount: 0,
     },
     semanticGuards: SEMANTIC_GUARDS,
-    unsupportedScientificClaims: [...DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS],
+    unsupportedScientificClaims: buildUnsupportedScientificClaims(family),
     r1HistoricalObdRecordTimeUncertain: family != null && hasUncertainHistoricalObdRecordTime(family),
   };
 }
@@ -284,9 +298,7 @@ export function computeDs4RpmDynamicsResearchV1(
       observedDirectionReversalCount: reversalCount,
     },
     semanticGuards: SEMANTIC_GUARDS,
-    unsupportedScientificClaims: [...DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS],
-    r1HistoricalObdRecordTimeUncertain:
-      binding.telemetrySourceFamily != null &&
-      hasUncertainHistoricalObdRecordTime(binding.telemetrySourceFamily),
+    unsupportedScientificClaims: buildUnsupportedScientificClaims(telemetrySourceFamily),
+    r1HistoricalObdRecordTimeUncertain: hasUncertainHistoricalObdRecordTime(telemetrySourceFamily),
   };
 }

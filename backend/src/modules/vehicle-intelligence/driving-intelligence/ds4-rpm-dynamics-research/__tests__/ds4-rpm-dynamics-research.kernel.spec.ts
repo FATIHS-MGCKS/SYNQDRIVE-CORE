@@ -1,10 +1,12 @@
 import { computeDs4RpmEpisodeResearchV1 } from '../../ds4-rpm-episode-research/ds4-rpm-episode-research.kernel.v1';
 import { canonicalizeDs4RpmResearchPoints } from '../../ds4-rpm-research-shared/ds4-rpm-research-point-canon.v1';
 import { computeDs4RpmDynamicsResearchV1 } from '../ds4-rpm-dynamics-research.kernel.v1';
+import { R1_OBD_RECORD_TIME_UNCERTAIN } from '../../../r1-temporal-containment';
 import {
   buildBoundDynamicsInput,
   buildBoundResearchInput,
   buildRpmPointsEverySeconds,
+  R1_DIMO,
 } from './ds4-rpm-dynamics-research.test-helpers';
 
 describe('ds4-rpm-dynamics-research kernel v1', () => {
@@ -191,6 +193,51 @@ describe('ds4-rpm-dynamics-research kernel v1', () => {
     const a = computeDs4RpmDynamicsResearchV1(buildBoundDynamicsInput({ rpmPoints }));
     const b = computeDs4RpmDynamicsResearchV1(buildBoundDynamicsInput({ rpmPoints: shuffled }));
     expect(JSON.stringify(a.observedDynamics)).toBe(JSON.stringify(b.observedDynamics));
+  });
+
+  describe('C1 R1 claim parity', () => {
+    const rpmPoints = buildRpmPointsEverySeconds('2026-01-01T10:00:01.000Z', 6, 1).map((p, i) => ({
+      ...p,
+      valueRpm: 800 + i * 50,
+    }));
+
+    it('includes R1 containment claim on COMPUTED RUPTELA_R1 output', () => {
+      const out = computeDs4RpmDynamicsResearchV1(
+        buildBoundDynamicsInput({ rpmPoints, dimoVehicleRawJson: R1_DIMO }),
+      );
+      expect(out.status).toBe('COMPUTED');
+      expect(out.observedDynamics.status).toBe('SUPPORTED_DESCRIPTIVE');
+      expect(out.bindings.telemetrySourceFamily).toBe('RUPTELA_R1');
+      expect(out.r1HistoricalObdRecordTimeUncertain).toBe(true);
+      expect(out.unsupportedScientificClaims).toContain(R1_OBD_RECORD_TIME_UNCERTAIN);
+    });
+
+    it('includes R1 containment claim on ABSTAINED output when family is known', () => {
+      const input = buildBoundDynamicsInput({ rpmPoints, dimoVehicleRawJson: R1_DIMO });
+      input.v1bResult!.inputFingerprint = 'deadbeef';
+      const out = computeDs4RpmDynamicsResearchV1(input);
+      expect(out.status).toBe('ABSTAINED');
+      expect(out.bindings.telemetrySourceFamily).toBe('RUPTELA_R1');
+      expect(out.r1HistoricalObdRecordTimeUncertain).toBe(true);
+      expect(out.unsupportedScientificClaims).toContain(R1_OBD_RECORD_TIME_UNCERTAIN);
+    });
+  });
+
+  describe('C2 run boundary semantics', () => {
+    it('emits stepCount = pointCount - 1 and step totals equal adjacent pair count', () => {
+      const rpmPoints = [
+        { recordedAtIso: '2026-01-01T10:00:01.000Z', valueRpm: 800 },
+        { recordedAtIso: '2026-01-01T10:00:02.000Z', valueRpm: 950 },
+        { recordedAtIso: '2026-01-01T10:00:03.000Z', valueRpm: 900 },
+        { recordedAtIso: '2026-01-01T10:00:04.000Z', valueRpm: 850 },
+      ];
+      const out = computeDs4RpmDynamicsResearchV1(buildBoundDynamicsInput({ rpmPoints }));
+      for (const run of out.observedDynamics.monotonicRuns) {
+        expect(run.stepCount).toBe(run.pointCount - 1);
+      }
+      const stepSum = out.observedDynamics.monotonicRuns.reduce((n, r) => n + r.stepCount, 0);
+      expect(stepSum).toBe(out.denominators.adjacentObservedPairCount);
+    });
   });
 
   describe('P1 insufficient pair / negative evidence', () => {

@@ -80,4 +80,10 @@ export function buildBoundDynamicsInput(input: BuildBoundDynamicsOptions): Ds4Rp
   };
 }
 
-export { buildBoundResearchInput, buildRpmPointsEverySeconds, rpmAtU } from '../../ds4-rpm-episode-research/__tests__/ds4-rpm-episode-research.test-helpers';
+export {
+  API_SYNTHETIC_DIMO,
+  buildBoundResearchInput,
+  buildRpmPointsEverySeconds,
+  R1_DIMO,
+  rpmAtU,
+} from '../../ds4-rpm-episode-research/__tests__/ds4-rpm-episode-research.test-helpers';
