@@ -235,6 +235,128 @@ export function arteonFixtureModalPresentation(): ServiceInfoStatus {
   } as unknown as ServiceInfoStatus;
 }
 
+/** iPhone production-like overdue clarity fixture (UX-3.2). */
+export function iphoneUx32OverdueFixture(): ServiceInfoStatus {
+  const notComputable: MaintenancePositionForecast[] = Array.from({ length: 11 }, (_, i) =>
+    position({
+      positionId: `p-nc-${i}`,
+      kind: 'OTHER',
+      label: `Nicht berechenbar ${i + 1}`,
+      dueState: 'NO_BASELINE',
+      baseline: null,
+      remainingKm: null,
+      remainingDays: null,
+      provenance: {
+        scheduleSource: 'ONEAUTO_SCHEDULE',
+        eventSource: 'NONE',
+        odometerSource: 'VEHICLE_LATEST_STATE',
+        calculationMethod: 'NOT_COMPUTABLE',
+      },
+    }),
+  );
+
+  const positions: MaintenancePositionForecast[] = [
+    position({
+      positionId: 'p-brake-fluid',
+      kind: 'OTHER',
+      label: 'Bremsflüssigkeit',
+      dueState: 'OVERDUE',
+      remainingDays: -963,
+      remainingKm: null,
+      intervalMonths: 24,
+      baseline: {
+        date: '2023-05-01',
+        odometerKm: 120000,
+        eventId: 'bf-1',
+        eventType: 'BRAKE_SERVICE',
+        eventSource: 'SERVICE_EVENT_ONEAUTO',
+      },
+    }),
+    position({
+      positionId: 'p-oil',
+      kind: 'OIL_CHANGE',
+      label: 'Ölwechsel',
+      dueState: 'OVERDUE',
+      remainingDays: -235,
+      remainingKm: -1546,
+      intervalKm: 16093,
+      intervalMonths: 12,
+      dueAtDate: '2026-03-20',
+      dueAtKm: 186523,
+      baseline: {
+        date: '2025-03-20',
+        odometerKm: 170430,
+        eventId: 'oil-1',
+        eventType: 'OIL_CHANGE',
+        eventSource: 'SERVICE_EVENT_ONEAUTO',
+      },
+    }),
+    position({
+      positionId: 'p-spark',
+      kind: 'OTHER',
+      label: 'Zündkerzen',
+      dueState: 'OVERDUE',
+      remainingDays: -158,
+      remainingKm: null,
+      baseline: {
+        date: '2024-09-10',
+        odometerKm: 155000,
+        eventId: 'sp-1',
+        eventType: 'OTHER',
+        eventSource: 'SERVICE_EVENT_MANUAL',
+      },
+    }),
+    position({
+      positionId: 'p-md-only',
+      kind: 'OTHER',
+      label: 'Luftfilter (Stammdaten)',
+      dueState: 'DUE_SOON',
+      remainingDays: 12,
+      baseline: {
+        date: '2022-03-22',
+        odometerKm: null,
+        eventId: null,
+        eventType: null,
+        eventSource: 'VEHICLE_MASTER_DATA',
+      },
+      dataQuality: ['BASELINE_FROM_MASTER_DATA'],
+    }),
+    position({
+      positionId: 'p-date-only',
+      kind: 'OTHER',
+      label: 'Klimaanlage (nur Datum)',
+      dueState: 'OK',
+      remainingDays: 90,
+      baseline: {
+        date: '2024-01-15',
+        odometerKm: null,
+        eventId: 'date-1',
+        eventType: 'OTHER',
+        eventSource: 'SERVICE_EVENT_WORKSHOP',
+      },
+      dataQuality: ['BASELINE_ODOMETER_MISSING'],
+    }),
+    ...notComputable,
+  ];
+
+  return {
+    hasServiceHistory: true,
+    maintenanceForecast: baseForecast({
+      scheduleSources: ['ONEAUTO_SCHEDULE'],
+      positions,
+      nextDue: positions[0],
+    }),
+    nextService: {
+      trackingStatus: 'TRACKED',
+      source: 'COMPUTED_ONEAUTO_SCHEDULE',
+      positionId: 'p-brake-fluid',
+      remainingDays: -963,
+      overdue: true,
+    },
+    serviceOverdue: true,
+  } as unknown as ServiceInfoStatus;
+}
+
 export function arteonFixtureWithHistory(): ServiceInfoStatus {
   const base = arteonFixtureServiceInfo();
   return {

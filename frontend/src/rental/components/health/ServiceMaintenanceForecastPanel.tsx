@@ -18,6 +18,9 @@ import {
   type NextServiceUiTone,
 } from '../../lib/service-info-display';
 import { ManualServiceEntryDialog, ServiceIntervalsDialog } from './ManualServiceEntryDialog';
+import { concisePlanSourceKey } from '../../lib/service-info-position-baseline';
+import { formatPositionBaselineDisplay } from '../../lib/service-info-position-baseline-display';
+import { formatPositionDueLines } from '../../lib/service-info-position-due-lines';
 
 export interface ServiceMaintenanceForecastPanelProps {
   serviceInfo: ServiceInfoStatus | null | undefined;
@@ -34,8 +37,12 @@ export interface ServiceMaintenanceForecastPanelProps {
   surface?: 'full' | 'overview' | 'plan';
   /** When false, suppresses the V3 page title (e.g. modal supplies a single header). */
   showPageTitle?: boolean;
+  /** From overview: jump to the Wartungsplan tab (e.g. full overdue list). */
+  onOpenPlanTab?: () => void;
   className?: string;
 }
+
+const OVERDUE_OVERVIEW_PREVIEW = 4;
 
 type Translator = (key: TranslationKey, vars?: Record<string, string | number>) => string;
 
@@ -179,55 +186,85 @@ function ConflictList({ conflicts, t, fmtLocale }: { conflicts: MaintenanceConfl
   );
 }
 
-function PositionDetails({
-  p,
+function positionLabel(p: MaintenancePositionForecast, t: Translator): string {
+  return p.kind === 'OTHER' ? p.label : formatPositionKind(p.kind, t);
+}
+
+function conciseEvidenceSource(p: MaintenancePositionForecast, t: Translator): string {
+  const baselineSource = p.baseline?.eventSource ?? p.provenance.eventSource;
+  return t(concisePlanSourceKey(baselineSource));
+}
+
+function OverdueOverviewSection({
+  overdue,
+  notComputableCount,
+  hmHeadlineActive,
+  onOpenPlan,
   t,
   fmtLocale,
-  detailsId,
 }: {
-  p: MaintenancePositionForecast;
+  overdue: MaintenancePositionForecast[];
+  notComputableCount: number;
+  hmHeadlineActive: boolean;
+  onOpenPlan?: () => void;
   t: Translator;
   fmtLocale: string;
-  detailsId: string;
 }) {
-  const scheduleLabel = t(`health.serviceInfo.v3.scheduleSource.${p.provenance.scheduleSource}` as TranslationKey);
-  const methodLabel = t(`health.serviceInfo.v3.calculationMethod.${p.provenance.calculationMethod}` as TranslationKey);
-  const eventSourceLabel = t(`health.serviceInfo.v2.eventSource.${p.provenance.eventSource}` as TranslationKey);
-  const odometerSourceLabel = t(`health.serviceInfo.v2.odometerSource.${p.provenance.odometerSource}` as TranslationKey);
-  const baselineDate = formatServiceDate(p.baseline?.date ?? null, fmtLocale);
-  const hasFlags = (p.dataQuality?.length ?? 0) > 0;
-  const hasRaw = Boolean(p.rawIntervalDescription);
-  const showBaselineMissing = !baselineDate && (p.dueState === 'NO_BASELINE' || p.baseline == null);
+  if (overdue.length === 0 && notComputableCount === 0) return null;
+
+  const preview = overdue.slice(0, OVERDUE_OVERVIEW_PREVIEW);
+  const hiddenCount = Math.max(0, overdue.length - preview.length);
 
   return (
-    <details id={detailsId} className="mt-1.5 text-[10px] text-muted-foreground">
-      <summary className="inline-flex min-h-9 cursor-pointer select-none items-center font-medium text-foreground/80 hover:text-foreground">
-        {t('health.serviceInfo.v3.details.toggle')}
-      </summary>
-      <div className="mt-1 space-y-1 pl-0.5">
-        <p className="break-words">{t('health.serviceInfo.v3.details.scheduleSource', { source: scheduleLabel })}</p>
-        <p className="break-words">{t('health.serviceInfo.v3.details.calculation', { method: methodLabel })}</p>
-        <p className="break-words">{t('health.serviceInfo.v3.details.eventSource', { source: eventSourceLabel })}</p>
-        <p className="break-words">{t('health.serviceInfo.v3.details.odometerSource', { source: odometerSourceLabel })}</p>
-        {baselineDate ? (
-          <p className="break-words">{t('health.serviceInfo.v2.position.baseline', { date: baselineDate })}</p>
-        ) : showBaselineMissing ? (
-          <p className="break-words">{t('health.serviceInfo.v3.details.baselineMissing')}</p>
-        ) : null}
-        {hasRaw && p.rawIntervalDescription && (
-          <p className="break-words">{t('health.serviceInfo.v3.details.rawInterval', { value: p.rawIntervalDescription })}</p>
-        )}
-        {hasFlags && (
-          <ul className="mt-0.5 space-y-0.5">
-            {p.dataQuality.map((flag) => (
-              <li key={flag} className="break-words">
-                {t(`health.serviceInfo.v2.flag.${flag}` as TranslationKey)}
+    <section
+      data-testid="service-info-overdue-overview"
+      className="surface-solid min-w-0 rounded-lg border border-border p-3"
+      aria-labelledby="service-overdue-overview-title"
+    >
+      {hmHeadlineActive && overdue.length > 0 && (
+        <p className="mb-2 text-[10px] font-medium text-muted-foreground">
+          {t('health.serviceInfo.v3.ux32.overview.computedSection')}
+        </p>
+      )}
+      {overdue.length > 0 && (
+        <>
+          <h4 id="service-overdue-overview-title" className="text-sm font-semibold text-foreground">
+            {t('health.serviceInfo.v3.ux32.overdue.count', { count: overdue.length })}
+          </h4>
+          <ul className="mt-2 space-y-2">
+            {preview.map((p) => (
+              <li
+                key={p.positionId}
+                data-testid={`service-overdue-item-${p.positionId}`}
+                className="border-b border-border/60 pb-2 last:border-0 last:pb-0"
+              >
+                <p className="text-xs font-semibold text-foreground">{positionLabel(p, t)}</p>
+                <p className="text-[11px] text-muted-foreground">{describeRemaining(p, t, fmtLocale)}</p>
               </li>
             ))}
           </ul>
-        )}
-      </div>
-    </details>
+          {hiddenCount > 0 && (
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              {t('health.serviceInfo.v3.ux32.overdue.moreHidden', { count: hiddenCount })}
+            </p>
+          )}
+          {onOpenPlan && overdue.length > 0 && (
+            <button
+              type="button"
+              onClick={onOpenPlan}
+              className="mt-2 inline-flex min-h-9 items-center text-xs font-semibold text-primary underline-offset-2 hover:underline"
+            >
+              {t('health.serviceInfo.v3.ux32.overdue.openPlan')}
+            </button>
+          )}
+        </>
+      )}
+      {notComputableCount > 0 && (
+        <p className={`text-[11px] text-muted-foreground ${overdue.length > 0 ? 'mt-3 border-t border-border pt-2' : ''}`}>
+          {t('health.serviceInfo.v3.ux32.notComputable.footer', { count: notComputableCount })}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -236,45 +273,58 @@ function PositionRow({
   t,
   fmtLocale,
   isHeadline,
-  detailsId,
 }: {
   p: MaintenancePositionForecast;
   t: Translator;
   fmtLocale: string;
   isHeadline: boolean;
-  detailsId: string;
 }) {
   const interval = describeInterval(p, t, fmtLocale);
-  const dueDate = formatServiceDate(p.dueAtDate, fmtLocale);
-  const label = p.kind === 'OTHER' ? p.label : formatPositionKind(p.kind, t);
+  const label = positionLabel(p, t);
+  const baseline = formatPositionBaselineDisplay(p, t, fmtLocale);
+  const dueAtLines = formatPositionDueLines(p, t, fmtLocale);
+  const sourceLine = conciseEvidenceSource(p, t);
+
   return (
-    <li className="flex flex-col gap-2 border-b border-border py-2.5 last:border-0 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <p className="break-words text-xs font-semibold text-foreground">{label}</p>
-          {isHeadline && (
-            <span className="rounded-md border border-primary/25 bg-primary/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
-              {t('health.serviceInfo.v3.headline.badge')}
-            </span>
-          )}
-        </div>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">{describeRemaining(p, t, fmtLocale)}</p>
-        <p className="mt-0.5 break-words text-[10px] text-muted-foreground/80">
-          {[
-            interval ? t('health.serviceInfo.v2.positions.interval', { value: interval }) : null,
-            dueDate ? t('health.serviceInfo.v2.position.dueDate', { date: dueDate }) : null,
-            p.dueAtKm != null ? t('health.serviceInfo.v2.position.dueKm', { km: formatServiceKm(p.dueAtKm, fmtLocale) }) : null,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </p>
-        <PositionDetails p={p} t={t} fmtLocale={fmtLocale} detailsId={detailsId} />
+    <li
+      data-testid={`service-plan-position-${p.positionId}`}
+      className="flex flex-col gap-2 border-b border-border py-3 last:border-0"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="min-w-0 flex-1 break-words text-xs font-semibold text-foreground">{label}</p>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${dueStateChipClass(p.dueState)}`}
+        >
+          {t(`health.serviceInfo.v2.dueState.${p.dueState}` as TranslationKey)}
+        </span>
+        {isHeadline && (
+          <span className="rounded-md border border-primary/25 bg-primary/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
+            {t('health.serviceInfo.v3.headline.badge')}
+          </span>
+        )}
       </div>
-      <span
-        className={`max-w-full self-start rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest sm:shrink-0 ${dueStateChipClass(p.dueState)}`}
-      >
-        {t(`health.serviceInfo.v2.dueState.${p.dueState}` as TranslationKey)}
-      </span>
+      <p className="text-[11px] font-medium text-foreground/90">{describeRemaining(p, t, fmtLocale)}</p>
+      <div className="space-y-0.5 text-[11px] text-muted-foreground">
+        {baseline.kind === 'labeled' ? (
+          <p>
+            <span className="font-medium text-foreground/80">{baseline.label}</span>
+            {` ${baseline.value}`}
+          </p>
+        ) : (
+          <p className="font-medium text-foreground/80">{baseline.text}</p>
+        )}
+        {interval && (
+          <p>
+            {t('health.serviceInfo.v3.ux32.plan.intervalLabel')} {interval}
+          </p>
+        )}
+        {dueAtLines.map((line) => (
+          <p key={line}>{line}</p>
+        ))}
+        <p>
+          {t('health.serviceInfo.v3.ux32.plan.sourceLabel')} {sourceLine}
+        </p>
+      </div>
     </li>
   );
 }
@@ -346,7 +396,6 @@ function PlanGroupSection({
           t={t}
           fmtLocale={fmtLocale}
           isHeadline={headlineId != null && p.positionId === headlineId}
-          detailsId={`${scopeId}-pos-${p.positionId}-details`}
         />
       ))}
       {showUnscheduled && unscheduled.map((u) => <UnscheduledRow key={u.positionId} label={u.label} t={t} />)}
@@ -445,6 +494,7 @@ export function ServiceMaintenanceForecastPanel({
   compact = false,
   surface = 'full',
   showPageTitle = true,
+  onOpenPlanTab,
   className = '',
 }: ServiceMaintenanceForecastPanelProps) {
   const { t, formattingLocale } = useLanguage();
@@ -581,6 +631,17 @@ export function ServiceMaintenanceForecastPanel({
           </div>
         )}
       </section>
+      )}
+
+      {showHero && !loading && !error && forecast && surface === 'overview' && (
+        <OverdueOverviewSection
+          overdue={grouped.overdue}
+          notComputableCount={grouped.notComputable.length}
+          hmHeadlineActive={display.source === 'HM_OEM' && display.trackingStatus === 'TRACKED'}
+          onOpenPlan={onOpenPlanTab}
+          t={t}
+          fmtLocale={formattingLocale}
+        />
       )}
 
       {showInfoCards && !loading && !error && (
