@@ -28,6 +28,7 @@ import {
 } from './service-history-pagination.util';
 import { MaintenanceForecastService } from './maintenance-forecast/maintenance-forecast.service';
 import { isComputedServiceSource } from './service-compliance.types';
+import { isProvenMaintenanceBaselineRef } from './maintenance-forecast/baseline-evidence.util';
 import type {
   MaintenanceForecastResult,
   MaintenanceHmSignal,
@@ -429,7 +430,9 @@ export class ServiceComplianceService {
     hmMessage: string,
   ): NextServiceComplianceDto {
     const hasSchedule = (forecast?.positions.length ?? 0) > 0;
-    const hasHistory = forecast?.lastRelevantMaintenance != null;
+    const hasHistory =
+      forecast?.lastRelevantMaintenance != null &&
+      isProvenMaintenanceBaselineRef(forecast.lastRelevantMaintenance);
     const message = hasSchedule
       ? 'Wartungsplan vorhanden, aber kein nachgewiesener letzter Service — Service-Nachweis hinterlegen.'
       : hasHistory
