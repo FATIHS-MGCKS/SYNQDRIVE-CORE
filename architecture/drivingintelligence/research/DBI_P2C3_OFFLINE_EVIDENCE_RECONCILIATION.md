@@ -127,7 +127,7 @@ Fail-closed on adapter contract version mismatch, non-`researchOnly` participant
 - Powertrain proxy participants must be `P2-B1`–`P2-B4` only (`PROXY_PLANE_INVALID_SOURCE_MODULE` otherwise).
 - `P2-A1` in a powertrain proxy plane → `A1_IN_POWERTRAIN_PROXY_PLANE`.
 - Candidate envelopes must be coherent with their parent participant module (`CANDIDATE_ENVELOPE_INCOHERENT` / `CANDIDATE_SOURCE_MODULE_MISMATCH`).
-- Module-specific envelope checks: episode key + classification alignment; B1 support tier; B2 `proxyKind`; B4 facet shape vs candidate classification family.
+- Module-specific envelope checks: episode key + classification alignment; B1 support tier enum (`STRONG`/`MODERATE`/`WEAK` on **both** `originalCandidateSupportTier` and `originalCandidate.candidateSupportTier` → `B1_CANDIDATE_SUPPORT_TIER_INVALID`; valid tier mismatch → `CANDIDATE_ENVELOPE_INCOHERENT`); B2 `proxyKind`; B4 facet shape vs candidate classification family.
 - Candidate identity canonicalization is fail-closed (`CANDIDATE_PAYLOAD_CANONICAL_INVALID`) — no silent `undefined`→`null`, non-finite numbers, bigint, or exotic objects.
 
 ## Non-goals
