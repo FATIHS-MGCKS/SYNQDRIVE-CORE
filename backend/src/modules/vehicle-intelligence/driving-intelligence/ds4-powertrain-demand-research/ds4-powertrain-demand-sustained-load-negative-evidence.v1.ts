@@ -1,16 +1,16 @@
 import type { Ds4SustainedLoadTripEvidenceClassificationV1 } from './ds4-powertrain-demand-research.contract.v1';
 import type { Ds4CanonicalMultichannelBucketV1 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
+import { splitBucketsAtAdmittedSequenceBoundaries } from './ds4-powertrain-demand-multichannel-sequence-boundary.v1';
 import { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from './ds4-powertrain-demand-sustained-load-reference.v1';
 
 /**
  * Longest admissible load-present label run for negative-evidence gating only.
  * Resets on missing load or label gaps above maxAdjacentLabelGapMs (not physical duration).
  */
-export function computeLongestLoadPresentRunLabelCount(
-  buckets: readonly Ds4CanonicalMultichannelBucketV1[],
-  maxAdjacentLabelGapMs: number = DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.maxAdjacentLabelGapMs,
+function longestLoadPresentRunInSortedSequence(
+  sorted: readonly Ds4CanonicalMultichannelBucketV1[],
+  maxAdjacentLabelGapMs: number,
 ): number {
-  const sorted = [...buckets].sort((a, b) => a.recordedAtMs - b.recordedAtMs);
   let longest = 0;
   let current = 0;
   let prevLoadLabelMs: number | null = null;
@@ -28,6 +28,27 @@ export function computeLongestLoadPresentRunLabelCount(
     prevLoadLabelMs = bucket.recordedAtMs;
   }
   return longest;
+}
+
+/** Longest load-present label run within admitted multichannel sequences (v1b sequenceMaxGapSeconds). */
+export function computeLongestLoadPresentRunLabelCount(
+  buckets: readonly Ds4CanonicalMultichannelBucketV1[],
+  maxAdjacentLabelGapMs: number = DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.maxAdjacentLabelGapMs,
+  sequenceMaxGapSeconds: number,
+): number {
+  const sorted = [...buckets].sort((a, b) => a.recordedAtMs - b.recordedAtMs);
+  const sequences = splitBucketsAtAdmittedSequenceBoundaries(
+    sorted,
+    sequenceMaxGapSeconds,
+    maxAdjacentLabelGapMs,
+  );
+  if (sequences.length === 0) {
+    return 0;
+  }
+  return Math.max(
+    ...sequences.map((seq) => longestLoadPresentRunInSortedSequence(seq, maxAdjacentLabelGapMs)),
+    0,
+  );
 }
 
 /**

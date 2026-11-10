@@ -3002,4 +3002,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | DBI P2-C4 W2 Opus remediation (2026-11-09) | Independent re-audit A-1..A-9: isolate-before-validate, classification enum + ABSTAINED inventory gates, B2 proxyKind parity, B3 bidirectional parity, runtime enum validation, canonical identity keys, positive-only `SAME_SOURCE_DUPLICATE`; `w2-opus-remediation.spec.ts` (33 probes) |
 | DBI P2-C4 W2 oracle closeout (2026-11-09) | Hardened AUD-15/16/20/22/41/42; canonical max depth 64; candidate `limitationCodes` array bound in bundle-shape |
 | DBI P2-C4 W2 Opus final two-blocker (2026-11-09) | `PARTICIPANT_PROJECTION_CANONICAL_INVALID` pre-digest gate; B3 `ABSTAINED`/`COMPUTED` vs `NOT_OBSERVED` parity; oracles N-03..09 + `w2-final-reaudit.probe.spec.ts` |
+| DBI P2-C4 W3A sequence boundary parity (2026-11-09) | B3/B4 flush on v1b sequence boundary in (sequenceMaxGap, maxAdjacent) window; binding `cadenceProfile.sequenceMaxGapSeconds`; research policy v1.1; W3-046 oracles; `DBI_P2C4_W3A_SEQUENCE_BOUNDARY_PARITY.md` |
 

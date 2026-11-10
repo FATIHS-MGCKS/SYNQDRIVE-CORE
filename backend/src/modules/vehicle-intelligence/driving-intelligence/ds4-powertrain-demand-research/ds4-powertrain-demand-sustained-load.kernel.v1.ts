@@ -14,6 +14,7 @@ import {
   detectGapAwareSustainedLoadCandidates,
 } from './ds4-powertrain-demand-sustained-load-gap-aware.v1';
 import { computeLongestLoadPresentRunLabelCount } from './ds4-powertrain-demand-sustained-load-negative-evidence.v1';
+import { DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY } from './ds4-powertrain-demand-sustained-load-reference.v1';
 import { canonicalizeMultichannelObservations } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
 import { validateDs4PowertrainDemandSustainedLoadInputBinding } from './ds4-powertrain-demand-sustained-load.input-binding.v1';
 
@@ -143,15 +144,22 @@ export function computeDs4PowertrainDemandSustainedLoadResearchV1(
   const loadMissingBucketCount = canon.buckets.length - loadPresentBucketCount;
   const distinctMs = new Set(canon.buckets.map((b) => b.recordedAtMs)).size;
 
+  const sequenceMaxGapSeconds = binding.cadenceProfile.sequenceMaxGapSeconds;
+
   const detect = detectGapAwareSustainedLoadCandidates({
     tripId: input.tripId,
     providerSourceLinkId: input.providerSourceLinkId,
     fuelType: input.fuelType,
     isEvPowertrain: input.isEvPowertrain,
     canon,
+    sequenceMaxGapSeconds,
   });
 
-  const longestLoadPresentRunLabelCount = computeLongestLoadPresentRunLabelCount(canon.buckets);
+  const longestLoadPresentRunLabelCount = computeLongestLoadPresentRunLabelCount(
+    canon.buckets,
+    DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.maxAdjacentLabelGapMs,
+    sequenceMaxGapSeconds,
+  );
   const tripEvidenceClassification = classifySustainedLoadTripEvidence({
     entryLabelCount: detect.entryLabelCount,
     candidateCount: detect.candidates.length,

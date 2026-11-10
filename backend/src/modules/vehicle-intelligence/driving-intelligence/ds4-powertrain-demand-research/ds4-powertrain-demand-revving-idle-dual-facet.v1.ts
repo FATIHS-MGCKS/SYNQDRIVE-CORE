@@ -10,6 +10,7 @@ import type {
   Ds4CanonicalMultichannelBucketV1,
   Ds4MultichannelCanonicalizeResultV1,
 } from './ds4-powertrain-demand-multichannel-canonicalize.v1';
+import { gapCrossesAdmittedSequenceBoundary } from './ds4-powertrain-demand-multichannel-sequence-boundary.v1';
 import {
   classifySustainedLoadPowertrainV1,
   sustainedLoadRequiresSequenceIceRpmConfirmation,
@@ -162,12 +163,13 @@ function detectFacetA(input: {
   tripId: string;
   providerSourceLinkId: string;
   powertrainClass: ReturnType<typeof classifySustainedLoadPowertrainV1>['powertrainClass'];
-  sorted: Ds4CanonicalMultichannelBucketV1[];
+  sorted: readonly Ds4CanonicalMultichannelBucketV1[];
+  sequenceMaxGapSeconds: number;
 }): Ds4RevvingIdleDualFacetDetectResultV1['facetA'] {
-  const candidates: Ds4HighRpmStationaryLikeProxyCandidateV1[] = [];
-  let entryLabelCount = 0;
-  let longestRunLabelCount = 0;
   const countedEntryMs = new Set<number>();
+  let entryLabelCount = 0;
+  const candidates: Ds4HighRpmStationaryLikeProxyCandidateV1[] = [];
+  let longestRunLabelCount = 0;
   let active: ActiveSequence | null = null;
 
   const countEntry = (bucket: Ds4CanonicalMultichannelBucketV1): boolean => {
@@ -224,7 +226,12 @@ function detectFacetA(input: {
     if (active) {
       const prev = active.buckets[active.buckets.length - 1]!;
       const gap = bucket.recordedAtMs - prev.recordedAtMs;
-      if (gap > FACET_A.maxAdjacentLabelGapMs || !facetAContinues(bucket)) {
+      const sequenceBoundary = gapCrossesAdmittedSequenceBoundary({
+        labelGapMs: gap,
+        sequenceMaxGapSeconds: input.sequenceMaxGapSeconds,
+        maxAdjacentLabelGapMs: FACET_A.maxAdjacentLabelGapMs,
+      });
+      if (gap > FACET_A.maxAdjacentLabelGapMs || sequenceBoundary || !facetAContinues(bucket)) {
         flush();
       } else {
         active.buckets.push(bucket);
@@ -247,12 +254,13 @@ function detectFacetB(input: {
   tripId: string;
   providerSourceLinkId: string;
   powertrainClass: ReturnType<typeof classifySustainedLoadPowertrainV1>['powertrainClass'];
-  sorted: Ds4CanonicalMultichannelBucketV1[];
+  sorted: readonly Ds4CanonicalMultichannelBucketV1[];
+  sequenceMaxGapSeconds: number;
 }): Ds4RevvingIdleDualFacetDetectResultV1['facetB'] {
-  const candidates: Ds4ExcessiveStationaryLikeSpanProxyCandidateV1[] = [];
-  let entryLabelCount = 0;
-  let longestRunLabelCount = 0;
   const countedEntryMs = new Set<number>();
+  let entryLabelCount = 0;
+  const candidates: Ds4ExcessiveStationaryLikeSpanProxyCandidateV1[] = [];
+  let longestRunLabelCount = 0;
   let active: ActiveSequence | null = null;
 
   const countEntry = (bucket: Ds4CanonicalMultichannelBucketV1): boolean => {
@@ -309,7 +317,12 @@ function detectFacetB(input: {
     if (active) {
       const prev = active.buckets[active.buckets.length - 1]!;
       const gap = bucket.recordedAtMs - prev.recordedAtMs;
-      if (gap > FACET_B.maxAdjacentLabelGapMs || !facetBContinues(bucket)) {
+      const sequenceBoundary = gapCrossesAdmittedSequenceBoundary({
+        labelGapMs: gap,
+        sequenceMaxGapSeconds: input.sequenceMaxGapSeconds,
+        maxAdjacentLabelGapMs: FACET_B.maxAdjacentLabelGapMs,
+      });
+      if (gap > FACET_B.maxAdjacentLabelGapMs || sequenceBoundary || !facetBContinues(bucket)) {
         flush();
       } else {
         active.buckets.push(bucket);
@@ -334,6 +347,7 @@ export function detectRevvingIdleDualFacetCandidates(input: {
   fuelType: string | null;
   isEvPowertrain: boolean;
   canon: Ds4MultichannelCanonicalizeResultV1;
+  sequenceMaxGapSeconds: number;
   runFacetA?: boolean;
   runFacetB?: boolean;
 }): Ds4RevvingIdleDualFacetDetectResultV1 {
@@ -353,6 +367,7 @@ export function detectRevvingIdleDualFacetCandidates(input: {
     providerSourceLinkId: input.providerSourceLinkId,
     powertrainClass,
     sorted,
+    sequenceMaxGapSeconds: input.sequenceMaxGapSeconds,
   };
   const runA = input.runFacetA !== false;
   const runB = input.runFacetB !== false;

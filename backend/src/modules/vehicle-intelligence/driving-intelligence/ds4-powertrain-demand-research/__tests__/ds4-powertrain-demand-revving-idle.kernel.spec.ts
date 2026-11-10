@@ -31,6 +31,7 @@ import {
 } from './ds4-powertrain-demand-research.test-helpers';
 
 const TRIP = 'trip-revving-idle-b4';
+const V1B_SEQUENCE_MAX_GAP_SECONDS = 2;
 
 function v1bPrefixGrid() {
   return buildObservationSeries('2026-01-01T10:00:01.000Z', 8, 1, () => ({
@@ -380,6 +381,7 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
         fuelType: 'ELECTRIC',
         isEvPowertrain: true,
         canon,
+        sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
       });
       expect(d.facetA.candidates).toHaveLength(0);
       expect(d.facetB.candidates).toHaveLength(0);
@@ -408,7 +410,7 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
   it('23 P39 literal policy drift pins', () => {
     expect(HIGH_RPM_STATIONARY_SHADOW_POLICY_VERSION).toBe('high-rpm-stationary-shadow-v1');
     expect(EXCESSIVE_IDLING_SHADOW_POLICY_VERSION).toBe('excessive-idling-shadow-v1');
-    expect(DS4_REVIVING_IDLE_DUAL_FACET_RESEARCH_POLICY_VERSION).toBe('revving-idle-dual-facet-research-v1');
+    expect(DS4_REVIVING_IDLE_DUAL_FACET_RESEARCH_POLICY_VERSION).toBe('revving-idle-dual-facet-research-v1.1');
     expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.rpmEntryThreshold).toBe(2000);
     expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetA.rpmContinueThreshold).toBe(1440);
     expect(DS4_REVIVING_IDLE_DUAL_FACET_POLICY.facetB.idleRpmBandMinExclusive).toBe(
@@ -727,7 +729,10 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
         at(30000, { speedKmh: 0, rpm: 2100 }),
         at(40000, { speedKmh: 0, rpm: 2100 }),
       ];
-      const verdict = evaluateRevvingIdleFacetAAssessability(canonicalizeMultichannelObservations(grid));
+      const verdict = evaluateRevvingIdleFacetAAssessability(
+        canonicalizeMultichannelObservations(grid),
+        V1B_SEQUENCE_MAX_GAP_SECONDS,
+      );
       expect(verdict.assessable).toBe(false);
       expect(verdict.diagnostics.assessabilityReasonCodes).toContain(
         'NO_SINGLE_COHERENT_RUN_MEETS_LABEL_AND_SPAN',
@@ -741,6 +746,7 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
       });
       const reversed = evaluateRevvingIdleFacetAAssessability(
         canonicalizeMultichannelObservations([...grid].reverse()),
+        V1B_SEQUENCE_MAX_GAP_SECONDS,
       );
       expect(reversed.diagnostics).toEqual(verdict.diagnostics);
     });
@@ -755,9 +761,13 @@ describe('ds4-powertrain-demand P2-B4 revving-idle dual-facet', () => {
         rpm: 850,
       }));
       const grid = [...dense, ...coarse];
-      const forward = evaluateRevvingIdleFacetBAssessability(canonicalizeMultichannelObservations(grid));
+      const forward = evaluateRevvingIdleFacetBAssessability(
+        canonicalizeMultichannelObservations(grid),
+        V1B_SEQUENCE_MAX_GAP_SECONDS,
+      );
       const reversed = evaluateRevvingIdleFacetBAssessability(
         canonicalizeMultichannelObservations([...grid].reverse()),
+        V1B_SEQUENCE_MAX_GAP_SECONDS,
       );
       expect(forward.diagnostics).toMatchObject({
         longestCoherentRunLabelCount: 101,

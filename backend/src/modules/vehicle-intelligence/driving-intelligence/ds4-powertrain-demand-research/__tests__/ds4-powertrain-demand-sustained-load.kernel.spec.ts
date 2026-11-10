@@ -32,6 +32,8 @@ import {
 } from './ds4-powertrain-demand-research.test-helpers';
 
 const TRIP = 'trip-sustained-load-test';
+/** v1b RPM_1S admitted multichannel sequence boundary (binding-authoritative). */
+const V1B_SEQUENCE_MAX_GAP_SECONDS = 2;
 
 function v1bPrefixGrid() {
   return buildObservationSeries('2026-01-01T10:00:01.000Z', 8, 1, () => ({
@@ -185,6 +187,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
       fuelType: 'GASOLINE',
       isEvPowertrain: false,
       canon,
+    sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
     });
     expect(direct.candidates).toHaveLength(1);
     expect(direct.candidates[0]?.entryBranch).toBe('THROTTLE');
@@ -372,6 +375,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
         fuelType: 'GASOLINE',
         isEvPowertrain: false,
         canon,
+      sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
       });
       expect(direct.candidates).toHaveLength(1);
     });
@@ -459,7 +463,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
     it('P37 literal threshold and policy-version pin (independent of live P37 object identity)', () => {
       expect(SUSTAINED_HIGH_LOAD_SHADOW_POLICY_VERSION).toBe('sustained-high-load-shadow-v1');
       expect(DS4_SUSTAINED_LOAD_GAP_AWARE_RESEARCH_POLICY_VERSION).toBe(
-        'sustained-load-gap-aware-research-v1',
+        'sustained-load-gap-aware-research-v1.1',
       );
       expect(DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.shadowPolicyVersion).toBe(
         'sustained-high-load-shadow-v1',
@@ -514,6 +518,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
           fuelType: 'ELECTRIC',
           isEvPowertrain: false,
           canon: gasolineValidCanon(),
+        sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
         });
         expect(d).toEqual(emptyDetect);
       });
@@ -525,6 +530,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
           fuelType: 'ELECTRIC',
           isEvPowertrain: false,
           canon: throttleOnlyCanon(),
+        sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
         });
         expect(d).toEqual(emptyDetect);
       });
@@ -536,6 +542,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
           fuelType: null,
           isEvPowertrain: false,
           canon: gasolineValidCanon(),
+        sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
         });
         expect(d).toEqual(emptyDetect);
       });
@@ -547,6 +554,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
           fuelType: 'UNKNOWN_FUEL_TOKEN',
           isEvPowertrain: false,
           canon: gasolineValidCanon(),
+        sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
         });
         expect(d).toEqual(emptyDetect);
       });
@@ -558,6 +566,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
           fuelType: 'GASOLINE',
           isEvPowertrain: true,
           canon: gasolineValidCanon(),
+        sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
         });
         expect(d).toEqual(emptyDetect);
       });
@@ -569,6 +578,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
           fuelType: 'PHEV',
           isEvPowertrain: false,
           canon: phevThreeIceRpmCanon(),
+        sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
         });
         expect(d.candidates).toHaveLength(1);
         expect(d.entryLabelCount).toBeGreaterThan(0);
@@ -581,6 +591,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
           fuelType: 'GASOLINE',
           isEvPowertrain: false,
           canon: gasolineValidCanon(),
+        sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
         });
         expect(d.candidates).toHaveLength(1);
       });
@@ -600,6 +611,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
         fuelType: 'PHEV',
         isEvPowertrain: false,
         canon,
+      sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
       });
       expect(d.candidates).toHaveLength(0);
     });
@@ -619,6 +631,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
           fuelType: 'PHEV',
           isEvPowertrain: false,
           canon,
+          sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
         }).candidates,
       ).toHaveLength(0);
     });
@@ -638,6 +651,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
           fuelType: 'PHEV',
           isEvPowertrain: false,
           canon,
+          sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
         }).candidates,
       ).toHaveLength(0);
     });
@@ -721,6 +735,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
         fuelType: 'GASOLINE',
         isEvPowertrain: false,
         canon,
+      sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
       });
       expect(msCount).toBe(5);
       expect(d.entryLabelCount).toBe(5);
