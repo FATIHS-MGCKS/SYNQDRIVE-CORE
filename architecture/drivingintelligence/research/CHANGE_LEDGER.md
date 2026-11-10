@@ -3006,4 +3006,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | DBI P2-C4 W3A exact boundary closeout (2026-11-10, PR #2387) | Strict v1b continuity: `gap > sequenceMaxGapSeconds*1000` (equality preserved); exact 4000/5000/10000 ms oracles; 1 Hz admitted fixtures replace misleading 5s-spaced “single sequence” controls |
 | DBI P2-C4 W3B temporal ingress integrity (2026-11-10) | P2-C3 temporal gate on isolated bundle before integrity/identity; shared P2-C2 `collectTemporalViolations`; A1/B1–B4 field contract map; adversarial W3-047 suite; `DBI_P2C4_W3B_TEMPORAL_INGRESS_INTEGRITY.md` |
 | DBI P2-C4 W3B temporal ingress adversarial closeout (2026-11-10, PR #2390) | `sourceModule`-scoped field families; required index shape gate; temporal before bundle structure; cross-family bypass oracles; `INVALID_TEMPORAL_BUCKET_INDEX_SHAPE` |
+| DBI P2-C4 W3B governance doc closeout (2026-11-10, PR #2390) | Authority index requirement table: A1/B1/B2 REQUIRED; B3/B4 NOT_REQUIRED (docs only) |
 

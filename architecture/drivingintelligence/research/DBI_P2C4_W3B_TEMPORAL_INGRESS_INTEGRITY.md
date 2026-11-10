@@ -13,11 +13,11 @@
 
 ## Contract field map (ingress)
 
-| Module | Timestamp fields | Index fields (optional) |
-|--------|------------------|-------------------------|
-| P2-A1 (descriptive episodes) | `providerBucketLabelStartIso`, `providerBucketLabelEndIso` | `startIdx`, `endIdx` |
-| P2-B1 / P2-B2 | `providerBucketLabelStartIso`, `providerBucketLabelEndIso` | `startBucketIndex`, `endBucketIndex` |
-| P2-B3 / P2-B4 | `startProviderBucketLabelIso`, `endProviderBucketLabelIso` | none required |
+| Module | Timestamp fields | Index fields | Index requirement |
+|--------|------------------|--------------|-------------------|
+| P2-A1 (descriptive episodes) | `providerBucketLabelStartIso`, `providerBucketLabelEndIso` | `startIdx`, `endIdx` | **REQUIRED** (non-negative integer pair) |
+| P2-B1 / P2-B2 | `providerBucketLabelStartIso`, `providerBucketLabelEndIso` | `startBucketIndex`, `endBucketIndex` | **REQUIRED** (non-negative integer pair) |
+| P2-B3 / P2-B4 | `startProviderBucketLabelIso`, `endProviderBucketLabelIso` | — | **NOT_REQUIRED** (indices not validated; not invented) |
 
 Canonical label rules and interval/index order match P2-C2 `collectTemporalViolations` (`.000Z` millisecond precision, UTC `Z` only, no offsets).
 

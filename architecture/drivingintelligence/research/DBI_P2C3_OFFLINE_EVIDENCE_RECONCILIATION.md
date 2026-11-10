@@ -95,11 +95,11 @@ After bundle shape validation and **before** bundle participant structure checks
 - Field families are selected by **`sourceModule` / A1 episode contract only** (cross-module label keys cannot satisfy another module).
 - Required bucket indices: A1 `startIdx`/`endIdx`; B1/B2 `startBucketIndex`/`endBucketIndex` (non-negative integers). Malformed indices → `INVALID_TEMPORAL_BUCKET_INDEX_SHAPE`.
 
-- **A1** descriptive episodes: `providerBucketLabelStartIso` / `providerBucketLabelEndIso`; optional `startIdx` / `endIdx` when both numeric.
-- **B1 / B2** candidates: `providerBucketLabelStartIso` / `providerBucketLabelEndIso`; optional `startBucketIndex` / `endBucketIndex`.
-- **B3 / B4** candidates: `startProviderBucketLabelIso` / `endProviderBucketLabelIso` (indices not required).
+- **A1** descriptive episodes: `providerBucketLabelStartIso` / `providerBucketLabelEndIso`; **required** `startIdx` / `endIdx` (non-negative integers).
+- **B1 / B2** candidates: `providerBucketLabelStartIso` / `providerBucketLabelEndIso`; **required** `startBucketIndex` / `endBucketIndex` (non-negative integers).
+- **B3 / B4** candidates: `startProviderBucketLabelIso` / `endProviderBucketLabelIso`; index fields **not required**.
 
-Diagnostics: `INVALID_PROVIDER_BUCKET_LABEL`, `INVALID_TEMPORAL_INTERVAL_ORDER`, `INVALID_BUCKET_INDEX_ORDER` — sorted, deduplicated, fail-closed (`ok: false`; no inventory, edges, or digest). Malformed nested extraction does not throw.
+Diagnostics: `INVALID_PROVIDER_BUCKET_LABEL`, `INVALID_TEMPORAL_INTERVAL_ORDER`, `INVALID_BUCKET_INDEX_ORDER`, `INVALID_TEMPORAL_BUCKET_INDEX_SHAPE` — sorted, deduplicated, fail-closed (`ok: false`; no inventory, edges, or digest). Malformed nested extraction does not throw.
 
 Canonical timestamp format does not assert physical event time or provider attestation (`BUCKET_LABEL_UNVERIFIED`, research-only `MODE_A` unchanged). No A1↔B multichannel index join (W3-048 deferred).
 
