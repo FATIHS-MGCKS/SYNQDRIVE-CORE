@@ -229,7 +229,6 @@ function detectFacetA(input: {
       const sequenceBoundary = gapCrossesAdmittedSequenceBoundary({
         labelGapMs: gap,
         sequenceMaxGapSeconds: input.sequenceMaxGapSeconds,
-        maxAdjacentLabelGapMs: FACET_A.maxAdjacentLabelGapMs,
       });
       if (gap > FACET_A.maxAdjacentLabelGapMs || sequenceBoundary || !facetAContinues(bucket)) {
         flush();
@@ -320,7 +319,6 @@ function detectFacetB(input: {
       const sequenceBoundary = gapCrossesAdmittedSequenceBoundary({
         labelGapMs: gap,
         sequenceMaxGapSeconds: input.sequenceMaxGapSeconds,
-        maxAdjacentLabelGapMs: FACET_B.maxAdjacentLabelGapMs,
       });
       if (gap > FACET_B.maxAdjacentLabelGapMs || sequenceBoundary || !facetBContinues(bucket)) {
         flush();

@@ -37,11 +37,7 @@ export function computeLongestLoadPresentRunLabelCount(
   sequenceMaxGapSeconds: number,
 ): number {
   const sorted = [...buckets].sort((a, b) => a.recordedAtMs - b.recordedAtMs);
-  const sequences = splitBucketsAtAdmittedSequenceBoundaries(
-    sorted,
-    sequenceMaxGapSeconds,
-    maxAdjacentLabelGapMs,
-  );
+  const sequences = splitBucketsAtAdmittedSequenceBoundaries(sorted, sequenceMaxGapSeconds);
   if (sequences.length === 0) {
     return 0;
   }

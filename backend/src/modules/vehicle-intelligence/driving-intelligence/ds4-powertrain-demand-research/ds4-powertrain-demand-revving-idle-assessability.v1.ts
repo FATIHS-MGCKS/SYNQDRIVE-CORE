@@ -125,11 +125,7 @@ function evaluateFacetOpportunity(input: {
     };
   }
 
-  const admittedGroups = splitBucketsAtAdmittedSequenceBoundaries(
-    sorted,
-    input.sequenceMaxGapSeconds,
-    input.maxAdjacentGapMs,
-  );
+  const admittedGroups = splitBucketsAtAdmittedSequenceBoundaries(sorted, input.sequenceMaxGapSeconds);
   const runs = admittedGroups.flatMap((group) =>
     enumerateCoherentCoRpmSpeedRuns(group, input.maxAdjacentGapMs),
   );

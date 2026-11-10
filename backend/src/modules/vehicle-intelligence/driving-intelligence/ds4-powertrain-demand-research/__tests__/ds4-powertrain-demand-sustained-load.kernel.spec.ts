@@ -34,6 +34,10 @@ import {
 const TRIP = 'trip-sustained-load-test';
 /** v1b RPM_1S admitted multichannel sequence boundary (binding-authoritative). */
 const V1B_SEQUENCE_MAX_GAP_SECONDS = 2;
+/** Labels at 1s within v1b RPM_1S continuity for sustained-load research admission. */
+const V1B_ADMITTED_STEP_MS = 1000;
+const B3_QUALIFYING_LABEL_COUNT =
+  DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.minResearchLabelSpanMs / V1B_ADMITTED_STEP_MS + 1;
 
 function v1bPrefixGrid() {
   return buildObservationSeries('2026-01-01T10:00:01.000Z', 8, 1, () => ({
@@ -45,6 +49,16 @@ function v1bPrefixGrid() {
 }
 
 /** Contiguous high-load labels without low-load buckets interleaved (Mode A adjacency). */
+function buildQualifyingHighLoadRun(
+  map?: (seq: number) => Partial<ReturnType<typeof buildObservationSeries>[number]>,
+) {
+  return buildContiguousHighLoadRun({
+    pointCount: B3_QUALIFYING_LABEL_COUNT,
+    stepMs: V1B_ADMITTED_STEP_MS,
+    map,
+  });
+}
+
 function buildContiguousHighLoadRun(input: {
   pointCount: number;
   stepMs: number;
@@ -70,16 +84,16 @@ function buildContiguousHighLoadRun(input: {
 function buildSplitHighLoadRuns() {
   const prefix = v1bPrefixGrid();
   const runAStart = Date.parse('2026-01-01T10:00:12.000Z');
-  const runA = Array.from({ length: 5 }, (_, seq) => ({
-    recordedAtIso: new Date(runAStart + seq * 5000).toISOString(),
+  const runA = Array.from({ length: B3_QUALIFYING_LABEL_COUNT }, (_, seq) => ({
+    recordedAtIso: new Date(runAStart + seq * V1B_ADMITTED_STEP_MS).toISOString(),
     rpm: 2000,
     throttlePct: 35,
     speedKmh: 60,
     loadPct: 78,
   }));
-  const runBStart = runAStart + 4 * 5000 + 10_000;
-  const runB = Array.from({ length: 5 }, (_, seq) => ({
-    recordedAtIso: new Date(runBStart + seq * 5000).toISOString(),
+  const runBStart = runAStart + (B3_QUALIFYING_LABEL_COUNT - 1) * V1B_ADMITTED_STEP_MS + 10_000;
+  const runB = Array.from({ length: B3_QUALIFYING_LABEL_COUNT }, (_, seq) => ({
+    recordedAtIso: new Date(runBStart + seq * V1B_ADMITTED_STEP_MS).toISOString(),
     rpm: 2000,
     throttlePct: 35,
     speedKmh: 60,
@@ -94,10 +108,10 @@ function buildSplitHighLoadRuns() {
 }
 
 describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
-  it('five observations at 5s gaps yields GAP_AWARE_SUSTAINED_PROXY_CANDIDATE', () => {
+  it('v1b 1s cadence (21 labels, 20s span) yields GAP_AWARE_SUSTAINED_PROXY_CANDIDATE', () => {
     const grid = buildContiguousHighLoadRun({
-      pointCount: 5,
-      stepMs: 5000,
+      pointCount: B3_QUALIFYING_LABEL_COUNT,
+      stepMs: V1B_ADMITTED_STEP_MS,
       map: (seq) => ({ loadPct: seq === 0 ? 80 : 72, rpm: seq === 0 ? 2000 : 1900 }),
     });
     const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
@@ -106,15 +120,19 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
     expect(out.status).toBe('COMPUTED');
     expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(1);
     expect(out.sustainedLoad.candidates[0]?.classification).toBe('GAP_AWARE_SUSTAINED_PROXY_CANDIDATE');
-    expect(out.sustainedLoad.candidates[0]?.observedLabelCount).toBe(5);
+    expect(out.sustainedLoad.candidates[0]?.observedLabelCount).toBe(B3_QUALIFYING_LABEL_COUNT);
     expect(out.sustainedLoad.candidates[0]?.researchLabelSpanMs).toBe(20_000);
     expect(out.sustainedLoad.entryLabelCount).toBe(1);
     expect(out.sustainedLoad.tripEvidenceClassification).toBe('GAP_AWARE_SUSTAINED_PROXY_CANDIDATE');
     expect(out.sustainedLoad.candidates[0]?.limitationCodes).toContain('BUCKET_LABEL_UNVERIFIED');
   });
 
-  it('four observations at 5s gaps rejects candidate', () => {
-    const grid = buildContiguousHighLoadRun({ pointCount: 4, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
+  it('four observations at 1s cadence rejects candidate (span)', () => {
+    const grid = buildContiguousHighLoadRun({
+      pointCount: 4,
+      stepMs: V1B_ADMITTED_STEP_MS,
+      map: () => ({ loadPct: 80, rpm: 2000 }),
+    });
     const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
       buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
     );
@@ -139,11 +157,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
   });
 
   it('missing load bucket splits an otherwise qualifying sustained sequence', () => {
-    const controlGrid = buildContiguousHighLoadRun({
-      pointCount: 5,
-      stepMs: 5000,
-      map: () => ({ loadPct: 80, rpm: 2000 }),
-    });
+    const controlGrid = buildQualifyingHighLoadRun(() => ({ loadPct: 80, rpm: 2000 }));
     const control = computeDs4PowertrainDemandSustainedLoadResearchV1(
       buildBoundPowertrainInput({ multichannelObservations: controlGrid, tripId: TRIP }),
     );
@@ -151,8 +165,8 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
     expect(control.sustainedLoad.tripEvidenceClassification).toBe('GAP_AWARE_SUSTAINED_PROXY_CANDIDATE');
 
     const adversarialGrid = buildContiguousHighLoadRun({
-      pointCount: 5,
-      stepMs: 5000,
+      pointCount: B3_QUALIFYING_LABEL_COUNT,
+      stepMs: V1B_ADMITTED_STEP_MS,
       map: (seq) => (seq === 2 ? { loadPct: null, rpm: 2000, throttlePct: 35 } : { loadPct: 80, rpm: 2000 }),
     });
     const adversarial = computeDs4PowertrainDemandSustainedLoadResearchV1(
@@ -165,7 +179,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
   it('load continuation below 70 splits sequence', () => {
     const grid = buildContiguousHighLoadRun({
       pointCount: 5,
-      stepMs: 5000,
+      stepMs: V1B_ADMITTED_STEP_MS,
       map: (seq) => ({ loadPct: seq <= 2 ? 80 : 65, rpm: 2000 }),
     });
     const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
@@ -175,11 +189,11 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
   });
 
   it('detect: throttle entry without RPM labels', () => {
-    const grid = buildContiguousHighLoadRun({
-      pointCount: 5,
-      stepMs: 5000,
-      map: (seq) => ({ loadPct: 80, rpm: null, throttlePct: seq === 0 ? 70 : 50 }),
-    });
+    const grid = buildQualifyingHighLoadRun((seq) => ({
+      loadPct: 80,
+      rpm: null,
+      throttlePct: seq === 0 ? 70 : 50,
+    }));
     const canon = canonicalizeMultichannelObservations(grid);
     const direct = detectGapAwareSustainedLoadCandidates({
       tripId: TRIP,
@@ -194,11 +208,11 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
   });
 
   it('missing RPM with valid throttle entry branch', () => {
-    const grid = buildContiguousHighLoadRun({
-      pointCount: 5,
-      stepMs: 5000,
-      map: (seq) => ({ loadPct: 80, rpm: null, throttlePct: seq === 0 ? 70 : 50 }),
-    });
+    const grid = buildQualifyingHighLoadRun((seq) => ({
+      loadPct: 80,
+      rpm: null,
+      throttlePct: seq === 0 ? 70 : 50,
+    }));
     const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
       buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
     );
@@ -208,11 +222,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
   });
 
   it('missing throttle with valid RPM entry branch', () => {
-    const grid = buildContiguousHighLoadRun({
-      pointCount: 5,
-      stepMs: 5000,
-      map: () => ({ loadPct: 80, rpm: 2000, throttlePct: null }),
-    });
+    const grid = buildQualifyingHighLoadRun(() => ({ loadPct: 80, rpm: 2000, throttlePct: null }));
     const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
       buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
     );
@@ -237,7 +247,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
   it('PHEV without local RPM ice evidence in window yields no candidate', () => {
     const grid = buildContiguousHighLoadRun({
       pointCount: 5,
-      stepMs: 5000,
+      stepMs: V1B_ADMITTED_STEP_MS,
       map: () => ({ loadPct: 80, rpm: null, throttlePct: 70 }),
     });
     const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
@@ -247,7 +257,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
   });
 
   it('BEV powertrain abstains NOT_APPLICABLE', () => {
-    const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
+    const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: V1B_ADMITTED_STEP_MS, map: () => ({ loadPct: 80, rpm: 2000 }) });
     const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
       buildBoundPowertrainInput({
         multichannelObservations: grid,
@@ -287,8 +297,8 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
   });
 
   it('conflicting duplicate values abstain', () => {
-    const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
-    const t = Date.parse('2026-01-01T10:00:22.000Z');
+    const grid = buildQualifyingHighLoadRun(() => ({ loadPct: 80, rpm: 2000 }));
+    const t = Date.parse(grid[grid.length - 2]?.recordedAtIso ?? '2026-01-01T10:00:32.000Z');
     grid.push({
       recordedAtIso: new Date(t).toISOString(),
       loadPct: 40,
@@ -317,7 +327,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
   });
 
   it('single entry label classifies SINGLE not when zero entries', () => {
-    const grid = buildContiguousHighLoadRun({ pointCount: 1, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
+    const grid = buildContiguousHighLoadRun({ pointCount: 1, stepMs: V1B_ADMITTED_STEP_MS, map: () => ({ loadPct: 80, rpm: 2000 }) });
     const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
       buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
     );
@@ -326,7 +336,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
   });
 
   it('exposes canonical_rows_full_key versus distinct_ms_labels', () => {
-    const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
+    const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: V1B_ADMITTED_STEP_MS, map: () => ({ loadPct: 80, rpm: 2000 }) });
     const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
       buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
     );
@@ -334,7 +344,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
   });
 
   it('R1 dimo marks historical OBD record time uncertain', () => {
-    const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
+    const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: V1B_ADMITTED_STEP_MS, map: () => ({ loadPct: 80, rpm: 2000 }) });
     const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
       buildBoundPowertrainInput({
         multichannelObservations: grid,
@@ -367,7 +377,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
 
     it('does not import P37 sustained-high-load cluster detector', () => {
       const canon = canonicalizeMultichannelObservations(
-        buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) }),
+        buildQualifyingHighLoadRun(() => ({ loadPct: 80, rpm: 2000 })),
       );
       const direct = detectGapAwareSustainedLoadCandidates({
         tripId: TRIP,
@@ -383,7 +393,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
 
   describe('all-paths powertrain classification', () => {
     function hybridRun(map: (seq: number) => Record<string, unknown>) {
-      return buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: (seq) => map(seq) as never });
+      return buildQualifyingHighLoadRun((seq) => map(seq) as never);
     }
 
     it('A: PLUG_IN_HYBRID with one qualifying local RPM and throttle => no candidate', () => {
@@ -423,7 +433,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
     });
 
     it('D: ELECTRIC with isEvPowertrain=false and RPM grid => ABSTAINED NOT_APPLICABLE', () => {
-      const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
+      const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: V1B_ADMITTED_STEP_MS, map: () => ({ loadPct: 80, rpm: 2000 }) });
       const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
         buildBoundPowertrainInput({
           multichannelObservations: grid,
@@ -437,7 +447,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
     });
 
     it('E: fuelType=null with RPM present => fail closed', () => {
-      const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
+      const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: V1B_ADMITTED_STEP_MS, map: () => ({ loadPct: 80, rpm: 2000 }) });
       const input = buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP });
       input.fuelType = null;
       const out = computeDs4PowertrainDemandSustainedLoadResearchV1(input);
@@ -446,7 +456,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
     });
 
     it('F: GASOLINE with valid RPM evidence => positive control unchanged', () => {
-      const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
+      const grid = buildQualifyingHighLoadRun(() => ({ loadPct: 80, rpm: 2000 }));
       const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
         buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP, fuelType: 'GASOLINE' }),
       );
@@ -457,7 +467,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
 
   describe('architect remediation P1/P2', () => {
     function phevRun(map: (seq: number) => Record<string, unknown>) {
-      return buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: (seq) => map(seq) as never });
+      return buildQualifyingHighLoadRun((seq) => map(seq) as never);
     }
 
     it('P37 literal threshold and policy-version pin (independent of live P37 object identity)', () => {
@@ -485,27 +495,27 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
     describe('direct detector fail-closed (exported API boundary)', () => {
       function gasolineValidCanon() {
         return canonicalizeMultichannelObservations(
-          buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) }),
+          buildQualifyingHighLoadRun(() => ({ loadPct: 80, rpm: 2000 })),
         );
       }
 
       function phevThreeIceRpmCanon() {
         return canonicalizeMultichannelObservations(
-          buildContiguousHighLoadRun({
-            pointCount: 5,
-            stepMs: 5000,
-            map: (seq) => ({ loadPct: 80, rpm: seq < 3 ? 500 : null, throttlePct: 70 }),
-          }),
+          buildQualifyingHighLoadRun((seq) => ({
+            loadPct: 80,
+            rpm: seq < 3 ? 500 : null,
+            throttlePct: 70,
+          })),
         );
       }
 
       function throttleOnlyCanon() {
         return canonicalizeMultichannelObservations(
-          buildContiguousHighLoadRun({
-            pointCount: 5,
-            stepMs: 5000,
-            map: (seq) => ({ loadPct: 80, rpm: null, throttlePct: seq === 0 ? 70 : 50 }),
-          }),
+          buildQualifyingHighLoadRun((seq) => ({
+            loadPct: 80,
+            rpm: null,
+            throttlePct: seq === 0 ? 70 : 50,
+          })),
         );
       }
 
@@ -672,11 +682,11 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
       const prefix = v1bPrefixGrid().map((r, i) =>
         i < 3 ? { ...r, rpm: 600, loadPct: 10, throttlePct: 5 } : r,
       );
-      const run = buildContiguousHighLoadRun({
-        pointCount: 5,
-        stepMs: 5000,
-        map: () => ({ loadPct: 80, rpm: null, throttlePct: 70 }),
-      }).slice(8);
+      const run = buildQualifyingHighLoadRun(() => ({
+        loadPct: 80,
+        rpm: null,
+        throttlePct: 70,
+      })).slice(8);
       const grid = [...prefix, ...run, ...buildObservationSeries('2026-01-01T10:02:10.000Z', 4, 1, () => ({}))];
       const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
         buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP, fuelType: 'PHEV' }),
@@ -684,24 +694,16 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
       expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(0);
     });
 
-    it('entryLabelCount: five qualifying entry labels on one run', () => {
-      const grid = buildContiguousHighLoadRun({
-        pointCount: 5,
-        stepMs: 5000,
-        map: () => ({ loadPct: 80, rpm: 2000 }),
-      });
+    it('entryLabelCount: qualifying entry labels on one v1b-admitted run', () => {
+      const grid = buildQualifyingHighLoadRun(() => ({ loadPct: 80, rpm: 2000 }));
       const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
         buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
       );
-      expect(out.sustainedLoad.entryLabelCount).toBe(5);
+      expect(out.sustainedLoad.entryLabelCount).toBe(B3_QUALIFYING_LABEL_COUNT);
     });
 
-    it('entryLabelCount: one entry plus four continuation-only labels', () => {
-      const grid = buildContiguousHighLoadRun({
-        pointCount: 5,
-        stepMs: 5000,
-        map: (seq) => ({ loadPct: seq === 0 ? 80 : 72, rpm: 2000 }),
-      });
+    it('entryLabelCount: one entry plus continuation-only labels', () => {
+      const grid = buildQualifyingHighLoadRun((seq) => ({ loadPct: seq === 0 ? 80 : 72, rpm: 2000 }));
       const out = computeDs4PowertrainDemandSustainedLoadResearchV1(
         buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
       );
@@ -714,11 +716,11 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
         buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP }),
       );
       expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(2);
-      expect(out.sustainedLoad.entryLabelCount).toBe(10);
+      expect(out.sustainedLoad.entryLabelCount).toBe(B3_QUALIFYING_LABEL_COUNT * 2);
     });
 
     it('entry labels count distinct ms only (canonical dedupe)', () => {
-      const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: 5000, map: () => ({ loadPct: 80, rpm: 2000 }) });
+      const grid = buildContiguousHighLoadRun({ pointCount: 5, stepMs: V1B_ADMITTED_STEP_MS, map: () => ({ loadPct: 80, rpm: 2000 }) });
       const t = Date.parse(grid.find((r) => r.loadPct === 80)?.recordedAtIso ?? '');
       grid.push({
         recordedAtIso: new Date(t).toISOString(),
@@ -767,11 +769,14 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
         throttlePct: 12,
         speedKmh: 40,
       }));
-      const runRows = buildContiguousHighLoadRun({
-        pointCount: 5,
-        stepMs: 5000,
-        map: (seq) => ({ loadPct: 80, rpm: null, throttlePct: seq === 0 ? 70 : 50 }),
-      }).slice(8, 13);
+      const runStart = Date.parse('2026-01-01T10:00:12.000Z');
+      const runRows = Array.from({ length: B3_QUALIFYING_LABEL_COUNT }, (_, seq) => ({
+        recordedAtIso: new Date(runStart + seq * V1B_ADMITTED_STEP_MS).toISOString(),
+        loadPct: seq === 0 ? 80 : 72,
+        rpm: null,
+        throttlePct: seq === 0 ? 70 : 50,
+        speedKmh: 60,
+      }));
       const suffix = buildObservationSeries('2026-01-01T10:02:00.000Z', 4, 1, () => ({
         rpm: null,
         loadPct: 15,
@@ -835,7 +840,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
     it('V1A RPM grid stripped while V1A points remain: fail closed', () => {
       const grid = buildContiguousHighLoadRun({
         pointCount: 5,
-        stepMs: 5000,
+        stepMs: V1B_ADMITTED_STEP_MS,
         map: () => ({ loadPct: 80, rpm: 2000 }),
       });
       const input = buildBoundPowertrainInput({ multichannelObservations: grid, tripId: TRIP });
@@ -858,7 +863,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
     it('zero-RPM path: processingAllowed=false abstains', () => {
       const grid = buildContiguousHighLoadRun({
         pointCount: 5,
-        stepMs: 5000,
+        stepMs: V1B_ADMITTED_STEP_MS,
         map: (seq) => ({ loadPct: 80, rpm: null, throttlePct: seq === 0 ? 70 : 50 }),
       }).map((row) => ({ ...row, rpm: null }));
       const input = buildColdEngineBoundInput({ multichannelObservations: grid, tripId: TRIP });
@@ -874,7 +879,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
     it('zero-RPM path: iceRpmApplicability NOT_APPLICABLE abstains', () => {
       const grid = buildContiguousHighLoadRun({
         pointCount: 5,
-        stepMs: 5000,
+        stepMs: V1B_ADMITTED_STEP_MS,
         map: (seq) => ({ loadPct: 80, rpm: null, throttlePct: seq === 0 ? 70 : 50 }),
       }).map((row) => ({ ...row, rpm: null }));
       const input = buildColdEngineBoundInput({ multichannelObservations: grid, tripId: TRIP });
@@ -894,7 +899,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
       }));
       const runRows = buildContiguousHighLoadRun({
         pointCount: 5,
-        stepMs: 5000,
+        stepMs: V1B_ADMITTED_STEP_MS,
         map: (seq) => ({ loadPct: 80, rpm: null, throttlePct: seq === 0 ? 70 : 50 }),
       })
         .slice(8, 13)
@@ -977,7 +982,7 @@ describe('ds4-powertrain-demand sustained-load P2-B3 gap-aware', () => {
         buildBoundPowertrainInput({
           multichannelObservations: buildContiguousHighLoadRun({
             pointCount: 5,
-            stepMs: 5000,
+            stepMs: V1B_ADMITTED_STEP_MS,
             map: () => ({ loadPct: 80, rpm: 2000 }),
           }),
           evidenceOrigin: 'OFFLINE_SEALED_BUNDLE',

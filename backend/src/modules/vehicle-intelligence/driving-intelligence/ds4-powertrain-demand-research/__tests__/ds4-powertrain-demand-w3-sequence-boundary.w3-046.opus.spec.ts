@@ -6,8 +6,8 @@
  * merge qualifying runs across admitted v1b sequence breaks; negative load runs could
  * overcount longest contiguous load presence; B4 assessability could inflate coherent spans.
  *
- * GREEN-AFTER (v1.1): admitted sequence boundary flush in the (sequenceMaxGap, maxAdjacent] gap window
- * using binding.cadenceProfile.sequenceMaxGapSeconds; preserves detector-admitted 5s spaced runs.
+ * GREEN-AFTER (v1.1 closeout): strict v1b continuity — gap > sequenceMaxGapSeconds*1000 splits;
+ * fixtures use 1s admitted cadence (not 5s-spaced pseudo-sequences).
  */
 import { splitBucketsAtAdmittedSequenceBoundaries } from '../ds4-powertrain-demand-multichannel-sequence-boundary.v1';
 import { computeLongestLoadPresentRunLabelCount } from '../ds4-powertrain-demand-sustained-load-negative-evidence.v1';
@@ -37,6 +37,7 @@ const LINK = 'link-w3-046';
 /** v1b RPM_1S binding tier (buildBoundPowertrainInput fixtures). */
 const V1B_SEQUENCE_MAX_GAP_SECONDS = 2;
 const DETECTOR_CLUSTER_MAX_GAP_MS = DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.maxAdjacentLabelGapMs;
+const B3_QUALIFYING_LABELS_PER_BLOCK = 21;
 
 function v1bSuffix() {
   return buildObservationSeries('2026-01-01T10:02:00.000Z', 8, 1, () => ({
@@ -56,15 +57,15 @@ function buildDualSustainedLoadBlocks(interBlockGapMs: number) {
   }));
   const blockStart = Date.parse('2026-01-01T10:00:12.000Z');
   const block = (startMs: number) =>
-    Array.from({ length: 5 }, (_, i) => ({
-      recordedAtIso: new Date(startMs + i * 5000).toISOString(),
+    Array.from({ length: B3_QUALIFYING_LABELS_PER_BLOCK }, (_, i) => ({
+      recordedAtIso: new Date(startMs + i * 1000).toISOString(),
       loadPct: i === 0 ? 80 : 72,
       rpm: 2000,
       throttlePct: 35,
       speedKmh: 60,
     }));
   const blockA = block(blockStart);
-  const blockBStart = blockStart + 4 * 5000 + interBlockGapMs;
+  const blockBStart = blockStart + (B3_QUALIFYING_LABELS_PER_BLOCK - 1) * 1000 + interBlockGapMs;
   return [...prefix, ...blockA, ...block(blockBStart), ...v1bSuffix()];
 }
 
@@ -101,7 +102,9 @@ describe('W3-046 sequence boundary parity', () => {
       );
       expect(out.policyVersion).toBe('sustained-load-gap-aware-research-v1.1');
       expect(out.sustainedLoad.deduplicatedCandidateCount).toBe(2);
-      expect(out.sustainedLoad.candidates.every((c) => c.observedLabelCount === 5)).toBe(true);
+      expect(
+        out.sustainedLoad.candidates.every((c) => c.observedLabelCount === B3_QUALIFYING_LABELS_PER_BLOCK),
+      ).toBe(true);
     });
 
     it('gap below boundary keeps single admitted sequence behavior', () => {
@@ -116,7 +119,7 @@ describe('W3-046 sequence boundary parity', () => {
         sequenceMaxGapSeconds: V1B_SEQUENCE_MAX_GAP_SECONDS,
       });
       expect(detect.candidates).toHaveLength(1);
-      expect(detect.candidates[0]?.observedLabelCount).toBe(10);
+      expect(detect.candidates[0]?.observedLabelCount).toBe(B3_QUALIFYING_LABELS_PER_BLOCK * 2);
     });
 
     it('gap exactly at boundary (2s) does not split sequences', () => {
@@ -224,11 +227,11 @@ describe('W3-046 sequence boundary parity', () => {
         rpm: 1500,
         speedKmh: 0,
       }));
-      const seqA = buildObservationSeries('2026-01-01T10:00:12.000Z', 5, 5, () => ({
+      const seqA = buildObservationSeries('2026-01-01T10:00:12.000Z', 5, 1, () => ({
         speedKmh: 0,
         rpm: 2100,
       }));
-      const seqB = buildObservationSeries('2026-01-01T10:00:37.000Z', 5, 5, () => ({
+      const seqB = buildObservationSeries('2026-01-01T10:00:22.000Z', 5, 1, () => ({
         speedKmh: 0,
         rpm: 2100,
       }));
@@ -259,27 +262,23 @@ describe('W3-046 sequence boundary parity', () => {
   describe('PHEV local ICE confirmation stays per-sequence', () => {
     it('ICE rpm only in first block does not admit second-block candidate', () => {
       const aStart = Date.parse('2026-01-01T10:00:12.000Z');
-      const blockA = Array.from({ length: 5 }, (_, i) => ({
-        recordedAtIso: new Date(aStart + i * 5000).toISOString(),
+      const blockA = Array.from({ length: B3_QUALIFYING_LABELS_PER_BLOCK }, (_, i) => ({
+        recordedAtIso: new Date(aStart + i * 1000).toISOString(),
         loadPct: i === 0 ? 80 : 72,
         rpm: 2000,
         throttlePct: 35,
         speedKmh: 60,
       }));
-      const bStart = aStart + 4 * 5000 + 3000;
-      const blockB = Array.from({ length: 5 }, (_, i) => ({
-        recordedAtIso: new Date(bStart + i * 5000).toISOString(),
+      const bStart = aStart + (B3_QUALIFYING_LABELS_PER_BLOCK - 1) * 1000 + 3000;
+      const blockB = Array.from({ length: B3_QUALIFYING_LABELS_PER_BLOCK }, (_, i) => ({
+        recordedAtIso: new Date(bStart + i * 1000).toISOString(),
         loadPct: i === 0 ? 80 : 72,
         rpm: 2000,
         throttlePct: 35,
         speedKmh: 60,
       }));
       const canon = canonicalizeMultichannelObservations([...blockA, ...blockB]);
-      const groups = splitBucketsAtAdmittedSequenceBoundaries(
-        canon.buckets,
-        V1B_SEQUENCE_MAX_GAP_SECONDS,
-        DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.maxAdjacentLabelGapMs,
-      );
+      const groups = splitBucketsAtAdmittedSequenceBoundaries(canon.buckets, V1B_SEQUENCE_MAX_GAP_SECONDS);
       expect(groups).toHaveLength(2);
       const withIce = groups[0]!.map((b) => ({ ...b, rpm: 500, throttlePct: 70 }));
       const throttleOnly = groups[1]!.map((b) => ({ ...b, rpm: null, throttlePct: 70 }));

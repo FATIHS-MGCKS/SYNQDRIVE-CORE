@@ -174,7 +174,6 @@ function detectGapAwareSustainedLoadOnAdmittedSequence(input: {
       const sequenceBoundary = gapCrossesAdmittedSequenceBoundary({
         labelGapMs: gap,
         sequenceMaxGapSeconds: input.sequenceMaxGapSeconds,
-        maxAdjacentLabelGapMs: DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.maxAdjacentLabelGapMs,
       });
       if (
         gap > DS4_SUSTAINED_LOAD_GAP_AWARE_POLICY.maxAdjacentLabelGapMs ||
