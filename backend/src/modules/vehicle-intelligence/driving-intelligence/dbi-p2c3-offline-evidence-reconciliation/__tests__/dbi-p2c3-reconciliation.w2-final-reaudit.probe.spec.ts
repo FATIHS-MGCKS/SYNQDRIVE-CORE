@@ -181,7 +181,7 @@ describe('W2 final re-audit independent probes', () => {
     expect(r.out?.ok).toBe(true);
   });
 
-  it('N-12 B1 forged support tier — P3 nonblocking (record-only)', () => {
+  it('N-12 B1 forged support tier rejected (W3-C enum guard)', () => {
     const p = cloneMutablePlane(adaptKickdownPlaneFromScenario());
     const c = p.candidates[0]! as unknown as { originalCandidateSupportTier: string; originalCandidate: { candidateSupportTier: string } };
     c.originalCandidateSupportTier = 'FORGED_TIER';
@@ -189,6 +189,10 @@ describe('W2 final re-audit independent probes', () => {
     const r = run(one(p));
     report('N-12', r);
     expect(r.thrown).toBeUndefined();
+    expect(r.out?.ok).toBe(false);
+    if (r.out && !r.out.ok) {
+      expect(r.out.diagnosticCodes).toContain('B1_CANDIDATE_SUPPORT_TIER_INVALID');
+    }
   });
 
   it('N-13 B2 forged proxyKind on non-positive candidate rejected', () => {

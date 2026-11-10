@@ -3008,4 +3008,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | DBI P2-C4 W3B temporal ingress adversarial closeout (2026-11-10, PR #2390) | `sourceModule`-scoped field families; required index shape gate; temporal before bundle structure; cross-family bypass oracles; `INVALID_TEMPORAL_BUCKET_INDEX_SHAPE` |
 | DBI P2-C4 W3B governance doc closeout (2026-11-10, PR #2390) | Authority index requirement table: A1/B1/B2 REQUIRED; B3/B4 NOT_REQUIRED (docs only) |
 | DBI P2-C4 W3-048 A1 index namespace priming (2026-11-10) | Cross-kernel glossary index authority; W3-048 consumer guard spec; preventive classification (no reconciliation behavior change) |
+| DBI P2-C4 W3-C B1 support tier enum closeout (2026-11-10) | `B1_CANDIDATE_SUPPORT_TIER_INVALID`; envelope + candidate enum check (`STRONG`/`MODERATE`/`WEAK`); DI-DEF-045 FIXED; `w3c-b1-support-tier.enum.spec.ts` |
 
