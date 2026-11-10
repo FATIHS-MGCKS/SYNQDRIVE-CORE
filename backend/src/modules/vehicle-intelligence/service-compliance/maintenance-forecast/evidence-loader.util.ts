@@ -22,18 +22,28 @@ export async function loadBoundedEvidencePages(
 
   while (rows.length < EVIDENCE_MAX_EVENTS) {
     const take = Math.min(EVIDENCE_PAGE_SIZE, EVIDENCE_MAX_EVENTS - rows.length);
-    const page = await loadPage(skip, take);
+    let page: unknown[];
+    try {
+      page = await loadPage(skip, take);
+    } catch {
+      loadFlags.push('HISTORY_EVIDENCE_LOAD_FAILED');
+      break;
+    }
     if (page.length === 0) break;
     rows.push(...page);
     if (page.length < take) break;
     skip += page.length;
   }
 
-  if (rows.length >= EVIDENCE_MAX_EVENTS) {
-    const more = await hasMoreBeyond(EVIDENCE_MAX_EVENTS);
-    if (more) {
-      loadFlags.push('HISTORY_EVIDENCE_TRUNCATED');
-      rows.splice(EVIDENCE_MAX_EVENTS);
+  if (!loadFlags.includes('HISTORY_EVIDENCE_LOAD_FAILED') && rows.length >= EVIDENCE_MAX_EVENTS) {
+    try {
+      const more = await hasMoreBeyond(EVIDENCE_MAX_EVENTS);
+      if (more) {
+        loadFlags.push('HISTORY_EVIDENCE_TRUNCATED');
+        rows.splice(EVIDENCE_MAX_EVENTS);
+      }
+    } catch {
+      loadFlags.push('HISTORY_EVIDENCE_LOAD_FAILED');
     }
   }
 

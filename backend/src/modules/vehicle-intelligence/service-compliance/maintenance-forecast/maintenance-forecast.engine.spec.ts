@@ -320,6 +320,30 @@ describe('computeMaintenanceForecast — acceptance scenarios', () => {
     expect(manual.positions[0]!.baseline?.evidenceClass).toBe('USER_DECLARED');
   });
 
+  it('does not emit HISTORY_MISSING when evidence load failed with empty events', () => {
+    const result = computeMaintenanceForecast(
+      input({ positions: [inspection()], events: [], evidenceLoadFlags: ['HISTORY_EVIDENCE_LOAD_FAILED'] }),
+    );
+    expect(result.dataQuality).toContain('HISTORY_EVIDENCE_LOAD_FAILED');
+    expect(result.dataQuality).not.toContain('HISTORY_MISSING');
+  });
+
+  it('lastRelevantMaintenance ignores master-data-only position baselines', () => {
+    const result = computeMaintenanceForecast(
+      input({
+        positions: [inspection()],
+        events: [],
+        masterDataBaselines: {
+          inspection: { date: new Date('2020-01-01T00:00:00Z'), odometerKm: 10_000 },
+          oilChange: { date: null, odometerKm: null },
+        },
+      }),
+    );
+    const pos = result.positions[0]!;
+    expect(pos.baseline?.eventSource).toBe('VEHICLE_MASTER_DATA');
+    expect(result.lastRelevantMaintenance).toBeNull();
+  });
+
   it('schedule without history → no invented last service', () => {
     const result = computeMaintenanceForecast(input({ positions: [inspection()], events: [] }));
     const pos = result.positions[0]!;

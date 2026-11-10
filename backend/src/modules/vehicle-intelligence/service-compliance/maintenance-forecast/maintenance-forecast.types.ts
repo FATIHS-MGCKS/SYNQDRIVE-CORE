@@ -64,6 +64,7 @@ export type MaintenanceDataQualityFlag =
   | 'SCHEDULE_MISSING'
   | 'HISTORY_MISSING'
   | 'HISTORY_EVIDENCE_TRUNCATED'
+  | 'HISTORY_EVIDENCE_LOAD_FAILED'
   | 'CONFLICT_HM_VS_COMPUTED';
 
 export interface MaintenanceSchedulePosition {

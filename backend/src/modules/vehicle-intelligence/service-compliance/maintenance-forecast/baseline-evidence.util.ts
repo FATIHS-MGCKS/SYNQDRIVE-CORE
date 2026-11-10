@@ -5,6 +5,15 @@ import type {
   MaintenanceEvidenceEvent,
 } from './maintenance-forecast.types';
 
+/** True when a summary baseline represents a completed service, not master-data calculation only. */
+export function isProvenMaintenanceBaselineRef(ref: MaintenanceBaselineRef): boolean {
+  if (ref.eventSource === 'VEHICLE_MASTER_DATA') return false;
+  if (ref.evidenceClass === 'CALCULATION_BASIS' || ref.evidenceClass === 'UNSUPPORTED') return false;
+  if (ref.evidenceClass === 'DOCUMENTED' || ref.evidenceClass === 'USER_DECLARED') return true;
+  if (!ref.eventId) return false;
+  return isAuthoritativeForecastEventSource(ref.eventSource);
+}
+
 /** Event sources that may participate in position-reset coverage matching. */
 const FORECAST_AUTHORITATIVE_EVENT_SOURCES: ReadonlySet<MaintenanceEventSource> = new Set([
   'SERVICE_EVENT_MANUAL',

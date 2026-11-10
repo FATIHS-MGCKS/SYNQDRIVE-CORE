@@ -2,6 +2,7 @@ import {
   baselineRefFromEvent,
   baselineRefFromMasterData,
   isAuthoritativeForecastEventSource,
+  isProvenMaintenanceBaselineRef,
 } from './baseline-evidence.util';
 import { addCalendarMonths, diffCalendarMonths, diffDays, startOfUtcDay } from './calendar-math.util';
 import { eventCoversPosition, findLatestCoveringEvent } from './maintenance-coverage.util';
@@ -318,7 +319,7 @@ function pickLastRelevantMaintenance(
   input: MaintenanceForecastInput,
 ): MaintenanceBaselineRef | null {
   const fromPositionBaselines = positions
-    .filter((p) => p.baseline)
+    .filter((p) => p.baseline && isProvenMaintenanceBaselineRef(p.baseline))
     .map((p) => p.baseline!)
     .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
   if (fromPositionBaselines[0]) return fromPositionBaselines[0];
@@ -417,7 +418,13 @@ export function computeMaintenanceForecast(input: MaintenanceForecastInput): Mai
     ...(input.evidenceLoadFlags ?? []),
   ];
   if (input.positions.length === 0) globalFlags.push('SCHEDULE_MISSING');
-  if (input.events.length === 0 && !input.masterDataBaselines?.inspection.date && !input.masterDataBaselines?.oilChange.date) {
+  const evidenceLoadFailed = (input.evidenceLoadFlags ?? []).includes('HISTORY_EVIDENCE_LOAD_FAILED');
+  if (
+    !evidenceLoadFailed &&
+    input.events.length === 0 &&
+    !input.masterDataBaselines?.inspection.date &&
+    !input.masterDataBaselines?.oilChange.date
+  ) {
     globalFlags.push('HISTORY_MISSING');
   }
   if (input.positions.some((p) => p.intervalKm != null)) globalFlags.push(...odometerFlags);

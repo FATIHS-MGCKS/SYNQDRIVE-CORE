@@ -70,6 +70,27 @@ describe('MaintenanceForecastService.loadEvidenceEvents (bounded pagination)', (
     expect(oil?.baseline?.eventId).toBe('oil-proof');
   });
 
+  it('sets HISTORY_EVIDENCE_LOAD_FAILED when findMany throws and omits HISTORY_MISSING', async () => {
+    const prisma = {
+      vehicle: { findUnique: async () => vehicleRow },
+      vehicleServiceEvent: {
+        findMany: async () => {
+          throw new Error('connection reset');
+        },
+        findFirst: async () => null,
+      },
+      vehicleLatestState: {
+        findUnique: async () => ({ odometerKm: 60_000, lastSeenAt: NOW, source: 'DIMO' }),
+      },
+      oneAutoProviderJob: { findFirst: async () => null },
+      oneAutoProviderResponse: { findFirst: async () => null },
+    };
+    const svc = new MaintenanceForecastService(prisma as never);
+    const result = await svc.computeForVehicle(vehicleId, NOW, null);
+    expect(result?.dataQuality).toContain('HISTORY_EVIDENCE_LOAD_FAILED');
+    expect(result?.dataQuality).not.toContain('HISTORY_MISSING');
+  });
+
   it('sets HISTORY_EVIDENCE_TRUNCATED when history exceeds EVIDENCE_MAX_EVENTS', async () => {
     const svc = serviceWithHistory(EVIDENCE_MAX_EVENTS + 10, 5);
     const result = await svc.computeForVehicle(vehicleId, NOW, null);

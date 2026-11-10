@@ -135,7 +135,7 @@ export class MaintenanceForecastService {
       return { events: mapServiceEventsToEvidence(rows as ServiceEventEvidenceRow[]), loadFlags };
     } catch (err) {
       this.logger.warn(`loadEvidenceEvents(${vehicleId}) failed: ${(err as Error).message}`);
-      return { events: [], loadFlags: [] };
+      return { events: [], loadFlags: ['HISTORY_EVIDENCE_LOAD_FAILED'] };
     }
   }
 
