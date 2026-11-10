@@ -14,8 +14,9 @@
 
 | Namespace | Primary fields | Meaning |
 |-----------|----------------|---------|
-| A1 RPM episode | `startIdx`, `endIdx`, `sequenceIndex` | v1a RPM lattice episode bounds |
-| A1 adapter envelope | `sourceSequenceIndex`, `crossDomainJoinEligible: false` | Descriptive plane ordering; join forbidden |
+| A1 RPM episode | `sequenceIndex` | Segmented RPM sequence index (v1a kernel `detectEpisodesInSequence`) |
+| A1 RPM episode | `startIdx`, `endIdx` | Inclusive **`CanonPoint.globalIdx`** episode bounds (kernel assigns from canonicalized RPM points; not local indices within one sequence) |
+| A1 adapter envelope | `sourceSequenceIndex`, `crossDomainJoinEligible: false` | Verbatim `sourceEpisode.sequenceIndex`; identifies source RPM sequence, **not** ordinal position in the sorted adapter list; join forbidden |
 | B1/B2 proxy | `startBucketIndex`, `endBucketIndex` | Multichannel bucket grid span for demand proxies |
 
 P2-C2 `collectTemporalDiagnostics` maps A1 indices into temporal **validator** slots only. P2-C3 `validateParticipantBundleTemporalIntegrity` reads A1 and B field families separately by module.

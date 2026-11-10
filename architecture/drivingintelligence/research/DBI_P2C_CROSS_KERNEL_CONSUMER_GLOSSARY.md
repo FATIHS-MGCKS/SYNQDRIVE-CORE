@@ -23,8 +23,8 @@
 | Binding | `abstainReasons` | v1a/v1b identity, tenant, admission, ICE applicability |
 | Assessability | `referenceContext.normalizedEpisodesEligible` | Reference + ICE gates for u-normalized episodes |
 | Candidates | `highEpisodes.items` | Descriptive episodes, **not** misuse/proxy candidates |
-| Intervals | `startIdx`/`endIdx`, `pointCount` | **A1 RPM episode sequence indices** (v1a admitted RPM lattice; not multichannel bucket grid) |
-| Ordering | `sourceSequenceIndex` (adapter) | Ordinal of episode in sorted A1 plane; **not** B-grid bucket index |
+| Intervals | `startIdx`/`endIdx`, `pointCount` | Inclusive bounds on **`CanonPoint.globalIdx`** for the admitted episode (canonicalized RPM point lattice for the trip binding); **not** local indices within one segmented sequence; **not** multichannel `startBucketIndex`/`endBucketIndex` |
+| Sequence identity | `sequenceIndex` (kernel), `sourceSequenceIndex` (adapter) | **`sequenceIndex`:** segmented RPM sequence that produced the episode. **`sourceSequenceIndex`:** verbatim copy of `sourceEpisode.sequenceIndex` in `dbi-p2c2-a1-evidence-adapter.v1.ts` — identifies the source RPM sequence, **not** the ordinal row position in the adapter’s sorted plane (`adapterLocalReference` is separate) |
 | Trust | No multichannel fingerprint | `semanticGuards.labelsNotForCrossDomainJoin=true` |
 
 #### P2-A1 cross-domain authority (P2-C)
@@ -82,8 +82,9 @@ A1 may appear as a **descriptive participant** in a reconciliation bundle **with
 
 | Authority | Fields | Scientific meaning | Cross-domain rule |
 |-----------|--------|-------------------|-------------------|
-| **A1 RPM episode** | `startIdx`, `endIdx`, `sequenceIndex` | Indices on the v1a RPM episode lattice inside a trip binding | **MUST NOT** be read as `startBucketIndex`/`endBucketIndex` |
-| **A1 adapter plane** | `sourceSequenceIndex`, `crossDomainJoinEligible: false` | Descriptive ordering + explicit join prohibition | Never eligible for B-side relationship inventory |
+| **A1 RPM episode** | `sequenceIndex` | Index of the **segmented RPM sequence** passed into v1a episode detection for this item | **MUST NOT** be read as B-grid bucket index or adapter list ordinal |
+| **A1 RPM episode** | `startIdx`, `endIdx` | Inclusive **`CanonPoint.globalIdx`** bounds from kernel (`seq[start].globalIdx` … `seq[end].globalIdx`); global canonicalized RPM points, not local indices within one sequence | **MUST NOT** be read as `startBucketIndex`/`endBucketIndex` |
+| **A1 adapter plane** | `sourceSequenceIndex`, `crossDomainJoinEligible: false` | `sourceSequenceIndex` = kernel `sequenceIndex` copy; explicit join prohibition | Never eligible for B-side relationship inventory |
 | **B1/B2 proxy** | `startBucketIndex`, `endBucketIndex` | Multichannel bucket grid windows for kickdown/cold-engine proxies | Comparable **only within** the same B module envelope |
 | **P2-C2 temporal normalization** | Maps A1 `startIdx`/`endIdx` into temporal interval **validator** slots | Shared ISO/order checks only; **not** a semantic merge of namespaces | Does not authorize joins or inventory promotion |
 | **P2-C3 reconciliation** | Separate temporal collectors per `sourceModule` | A1 episodes descriptive-only; indices validated independently | No pairwise edges with `P2-A1`; equal numbers/labels **do not** imply alignment |
