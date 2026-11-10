@@ -36,6 +36,25 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'service-info-v3-ux32-overdue-clarity-2026-11-10',
+    version: '4.9.5035',
+    title: 'Service Info V3 UX-3.2 — overdue clarity + position baseline on plan rows',
+    summary: [
+      'Overview tab lists each OVERDUE forecast position (count, name, signed days/km) plus not-computable footer; optional jump to Wartungsplan tab.',
+      'Plan rows drop expandable Details; show Zuletzt nachgewiesen vs Berechnungsgrundlage from position.baseline only (`service-info-position-baseline.ts`).',
+      'iPhone fixture + Vitest/Playwright; health.serviceInfo.v3.ux32.* keys in 9 locales.',
+    ],
+    reason:
+      'Production iPhone UX: opaque single overdue headline and hidden last-service evidence per maintenance position.',
+    previousBehavior:
+      'Overview relied on worst headline only; plan used nested Details for baseline/provenance.',
+    details:
+      'frontend: ServiceMaintenanceForecastPanel.tsx, ServiceInfoV3Panel.tsx, service-info-position-baseline.ts, service-info-v3-fixture-data.ts, e2e/service-info-v3-ux32-overdue.spec.ts.',
+    affectsArchitecture: false,
+    module: 'Vehicle Intelligence',
+    createdAt: '2026-11-10T00:55:00.000Z',
+  },
+  {
     id: 'dbi-p2c4-w2-opus-two-blocker-2026-11-09',
     version: '4.9.5033',
     title: 'DBI P2-C4 W2 — Opus final two-blocker (projection JSON safety + B3 negative parity)',

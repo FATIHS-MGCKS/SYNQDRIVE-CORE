@@ -157,6 +157,7 @@ export function ServiceInfoV3Panel({
               orgId={orgId}
               onUploadProof={onUploadProof}
               onChanged={onChanged}
+              onOpenPlanTab={id === 'overview' ? () => activateTab('plan') : undefined}
             />
           )}
         </div>

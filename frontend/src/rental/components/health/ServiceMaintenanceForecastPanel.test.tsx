@@ -5,12 +5,19 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { MaintenanceForecastResult, MaintenancePositionForecast, ServiceInfoStatus } from '../../../lib/api';
 import { LanguageProvider } from '../../../i18n/LanguageContext';
 import { LOCALE_STORAGE_KEY } from '../../../i18n/locales';
-import { baseForecast } from './service-info-v3-fixture-data';
+import { baseForecast, iphoneUx32OverdueFixture } from './service-info-v3-fixture-data';
 import { ServiceMaintenanceForecastPanel } from './ServiceMaintenanceForecastPanel';
 
 function renderPanel(
   serviceInfo: ServiceInfoStatus | null,
-  opts?: { loading?: boolean; error?: boolean; compact?: boolean; key?: string },
+  opts?: {
+    loading?: boolean;
+    error?: boolean;
+    compact?: boolean;
+    key?: string;
+    surface?: 'full' | 'overview' | 'plan';
+    onOpenPlanTab?: () => void;
+  },
 ) {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -28,6 +35,8 @@ function renderPanel(
           vehicleId: 'veh-test',
           orgId: 'org-test',
           compact: opts?.compact ?? false,
+          surface: opts?.surface,
+          onOpenPlanTab: opts?.onOpenPlanTab,
         }),
       ),
     );
@@ -177,11 +186,8 @@ describe('ServiceMaintenanceForecastPanel UX-1.1', () => {
       maintenanceForecast: baseForecast({ positions: [bare] }),
     } as unknown as ServiceInfoStatus);
     cleanup = view.cleanup;
-    const details = view.container.querySelector('details') as HTMLDetailsElement | null;
-    expect(details).toBeTruthy();
-    details!.open = true;
-    expect(view.container.textContent).toContain('Planquelle');
-    expect(view.container.textContent).toContain('Kein nachgewiesener Ausgangspunkt');
+    expect(view.container.textContent).toContain('Kein positionsbezogener Wartungsnachweis');
+    expect(view.container.textContent).not.toContain('health.serviceInfo.v3.details.toggle');
   });
 
   it('uses unique accessibility ids for multiple panel instances', () => {
@@ -231,6 +237,45 @@ describe('ServiceMaintenanceForecastPanel UX-1.1', () => {
     const details = view.container.querySelector('details');
     expect(details).toBeTruthy();
     expect((details as HTMLDetailsElement).open).toBe(false);
+  });
+
+  it('overview lists three overdue positions with not-computable footer (UX-3.2)', () => {
+    const serviceInfo = iphoneUx32OverdueFixture();
+    const view = renderPanel(serviceInfo, { surface: 'overview' });
+    cleanup = view.cleanup;
+    const text = view.container.textContent ?? '';
+    expect(text).toMatch(/3 Wartungen überfällig/);
+    expect(text).toContain('963');
+    expect(text).toContain('Bremsflüssigkeit');
+    expect(text).toContain('Ölwechsel');
+    expect(text).toContain('1.546');
+    expect(text).toContain('Zündkerzen');
+    expect(text).toMatch(/11 weitere Positionen nicht berechenbar/);
+    const overdueItems = view.container.querySelectorAll('[data-testid^="service-overdue-item-"]');
+    expect(overdueItems.length).toBe(3);
+  });
+
+  it('plan row shows verified baseline for oil without details toggle (UX-3.2)', () => {
+    const serviceInfo = iphoneUx32OverdueFixture();
+    const view = renderPanel(serviceInfo, { surface: 'plan' });
+    cleanup = view.cleanup;
+    const oil = view.container.querySelector('[data-testid="service-plan-position-p-oil"]');
+    expect(oil).toBeTruthy();
+    const oilText = oil?.textContent ?? '';
+    expect(oilText).toContain('Zuletzt nachgewiesen');
+    expect(oilText).toContain('170.430');
+    expect(oilText).toContain('Intervall');
+    expect(oilText).not.toMatch(/^\s*Details\s*$/m);
+    expect(view.container.querySelector('[data-testid="service-plan-position-p-oil"] details')).toBeNull();
+  });
+
+  it('master-data baseline uses calculation basis label', () => {
+    const serviceInfo = iphoneUx32OverdueFixture();
+    const view = renderPanel(serviceInfo, { surface: 'plan' });
+    cleanup = view.cleanup;
+    const md = view.container.querySelector('[data-testid="service-plan-position-p-md-only"]');
+    expect(md?.textContent).toContain('Berechnungsgrundlage');
+    expect(md?.textContent).not.toContain('Zuletzt nachgewiesen');
   });
 
   it('surfaces conflict list when forecast provides conflicts', () => {

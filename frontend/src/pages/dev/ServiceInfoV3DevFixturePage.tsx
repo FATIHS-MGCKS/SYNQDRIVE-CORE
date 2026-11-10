@@ -4,6 +4,7 @@ import { ServiceInfoV3Panel } from '../../rental/components/health/ServiceInfoV3
 import {
   arteonFixtureModalPresentation,
   arteonFixtureWithHistory,
+  iphoneUx32OverdueFixture,
   mercedesNoForecastServiceInfo,
 } from '../../rental/components/health/service-info-v3-fixture-data';
 
@@ -16,6 +17,7 @@ export default function ServiceInfoV3DevFixturePage() {
   const arteon = arteonFixtureWithHistory();
   const mercedes = mercedesNoForecastServiceInfo();
   const modalArteon = arteonFixtureModalPresentation();
+  const ux32 = iphoneUx32OverdueFixture();
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl space-y-8 overflow-x-hidden bg-background p-4 text-foreground">
@@ -23,6 +25,16 @@ export default function ServiceInfoV3DevFixturePage() {
         <h1 className="text-lg font-semibold">{t('health.serviceInfo.v3.devFixture.title')}</h1>
         <p className="text-xs text-muted-foreground">{t('health.serviceInfo.v3.devFixture.subtitle')}</p>
       </header>
+      <section data-testid="fixture-ux32-iphone" className="min-w-0">
+        <ServiceInfoV3Panel
+          serviceInfo={ux32}
+          loading={false}
+          error={false}
+          vehicleId="veh-ux32"
+          orgId="org-fixture"
+          defaultTab="overview"
+        />
+      </section>
       <section data-testid="fixture-arteon" className="min-w-0">
         <ServiceInfoV3Panel
           serviceInfo={arteon}
