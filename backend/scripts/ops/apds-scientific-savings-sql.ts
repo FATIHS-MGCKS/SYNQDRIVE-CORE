@@ -35,6 +35,7 @@ export async function queryExactJointSkipSavings(
       AND b2.real_poll_id IS NOT NULL
     INNER JOIN dimo_poll_logs dpl
       ON dpl.id = b2.real_poll_id
+      AND dpl.vehicle_id = b2.vehicle_id
       AND dpl.status = 'SUCCESS'
       AND dpl.job_type = 'SNAPSHOT'
     WHERE b2.vehicle_id = ANY(${input.vehicleIds}::text[])
