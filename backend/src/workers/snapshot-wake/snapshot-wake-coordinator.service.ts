@@ -46,6 +46,7 @@ import {
   buildApdShadowEnqueueEvidence,
   stableEnqueueOutcomeToCanonical,
 } from './apd-shadow-enqueue-evidence.util';
+import { stageApdShadowEnqueueEvidence } from './apd-shadow-enqueue-evidence.redis-store';
 import {
   classifyWakeContinuation,
   mayScheduleWakeSuccessor,
@@ -118,33 +119,22 @@ export class SnapshotWakeCoordinatorService {
     @Optional() private readonly tripMetrics?: TripMetricsService,
   ) {}
 
-  /**
-   * Authoritative enqueue boundary for APD shadow: durable evidence on the BullMQ job
-   * consumed at processor poll-start (no extra provider requests).
-   */
-  private async attachApdShadowEnqueueEvidenceToCanonicalJob(
+  private async stageCoalescedEnqueueEvidence(
+    vehicleId: string,
     jobId: string,
-    data: DimoSnapshotJobData,
     stableOutcome: SnapshotStableEnqueueOutcome,
   ): Promise<void> {
     const canonical = stableEnqueueOutcomeToCanonical(stableOutcome);
-    const evidence = buildApdShadowEnqueueEvidence(canonical, Date.now());
     try {
-      const job = await this.queue.getJob(jobId);
-      if (!job) return;
-      const existing = job.data as DimoSnapshotJobData;
-      await job.updateData({
-        ...existing,
-        vehicleId: data.vehicleId,
-        dimoTokenId: data.dimoTokenId,
-        origin: data.origin,
-        wakeContext: data.wakeContext,
-        apdShadowOpportunityId: data.apdShadowOpportunityId,
-        apdShadowEnqueueEvidence: evidence,
+      await stageApdShadowEnqueueEvidence(this.redis, {
+        vehicleId,
+        canonicalJobId: jobId,
+        enqueueOutcome: canonical,
+        observedAtMs: Date.now(),
       });
     } catch (err) {
       this.logger.debug(
-        `APD enqueue evidence attach skipped for ${data.vehicleId}: ${(err as Error).message}`,
+        `APD coalesced enqueue evidence stage skipped for ${vehicleId}: ${(err as Error).message}`,
       );
     }
   }
@@ -174,6 +164,7 @@ export class SnapshotWakeCoordinatorService {
       wakeContext: input.wakeContext,
       apdShadowOpportunityId: input.apdShadowOpportunityId,
     };
+    const enqueueObservedAtMs = Date.now();
 
     try {
       const enqueueOutcome = await enqueueStableSnapshotJob({
@@ -182,9 +173,24 @@ export class SnapshotWakeCoordinatorService {
         jobId,
         data,
         delayMs: input.delayMs,
+        beforePhysicalAdd: (kind) => {
+          data.apdShadowEnqueueEvidence = buildApdShadowEnqueueEvidence(
+            kind,
+            enqueueObservedAtMs,
+          );
+        },
       });
 
-      await this.attachApdShadowEnqueueEvidenceToCanonicalJob(jobId, data, enqueueOutcome);
+      if (
+        isQueuedCoalesce(enqueueOutcome) ||
+        coalesceNeedsPostTerminalSuccessor(enqueueOutcome)
+      ) {
+        await this.stageCoalescedEnqueueEvidence(
+          input.vehicleId,
+          jobId,
+          enqueueOutcome,
+        );
+      }
 
       if (isQueuedCoalesce(enqueueOutcome) && input.wakeContext) {
         this.recordWakeMetric(input.wakeContext, 'COALESCED');

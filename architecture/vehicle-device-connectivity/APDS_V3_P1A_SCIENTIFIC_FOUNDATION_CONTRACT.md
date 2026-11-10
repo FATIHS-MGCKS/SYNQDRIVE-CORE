@@ -39,7 +39,7 @@ Scoped per `(organizationId, vehicleId, providerSourceLinkId)`:
 | Work package | Artifact |
 |--------------|----------|
 | A Delay integrity | `P25_APD_DELAY_EVIDENCE_V1_1` immediate-next binding |
-| B Enqueue durability | `apdShadowEnqueueEvidence` on BullMQ job → processor patch |
+| B Enqueue durability | Evidence at `beforePhysicalAdd` only (immutable BullMQ payload); COALESCED paths use Redis one-shot staging (`apd-shadow-enqueue-evidence.redis-store.ts`) consumed at processor start |
 | C Savings evaluator | `backend/scripts/ops/apds-scientific-savings-evaluator.ts` |
 | D This contract | Architecture only |
 | E Verification | Unit + optional Postgres CI script |

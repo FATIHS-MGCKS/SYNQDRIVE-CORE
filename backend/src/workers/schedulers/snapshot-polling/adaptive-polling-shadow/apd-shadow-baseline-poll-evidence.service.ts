@@ -108,12 +108,16 @@ export class ApdShadowBaselinePollEvidenceService {
     observingPollId: string;
     observingPollStartedAtMs: number;
     observingPollCompletedAtMs: number;
-  }): Promise<void> {
-    const PAGE_SIZE = 100;
-    let cursor: string | undefined;
+    maxOpportunitiesPerRun?: number;
+  }): Promise<{ processedOpportunities: number; budgetExhausted: boolean }> {
+    const OPPORTUNITY_PAGE_SIZE = 25;
+    const maxOpportunities = input.maxOpportunitiesPerRun ?? 200;
+    let opportunityCursor: string | undefined;
+    let processedOpportunities = 0;
+    let budgetExhausted = false;
 
-    for (;;) {
-      const priorRows = await this.prisma.apdShadowReconciliationDecision.findMany({
+    while (processedOpportunities < maxOpportunities) {
+      const opportunityBatch = await this.prisma.apdShadowReconciliationDecision.findMany({
         where: {
           organizationId: input.organizationId,
           vehicleId: input.vehicleId,
@@ -126,66 +130,84 @@ export class ApdShadowBaselinePollEvidenceService {
           realPollCompletedAt: {
             lt: new Date(input.observingPollStartedAtMs),
           },
-          ...(cursor ? { opportunityId: { gt: cursor } } : {}),
+          ...(opportunityCursor ? { opportunityId: { gt: opportunityCursor } } : {}),
         },
+        distinct: ['opportunityId'],
         orderBy: { opportunityId: 'asc' },
-        take: PAGE_SIZE,
-        select: {
-          opportunityId: true,
-          policyVersion: true,
-          realPollCompletedAt: true,
-        },
+        take: OPPORTUNITY_PAGE_SIZE,
+        select: { opportunityId: true },
       });
-      if (priorRows.length === 0) break;
 
-      const completedByOpp = new Map<
-        string,
-        { completedAtMs: number; rows: typeof priorRows }
-      >();
-      for (const row of priorRows) {
-        if (!row.realPollCompletedAt) continue;
-        const existing = completedByOpp.get(row.opportunityId);
-        if (!existing) {
-          completedByOpp.set(row.opportunityId, {
-            completedAtMs: row.realPollCompletedAt.getTime(),
-            rows: [row],
-          });
-        } else {
-          existing.rows.push(row);
+      if (opportunityBatch.length === 0) break;
+
+      for (const { opportunityId } of opportunityBatch) {
+        if (processedOpportunities >= maxOpportunities) {
+          budgetExhausted = true;
+          break;
         }
-      }
 
-      for (const [opportunityId, group] of completedByOpp) {
+        const priorRows = await this.prisma.apdShadowReconciliationDecision.findMany({
+          where: {
+            organizationId: input.organizationId,
+            vehicleId: input.vehicleId,
+            activationEpochId: input.activationEpochId,
+            opportunityId,
+            decision: 'WOULD_SKIP',
+            realPollStatus: 'SUCCESS',
+            additionalDiscoveryDelayMs: null,
+            discoveryDelayEvidenceVersion: null,
+            OR: [{ newLvSourceObserved: true }, { newTopLevelSourceObserved: true }],
+            realPollCompletedAt: {
+              lt: new Date(input.observingPollStartedAtMs),
+            },
+          },
+          orderBy: [{ policyVersion: 'asc' }],
+          select: {
+            opportunityId: true,
+            policyVersion: true,
+            realPollCompletedAt: true,
+          },
+        });
+
+        const completedAtMs = priorRows[0]?.realPollCompletedAt?.getTime();
+        if (completedAtMs == null) {
+          processedOpportunities += 1;
+          continue;
+        }
+
         const immediateNext = await this.prisma.dimoPollLog.findFirst({
           where: {
             vehicleId: input.vehicleId,
             jobType: DimoPollJobType.SNAPSHOT,
             status: DimoPollStatus.SUCCESS,
-            startedAt: { gt: new Date(group.completedAtMs) },
+            startedAt: { gt: new Date(completedAtMs) },
           },
-          orderBy: { startedAt: 'asc' },
-          select: { id: true },
+          orderBy: [{ startedAt: 'asc' }, { id: 'asc' }],
+          select: { id: true, startedAt: true },
         });
+
         if (
           !isImmediateNextBaselineSuccessPoll({
             immediateNextPollId: immediateNext?.id ?? null,
             observingPollId: input.observingPollId,
           })
         ) {
+          processedOpportunities += 1;
           continue;
         }
 
         const delayEvidence = evaluateBaselineSkipDiscoveryDelay({
-          priorPollCompletedAtMs: group.completedAtMs,
+          priorPollCompletedAtMs: completedAtMs,
           nextBaselinePollStartedAtMs: input.observingPollStartedAtMs,
           nextBaselinePollCompletedAtMs: input.observingPollCompletedAtMs,
           nextBaselinePollId: input.observingPollId,
         });
         if (delayEvidence.kind !== 'NEXT_BASELINE_POLL_OBSERVED') {
+          processedOpportunities += 1;
           continue;
         }
 
-        for (const row of group.rows) {
+        for (const row of priorRows) {
           const updated = await this.prisma.apdShadowReconciliationDecision.updateMany({
             where: {
               organizationId: input.organizationId,
@@ -209,11 +231,16 @@ export class ApdShadowBaselinePollEvidenceService {
             );
           }
         }
+
+        processedOpportunities += 1;
       }
 
-      cursor = priorRows[priorRows.length - 1]?.opportunityId;
-      if (priorRows.length < PAGE_SIZE) break;
+      if (budgetExhausted) break;
+      opportunityCursor = opportunityBatch[opportunityBatch.length - 1]?.opportunityId;
+      if (opportunityBatch.length < OPPORTUNITY_PAGE_SIZE) break;
     }
+
+    return { processedOpportunities, budgetExhausted };
   }
 
   /**

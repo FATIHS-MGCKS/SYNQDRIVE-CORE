@@ -52,9 +52,24 @@ function parseArgs(): Args {
 async function main(): Promise<void> {
   const args = parseArgs();
   const prisma = new PrismaClient();
+
+  const epochRow = await prisma.apdShadowActivationEpoch.findUnique({
+    where: { id: args.activationEpochId },
+    select: { activatedAt: true, lifecycleState: true },
+  });
+  if (!epochRow) {
+    throw new Error(`activation epoch not found: ${args.activationEpochId}`);
+  }
+  const authoritativeT0 = epochRow.activatedAt;
+  if (!authoritativeT0) {
+    throw new Error(
+      `activation epoch missing activatedAt: ${args.activationEpochId}`,
+    );
+  }
+
   const windowStart = new Date(
     Math.max(
-      args.activationT0.getTime(),
+      authoritativeT0.getTime(),
       args.evaluationCompletedAtUtc.getTime() - args.windowDays * 86_400_000,
     ),
   );
@@ -98,31 +113,44 @@ async function main(): Promise<void> {
 
   const savings = await prisma.$queryRaw<
     Array<{
-      opportunities: bigint;
-      intersect_both_skip_success: bigint;
-      union_any_skip_success: bigint;
+      joint_skip_opportunities: bigint;
+      distinct_joint_skip_physical_polls: bigint;
+      union_any_skip_success_opportunities: bigint;
     }>
   >`
-    WITH epoch_rows AS (
-      SELECT opportunity_id, policy_version, decision, real_poll_status
-      FROM apd_shadow_reconciliation_decisions
-      WHERE vehicle_id = ANY(${args.vehicleIds}::text[])
-        AND activation_epoch_id = ${args.activationEpochId}
-        AND decision_at >= ${windowStart}
-        AND decision_at <= ${args.evaluationCompletedAtUtc}
-    ), pivot AS (
-      SELECT opportunity_id,
-        BOOL_AND(decision = 'WOULD_SKIP') FILTER (WHERE real_poll_status = 'SUCCESS') AS both_skip_success,
-        BOOL_OR(decision = 'WOULD_SKIP') FILTER (WHERE real_poll_status = 'SUCCESS') AS any_skip_success,
-        COUNT(DISTINCT policy_version) AS policy_cnt
-      FROM epoch_rows
-      GROUP BY opportunity_id
-    )
     SELECT
-      COUNT(*) FILTER (WHERE policy_cnt = 2)::bigint AS opportunities,
-      COUNT(*) FILTER (WHERE both_skip_success)::bigint AS intersect_both_skip_success,
-      COUNT(*) FILTER (WHERE any_skip_success)::bigint AS union_any_skip_success
-    FROM pivot`;
+      COUNT(DISTINCT b2.opportunity_id)::bigint AS joint_skip_opportunities,
+      COUNT(DISTINCT b2.real_poll_id)::bigint AS distinct_joint_skip_physical_polls,
+      (
+        SELECT COUNT(DISTINCT r.opportunity_id)::bigint
+        FROM apd_shadow_reconciliation_decisions r
+        WHERE r.vehicle_id = ANY(${args.vehicleIds}::text[])
+          AND r.activation_epoch_id = ${args.activationEpochId}
+          AND r.decision_at >= ${windowStart}
+          AND r.decision_at <= ${args.evaluationCompletedAtUtc}
+          AND r.decision = 'WOULD_SKIP'
+          AND r.real_poll_status = 'SUCCESS'
+      ) AS union_any_skip_success_opportunities
+    FROM apd_shadow_reconciliation_decisions b2
+    INNER JOIN apd_shadow_reconciliation_decisions b4
+      ON b2.organization_id = b4.organization_id
+      AND b2.vehicle_id = b4.vehicle_id
+      AND b2.activation_epoch_id = b4.activation_epoch_id
+      AND b2.opportunity_id = b4.opportunity_id
+      AND b2.real_poll_id = b4.real_poll_id
+      AND b2.real_poll_id IS NOT NULL
+    WHERE b2.vehicle_id = ANY(${args.vehicleIds}::text[])
+      AND b2.activation_epoch_id = ${args.activationEpochId}
+      AND b2.decision_at >= ${windowStart}
+      AND b2.decision_at <= ${args.evaluationCompletedAtUtc}
+      AND b4.decision_at >= ${windowStart}
+      AND b4.decision_at <= ${args.evaluationCompletedAtUtc}
+      AND b2.policy_version = ${P25_APD_B2_V1}
+      AND b4.policy_version = ${P25_APD_B4_V1}
+      AND b2.decision = 'WOULD_SKIP'
+      AND b4.decision = 'WOULD_SKIP'
+      AND b2.real_poll_status = 'SUCCESS'
+      AND b4.real_poll_status = 'SUCCESS'`;
 
   const strictLvDistinct = await prisma.$queryRaw<Array<{ cnt: bigint }>>`
     SELECT COUNT(DISTINCT real_poll_id)::bigint AS cnt
@@ -163,8 +191,10 @@ async function main(): Promise<void> {
       days: args.windowDays,
       startUtc: windowStart.toISOString(),
       endUtc: args.evaluationCompletedAtUtc.toISOString(),
-      activationT0Utc: args.activationT0.toISOString(),
+      activationT0UtcAuthoritative: authoritativeT0.toISOString(),
+      activationT0UtcEnvOverride: args.activationT0.toISOString(),
       activationEpochId: args.activationEpochId,
+      epochLifecycleState: epochRow.lifecycleState,
     },
     policyVersions: [P25_APD_B2_V1, P25_APD_B4_V1],
     vehicleIds: args.vehicleIds,
@@ -187,12 +217,17 @@ async function main(): Promise<void> {
       },
     },
     savingsCandidates: {
-      opportunitiesBothPolicies: Number(savings[0]?.opportunities ?? 0),
-      intersectBothWouldSkipSuccess: Number(
-        savings[0]?.intersect_both_skip_success ?? 0,
+      jointSkipOpportunitiesExactB2B4: Number(
+        savings[0]?.joint_skip_opportunities ?? 0,
       ),
-      unionAnyWouldSkipSuccess: Number(savings[0]?.union_any_skip_success ?? 0),
+      distinctJointSkipPhysicalPolls: Number(
+        savings[0]?.distinct_joint_skip_physical_polls ?? 0,
+      ),
+      unionAnyWouldSkipSuccessOpportunities: Number(
+        savings[0]?.union_any_skip_success_opportunities ?? 0,
+      ),
       notAdditiveRule: 'Do not sum per-policy WOULD_SKIP rows',
+      unpairedOrInconsistent: 'NOT_ASSESSABLE for joint skip unless both policies match same real_poll_id',
     },
     informativeSkipLoss: {
       strictLvAdvanceDistinctPhysicalPolls: Number(strictLvDistinct[0]?.cnt ?? 0),
