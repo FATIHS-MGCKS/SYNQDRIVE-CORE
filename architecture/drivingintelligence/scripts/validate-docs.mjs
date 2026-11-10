@@ -52,7 +52,7 @@ function parseSummaryInt(text, key) {
 
 function parseDefectLedger(text) {
   const rows = [];
-  const rowRe = /\| (DI-DEF-\d+) \|(?:[^|]+\|){6} (FIXED_PRODUCTION_VALIDATED|FIXED_CODE_TESTED|FIXED|OPEN) \|/g;
+  const rowRe = /\| (DI-DEF-\d+) \|(?:[^|]+\|){6} (FIXED_PRODUCTION_VALIDATED|FIXED_CODE_TESTED|FIXED|OPEN|PREVENTIVE) \|/g;
   for (const m of text.matchAll(rowRe)) {
     rows.push({ id: m[1], status: m[2] });
   }

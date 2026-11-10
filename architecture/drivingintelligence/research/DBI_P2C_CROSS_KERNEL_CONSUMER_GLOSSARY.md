@@ -23,7 +23,8 @@
 | Binding | `abstainReasons` | v1a/v1b identity, tenant, admission, ICE applicability |
 | Assessability | `referenceContext.normalizedEpisodesEligible` | Reference + ICE gates for u-normalized episodes |
 | Candidates | `highEpisodes.items` | Descriptive episodes, **not** misuse/proxy candidates |
-| Intervals | `startIdx`/`endIdx`, `pointCount` | v1a RPM sequence indices |
+| Intervals | `startIdx`/`endIdx`, `pointCount` | Inclusive bounds on **`CanonPoint.globalIdx`** for the admitted episode (canonicalized RPM point lattice for the trip binding); **not** local indices within one segmented sequence; **not** multichannel `startBucketIndex`/`endBucketIndex` |
+| Sequence identity | `sequenceIndex` (kernel), `sourceSequenceIndex` (adapter) | **`sequenceIndex`:** segmented RPM sequence that produced the episode. **`sourceSequenceIndex`:** verbatim copy of `sourceEpisode.sequenceIndex` in `dbi-p2c2-a1-evidence-adapter.v1.ts` — identifies the source RPM sequence, **not** the ordinal row position in the adapter’s sorted plane (`adapterLocalReference` is separate) |
 | Trust | No multichannel fingerprint | `semanticGuards.labelsNotForCrossDomainJoin=true` |
 
 #### P2-A1 cross-domain authority (P2-C)
@@ -45,7 +46,7 @@ A1 may appear as a **descriptive participant** in a reconciliation bundle **with
 | Kernel status | `status` | `COMPUTED` if ≥1 `KICKDOWN_LIKE_PROXY_CANDIDATE`; else `NOT_OBSERVED` |
 | Assessability | *(none explicit)* | Movement completeness admits detection; do not invent facet assessability |
 | Evidence | `kickdown.candidates` | Kickdown-like proxy only |
-| Intervals | Bucket indices + isos | Moving-biased grid |
+| Intervals | `startBucketIndex`/`endBucketIndex` + provider bucket label isos | **Multichannel powertrain demand bucket grid** (distinct namespace from A1 `startIdx`/`endIdx`) |
 | Fingerprints | v1b + multichannel | Required for binding |
 
 ### P2-B2 Cold Engine
@@ -76,6 +77,19 @@ A1 may appear as a **descriptive participant** in a reconciliation bundle **with
 | Evidence | `tripEvidenceClassification` | Per-facet verdict after detection |
 | Coverage | `coverageEvidence` | **Exactly six keys** (grid + channel presence); root holds `distinctMsLabelsInTrip` |
 | Zero-RPM admitted | `status=COMPUTED` | Both facets `NOT_ASSESSABLE` possible — not an evaluated rev/idle result |
+
+## Index namespace authority (W3-048)
+
+| Authority | Fields | Scientific meaning | Cross-domain rule |
+|-----------|--------|-------------------|-------------------|
+| **A1 RPM episode** | `sequenceIndex` | Index of the **segmented RPM sequence** passed into v1a episode detection for this item | **MUST NOT** be read as B-grid bucket index or adapter list ordinal |
+| **A1 RPM episode** | `startIdx`, `endIdx` | Inclusive **`CanonPoint.globalIdx`** bounds from kernel (`seq[start].globalIdx` … `seq[end].globalIdx`); global canonicalized RPM points, not local indices within one sequence | **MUST NOT** be read as `startBucketIndex`/`endBucketIndex` |
+| **A1 adapter plane** | `sourceSequenceIndex`, `crossDomainJoinEligible: false` | `sourceSequenceIndex` = kernel `sequenceIndex` copy; explicit join prohibition | Never eligible for B-side relationship inventory |
+| **B1/B2 proxy** | `startBucketIndex`, `endBucketIndex` | Multichannel bucket grid windows for kickdown/cold-engine proxies | Comparable **only within** the same B module envelope |
+| **P2-C2 temporal normalization** | Maps A1 `startIdx`/`endIdx` into temporal interval **validator** slots | Shared ISO/order checks only; **not** a semantic merge of namespaces | Does not authorize joins or inventory promotion |
+| **P2-C3 reconciliation** | Separate temporal collectors per `sourceModule` | A1 episodes descriptive-only; indices validated independently | No pairwise edges with `P2-A1`; equal numbers/labels **do not** imply alignment |
+
+**Consumer misuse prevented (not a runtime defect claim):** Treating equal `startIdx` and `startBucketIndex`, or equal provider bucket label isos across A1 and B1, as evidence of one event or inventory identity — **rejected by architecture** and guarded by `w3-048-index-namespace.opus.spec.ts`.
 
 ## P2-C2/C3 design constraints (not implemented in P2-C1)
 

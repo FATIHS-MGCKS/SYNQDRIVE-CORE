@@ -101,7 +101,7 @@ After bundle shape validation and **before** bundle participant structure checks
 
 Diagnostics: `INVALID_PROVIDER_BUCKET_LABEL`, `INVALID_TEMPORAL_INTERVAL_ORDER`, `INVALID_BUCKET_INDEX_ORDER`, `INVALID_TEMPORAL_BUCKET_INDEX_SHAPE` — sorted, deduplicated, fail-closed (`ok: false`; no inventory, edges, or digest). Malformed nested extraction does not throw.
 
-Canonical timestamp format does not assert physical event time or provider attestation (`BUCKET_LABEL_UNVERIFIED`, research-only `MODE_A` unchanged). No A1↔B multichannel index join (W3-048 deferred).
+Canonical timestamp format does not assert physical event time or provider attestation (`BUCKET_LABEL_UNVERIFIED`, research-only `MODE_A` unchanged). **Index namespaces are distinct:** A1 `startIdx`/`endIdx` ≠ B1/B2 `startBucketIndex`/`endBucketIndex`; equal values do not imply alignment (W3-048 glossary + guard tests).
 
 ## Forged-bundle participant integrity (P2-C4 W2)
 
