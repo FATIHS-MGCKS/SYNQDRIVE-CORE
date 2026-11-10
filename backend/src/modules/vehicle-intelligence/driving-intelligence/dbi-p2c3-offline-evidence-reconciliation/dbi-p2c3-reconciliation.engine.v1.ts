@@ -80,14 +80,14 @@ export function reconcileDbiP2c2OfflineEvidenceBundleV1(
     return buildFailure(shapeDiagnostics);
   }
 
-  const structureDiagnostics = validateBundleAndParticipants(bundle);
-  if (structureDiagnostics.length > 0) {
-    return buildFailure(structureDiagnostics);
-  }
-
   const temporalDiagnostics = validateParticipantBundleTemporalIntegrity(bundle);
   if (temporalDiagnostics.length > 0) {
     return buildFailure(temporalDiagnostics);
+  }
+
+  const structureDiagnostics = validateBundleAndParticipants(bundle);
+  if (structureDiagnostics.length > 0) {
+    return buildFailure(structureDiagnostics);
   }
 
   const integrityDiagnostics = validateParticipantEvidenceIntegrity(bundle);

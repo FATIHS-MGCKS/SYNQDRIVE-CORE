@@ -31,11 +31,8 @@ function expectFailClosed(
   const out = reconcileDbiP2c2OfflineEvidenceBundleV1(bundle);
   expect(out.ok).toBe(false);
   if (out.ok) throw new Error('expected reconciliation failure');
-  for (const code of codes) {
-    expect(out.diagnosticCodes).toContain(code);
-  }
-  expect(out.diagnosticCodes).toEqual([...out.diagnosticCodes].sort());
-  expect([...new Set(out.diagnosticCodes)]).toHaveLength(out.diagnosticCodes.length);
+  expect(out.diagnosticCodes).toEqual(codes);
+  expect(Object.keys(out).sort()).toEqual(['contractVersion', 'diagnosticCodes', 'ok']);
 }
 
 function forgedB1(mutate: (c: Record<string, unknown>) => void): DbiP2c2OfflineEvidenceBundleV1 {
@@ -132,6 +129,18 @@ describe('W3-047 P2-C3 temporal ingress (forged bundles)', () => {
         'INVALID_PROVIDER_BUCKET_LABEL',
       );
     });
+
+    it.each([
+      ['startIdx string', (s: Record<string, unknown>) => (s.startIdx = '3')],
+      ['startIdx undefined', (s: Record<string, unknown>) => {
+        delete s.startIdx;
+      }],
+      ['endIdx NaN', (s: Record<string, unknown>) => (s.endIdx = Number.NaN)],
+      ['startIdx non-integer', (s: Record<string, unknown>) => (s.startIdx = 1.5)],
+      ['startIdx negative', (s: Record<string, unknown>) => (s.startIdx = -1)],
+    ])('rejects malformed index contract: %s', (_label, mutate) => {
+      expectFailClosed(forgedA1(mutate), 'INVALID_TEMPORAL_BUCKET_INDEX_SHAPE');
+    });
   });
 
   describe('B1 kickdown', () => {
@@ -154,6 +163,18 @@ describe('W3-047 P2-C3 temporal ingress (forged bundles)', () => {
             : ['INVALID_PROVIDER_BUCKET_LABEL'];
       expectFailClosed(forgedB1(mutate), ...codes);
     });
+
+    it.each([
+      ['startBucketIndex string', (c: Record<string, unknown>) => (c.startBucketIndex = '0')],
+      ['startBucketIndex undefined', (c: Record<string, unknown>) => {
+        delete c.startBucketIndex;
+      }],
+      ['endBucketIndex NaN', (c: Record<string, unknown>) => (c.endBucketIndex = Number.NaN)],
+      ['startBucketIndex non-integer', (c: Record<string, unknown>) => (c.startBucketIndex = 2.2)],
+      ['startBucketIndex negative', (c: Record<string, unknown>) => (c.startBucketIndex = -1)],
+    ])('rejects malformed index contract: %s', (_label, mutate) => {
+      expectFailClosed(forgedB1(mutate), 'INVALID_TEMPORAL_BUCKET_INDEX_SHAPE');
+    });
   });
 
   describe('B2 cold engine', () => {
@@ -161,6 +182,87 @@ describe('W3-047 P2-C3 temporal ingress (forged bundles)', () => {
       expectFailClosed(
         forgedB2((c) => {
           c.providerBucketLabelEndIso = '2026-01-01T10:00:00.000';
+        }),
+        'INVALID_PROVIDER_BUCKET_LABEL',
+      );
+    });
+
+    it('rejects malformed startBucketIndex when end valid', () => {
+      expectFailClosed(
+        forgedB2((c) => {
+          delete c.startBucketIndex;
+        }),
+        'INVALID_TEMPORAL_BUCKET_INDEX_SHAPE',
+      );
+    });
+  });
+
+  describe('W3-B closeout: sourceModule field-family selection (no cross-family bypass)', () => {
+    /**
+     * RED-BEFORE: invalid native module labels could be masked by valid labels in another module's field family
+     * when selection keyed off presence of B3/B4 keys.
+     */
+    it('B1 rejects invalid providerBucketLabel* even with valid B3 ISO fields on same object', () => {
+      expectFailClosed(
+        forgedB1((c) => {
+          c.providerBucketLabelStartIso = 'NOT_CANONICAL';
+          c.providerBucketLabelEndIso = 'NOT_CANONICAL';
+          c.startProviderBucketLabelIso = '2026-01-01T10:00:01.000Z';
+          c.endProviderBucketLabelIso = '2026-01-01T10:00:05.000Z';
+        }),
+        'INVALID_PROVIDER_BUCKET_LABEL',
+      );
+    });
+
+    it('B2 rejects invalid providerBucketLabel* even with valid B3 ISO fields on same object', () => {
+      expectFailClosed(
+        forgedB2((c) => {
+          c.providerBucketLabelStartIso = '2026-02-30T12:00:00.000Z';
+          c.startProviderBucketLabelIso = '2026-01-01T10:00:01.000Z';
+          c.endProviderBucketLabelIso = '2026-01-01T10:00:05.000Z';
+        }),
+        'INVALID_PROVIDER_BUCKET_LABEL',
+      );
+    });
+
+    it('B3 rejects invalid startProviderBucketLabel* even with valid B1 ISO fields on same object', () => {
+      const plane = cloneMutablePlane(CACHED_B3);
+      const forged = {
+        episodeKey: 'cross-family-b3',
+        classification: 'GAP_AWARE_SUSTAINED_PROXY_CANDIDATE' as const,
+        startProviderBucketLabelIso: 'INVALID',
+        endProviderBucketLabelIso: 'INVALID',
+        providerBucketLabelStartIso: '2026-01-01T10:00:01.000Z',
+        providerBucketLabelEndIso: '2026-01-01T10:00:05.000Z',
+        observedLabelCount: 4,
+        researchLabelSpanMs: 4000,
+        maxObservedLabelGapMs: 1000,
+        peakObservedLoadPct: 90,
+        entryBranch: 'BOTH' as const,
+        limitationCodes: [],
+        requiredChannelPresence: {},
+      };
+      plane.candidates = [
+        {
+          sourceModule: 'P2-B3',
+          originalCandidate: forged,
+          originalClassification: forged.classification,
+          sourceEpisodeKey: forged.episodeKey,
+        },
+      ];
+      expectFailClosed(
+        assembleP2c2Bundle({ descriptive: null, powertrainProxies: [plane] }),
+        'INVALID_PROVIDER_BUCKET_LABEL',
+      );
+    });
+
+    it('B4 rejects invalid native labels even with valid B1 ISO fields on same object', () => {
+      expectFailClosed(
+        forgedB4((c) => {
+          c.startProviderBucketLabelIso = '2026-01-01T10:00:00.000';
+          c.endProviderBucketLabelIso = '2026-01-01T10:00:05.000Z';
+          c.providerBucketLabelStartIso = '2026-01-01T10:00:01.000Z';
+          c.providerBucketLabelEndIso = '2026-01-01T10:00:05.000Z';
         }),
         'INVALID_PROVIDER_BUCKET_LABEL',
       );
@@ -239,12 +341,25 @@ describe('W3-047 positive controls (P2-C2 adapter path)', () => {
     expect(out.relationshipReconciliation).toEqual({ performed: false, skipReason: 'IDENTITY_INCONCLUSIVE' });
   });
 
-  it('B1+B2 matching identity preserves SAME_SOURCE_DUPLICATE when legitimate', () => {
+  it('B1+B2 matching identity yields ADMITTED (cross-module — no SAME_SOURCE_DUPLICATE)', () => {
     const base = baselineMatchingMultiModuleBundle();
     const out = reconcileDbiP2c2OfflineEvidenceBundleV1(base);
     expect(out.ok).toBe(true);
     if (!out.ok) throw new Error('expected success');
     expect(out.identityAdmission.verdict).toBe('ADMITTED');
+    expect(out.pairwiseDecisions.every((d) => d.relationshipDecision !== 'SAME_SOURCE_DUPLICATE')).toBe(true);
+  });
+
+  it('duplicate B1 positives still emit exactly one SAME_SOURCE_DUPLICATE when admitted', () => {
+    const plane = cloneMutablePlane(CACHED_B1);
+    const pos = plane.candidates.find((c) => c.originalClassification === 'KICKDOWN_LIKE_PROXY_CANDIDATE')!;
+    plane.candidates = [structuredClone(pos), structuredClone(pos)];
+    const out = reconcileDbiP2c2OfflineEvidenceBundleV1(
+      assembleP2c2Bundle({ descriptive: null, powertrainProxies: [plane] }),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) throw new Error('expected success');
+    expect(out.pairwiseDecisions.filter((d) => d.relationshipDecision === 'SAME_SOURCE_DUPLICATE')).toHaveLength(1);
   });
 
   it('deterministic digest under candidate reorder in bundle', () => {

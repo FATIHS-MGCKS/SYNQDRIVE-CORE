@@ -37,11 +37,13 @@ Rejection contract: `ok=false`, sorted deduplicated diagnostics, **no** inventor
 
 ## Green-after
 
-**Mechanism:** `validateParticipantBundleTemporalIntegrity` in `dbi-p2c3-reconciliation.participant-temporal.v1.ts` runs on the isolated bundle **after** shape validation and **before** participant integrity, identity, inventory, pairwise, or digest.
+**Mechanism:** `validateParticipantBundleTemporalIntegrity` in `dbi-p2c3-reconciliation.participant-temporal.v1.ts` runs on the isolated bundle **after** shape validation and **before** bundle structure, participant integrity, identity, inventory, pairwise, or digest.
 
 **Shared authority:** imports `collectTemporalViolations` from P2-C2 temporal module (no duplicated ISO parser).
 
-**P2-C3 diagnostic codes:** `INVALID_PROVIDER_BUCKET_LABEL`, `INVALID_TEMPORAL_INTERVAL_ORDER`, `INVALID_BUCKET_INDEX_ORDER`.
+**W3-B adversarial closeout:** field families keyed by `sourceModule` only; required index pairs for A1/B1/B2 via `INVALID_TEMPORAL_BUCKET_INDEX_SHAPE`.
+
+**P2-C3 diagnostic codes:** `INVALID_PROVIDER_BUCKET_LABEL`, `INVALID_TEMPORAL_INTERVAL_ORDER`, `INVALID_BUCKET_INDEX_ORDER`, `INVALID_TEMPORAL_BUCKET_INDEX_SHAPE`.
 
 ## Positive controls
 

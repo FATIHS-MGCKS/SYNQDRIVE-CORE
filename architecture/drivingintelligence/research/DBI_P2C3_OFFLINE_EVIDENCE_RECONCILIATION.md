@@ -90,7 +90,10 @@ Original kernel statuses and module assessability summaries are carried forward 
 
 ## Temporal ingress integrity (P2-C4 W3B, W3-047)
 
-After bundle shape validation and **before** participant integrity, identity, inventory, pairwise work, or digest, P2-C3 re-applies P2-C2 temporal semantics on the isolated snapshot (`dbi-p2c2-evidence-adapter.temporal.v1.ts` → `collectTemporalViolations`):
+After bundle shape validation and **before** bundle participant structure checks, participant integrity, identity, inventory, pairwise work, or digest, P2-C3 re-applies P2-C2 temporal semantics on the isolated snapshot (`dbi-p2c2-evidence-adapter.temporal.v1.ts` → `collectTemporalViolations`):
+
+- Field families are selected by **`sourceModule` / A1 episode contract only** (cross-module label keys cannot satisfy another module).
+- Required bucket indices: A1 `startIdx`/`endIdx`; B1/B2 `startBucketIndex`/`endBucketIndex` (non-negative integers). Malformed indices → `INVALID_TEMPORAL_BUCKET_INDEX_SHAPE`.
 
 - **A1** descriptive episodes: `providerBucketLabelStartIso` / `providerBucketLabelEndIso`; optional `startIdx` / `endIdx` when both numeric.
 - **B1 / B2** candidates: `providerBucketLabelStartIso` / `providerBucketLabelEndIso`; optional `startBucketIndex` / `endBucketIndex`.
