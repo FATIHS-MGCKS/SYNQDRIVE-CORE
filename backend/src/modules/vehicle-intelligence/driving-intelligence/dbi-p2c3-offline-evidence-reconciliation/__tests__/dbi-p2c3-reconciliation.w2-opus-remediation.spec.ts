@@ -79,8 +79,15 @@ function syntheticB3(tripClass: string, status: string, nCands: number) {
     originalCandidate: {
       episodeKey: 'audit-b3-ep',
       classification: 'GAP_AWARE_SUSTAINED_PROXY_CANDIDATE',
-      providerBucketLabelStartIso: '2026-01-01T10:00:00.000Z',
-      providerBucketLabelEndIso: '2026-01-01T10:00:30.000Z',
+      startProviderBucketLabelIso: '2026-01-01T10:00:01.000Z',
+      endProviderBucketLabelIso: '2026-01-01T10:00:05.000Z',
+      observedLabelCount: 4,
+      researchLabelSpanMs: 4000,
+      maxObservedLabelGapMs: 1000,
+      peakObservedLoadPct: 90,
+      entryBranch: 'BOTH',
+      limitationCodes: [],
+      requiredChannelPresence: {},
     },
   };
   plane.candidates = Array.from({ length: nCands }, () => structuredClone(cand)) as never;

@@ -88,9 +88,24 @@ Original kernel statuses and module assessability summaries are carried forward 
 - Default budgets: 6 participants, 4096 candidate pairs; hard caps 32 / 65536 — fail-closed `BUDGET_*_EXCEEDED`.
 - `resultDigest`: canonical JSON summary (identity, rationale codes, candidate payload fingerprints, module assessability including abstain reasons / adapterClaims / projections, provenance limitations); **not** cryptographic attestation.
 
+## Temporal ingress integrity (P2-C4 W3B, W3-047)
+
+After bundle shape validation and **before** bundle participant structure checks, participant integrity, identity, inventory, pairwise work, or digest, P2-C3 re-applies P2-C2 temporal semantics on the isolated snapshot (`dbi-p2c2-evidence-adapter.temporal.v1.ts` → `collectTemporalViolations`):
+
+- Field families are selected by **`sourceModule` / A1 episode contract only** (cross-module label keys cannot satisfy another module).
+- Required bucket indices: A1 `startIdx`/`endIdx`; B1/B2 `startBucketIndex`/`endBucketIndex` (non-negative integers). Malformed indices → `INVALID_TEMPORAL_BUCKET_INDEX_SHAPE`.
+
+- **A1** descriptive episodes: `providerBucketLabelStartIso` / `providerBucketLabelEndIso`; **required** `startIdx` / `endIdx` (non-negative integers).
+- **B1 / B2** candidates: `providerBucketLabelStartIso` / `providerBucketLabelEndIso`; **required** `startBucketIndex` / `endBucketIndex` (non-negative integers).
+- **B3 / B4** candidates: `startProviderBucketLabelIso` / `endProviderBucketLabelIso`; index fields **not required**.
+
+Diagnostics: `INVALID_PROVIDER_BUCKET_LABEL`, `INVALID_TEMPORAL_INTERVAL_ORDER`, `INVALID_BUCKET_INDEX_ORDER`, `INVALID_TEMPORAL_BUCKET_INDEX_SHAPE` — sorted, deduplicated, fail-closed (`ok: false`; no inventory, edges, or digest). Malformed nested extraction does not throw.
+
+Canonical timestamp format does not assert physical event time or provider attestation (`BUCKET_LABEL_UNVERIFIED`, research-only `MODE_A` unchanged). No A1↔B multichannel index join (W3-048 deferred).
+
 ## Forged-bundle participant integrity (P2-C4 W2)
 
-Before identity admission or pairwise work, P2-C3 re-validates adapted participant headers against candidate inventories:
+After temporal ingress passes, P2-C3 re-validates adapted participant headers against candidate inventories:
 
 - `ABSTAINED` / `NOT_OBSERVED` + positive proxy classification → fail-closed (`PARTICIPANT_CONTRADICTORY_POSITIVE_*`).
 - `adapterClaimsPositiveEvidence` must agree with recomputed adapter gate (classifications + trip status + B4 dual-`NOT_ASSESSABLE` block).
