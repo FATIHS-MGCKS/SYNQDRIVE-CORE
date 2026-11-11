@@ -41,6 +41,7 @@ import {
 import { DeviceConnectionEpisodeResolutionOutboxProcessorService } from '../../modules/dimo/device-connection-episode-resolution/device-connection-episode-resolution-outbox-processor.service';
 import { SnapshotWakeCoordinatorService } from '../snapshot-wake/snapshot-wake-coordinator.service';
 import { AdaptivePollingShadowService } from '../schedulers/snapshot-polling/adaptive-polling-shadow/adaptive-polling-shadow.service';
+import { ApdsV3ShadowService } from '../schedulers/snapshot-polling/adaptive-polling-policy/apds-v3-offline/apds-v3-shadow.service';
 import { findLatestHistoricallyVisibleLiveVoltageProviderTimestampMs } from '../schedulers/snapshot-polling/adaptive-polling-policy/p25-apd-historical-lv-visibility';
 import type { DimoSnapshotJobData } from '../snapshot-wake/snapshot-wake.types';
 import { snapshotJobId } from '../snapshot-wake/snapshot-wake.util';
@@ -97,6 +98,8 @@ export class DimoSnapshotProcessor extends WorkerHost {
     @Optional()
     private readonly apdShadow?: AdaptivePollingShadowService,
     @Optional()
+    private readonly apdsV3Shadow?: ApdsV3ShadowService,
+    @Optional()
     private readonly vsiSourceObservationWriter?: VsiProviderSourceObservationWriterService,
     @Optional()
     private readonly vsiProfileMaterialization?: VsiSignalProfileMaterializationService,
@@ -142,7 +145,9 @@ export class DimoSnapshotProcessor extends WorkerHost {
         organizationId: true,
         registryLifecycle: true,
         hardwareType: true,
+        fuelType: true,
         dimoVehicle: { select: { connectionStatus: true } },
+        tripDetectionState: { select: { state: true } },
         dataSourceLinks: {
           where: { isActive: true, provider: 'DIMO' },
           orderBy: { activatedAt: 'desc' },
@@ -236,6 +241,35 @@ export class DimoSnapshotProcessor extends WorkerHost {
           observedAtMs: enqueueEvidence.observedAtMs,
           enqueueAttemptId: enqueueEvidence.attemptId,
         });
+      }
+    }
+
+    if (this.apdsV3Shadow?.isRuntimeReady()) {
+      try {
+        const baselineLinkId = vehicle.dataSourceLinks[0]?.id ?? null;
+        this.apdsV3Shadow.scheduleBaselineObserve({
+          job: {
+            id: job.id,
+            attemptsMade: job.attemptsMade,
+            data: jobDataWithWake,
+          },
+          organizationId: vehicle.organizationId,
+          vehicleId,
+          baselineProviderSourceLinkId: baselineLinkId,
+          pollStartedAtMs: startedAt.getTime(),
+          tripDetectionState: vehicle.tripDetectionState?.state ?? null,
+          vehicleFuelType: vehicle.fuelType ?? null,
+          lastTrustworthyLvSourceMs: previousLv?.providerTimestamp?.getTime() ?? null,
+          lastTopLevelProviderSourceMs: previousVls?.sourceTimestamp?.getTime() ?? null,
+          r9WakeKnown: jobDataWithWake.wakeContext != null,
+          providerGapOpen: false,
+          deviceReconnectRecent: false,
+          providerReconnectRecent: false,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `APDS V3 shadow schedule failed (non-blocking): ${err instanceof Error ? err.message : err}`,
+        );
       }
     }
 

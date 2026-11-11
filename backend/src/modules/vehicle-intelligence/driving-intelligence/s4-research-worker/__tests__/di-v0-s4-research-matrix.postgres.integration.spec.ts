@@ -49,6 +49,7 @@ export const MATRIX_CASE_STATUS: Record<number, { name: string; status: MatrixCa
 };
 
 (S4A_POSTGRES_LIVE ? describe : describe.skip)('S4 research matrix (postgres)', () => {
+  jest.setTimeout(60_000);
   let db: PrismaClient;
   let outbox: DiV0S4ResearchOutboxRepository;
   const tenants: S4aTenant[] = [];

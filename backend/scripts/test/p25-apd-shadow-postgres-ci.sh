@@ -18,6 +18,7 @@ log "prisma generate"
 DATABASE_URL="${DATABASE_URL}" npx prisma generate --no-hints
 
 log "APD shadow postgres integration"
+export APDS_V3_SHADOW_PG=1
 DATABASE_URL="${DATABASE_URL}" npx jest \
   --runInBand --forceExit \
   adaptive-polling-shadow.postgres.integration.spec.ts \
@@ -28,7 +29,8 @@ DATABASE_URL="${DATABASE_URL}" npx jest \
   apd-shadow-activation-epoch.write-race.postgres.integration.spec.ts \
   apd-shadow-epoch-lifecycle-concurrency.postgres.integration.spec.ts \
   apd-shadow-baseline-poll-evidence.postgres.integration.spec.ts \
-  apds-scientific-savings.postgres.integration.spec.ts
+  apds-scientific-savings.postgres.integration.spec.ts \
+  apds-v3-shadow-concurrency.postgres.integration.spec.ts
 
 log "migration ephemeral gate"
 bash scripts/test/p25-apd-shadow-migration-ephemeral.sh

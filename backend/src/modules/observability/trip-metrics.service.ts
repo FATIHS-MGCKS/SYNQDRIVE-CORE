@@ -81,6 +81,10 @@ export class TripMetricsService implements OnModuleInit {
   readonly apdShadowCohortExcludedTotal: Counter<string>;
   readonly apdShadowEpochExcludedTotal: Counter<string>;
   readonly apdShadowCohortMemberCount: Gauge<string>;
+  readonly apdsV3ShadowRuntimeReady: Gauge<string>;
+  readonly apdsV3ShadowDecisionTotal: Counter<string>;
+  readonly apdsV3ShadowEligibilityBlockedTotal: Counter<string>;
+  readonly apdsV3ShadowWriteSuppressedTotal: Counter<string>;
   readonly snapshotWakeTotal: Counter<string>;
   readonly snapshotWakeProbeTotal: Counter<string>;
   readonly snapshotPollingTierVehicles: Gauge<string>;
@@ -704,6 +708,33 @@ export class TripMetricsService implements OnModuleInit {
     this.apdShadowCohortMemberCount = new Gauge({
       name: 'synqdrive_apd_shadow_cohort_member_count',
       help: 'Configured APD shadow cohort member count when cohort config is READY',
+      registers: [this.registry],
+    });
+
+    this.apdsV3ShadowRuntimeReady = new Gauge({
+      name: 'synqdrive_apds_v3_shadow_runtime_ready',
+      help: 'APDS V3 fleet-wide shadow runtime ready (separate kill switch)',
+      registers: [this.registry],
+    });
+
+    this.apdsV3ShadowDecisionTotal = new Counter({
+      name: 'synqdrive_apds_v3_shadow_decision_total',
+      help: 'APDS V3 offline shadow decisions at baseline poll start (low-cardinality decision label only)',
+      labelNames: ['decision'],
+      registers: [this.registry],
+    });
+
+    this.apdsV3ShadowEligibilityBlockedTotal = new Counter({
+      name: 'synqdrive_apds_v3_shadow_eligibility_blocked_total',
+      help: 'APDS V3 shadow eligibility blocks (bounded reason labels)',
+      labelNames: ['reason'],
+      registers: [this.registry],
+    });
+
+    this.apdsV3ShadowWriteSuppressedTotal = new Counter({
+      name: 'synqdrive_apds_v3_shadow_write_suppressed_total',
+      help: 'APDS V3 shadow persistence suppressed (rate limit or guard)',
+      labelNames: ['reason'],
       registers: [this.registry],
     });
 
