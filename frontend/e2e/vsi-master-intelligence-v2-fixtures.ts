@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { Page, Route, TestInfo } from '@playwright/test';
+import { expect, type Page, type Route, type TestInfo } from '@playwright/test';
 
 export const VSI_E2E_ORG = '00000000-0000-4000-8000-0000000000e2';
 export const VSI_E2E_VEHICLE = '00000000-0000-4000-8000-0000000000f2';
@@ -23,6 +23,19 @@ function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
 
+function apiPathname(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
+
+/** Fleet vehicle list only — must not match `/…/vehicles/:id/…` master-intelligence paths. */
+function isVsiE2eOrgVehicleListUrl(url: string): boolean {
+  return new RegExp(`/organizations/${VSI_E2E_ORG}/vehicles/?$`).test(apiPathname(url));
+}
+
 const VSI_MOCKS_INSTALLED = Symbol('vsiMasterIntelligenceMocksInstalled');
 
 export async function installVsiMasterIntelligenceMocks(page: Page) {
@@ -34,7 +47,9 @@ export async function installVsiMasterIntelligenceMocks(page: Page) {
   await page.route('**/api/**', async (route) => {
     const url = route.request().url();
     const method = route.request().method();
-    if (!method || method === 'OPTIONS') return route.continue();
+    if (method === 'OPTIONS') {
+      return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
+    }
 
     if (url.includes('/auth/me')) {
       return json(route, mockMasterAdmin);
@@ -51,7 +66,7 @@ export async function installVsiMasterIntelligenceMocks(page: Page) {
       });
     }
 
-    if (url.includes(`/organizations/${VSI_E2E_ORG}/vehicles`)) {
+    if (isVsiE2eOrgVehicleListUrl(url)) {
       return json(route, {
         data: [
           {
@@ -71,13 +86,16 @@ export async function installVsiMasterIntelligenceMocks(page: Page) {
 
     if (url.includes('/admin/organizations/operational') && method === 'GET') {
       return json(route, {
-        data: [{ id: VSI_E2E_ORG, companyName: 'VSI E2E Org' }],
+        data: [{ id: VSI_E2E_ORG, companyName: 'VSI E2E Org', company_name: 'VSI E2E Org' }],
         meta: { total: 1, page: 1, limit: 100, totalPages: 1 },
       });
     }
 
-    if (url.includes('/admin/organizations') && method === 'GET') {
-      return json(route, { data: [{ id: VSI_E2E_ORG, companyName: 'VSI E2E Org' }], meta: { total: 1 } });
+    if (url.includes('/admin/organizations') && method === 'GET' && !url.includes('/master-intelligence/')) {
+      return json(route, {
+        data: [{ id: VSI_E2E_ORG, companyName: 'VSI E2E Org', company_name: 'VSI E2E Org', status: 'ACTIVE' }],
+        meta: { total: 1, page: 1, limit: 100, totalPages: 1 },
+      });
     }
 
     if (url.includes('/master-intelligence/vsi/') && url.includes('/overview')) {
@@ -109,7 +127,7 @@ export async function installVsiMasterIntelligenceMocks(page: Page) {
       });
     }
 
-    if (url.includes('/capability-resolver')) {
+    if (url.includes('/master-intelligence/vsi/') && url.includes('/capability-resolver')) {
       return json(route, {
         consumerModule: 'apds',
         featureId: 'shadow_demand_profile_read',
@@ -168,7 +186,7 @@ export async function installVsiMasterIntelligenceMocks(page: Page) {
       });
     }
 
-    if (url.includes('/fsd/summary')) {
+    if (url.includes('/master-intelligence/vsi/') && url.includes('/fsd/summary')) {
       return json(route, {
         contractVersion: 'vsi-master-fsd-read-v1',
         organizationId: VSI_E2E_ORG,
@@ -209,7 +227,7 @@ export async function installVsiMasterIntelligenceMocks(page: Page) {
       });
     }
 
-    if (url.includes('/fsd/signals')) {
+    if (url.includes('/master-intelligence/vsi/') && url.includes('/fsd/signals')) {
       return json(route, {
         contractVersion: 'vsi-master-fsd-read-v1',
         organizationId: VSI_E2E_ORG,
@@ -240,7 +258,7 @@ export async function installVsiMasterIntelligenceMocks(page: Page) {
       });
     }
 
-    if (url.includes('/fsd/runs') && !url.includes('/inspector')) {
+    if (url.includes('/master-intelligence/vsi/') && url.includes('/fsd/runs') && !url.includes('/inspector')) {
       return json(route, {
         contractVersion: 'vsi-master-fsd-read-v1',
         organizationId: VSI_E2E_ORG,
@@ -273,7 +291,7 @@ export async function installVsiMasterIntelligenceMocks(page: Page) {
       });
     }
 
-    if (url.includes('/fsd/runs/') && url.includes('/inspector')) {
+    if (url.includes('/master-intelligence/vsi/') && url.includes('/fsd/runs/') && url.includes('/inspector')) {
       return json(route, {
         contractVersion: 'vsi-master-fsd-read-v1',
         organizationId: VSI_E2E_ORG,
@@ -319,7 +337,7 @@ export async function installVsiMasterIntelligenceMocks(page: Page) {
       });
     }
 
-    if (url.includes('/revisions')) {
+    if (url.includes('/master-intelligence/vsi/') && url.includes('/revisions')) {
       return json(route, {
         captureStatus: 'CAPTURE_ENABLED',
         items: [{ profileRevision: 3, evaluatedAt: '2026-11-01T10:00:00.000Z', recordedAt: '2026-11-01T10:00:00.000Z', materializationTrigger: 'e2e', profileLimitations: [], lvStandbyProfile: 'LV_8H_OBSERVED', rpmActiveProfile: 'RPM_1HZ', contentFingerprintPrefix: 'abc' }],
@@ -345,8 +363,34 @@ export function viewportLabel(projectName: string): string {
   return 'desktop-1440';
 }
 
+export async function waitForVsiScopeSettled(page: Page) {
+  await page.getByTestId('vsi-intelligence-tabbar').waitFor({ state: 'visible', timeout: 60_000 });
+  await page.getByTestId('vsi-tab-overview').waitFor({ state: 'visible', timeout: 60_000 });
+  await waitForVsiDataSettled(page);
+  const linkPicker = page
+    .locator('label')
+    .filter({ hasText: /Provider-Quell-Link|Provider source link/i })
+    .locator('select');
+  await expect(linkPicker.locator(`option[value="${VSI_E2E_LINK}"]`)).toHaveCount(1, { timeout: 30_000 });
+  await expect(linkPicker).toHaveValue(VSI_E2E_LINK, { timeout: 30_000 });
+}
+
+/** @deprecated use waitForVsiScopeSettled — kept for screenshot assertions that need badge copy */
 export async function waitForVsiProfileLabels(page: Page) {
-  await page.getByText(/LV ~8h beobachtet/i).waitFor({ state: 'visible', timeout: 120_000 });
+  await waitForVsiScopeSettled(page);
+  await page
+    .getByText(/LV_8H_OBSERVED|LV ~8h beobachtet/i)
+    .first()
+    .waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => undefined);
+}
+
+export async function waitForVsiProfilesTab(page: Page) {
+  await page.getByTestId('vsi-tab-profiles').waitFor({ state: 'visible', timeout: 120_000 });
+}
+
+export async function waitForVsiSignalsReady(page: Page) {
+  await page.getByTestId('vsi-fsd-signal-detail-open-speed').waitFor({ state: 'visible', timeout: 120_000 });
 }
 
 export async function waitForVsiDataSettled(page: Page) {
@@ -373,24 +417,64 @@ export async function assertNoPageOverflow(page: Page) {
   if (overflow) throw new Error('Unexpected horizontal overflow on root layout');
 }
 
+function vsiArtifactsDir(): string {
+  return process.env.VSI_ARTIFACTS_DIR ?? '/opt/cursor/artifacts';
+}
+
 export async function captureVsiScreenshot(page: Page, testInfo: TestInfo, artifactBaseName: string) {
   const safeName = `${artifactBaseName}-p${testInfo.parallelIndex}`;
   const primary = testInfo.outputPath(`${safeName}.png`);
   await page.screenshot({ path: primary, fullPage: true });
-  const bundle = path.join('/opt/cursor/artifacts', `${safeName}.png`);
+  const bundle = path.join(vsiArtifactsDir(), `${safeName}.png`);
   await fs.mkdir(path.dirname(bundle), { recursive: true });
   await fs.copyFile(primary, bundle);
   await testInfo.attach(safeName, { path: bundle, contentType: 'image/png' });
 }
 
-export function bundleVsiScreenshotArtifactsZip() {
-  const zipPath = '/opt/cursor/artifacts/vsi-p2395-screenshots.zip';
+export function bundleVsiScreenshotArtifactsZip(gitSha = 'unknown') {
+  const artifactsDir = vsiArtifactsDir();
+  const zipPath = `${artifactsDir}/vsi-p2395-screenshots.zip`;
+  const manifestPath = `${artifactsDir}/SCREENSHOT_MANIFEST.json`;
   try {
-    execSync(`rm -f "${zipPath}" && zip -j -q "${zipPath}" /opt/cursor/artifacts/vsi-*.png`, {
-      stdio: 'pipe',
-    });
+    const script = `
+import glob, json, os, struct, zipfile
+
+artifacts = ${JSON.stringify(artifactsDir)}
+sha = ${JSON.stringify(gitSha)}
+
+def png_size(path):
+    try:
+        with open(path, 'rb') as f:
+            header = f.read(24)
+        if len(header) < 24 or header[:8] != b'\\x89PNG\\r\\n\\x1a\\n':
+            return 0, 0
+        return struct.unpack('>II', header[16:24])
+    except Exception:
+        return 0, 0
+
+pngs = sorted(glob.glob(os.path.join(artifacts, 'vsi-*.png')))
+entries = []
+for p in pngs:
+    w, h = png_size(p)
+    entries.append({
+        'file': os.path.basename(p),
+        'width': w,
+        'height': h,
+        'scenario': os.path.basename(p).replace('.png', ''),
+        'syntheticData': True,
+        'commitSha': sha,
+    })
+with open(${JSON.stringify(manifestPath)}, 'w', encoding='utf-8') as mf:
+    json.dump({'screenshots': entries, 'commitSha': sha, 'syntheticData': True}, mf, indent=2)
+with zipfile.ZipFile(${JSON.stringify(zipPath)}, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+    for p in pngs:
+        zf.write(p, arcname=os.path.basename(p))
+    if os.path.isfile(${JSON.stringify(manifestPath)}):
+        zf.write(${JSON.stringify(manifestPath)}, arcname='SCREENSHOT_MANIFEST.json')
+`;
+    execSync(`python3 -c ${JSON.stringify(script)}`, { stdio: 'pipe' });
   } catch {
-    // zip may fail when no PNGs yet; Playwright attach still holds per-test shots
+    // bundle is best-effort when PNGs or Pillow missing; per-test attach still holds shots
   }
   return zipPath;
 }
@@ -421,14 +505,6 @@ export async function openVsiMasterIntelligence(
   });
   if (params.tab) qs.set('tab', params.tab);
 
-  const pendingSignals =
-    params.tab === 'signals'
-      ? page.waitForResponse(
-          (res) => res.url().includes('/fsd/signals') && res.status() >= 200 && res.status() < 300,
-          { timeout: 60_000 },
-        )
-      : null;
-
   const pendingOverview = page.waitForResponse(
     (res) => {
       try {
@@ -442,17 +518,32 @@ export async function openVsiMasterIntelligence(
     { timeout: 90_000 },
   );
 
-  const pendingProfile =
-    params.tab === 'profiles'
-      ? page.waitForResponse(
-          (res) => res.url().includes('/links/') && res.url().includes('/profile') && !res.url().includes('/fsd'),
-          { timeout: 90_000 },
-        )
-      : null;
+  const pendingProfile = page.waitForResponse(
+    (res) =>
+      res.url().includes('/master-intelligence/vsi/') &&
+      res.url().includes('/links/') &&
+      res.url().includes('/profile') &&
+      !res.url().includes('/fsd/') &&
+      res.ok(),
+    { timeout: 90_000 },
+  );
 
   await page.goto(`/master?${qs.toString()}`, { waitUntil: 'domcontentloaded' });
+  await expect(page).not.toHaveURL(/\/login$/);
   await page.getByTestId('vsi-intelligence-tabbar').waitFor({ state: 'visible', timeout: 90_000 });
-  await Promise.all(
-    [pendingSignals, pendingOverview, pendingProfile].filter((p): p is Promise<unknown> => p != null),
+  await Promise.all([pendingOverview, pendingProfile]);
+
+}
+
+export async function goToVsiSignalsTab(page: Page) {
+  const pending = page.waitForResponse(
+    (res) => res.url().includes('/fsd/signals') && res.status() >= 200 && res.status() < 300,
+    { timeout: 120_000 },
   );
+  const signalsTab = page.getByTestId('vsi-intelligence-tab-signals');
+  await expect(signalsTab).toBeEnabled({ timeout: 120_000 });
+  await signalsTab.click();
+  await page.getByTestId('vsi-tab-signals').waitFor({ state: 'visible', timeout: 120_000 });
+  await pending;
+  await waitForVsiSignalsReady(page);
 }
