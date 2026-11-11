@@ -30,3 +30,24 @@ export function apdsV3ShadowMaxWritesPerMinute(
   const parsed = parseInt(env.WORKER_APDS_V3_SHADOW_MAX_WRITES_PER_MINUTE ?? '600', 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 600;
 }
+
+export function apdsV3ShadowMaxConcurrentEvaluations(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const parsed = parseInt(env.WORKER_APDS_V3_SHADOW_MAX_CONCURRENT ?? '2', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 2;
+}
+
+export function apdsV3ShadowMaxQueueDepth(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const parsed = parseInt(env.WORKER_APDS_V3_SHADOW_MAX_QUEUE_DEPTH ?? '128', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 128;
+}
+
+export function apdsV3ShadowEvaluationTimeoutMs(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const parsed = parseInt(env.WORKER_APDS_V3_SHADOW_EVAL_TIMEOUT_MS ?? '15000', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 15_000;
+}

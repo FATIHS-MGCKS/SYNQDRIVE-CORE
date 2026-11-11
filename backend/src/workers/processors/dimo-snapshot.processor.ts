@@ -145,7 +145,9 @@ export class DimoSnapshotProcessor extends WorkerHost {
         organizationId: true,
         registryLifecycle: true,
         hardwareType: true,
+        fuelType: true,
         dimoVehicle: { select: { connectionStatus: true } },
+        tripDetectionState: { select: { state: true } },
         dataSourceLinks: {
           where: { isActive: true, provider: 'DIMO' },
           orderBy: { activatedAt: 'desc' },
@@ -243,38 +245,32 @@ export class DimoSnapshotProcessor extends WorkerHost {
     }
 
     if (this.apdsV3Shadow?.isRuntimeReady()) {
-      const lvTrustMs = previousLv?.providerTimestamp?.getTime() ?? null;
-      const [tripState, latestStateForV3] = await Promise.all([
-        this.prisma.vehicleTripDetectionState.findUnique({
-          where: { vehicleId },
-          select: { state: true },
-        }),
-        this.prisma.vehicleLatestState.findUnique({
-          where: { vehicleId },
-          select: { providerFetchedAt: true },
-        }),
-      ]);
-      const activityTier =
-        tripState?.state === TripDetectionState.ACTIVE_TRIP ||
-        tripState?.state === TripDetectionState.IDLE_WITHIN_TRIP ||
-        tripState?.state === TripDetectionState.POSSIBLE_END
-          ? 'ACTIVE_DRIVING'
-          : 'RESTING_STANDBY';
-      await this.apdsV3Shadow.observeActualBaselinePollStart({
-        organizationId: vehicle.organizationId,
-        vehicleId,
-        pollStartedAtMs: startedAt.getTime(),
-        tripDetectionState: tripState?.state ?? null,
-        lastProviderFetchedAtMs: latestStateForV3?.providerFetchedAt?.getTime() ?? null,
-        lastTrustworthyLvSourceMs: lvTrustMs,
-        lvProviderTimestampsMs: [],
-        providerGapOpen: false,
-        r9WakeKnown: jobDataWithWake.wakeContext != null,
-        deviceReconnectRecent: false,
-        providerReconnectRecent: false,
-        activityTierLabel: activityTier,
-        realPollId: null,
-      });
+      try {
+        const baselineLinkId = vehicle.dataSourceLinks[0]?.id ?? null;
+        this.apdsV3Shadow.scheduleBaselineObserve({
+          job: {
+            id: job.id,
+            attemptsMade: job.attemptsMade,
+            data: jobDataWithWake,
+          },
+          organizationId: vehicle.organizationId,
+          vehicleId,
+          baselineProviderSourceLinkId: baselineLinkId,
+          pollStartedAtMs: startedAt.getTime(),
+          tripDetectionState: vehicle.tripDetectionState?.state ?? null,
+          vehicleFuelType: vehicle.fuelType ?? null,
+          lastTrustworthyLvSourceMs: previousLv?.providerTimestamp?.getTime() ?? null,
+          lastTopLevelProviderSourceMs: previousVls?.sourceTimestamp?.getTime() ?? null,
+          r9WakeKnown: jobDataWithWake.wakeContext != null,
+          providerGapOpen: false,
+          deviceReconnectRecent: false,
+          providerReconnectRecent: false,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `APDS V3 shadow schedule failed (non-blocking): ${err instanceof Error ? err.message : err}`,
+        );
+      }
     }
 
     try {

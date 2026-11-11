@@ -20,9 +20,35 @@ export type ApdsV3ShadowEligibilityResult =
 export class ApdsV3ShadowEligibilityService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async resolveForBaselinePoll(
+    organizationId: string,
+    vehicleId: string,
+    baselineProviderSourceLinkId: string | null,
+  ): Promise<ApdsV3ShadowEligibilityResult> {
+    if (baselineProviderSourceLinkId) {
+      const link = await this.prisma.vehicleDataSourceLink.findFirst({
+        where: {
+          id: baselineProviderSourceLinkId,
+          vehicleId,
+          provider: 'DIMO',
+          vehicle: { organizationId },
+        },
+        select: { id: true, isActive: true },
+      });
+      if (!link) {
+        return { eligible: false, reason: 'BASELINE_SOURCE_LINK_NOT_FOUND' };
+      }
+      if (!link.isActive) {
+        return { eligible: false, reason: 'BASELINE_SOURCE_LINK_INACTIVE' };
+      }
+    }
+    return this.resolveForVehicle(organizationId, vehicleId, baselineProviderSourceLinkId);
+  }
+
   async resolveForVehicle(
     organizationId: string,
     vehicleId: string,
+    requiredSourceLinkId?: string | null,
   ): Promise<ApdsV3ShadowEligibilityResult> {
     const vehicle = await this.prisma.vehicle.findFirst({
       where: { id: vehicleId, organizationId },
@@ -49,6 +75,9 @@ export class ApdsV3ShadowEligibilityService {
     const link = vehicle.dataSourceLinks[0];
     if (!link) {
       return { eligible: false, reason: 'NO_ACTIVE_DIMO_SOURCE_LINK' };
+    }
+    if (requiredSourceLinkId && link.id !== requiredSourceLinkId) {
+      return { eligible: false, reason: 'BASELINE_SOURCE_LINK_SUPERSEDED' };
     }
     const status = vehicle.dimoVehicle?.connectionStatus ?? null;
     if (

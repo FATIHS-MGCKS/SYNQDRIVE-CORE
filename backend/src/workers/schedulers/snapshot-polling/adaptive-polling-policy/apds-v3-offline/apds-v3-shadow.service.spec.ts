@@ -1,20 +1,21 @@
-import { ApdsV3ShadowService, buildApdsV3ShadowPhysicalRequestId } from './apds-v3-shadow.service';
+import { TripDetectionState } from '@prisma/client';
+import { ApdsV3ShadowService } from './apds-v3-shadow.service';
 import { ApdsV3ShadowRepository } from './apds-v3-shadow.repository';
 import { ApdsV3ShadowEligibilityService } from './apds-v3-shadow-eligibility.service';
 
 describe('ApdsV3ShadowService', () => {
-  const upsert = jest.fn().mockResolvedValue(undefined);
+  const insertPollStartDecision = jest.fn().mockResolvedValue('inserted');
 
   const prisma = {
     dimoPollLog: { findFirst: jest.fn().mockResolvedValue(null) },
     batteryMeasurement: { findMany: jest.fn().mockResolvedValue([]) },
-    vehicle: {
-      findUnique: jest.fn().mockResolvedValue({ fuelType: 'ELECTRIC' }),
-    },
+    vehicleLatestState: { findUnique: jest.fn().mockResolvedValue(null) },
+    vehicleSignalCapabilityProfileRevision: { findFirst: jest.fn().mockResolvedValue(null) },
+    vehicleProviderSourceObservation: { findFirst: jest.fn().mockResolvedValue(null) },
   };
 
   const eligibility = {
-    resolveForVehicle: jest.fn().mockResolvedValue({
+    resolveForBaselinePoll: jest.fn().mockResolvedValue({
       eligible: true,
       organizationId: 'org-a',
       vehicleId: 'veh-1',
@@ -30,15 +31,46 @@ describe('ApdsV3ShadowService', () => {
     setRuntimeReady: jest.fn(),
   };
 
+  const envelope = () => ({
+    job: {
+      id: 'job-1',
+      attemptsMade: 0,
+      data: {
+        vehicleId: 'veh-1',
+        dimoTokenId: 9,
+        apdShadowEnqueueEvidence: {
+          attemptId: 'att-1',
+          canonicalJobId: 'snapshot-veh-1',
+          binding: 'PHYSICAL_JOB_PAYLOAD' as const,
+          outcome: 'ENQUEUED' as const,
+          observedAtMs: 1,
+        },
+      },
+    },
+    organizationId: 'org-a',
+    vehicleId: 'veh-1',
+    baselineProviderSourceLinkId: 'link-1',
+    pollStartedAtMs: 1_700_000_000_000,
+    tripDetectionState: TripDetectionState.RESTING,
+    vehicleFuelType: 'ELECTRIC',
+    lastTrustworthyLvSourceMs: null,
+    lastTopLevelProviderSourceMs: null,
+    r9WakeKnown: false,
+    providerGapOpen: false,
+    deviceReconnectRecent: false,
+    providerReconnectRecent: false,
+  });
+
   beforeEach(() => {
     jest.resetAllMocks();
-    eligibility.resolveForVehicle.mockResolvedValue({
+    eligibility.resolveForBaselinePoll.mockResolvedValue({
       eligible: true,
       organizationId: 'org-a',
       vehicleId: 'veh-1',
       providerSourceLinkId: 'link-1',
       connectivityStatus: 'CONNECTED',
     });
+    insertPollStartDecision.mockResolvedValue('inserted');
     process.env.WORKER_APDS_V3_SHADOW_ENABLED = 'true';
     process.env.WORKER_APDS_V3_SHADOW_ACTIVATION_VERSION = 'APDS_V3_SHADOW_ACTIVATION_V1';
   });
@@ -48,67 +80,47 @@ describe('ApdsV3ShadowService', () => {
     delete process.env.WORKER_APDS_V3_SHADOW_ACTIVATION_VERSION;
   });
 
-  it('does not throw when persistence fails (non-blocking)', async () => {
-    upsert.mockRejectedValueOnce(new Error('db down'));
-    const repo = { upsertPollStartDecision: upsert } as unknown as ApdsV3ShadowRepository;
+  it('scheduleBaselineObserve does not throw when persistence fails', async () => {
+    insertPollStartDecision.mockRejectedValueOnce(new Error('db down'));
+    const repo = { insertPollStartDecision } as unknown as ApdsV3ShadowRepository;
     const svc = new ApdsV3ShadowService(
       prisma as never,
       eligibility as unknown as ApdsV3ShadowEligibilityService,
       repo,
       metrics as never,
     );
-    await expect(
-      svc.observeActualBaselinePollStart({
-        organizationId: 'org-a',
-        vehicleId: 'veh-1',
-        pollStartedAtMs: 1_700_000_000_000,
-        tripDetectionState: null,
-        lastProviderFetchedAtMs: null,
-        lastTrustworthyLvSourceMs: null,
-        lvProviderTimestampsMs: [],
-        providerGapOpen: false,
-        r9WakeKnown: false,
-        deviceReconnectRecent: false,
-        providerReconnectRecent: false,
-        activityTierLabel: 'RESTING_STANDBY',
-      }),
-    ).resolves.toBeUndefined();
+    expect(() => svc.scheduleBaselineObserve(envelope())).not.toThrow();
+    await svc.onModuleDestroy();
   });
 
   it('kill switch off is no-op', async () => {
     process.env.WORKER_APDS_V3_SHADOW_ENABLED = 'false';
-    const repo = { upsertPollStartDecision: upsert } as unknown as ApdsV3ShadowRepository;
+    const repo = { insertPollStartDecision } as unknown as ApdsV3ShadowRepository;
     const svc = new ApdsV3ShadowService(
       prisma as never,
       eligibility as unknown as ApdsV3ShadowEligibilityService,
       repo,
       metrics as never,
     );
-    await svc.observeActualBaselinePollStart({
-      organizationId: 'org-a',
-      vehicleId: 'veh-1',
-      pollStartedAtMs: 1_700_000_000_000,
-      tripDetectionState: null,
-      lastProviderFetchedAtMs: null,
-      lastTrustworthyLvSourceMs: null,
-      lvProviderTimestampsMs: [],
-      providerGapOpen: false,
-      r9WakeKnown: false,
-      deviceReconnectRecent: false,
-      providerReconnectRecent: false,
-      activityTierLabel: 'RESTING_STANDBY',
-    });
-    expect(upsert).not.toHaveBeenCalled();
+    svc.scheduleBaselineObserve(envelope());
+    await svc.onModuleDestroy();
+    expect(insertPollStartDecision).not.toHaveBeenCalled();
   });
 
-  it('physical request id is stable for replica idempotency', () => {
-    expect(
-      buildApdsV3ShadowPhysicalRequestId({
-        organizationId: 'o',
-        vehicleId: 'v',
-        pollStartedAtMs: 123,
-        realPollId: 'poll-uuid',
-      }),
-    ).toBe('poll-uuid');
+  it('skips UNVERIFIED physical identity (no job id)', async () => {
+    const repo = { insertPollStartDecision } as unknown as ApdsV3ShadowRepository;
+    const svc = new ApdsV3ShadowService(
+      prisma as never,
+      eligibility as unknown as ApdsV3ShadowEligibilityService,
+      repo,
+      metrics as never,
+    );
+    svc.scheduleBaselineObserve({
+      ...envelope(),
+      job: { data: { vehicleId: 'veh-1', dimoTokenId: 1 } },
+    });
+    await svc.onModuleDestroy();
+    expect(insertPollStartDecision).not.toHaveBeenCalled();
+    expect(metrics.recordWriteSuppressed).toHaveBeenCalledWith('PHYSICAL_IDENTITY_UNVERIFIED');
   });
 });

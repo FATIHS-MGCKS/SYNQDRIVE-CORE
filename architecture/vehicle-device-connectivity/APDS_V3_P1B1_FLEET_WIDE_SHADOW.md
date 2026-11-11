@@ -16,7 +16,15 @@ Hook: `DimoSnapshotProcessor` after existing P25 shadow observe-only path at **b
 
 ## TWO_REPLICA_IDEMPOTENCY
 
-Unique `(organizationId, vehicleId, physicalRequestId, policyVersion)` on `apds_v3_shadow_decisions`.
+Unique `(organizationId, vehicleId, physicalRequestId, policyVersion)` on `apds_v3_shadow_decisions`. Insert-only with `decisionFingerprint`; conflicting replay raises immutable conflict (no overwrite).
+
+## P1_BASELINE_NON_INTERFERENCE
+
+`scheduleBaselineObserve` on processor critical path: no await, no V3-only extra DB round trips, try/catch fail-open. Bounded queue + timeout off critical path.
+
+## P1_PHYSICAL_IDENTITY
+
+`CONFIRMED` from `apdShadowEnqueueEvidence.attemptId`; else `DERIVED` from BullMQ `job.id` + `attemptsMade`. No wall-clock physical id at runtime.
 
 ## KILL_SWITCH
 
