@@ -1,7 +1,11 @@
 import { Logger } from '@nestjs/common';
 
-export type ApdsV3ShadowQueuedWork = () => Promise<void>;
+export type ApdsV3ShadowQueuedWork = (signal: AbortSignal) => Promise<void>;
 
+/**
+ * Background shadow evaluations: concurrency slots are held until work fully settles
+ * (no Promise.race early release). AbortSignal propagates cooperative cancellation.
+ */
 export class ApdsV3ShadowRuntimeQueue {
   private readonly logger = new Logger(ApdsV3ShadowRuntimeQueue.name);
   private readonly pending: ApdsV3ShadowQueuedWork[] = [];
@@ -47,22 +51,24 @@ export class ApdsV3ShadowRuntimeQueue {
   }
 
   private async runBounded(work: ApdsV3ShadowQueuedWork): Promise<void> {
-    let timeout: NodeJS.Timeout | undefined;
+    const controller = new AbortController();
+    const deadline = setTimeout(() => {
+      controller.abort();
+    }, this.evaluationTimeoutMs);
     try {
-      await Promise.race([
-        work(),
-        new Promise<void>((_, reject) => {
-          timeout = setTimeout(() => {
-            reject(new Error('APDS_V3_SHADOW_EVALUATION_TIMEOUT'));
-          }, this.evaluationTimeoutMs);
-        }),
-      ]);
+      await work(controller.signal);
     } catch (err) {
-      this.logger.warn(
-        `APDS V3 shadow queued evaluation failed (non-blocking): ${err instanceof Error ? err.message : err}`,
-      );
+      if (controller.signal.aborted) {
+        this.logger.warn(
+          `APDS V3 shadow evaluation aborted (${this.evaluationTimeoutMs}ms deadline): ${err instanceof Error ? err.message : err}`,
+        );
+      } else {
+        this.logger.warn(
+          `APDS V3 shadow queued evaluation failed (non-blocking): ${err instanceof Error ? err.message : err}`,
+        );
+      }
     } finally {
-      if (timeout) clearTimeout(timeout);
+      clearTimeout(deadline);
     }
   }
 }

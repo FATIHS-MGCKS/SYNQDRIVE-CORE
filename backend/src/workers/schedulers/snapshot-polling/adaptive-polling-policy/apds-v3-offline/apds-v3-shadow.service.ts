@@ -73,7 +73,9 @@ export class ApdsV3ShadowService implements OnModuleDestroy {
    */
   scheduleBaselineObserve(envelope: ApdsV3ShadowProcessorEnvelope): void {
     if (!this.isRuntimeReady()) return;
-    const queued = this.runtime.enqueue(() => this.executeQueuedObservation(envelope));
+    const queued = this.runtime.enqueue((signal) =>
+      this.executeQueuedObservation(envelope, signal),
+    );
     if (!queued) {
       this.metrics?.recordWriteSuppressed('QUEUE_FULL');
     }
@@ -82,8 +84,9 @@ export class ApdsV3ShadowService implements OnModuleDestroy {
   /** @deprecated Use scheduleBaselineObserve — kept for unit tests calling inner path. */
   async observeActualBaselinePollStart(
     envelope: ApdsV3ShadowProcessorEnvelope,
+    signal?: AbortSignal,
   ): Promise<void> {
-    await this.executeQueuedObservation(envelope);
+    await this.executeQueuedObservation(envelope, signal);
   }
 
   getRuntimeStats(): { active: number; pending: number } {
@@ -103,7 +106,7 @@ export class ApdsV3ShadowService implements OnModuleDestroy {
     this.writeTimestampsMs.push(nowMs);
   }
 
-  private async withBudgetMutex<T>(fn: () => Promise<T>): Promise<T> {
+  private async withBudgetMutex<T>(fn: () => Promise<T> | T): Promise<T> {
     const run = this.budgetLock.chain.then(fn);
     this.budgetLock.chain = run.then(
       () => undefined,
@@ -112,145 +115,160 @@ export class ApdsV3ShadowService implements OnModuleDestroy {
     return run;
   }
 
+  private async reserveWriteBudget(nowMs: number): Promise<boolean> {
+    return this.withBudgetMutex(async () => {
+      if (!this.underWriteBudget(nowMs)) return false;
+      this.recordWrite(nowMs);
+      return true;
+    });
+  }
+
   private async executeQueuedObservation(
     envelope: ApdsV3ShadowProcessorEnvelope,
+    signal?: AbortSignal,
   ): Promise<void> {
     if (!this.isRuntimeReady()) return;
 
-    const identity = resolveApdsV3ShadowPhysicalRequestIdentity(envelope.job);
+    const identity = resolveApdsV3ShadowPhysicalRequestIdentity(
+      envelope.job,
+      envelope.vehicleId,
+    );
     if (!identity) {
       this.metrics?.recordWriteSuppressed('PHYSICAL_IDENTITY_UNVERIFIED');
       return;
     }
     const nowMs = envelope.pollStartedAtMs;
-    return this.withBudgetMutex(async () => {
-      if (!this.underWriteBudget(nowMs)) {
-        this.metrics?.recordWriteSuppressed('RATE_LIMIT');
-        return;
-      }
 
-      let eligible;
-      try {
-        eligible = await this.eligibility.resolveForBaselinePoll(
-          envelope.organizationId,
-          envelope.vehicleId,
-          envelope.baselineProviderSourceLinkId,
-        );
-      } catch (err) {
-        this.logger.warn(
-          `APDS V3 shadow eligibility failed (non-blocking): ${err instanceof Error ? err.message : err}`,
-        );
-        return;
-      }
+    const budgetReserved = await this.reserveWriteBudget(nowMs);
+    if (!budgetReserved) {
+      this.metrics?.recordWriteSuppressed('RATE_LIMIT');
+      return;
+    }
 
-      if (!eligible.eligible) {
-        this.metrics?.recordEligibilityBlocked(eligible.reason);
-        return;
-      }
+    let eligible;
+    try {
+      eligible = await this.eligibility.resolveForBaselinePoll(
+        envelope.organizationId,
+        envelope.vehicleId,
+        envelope.baselineProviderSourceLinkId,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `APDS V3 shadow eligibility failed (non-blocking): ${err instanceof Error ? err.message : err}`,
+      );
+      return;
+    }
 
-      try {
-        const causalBundle = await loadApdsV3ShadowCausalEvidence(this.prisma, {
+    if (!eligible.eligible) {
+      this.metrics?.recordEligibilityBlocked(eligible.reason);
+      return;
+    }
+
+    try {
+      const causalBundle = await loadApdsV3ShadowCausalEvidence(
+        this.prisma,
+        {
           organizationId: envelope.organizationId,
           vehicleId: envelope.vehicleId,
           providerSourceLinkId: eligible.providerSourceLinkId,
           decisionAtMs: envelope.pollStartedAtMs,
-        });
+        },
+        signal,
+      );
 
-        const activityTier = activityTierFromTrip(envelope.tripDetectionState);
-        const mapped = mapApdsV3ShadowPollStartToOfflineInput({
-          organizationId: envelope.organizationId,
-          vehicleId: envelope.vehicleId,
-          providerSourceLinkId: eligible.providerSourceLinkId,
-          pollStartedAtMs: envelope.pollStartedAtMs,
-          tripDetectionState: envelope.tripDetectionState,
-          lastProviderFetchedAtMs: causalBundle.lastProviderFetchedAtMs,
-          lastTrustworthyLvSourceMs: envelope.lastTrustworthyLvSourceMs,
-          lvProviderTimestampsMs: causalBundle.lvProviderTimestampsMs,
-          providerGapOpen: envelope.providerGapOpen,
-          r9WakeKnown: envelope.r9WakeKnown,
-          deviceReconnectRecent: envelope.deviceReconnectRecent,
-          providerReconnectRecent: envelope.providerReconnectRecent,
-          vehicleFuelType: envelope.vehicleFuelType,
-          activityTierLabel: activityTier,
-          p2cObservationId: causalBundle.p2cObservationId,
-          p2cObservationAvailableAtMs: causalBundle.p2cObservationAvailableAtMs,
-          p2cBoundOrganizationId: causalBundle.p2cBoundOrganizationId,
-          p2cBoundVehicleId: causalBundle.p2cBoundVehicleId,
-          p2cBoundProviderSourceLinkId: causalBundle.p2cBoundProviderSourceLinkId,
-          p2cDataSourceTimestampMs: causalBundle.p2cDataSourceTimestampMs,
-          p2cTopLevelAdvanceKnown: causalBundle.p2cTopLevelAdvanceKnown,
-          p2cObservationCoverageVerified: causalBundle.p2cObservationCoverageVerified,
-          signalProfileRevision: causalBundle.signalProfileRevision,
-          signalProfileRevisionEffectiveAtMs:
-            causalBundle.signalProfileRevisionEffectiveAtMs,
-        });
-        mapped.input.lastPhysicalPollMs = causalBundle.lastPhysicalPollMs;
-        mapped.input.lastTopLevelProviderSourceMs =
-          causalBundle.lastTopLevelProviderSourceMs ?? envelope.lastTopLevelProviderSourceMs;
+      const activityTier = activityTierFromTrip(envelope.tripDetectionState);
+      const mapped = mapApdsV3ShadowPollStartToOfflineInput({
+        organizationId: envelope.organizationId,
+        vehicleId: envelope.vehicleId,
+        providerSourceLinkId: eligible.providerSourceLinkId,
+        pollStartedAtMs: envelope.pollStartedAtMs,
+        tripDetectionState: envelope.tripDetectionState,
+        lastProviderFetchedAtMs: causalBundle.lastProviderFetchedAtMs,
+        lastTrustworthyLvSourceMs: envelope.lastTrustworthyLvSourceMs,
+        lvProviderTimestampsMs: causalBundle.lvProviderTimestampsMs,
+        providerGapOpen: envelope.providerGapOpen,
+        r9WakeKnown: envelope.r9WakeKnown,
+        deviceReconnectRecent: envelope.deviceReconnectRecent,
+        providerReconnectRecent: envelope.providerReconnectRecent,
+        vehicleFuelType: envelope.vehicleFuelType,
+        activityTierLabel: activityTier,
+        p2cObservationId: causalBundle.p2cObservationId,
+        p2cObservationAvailableAtMs: causalBundle.p2cObservationAvailableAtMs,
+        p2cBoundOrganizationId: causalBundle.p2cBoundOrganizationId,
+        p2cBoundVehicleId: causalBundle.p2cBoundVehicleId,
+        p2cBoundProviderSourceLinkId: causalBundle.p2cBoundProviderSourceLinkId,
+        p2cDataSourceTimestampMs: causalBundle.p2cDataSourceTimestampMs,
+        p2cTopLevelAdvanceKnown: causalBundle.p2cTopLevelAdvanceKnown,
+        p2cObservationCoverageVerified: causalBundle.p2cObservationCoverageVerified,
+        signalProfileRevision: causalBundle.signalProfileRevision,
+        signalProfileRevisionEffectiveAtMs:
+          causalBundle.signalProfileRevisionEffectiveAtMs,
+      });
+      mapped.input.lastPhysicalPollMs = causalBundle.lastPhysicalPollMs;
+      mapped.input.lastTopLevelProviderSourceMs =
+        causalBundle.lastTopLevelProviderSourceMs ?? envelope.lastTopLevelProviderSourceMs;
 
-        const causal = validateCausalEvidenceAtDecision(mapped.input);
-        const gate = evaluateConsumerDemandGate(mapped.input.consumerDemandRevision, {
-          decisionAtMs: mapped.input.decisionAtMs,
-          strictLvProviderSourceMs: mapped.input.lastLvProviderSourceMs,
-          topLevelProviderSourceMs: mapped.input.lastTopLevelProviderSourceMs,
-          tripFsmState: mapped.input.tripFsmState,
-        });
+      const causal = validateCausalEvidenceAtDecision(mapped.input);
+      const gate = evaluateConsumerDemandGate(mapped.input.consumerDemandRevision, {
+        decisionAtMs: mapped.input.decisionAtMs,
+        strictLvProviderSourceMs: mapped.input.lastLvProviderSourceMs,
+        topLevelProviderSourceMs: mapped.input.lastTopLevelProviderSourceMs,
+        tripFsmState: mapped.input.tripFsmState,
+      });
 
-        let v3 = evaluateApdsV3OfflinePolicy(mapped.input);
-        const missingReasons = [...causalBundle.missingEvidenceReasons];
-        if (!causal.ok) {
-          missingReasons.push(causal.reason);
-          v3 = {
-            policyVersion: v3.policyVersion,
-            decision: causal.kind,
-            reason: causal.reason,
-            expectedInformationGain: null,
-            heuristic: false,
-            hardSafetyTriggered: false,
-          };
-        }
-
-        const baseline = resolveBaselinePartialParitySnapshot(mapped.input);
-        const outcome = await this.repository.insertPollStartDecision({
-          organizationId: envelope.organizationId,
-          vehicleId: envelope.vehicleId,
-          providerSourceLinkId: eligible.providerSourceLinkId,
-          physicalRequestId: identity.physicalRequestId,
-          physicalRequestIdentityClass: identity.identityClass,
-          correlationAttemptId: identity.correlationAttemptId,
-          decisionAt: new Date(envelope.pollStartedAtMs),
-          activationVersion: APDS_V3_SHADOW_ACTIVATION_VERSION,
-          policyVersion: ApdsV3ShadowRepository.defaultPolicyVersion(),
-          baselineCanonicalDue: baseline.baselineCanonicalDue,
-          baselineAuthority: baseline.baselineAuthority,
-          baselineAssessable: baseline.baselineAssessable,
-          v3Decision: v3.decision,
-          v3Reason: v3.reason,
-          expectedInformationGain: v3.expectedInformationGain,
-          informationGainHeuristic: v3.heuristic,
-          consumerDemandFailClosed: gate.blocksAuthoritativeSafeSkip,
-          observationQuality: causal.ok ? causal.observationQuality : null,
-          observationScope: 'BASELINE_PHYSICAL_POLL_START_ONLY',
-          missingEvidenceReasons: missingReasons,
-        });
-
-        if (outcome === 'immutable_conflict') {
-          this.metrics?.recordWriteSuppressed('IMMUTABLE_CONFLICT');
-        }
-        if (outcome === 'inserted' || outcome === 'idempotent_replay') {
-          this.recordWrite(nowMs);
-          this.metrics?.recordDecision(v3.decision);
-        }
-      } catch (err) {
-        if (err instanceof ApdsV3ShadowImmutableConflictError) {
-          this.metrics?.recordWriteSuppressed('IMMUTABLE_CONFLICT');
-          this.logger.warn(`APDS V3 shadow immutable conflict: ${err.message}`);
-          return;
-        }
-        this.logger.warn(
-          `APDS V3 shadow evaluate/persist failed (non-blocking): ${err instanceof Error ? err.message : err}`,
-        );
+      let v3 = evaluateApdsV3OfflinePolicy(mapped.input);
+      const missingReasons = [...causalBundle.missingEvidenceReasons];
+      if (!causal.ok) {
+        missingReasons.push(causal.reason);
+        v3 = {
+          policyVersion: v3.policyVersion,
+          decision: causal.kind,
+          reason: causal.reason,
+          expectedInformationGain: null,
+          heuristic: false,
+          hardSafetyTriggered: false,
+        };
       }
-    });
+
+      const baseline = resolveBaselinePartialParitySnapshot(mapped.input);
+      const outcome = await this.repository.insertPollStartDecision({
+        organizationId: envelope.organizationId,
+        vehicleId: envelope.vehicleId,
+        providerSourceLinkId: eligible.providerSourceLinkId,
+        physicalRequestId: identity.physicalRequestId,
+        physicalRequestIdentityClass: identity.identityClass,
+        correlationAttemptId: identity.enqueueAttemptId,
+        decisionAt: new Date(envelope.pollStartedAtMs),
+        activationVersion: APDS_V3_SHADOW_ACTIVATION_VERSION,
+        policyVersion: ApdsV3ShadowRepository.defaultPolicyVersion(),
+        baselineCanonicalDue: baseline.baselineCanonicalDue,
+        baselineAuthority: baseline.baselineAuthority,
+        baselineAssessable: baseline.baselineAssessable,
+        v3Decision: v3.decision,
+        v3Reason: v3.reason,
+        expectedInformationGain: v3.expectedInformationGain,
+        informationGainHeuristic: v3.heuristic,
+        consumerDemandFailClosed: gate.blocksAuthoritativeSafeSkip,
+        observationQuality: causal.ok ? causal.observationQuality : null,
+        observationScope: 'BASELINE_PHYSICAL_POLL_START_ONLY',
+        missingEvidenceReasons: missingReasons,
+      });
+
+      if (outcome === 'immutable_conflict') {
+        this.metrics?.recordWriteSuppressed('IMMUTABLE_CONFLICT');
+      }
+      if (outcome === 'inserted' || outcome === 'idempotent_replay') {
+        this.metrics?.recordDecision(v3.decision);
+      }
+    } catch (err) {
+      if (err instanceof ApdsV3ShadowImmutableConflictError) {
+        this.metrics?.recordWriteSuppressed('IMMUTABLE_CONFLICT');
+        this.logger.warn(`APDS V3 shadow immutable conflict: ${err.message}`);
+        return;
+      }
+      this.logger.warn(
+        `APDS V3 shadow evaluate/persist failed (non-blocking): ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 }

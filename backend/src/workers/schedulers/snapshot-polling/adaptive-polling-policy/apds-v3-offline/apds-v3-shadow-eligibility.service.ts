@@ -14,7 +14,7 @@ export type ApdsV3ShadowEligibilityResult =
 
 /**
  * Fleet-wide dynamic eligibility — no static vehicle allowlist.
- * Mandantensicher: scoped by organizationId + vehicleId + active DIMO source link.
+ * Baseline poll must supply authoritative source link id (fail-closed if missing).
  */
 @Injectable()
 export class ApdsV3ShadowEligibilityService {
@@ -25,30 +25,33 @@ export class ApdsV3ShadowEligibilityService {
     vehicleId: string,
     baselineProviderSourceLinkId: string | null,
   ): Promise<ApdsV3ShadowEligibilityResult> {
-    if (baselineProviderSourceLinkId) {
-      const link = await this.prisma.vehicleDataSourceLink.findFirst({
-        where: {
-          id: baselineProviderSourceLinkId,
-          vehicleId,
-          provider: 'DIMO',
-          vehicle: { organizationId },
-        },
-        select: { id: true, isActive: true },
-      });
-      if (!link) {
-        return { eligible: false, reason: 'BASELINE_SOURCE_LINK_NOT_FOUND' };
-      }
-      if (!link.isActive) {
-        return { eligible: false, reason: 'BASELINE_SOURCE_LINK_INACTIVE' };
-      }
+    if (!baselineProviderSourceLinkId) {
+      return { eligible: false, reason: 'BASELINE_SOURCE_LINK_MISSING' };
     }
-    return this.resolveForVehicle(organizationId, vehicleId, baselineProviderSourceLinkId);
+
+    const link = await this.prisma.vehicleDataSourceLink.findFirst({
+      where: {
+        id: baselineProviderSourceLinkId,
+        vehicleId,
+        provider: 'DIMO',
+        vehicle: { organizationId },
+      },
+      select: { id: true, isActive: true },
+    });
+    if (!link) {
+      return { eligible: false, reason: 'BASELINE_SOURCE_LINK_NOT_FOUND' };
+    }
+    if (!link.isActive) {
+      return { eligible: false, reason: 'BASELINE_SOURCE_LINK_INACTIVE' };
+    }
+
+    return this.resolveForRequiredLink(organizationId, vehicleId, baselineProviderSourceLinkId);
   }
 
-  async resolveForVehicle(
+  private async resolveForRequiredLink(
     organizationId: string,
     vehicleId: string,
-    requiredSourceLinkId?: string | null,
+    requiredSourceLinkId: string,
   ): Promise<ApdsV3ShadowEligibilityResult> {
     const vehicle = await this.prisma.vehicle.findFirst({
       where: { id: vehicleId, organizationId },
@@ -58,8 +61,7 @@ export class ApdsV3ShadowEligibilityService {
         registryLifecycle: true,
         dimoVehicle: { select: { connectionStatus: true } },
         dataSourceLinks: {
-          where: { isActive: true, provider: 'DIMO' },
-          orderBy: { activatedAt: 'desc' },
+          where: { id: requiredSourceLinkId, provider: 'DIMO', isActive: true },
           take: 1,
           select: { id: true },
         },
@@ -74,9 +76,6 @@ export class ApdsV3ShadowEligibilityService {
     }
     const link = vehicle.dataSourceLinks[0];
     if (!link) {
-      return { eligible: false, reason: 'NO_ACTIVE_DIMO_SOURCE_LINK' };
-    }
-    if (requiredSourceLinkId && link.id !== requiredSourceLinkId) {
       return { eligible: false, reason: 'BASELINE_SOURCE_LINK_SUPERSEDED' };
     }
     const status = vehicle.dimoVehicle?.connectionStatus ?? null;

@@ -22,9 +22,21 @@ Unique `(organizationId, vehicleId, physicalRequestId, policyVersion)` on `apds_
 
 `scheduleBaselineObserve` on processor critical path: no await, no V3-only extra DB round trips, try/catch fail-open. Bounded queue + timeout off critical path.
 
-## P1_PHYSICAL_IDENTITY
+## P1_PHYSICAL_IDENTITY (R2)
 
-`CONFIRMED` from `apdShadowEnqueueEvidence.attemptId`; else `DERIVED` from BullMQ `job.id` + `attemptsMade`. No wall-clock physical id at runtime.
+Physical fetch id is always `physical-fetch:{jobId}:run:{attemptsMade}` (`DERIVED` or `CORRELATED` when admissible enqueue metadata is present). Enqueue `attemptId` is stored as `correlationAttemptId` only — never authoritative physical identity. BullMQ retries advance `attemptsMade` → distinct physical rows.
+
+## BASELINE_SOURCE_LINK (R2)
+
+`baselineProviderSourceLinkId` from the baseline poll envelope is mandatory. Missing/inactive/wrong-tenant/superseded → eligibility fail-closed (`BASELINE_SOURCE_LINK_*`). No fallback to another active DIMO link.
+
+## RUNTIME_RESOURCE_SAFETY (R2)
+
+`ApdsV3ShadowRuntimeQueue` holds concurrency until work settles; `AbortSignal` + `WORKER_APDS_V3_SHADOW_DB_STATEMENT_TIMEOUT_MS` (`SET LOCAL statement_timeout` in causal load transaction). Budget mutex is limited to atomic write-budget reservation only (not eligibility/causal/persist).
+
+## POSTGRES_CONCURRENCY_CERT
+
+`apds-v3-shadow-concurrency.postgres.integration.spec.ts` (disposable PG, `APDS_V3_SHADOW_PG=1`) — wired in `backend/scripts/test/p25-apd-shadow-postgres-ci.sh`.
 
 ## KILL_SWITCH
 

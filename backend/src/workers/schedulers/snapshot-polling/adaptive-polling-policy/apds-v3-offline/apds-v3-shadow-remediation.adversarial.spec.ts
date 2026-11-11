@@ -13,38 +13,65 @@ describe('APDS V3 P1B1 remediation adversarial', () => {
     delete process.env.WORKER_APDS_V3_SHADOW_ACTIVATION_VERSION;
   });
 
-  it('different physical attempts do not collapse', () => {
-    const a = resolveApdsV3ShadowPhysicalRequestIdentity({
+  it('BullMQ retry run boundary yields distinct physical attempt ids', () => {
+    const base = {
       id: 'j',
-      attemptsMade: 0,
       data: {
         vehicleId: 'v',
         dimoTokenId: 1,
         apdShadowEnqueueEvidence: {
           attemptId: 'one',
           canonicalJobId: 'snapshot-v',
-          binding: 'PHYSICAL_JOB_PAYLOAD',
-          outcome: 'ENQUEUED',
+          binding: 'PHYSICAL_JOB_PAYLOAD' as const,
+          outcome: 'ENQUEUED' as const,
           observedAtMs: 1,
         },
       },
-    });
-    const b = resolveApdsV3ShadowPhysicalRequestIdentity({
-      id: 'j',
-      attemptsMade: 0,
-      data: {
-        vehicleId: 'v',
-        dimoTokenId: 1,
-        apdShadowEnqueueEvidence: {
-          attemptId: 'two',
-          canonicalJobId: 'snapshot-v',
-          binding: 'PHYSICAL_JOB_PAYLOAD',
-          outcome: 'ENQUEUED',
-          observedAtMs: 2,
+    };
+    const a = resolveApdsV3ShadowPhysicalRequestIdentity({ ...base, attemptsMade: 0 }, 'v');
+    const b = resolveApdsV3ShadowPhysicalRequestIdentity({ ...base, attemptsMade: 1 }, 'v');
+    expect(a?.physicalRequestId).not.toBe(b?.physicalRequestId);
+  });
+
+  it('different enqueue attempt ids still share physical id for same BullMQ run', () => {
+    const a = resolveApdsV3ShadowPhysicalRequestIdentity(
+      {
+        id: 'j',
+        attemptsMade: 0,
+        data: {
+          vehicleId: 'v',
+          dimoTokenId: 1,
+          apdShadowEnqueueEvidence: {
+            attemptId: 'one',
+            canonicalJobId: 'snapshot-v',
+            binding: 'PHYSICAL_JOB_PAYLOAD',
+            outcome: 'ENQUEUED',
+            observedAtMs: 1,
+          },
         },
       },
-    });
-    expect(a?.physicalRequestId).not.toBe(b?.physicalRequestId);
+      'v',
+    );
+    const b = resolveApdsV3ShadowPhysicalRequestIdentity(
+      {
+        id: 'j',
+        attemptsMade: 0,
+        data: {
+          vehicleId: 'v',
+          dimoTokenId: 1,
+          apdShadowEnqueueEvidence: {
+            attemptId: 'two',
+            canonicalJobId: 'snapshot-v',
+            binding: 'PHYSICAL_JOB_PAYLOAD',
+            outcome: 'ENQUEUED',
+            observedAtMs: 2,
+          },
+        },
+      },
+      'v',
+    );
+    expect(a?.physicalRequestId).toBe(b?.physicalRequestId);
+    expect(a?.enqueueAttemptId).not.toBe(b?.enqueueAttemptId);
   });
 
   it('duplicate delivery fingerprints match', () => {
@@ -52,7 +79,7 @@ describe('APDS V3 P1B1 remediation adversarial', () => {
       organizationId: 'o',
       vehicleId: 'v',
       providerSourceLinkId: 'l',
-      physicalRequestId: 'enqueue-attempt:x',
+      physicalRequestId: 'physical-fetch:j:run:0',
       activationVersion: 'APDS_V3_SHADOW_ACTIVATION_V1',
       policyVersion: 'p',
       baselineCanonicalDue: null,

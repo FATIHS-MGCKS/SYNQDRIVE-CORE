@@ -51,3 +51,11 @@ export function apdsV3ShadowEvaluationTimeoutMs(
   const parsed = parseInt(env.WORKER_APDS_V3_SHADOW_EVAL_TIMEOUT_MS ?? '15000', 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 15_000;
 }
+
+/** Postgres statement_timeout for shadow causal loads (ms). */
+export function apdsV3ShadowDbStatementTimeoutMs(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const parsed = parseInt(env.WORKER_APDS_V3_SHADOW_DB_STATEMENT_TIMEOUT_MS ?? '10000', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 10_000;
+}

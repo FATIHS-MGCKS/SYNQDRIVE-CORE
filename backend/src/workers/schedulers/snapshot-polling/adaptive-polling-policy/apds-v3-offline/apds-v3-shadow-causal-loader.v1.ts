@@ -1,6 +1,11 @@
-import { DimoPollStatus } from '@prisma/client';
+import {
+  DimoPollStatus,
+  VehicleProviderSourceObservationOutcome,
+  VehicleProviderSourceObservationRecordPhase,
+} from '@prisma/client';
 import type { PrismaService } from '@shared/database/prisma.service';
 import { buildP25ApdProfileLvLoaderWhere } from '../p25-apd-profile-lv-loader';
+import { apdsV3ShadowDbStatementTimeoutMs } from './apds-v3-shadow.config';
 
 export type ApdsV3ShadowCausalEvidenceBundle = {
   lastPhysicalPollMs: number | null;
@@ -21,6 +26,18 @@ export type ApdsV3ShadowCausalEvidenceBundle = {
   missingEvidenceReasons: string[];
 };
 
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new Error('APDS_V3_SHADOW_ABORTED');
+  }
+}
+
+const ADMISSIBLE_P2C_OUTCOMES = new Set<VehicleProviderSourceObservationOutcome>([
+  VehicleProviderSourceObservationOutcome.PROVIDER_FETCH_RECORDED,
+  VehicleProviderSourceObservationOutcome.VLS_APPLIED,
+  VehicleProviderSourceObservationOutcome.VLS_COMMITTED,
+]);
+
 export async function loadApdsV3ShadowCausalEvidence(
   prisma: PrismaService,
   input: {
@@ -29,18 +46,28 @@ export async function loadApdsV3ShadowCausalEvidence(
     providerSourceLinkId: string;
     decisionAtMs: number;
   },
+  signal?: AbortSignal,
 ): Promise<ApdsV3ShadowCausalEvidenceBundle> {
   const missing: string[] = [];
   const decisionAt = new Date(input.decisionAtMs);
+  const stmtMs = apdsV3ShadowDbStatementTimeoutMs();
 
-  const [
+  throwIfAborted(signal);
+
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = ${stmtMs}`);
+      throwIfAborted(signal);
+
+      const [
     lastSuccessPoll,
     lvRows,
     latestState,
     profileRevision,
     p2cObs,
+    priorP2cObs,
   ] = await Promise.all([
-    prisma.dimoPollLog.findFirst({
+    tx.dimoPollLog.findFirst({
       where: {
         vehicleId: input.vehicleId,
         status: DimoPollStatus.SUCCESS,
@@ -49,45 +76,72 @@ export async function loadApdsV3ShadowCausalEvidence(
       orderBy: { finishedAt: 'desc' },
       select: { finishedAt: true, startedAt: true },
     }),
-    prisma.batteryMeasurement.findMany({
+    tx.batteryMeasurement.findMany({
       where: buildP25ApdProfileLvLoaderWhere(input.vehicleId, input.decisionAtMs),
       orderBy: { providerTimestamp: 'desc' },
       take: 24,
       select: { providerTimestamp: true },
     }),
-    prisma.vehicleLatestState.findUnique({
+    tx.vehicleLatestState.findUnique({
       where: { vehicleId: input.vehicleId },
       select: { providerFetchedAt: true, sourceTimestamp: true },
     }),
-    prisma.vehicleSignalCapabilityProfileRevision.findFirst({
+    tx.vehicleSignalCapabilityProfileRevision.findFirst({
       where: {
         organizationId: input.organizationId,
         vehicleId: input.vehicleId,
         providerSourceLinkId: input.providerSourceLinkId,
         evaluatedAt: { lte: decisionAt },
+        recordedAt: { lte: decisionAt },
       },
       orderBy: { evaluatedAt: 'desc' },
-      select: { profileRevision: true, evaluatedAt: true, profileContractVersion: true },
+      select: {
+        profileRevision: true,
+        evaluatedAt: true,
+        recordedAt: true,
+        profileContractVersion: true,
+        lastProvenStrictSourceAdvanceAt: true,
+      },
     }),
-    prisma.vehicleProviderSourceObservation.findFirst({
+    tx.vehicleProviderSourceObservation.findFirst({
       where: {
         organizationId: input.organizationId,
         vehicleId: input.vehicleId,
         provider: 'DIMO',
         providerFetchedAt: { lte: decisionAt },
         providerBindingId: input.providerSourceLinkId,
+        recordPhase: VehicleProviderSourceObservationRecordPhase.PROVIDER_FETCH,
+        observationOutcome: { in: [...ADMISSIBLE_P2C_OUTCOMES] },
       },
       orderBy: { providerFetchedAt: 'desc' },
       select: {
         id: true,
         createdAt: true,
         providerSourceTimestamp: true,
+        providerFetchedAt: true,
         organizationId: true,
         vehicleId: true,
         providerBindingId: true,
+        recordPhase: true,
+        observationOutcome: true,
       },
     }),
+    tx.vehicleProviderSourceObservation.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        vehicleId: input.vehicleId,
+        provider: 'DIMO',
+        providerBindingId: input.providerSourceLinkId,
+        providerFetchedAt: { lt: decisionAt },
+        recordPhase: VehicleProviderSourceObservationRecordPhase.PROVIDER_FETCH,
+        observationOutcome: { in: [...ADMISSIBLE_P2C_OUTCOMES] },
+      },
+      orderBy: { providerFetchedAt: 'desc' },
+      select: { providerSourceTimestamp: true, providerFetchedAt: true },
+    }),
   ]);
+
+  throwIfAborted(signal);
 
   const lastPhysicalPollMs =
     lastSuccessPoll?.finishedAt?.getTime() ?? lastSuccessPoll?.startedAt?.getTime() ?? null;
@@ -129,15 +183,34 @@ export async function loadApdsV3ShadowCausalEvidence(
       p2cBoundOrganizationId = p2cObs.organizationId;
       p2cBoundVehicleId = p2cObs.vehicleId;
       p2cBoundProviderSourceLinkId = p2cObs.providerBindingId;
-      p2cDataSourceTimestampMs = p2cObs.providerSourceTimestamp?.getTime() ?? null;
-      p2cTopLevelAdvanceKnown =
-        p2cDataSourceTimestampMs != null && p2cDataSourceTimestampMs <= input.decisionAtMs;
+      const sourceTs = p2cObs.providerSourceTimestamp?.getTime() ?? null;
+      p2cDataSourceTimestampMs =
+        sourceTs != null && sourceTs <= input.decisionAtMs ? sourceTs : null;
+
       p2cObservationCoverageVerified =
         p2cObs.organizationId === input.organizationId &&
         p2cObs.vehicleId === input.vehicleId &&
         p2cObs.providerBindingId === input.providerSourceLinkId;
+
       if (!p2cObservationCoverageVerified) {
         missing.push('P2C_BINDING_MISMATCH');
+      }
+
+      const priorSourceTs = priorP2cObs?.providerSourceTimestamp?.getTime() ?? null;
+      const profileAdvanceMs =
+        profileRevision?.lastProvenStrictSourceAdvanceAt?.getTime() ?? null;
+      const strictAdvanceFromObs =
+        p2cDataSourceTimestampMs != null &&
+        (priorSourceTs == null || p2cDataSourceTimestampMs > priorSourceTs);
+      const strictAdvanceFromProfile =
+        profileAdvanceMs != null &&
+        profileAdvanceMs <= input.decisionAtMs &&
+        p2cDataSourceTimestampMs != null &&
+        p2cDataSourceTimestampMs >= profileAdvanceMs;
+
+      p2cTopLevelAdvanceKnown = strictAdvanceFromObs || strictAdvanceFromProfile;
+      if (!p2cTopLevelAdvanceKnown && p2cDataSourceTimestampMs != null) {
+        missing.push('P2C_STRICT_TOP_LEVEL_ADVANCE_NOT_PROVEN');
       }
     } else {
       missing.push('P2C_OBSERVATION_NOT_YET_AVAILABLE_AT_DECISION');
@@ -148,29 +221,34 @@ export async function loadApdsV3ShadowCausalEvidence(
 
   if (!profileRevision) {
     missing.push('SIGNAL_PROFILE_REVISION_NOT_AVAILABLE');
+  } else if (profileRevision.recordedAt.getTime() > input.decisionAtMs) {
+    missing.push('SIGNAL_PROFILE_REVISION_RECORDED_AFTER_DECISION');
   }
 
-  return {
-    lastPhysicalPollMs: lastPhysicalPollVerified ? lastPhysicalPollMs : null,
-    lastPhysicalPollVerified,
-    lvProviderTimestampsMs,
-    lastProviderFetchedAtMs:
-      pfMs != null && pfMs <= input.decisionAtMs ? pfMs : null,
-    lastTopLevelProviderSourceMs:
-      topMs != null && topMs <= input.decisionAtMs ? topMs : null,
-    signalProfileRevision:
-      profileRevision != null
-        ? `${profileRevision.profileContractVersion}:r${profileRevision.profileRevision}`
-        : null,
-    signalProfileRevisionEffectiveAtMs: profileRevision?.evaluatedAt.getTime() ?? null,
-    p2cObservationId,
-    p2cObservationAvailableAtMs,
-    p2cBoundOrganizationId,
-    p2cBoundVehicleId,
-    p2cBoundProviderSourceLinkId,
-    p2cDataSourceTimestampMs,
-    p2cTopLevelAdvanceKnown,
-    p2cObservationCoverageVerified,
-    missingEvidenceReasons: missing,
-  };
+      return {
+        lastPhysicalPollMs: lastPhysicalPollVerified ? lastPhysicalPollMs : null,
+        lastPhysicalPollVerified,
+        lvProviderTimestampsMs,
+        lastProviderFetchedAtMs:
+          pfMs != null && pfMs <= input.decisionAtMs ? pfMs : null,
+        lastTopLevelProviderSourceMs:
+          topMs != null && topMs <= input.decisionAtMs ? topMs : null,
+        signalProfileRevision:
+          profileRevision != null
+            ? `${profileRevision.profileContractVersion}:r${profileRevision.profileRevision}`
+            : null,
+        signalProfileRevisionEffectiveAtMs: profileRevision?.evaluatedAt.getTime() ?? null,
+        p2cObservationId,
+        p2cObservationAvailableAtMs,
+        p2cBoundOrganizationId,
+        p2cBoundVehicleId,
+        p2cBoundProviderSourceLinkId,
+        p2cDataSourceTimestampMs,
+        p2cTopLevelAdvanceKnown,
+        p2cObservationCoverageVerified,
+        missingEvidenceReasons: missing,
+      };
+    },
+    { timeout: stmtMs + 5_000 },
+  );
 }

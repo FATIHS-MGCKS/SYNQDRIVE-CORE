@@ -6,12 +6,19 @@ import { ApdsV3ShadowEligibilityService } from './apds-v3-shadow-eligibility.ser
 describe('ApdsV3ShadowService', () => {
   const insertPollStartDecision = jest.fn().mockResolvedValue('inserted');
 
-  const prisma = {
+  const prismaInner = {
+    $executeRawUnsafe: jest.fn().mockResolvedValue(0),
     dimoPollLog: { findFirst: jest.fn().mockResolvedValue(null) },
     batteryMeasurement: { findMany: jest.fn().mockResolvedValue([]) },
     vehicleLatestState: { findUnique: jest.fn().mockResolvedValue(null) },
     vehicleSignalCapabilityProfileRevision: { findFirst: jest.fn().mockResolvedValue(null) },
     vehicleProviderSourceObservation: { findFirst: jest.fn().mockResolvedValue(null) },
+  };
+  const prisma = {
+    ...prismaInner,
+    $transaction: jest.fn(async (fn: (tx: typeof prismaInner) => Promise<unknown>) =>
+      fn(prismaInner),
+    ),
   };
 
   const eligibility = {
@@ -107,7 +114,7 @@ describe('ApdsV3ShadowService', () => {
     expect(insertPollStartDecision).not.toHaveBeenCalled();
   });
 
-  it('skips UNVERIFIED physical identity (no job id)', async () => {
+  it('skips physical identity when job id missing', async () => {
     const repo = { insertPollStartDecision } as unknown as ApdsV3ShadowRepository;
     const svc = new ApdsV3ShadowService(
       prisma as never,
