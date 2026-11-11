@@ -20,6 +20,7 @@ const SCAN_ROOTS = [
   join(srcRoot, 'pages'),
   join(srcRoot, 'components'),
   join(srcRoot, 'i18n/components'),
+  join(srcRoot, 'i18n/LanguageContext.tsx'),
   join(srcRoot, 'rental'),
   join(srcRoot, 'master'),
   join(srcRoot, 'operator'),
