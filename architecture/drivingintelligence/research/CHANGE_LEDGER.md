@@ -3015,4 +3015,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | P2-D1 DS4×RPM dynamics offline fusion V1 (2026-11-10) | `ds4-rpm-dynamics-fusion-research` — reuses shadow join + A2 + provenance/R1 gates; event-local adjacent-delta filtering; 20 synthetic adversarial tests; `DBI_P2D1_*` + P2-D2 real-data requirements |
 | P2-D1 fusion binding closeout (2026-11-11, PR #2400) | `ds4-rpm-dynamics-fusion-binding-gate.v1.ts` F1–F3; F4 sequence-local reversals; 11 adversarial closeout specs |
 | P2-D2A real-data fusion replay bridge (2026-11-11) | `ds4-rpm-real-data-fusion-replay` — offline orchestrator wiring PR-B2 shadow + PR-B3 attestation audit + P2-D1 fusion (`SYNTHETIC_FIXTURE` gate); 13 adversarial specs; `DBI_P2D2A_*` |
+| P2-D2A P2401 evidence trust closeout (2026-11-11) | T1 authorization semantics; T2 motion provenance honesty; T3 content fingerprint; T4 cadence UNPROVEN default; 17 specs |
 

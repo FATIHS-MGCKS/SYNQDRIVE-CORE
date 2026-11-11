@@ -20,6 +20,9 @@ import {
   type Ds4RpmRealDataFusionReplayArtifactV1,
   type Ds4RpmRealDataFusionReplayEvidencePolicyV1,
   type Ds4RpmRealDataFusionReplayOutcomeLabelV1,
+  type Ds4RpmRealDataFusionReplayRealObservationAuthorizationV1,
+  type Ds4RpmRealDataFusionReplayResearchReplayStatusV1,
+  type Ds4RpmRealDataFusionReplaySyntheticFusionStatusV1,
 } from './ds4-rpm-real-data-fusion-replay.contract.v1';
 import { computeDs4RpmRealDataFusionReplayDeterministicFingerprintV1 } from './ds4-rpm-real-data-fusion-replay-fingerprint.v1';
 
@@ -192,6 +195,26 @@ export function executeDs4RpmRealDataFusionOfflineReplayV1(
 
   const fusionComputedEvents = fusionResult?.events.filter((e) => e.fusionClassification !== 'UNAVAILABLE').length ?? 0;
 
+  const researchReplayStatus: Ds4RpmRealDataFusionReplayResearchReplayStatusV1 =
+    shadowReplay.shadowTripReport != null ? 'EXECUTED' : 'NOT_EXECUTED';
+
+  const syntheticFusionStatus: Ds4RpmRealDataFusionReplaySyntheticFusionStatusV1 =
+    fusionResult == null
+      ? 'NOT_RUN'
+      : fusionResult.status === 'COMPUTED'
+        ? 'COMPUTED'
+        : 'UNAVAILABLE';
+
+  let realObservationAuthorization: Ds4RpmRealDataFusionReplayRealObservationAuthorizationV1 =
+    'NOT_AUTHORIZED';
+  if (fusionEvidencePolicy === 'REAL_OBSERVATION_REQUESTED') {
+    realObservationAuthorization = 'BLOCKED_BY_POLICY';
+  } else if (r1VetoActive) {
+    realObservationAuthorization = 'BLOCKED_BY_R1';
+  } else if (!sourceAttestation.correlationEligible) {
+    realObservationAuthorization = 'BLOCKED_BY_ATTESTATION';
+  }
+
   const readiness = buildDs4RpmRealDataReferenceCohortReadinessMatrixV1();
 
   const artifactWithoutFingerprint: Omit<Ds4RpmRealDataFusionReplayArtifactV1, 'deterministicArtifactFingerprint'> = {
@@ -222,8 +245,10 @@ export function executeDs4RpmRealDataFusionOfflineReplayV1(
     sourceAttestationVerdict,
     shadowReplay,
     fusionResult,
+    researchReplayStatus,
+    syntheticFusionStatus,
     fusionEligibility: {
-      authorized: fusionResult?.status === 'COMPUTED',
+      authorized: syntheticFusionStatus === 'COMPUTED',
       a2DynamicsStatus:
         fusionResult == null
           ? 'NOT_RUN'
@@ -246,7 +271,9 @@ export function executeDs4RpmRealDataFusionOfflineReplayV1(
     motionProvenance: {
       motionRunId: bundle.motionRunId,
       motionEventCount: bundle.motionPayload.events.length,
-      motionPayloadIntegrity: validation.ok ? 'BOUND_TO_OFFLINE_BUNDLE' : 'REJECTED',
+      offlineBundleIdentityBinding: validation.ok ? 'CONSISTENT' : 'REJECTED',
+      persistedMotionRunAttestation: validation.ok ? 'UNVERIFIED_INJECTED' : 'REJECTED_BINDING_FAILURE',
+      externalMotionRunProvenanceDigest: null,
       ds4SpeedBucketCount: bundle.motionPayload.speeds.length,
     },
     r1Containment: {
@@ -257,7 +284,8 @@ export function executeDs4RpmRealDataFusionOfflineReplayV1(
     },
     realObservationStatus: {
       shadowProhibitionEffective: true,
-      fusionPathAllowed: fusionEvidencePolicy === 'OFFLINE_INJECTED_SYNTHETIC_GATE' && fusionResult?.status === 'COMPUTED',
+      realObservationFusionAuthorized: false,
+      authorizationStatus: realObservationAuthorization,
       policy: fusionEvidencePolicy,
       blockingReasonCodes: uniqueSorted(
         fusionEvidencePolicy === 'REAL_OBSERVATION_REQUESTED'
@@ -265,7 +293,13 @@ export function executeDs4RpmRealDataFusionOfflineReplayV1(
               'REAL_OBSERVATION_FUSION_REQUIRES_INDEPENDENT_AUTHORITY',
               'FUSION_SYNTHETIC_GATE_REJECTS_REAL_OBSERVATION',
             ]
-          : [],
+          : realObservationAuthorization === 'BLOCKED_BY_R1'
+            ? ['R1_HISTORICAL_OBD_POINT_TIME_CORRELATION_PROHIBITED']
+            : syntheticFusionStatus === 'COMPUTED'
+              ? ['SYNTHETIC_RESEARCH_COMPUTED_DOES_NOT_AUTHORIZE_REAL_OBSERVATION']
+              : realObservationAuthorization === 'BLOCKED_BY_ATTESTATION'
+                ? ['REAL_OBSERVATION_REQUIRES_INDEPENDENT_SOURCE_ATTESTATION']
+                : [],
       ),
     },
     scientificLimitations: [...FUSION_LIMITATIONS],

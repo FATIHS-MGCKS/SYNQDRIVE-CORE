@@ -26,10 +26,26 @@ export type Ds4RpmRealDataFusionReplayCompletenessRowV1 = {
   reasonCode: string;
 };
 
+export type Ds4RpmRealDataFusionReplayResearchReplayStatusV1 = 'EXECUTED' | 'NOT_EXECUTED';
+
+export type Ds4RpmRealDataFusionReplaySyntheticFusionStatusV1 =
+  | 'COMPUTED'
+  | 'UNAVAILABLE'
+  | 'NOT_RUN';
+
+export type Ds4RpmRealDataFusionReplayRealObservationAuthorizationV1 =
+  | 'NOT_AUTHORIZED'
+  | 'BLOCKED_BY_POLICY'
+  | 'BLOCKED_BY_ATTESTATION'
+  | 'BLOCKED_BY_R1';
+
 export type Ds4RpmRealDataFusionReplayMotionProvenanceV1 = {
   motionRunId: string;
   motionEventCount: number;
-  motionPayloadIntegrity: 'BOUND_TO_OFFLINE_BUNDLE' | 'REJECTED';
+  /** Offline bundle self-consistency only — not independent DS4 run attestation. */
+  offlineBundleIdentityBinding: 'CONSISTENT' | 'REJECTED';
+  persistedMotionRunAttestation: 'UNVERIFIED_INJECTED' | 'REJECTED_BINDING_FAILURE';
+  externalMotionRunProvenanceDigest: null;
   ds4SpeedBucketCount: number;
 };
 
@@ -42,7 +58,9 @@ export type Ds4RpmRealDataFusionReplayR1ContainmentV1 = {
 
 export type Ds4RpmRealDataFusionReplayRealObservationStatusV1 = {
   shadowProhibitionEffective: true;
-  fusionPathAllowed: boolean;
+  /** Synthetic COMPUTED fusion never grants REAL_OBSERVATION authorization on this bridge. */
+  realObservationFusionAuthorized: false;
+  authorizationStatus: Ds4RpmRealDataFusionReplayRealObservationAuthorizationV1;
   policy: Ds4RpmRealDataFusionReplayEvidencePolicyV1;
   blockingReasonCodes: readonly string[];
 };
@@ -80,7 +98,10 @@ export type Ds4RpmRealDataFusionReplayArtifactV1 = {
   sourceAttestationVerdict: 'ATTESTED_FOR_OFFLINE_INJECTION_ONLY' | 'SOURCE_NOT_ATTESTED' | 'BLOCKED';
   shadowReplay: Ds4RpmRealDataReplayTripArtifactV1;
   fusionResult: Ds4RpmDynamicsFusionResearchResultV1 | null;
+  researchReplayStatus: Ds4RpmRealDataFusionReplayResearchReplayStatusV1;
+  syntheticFusionStatus: Ds4RpmRealDataFusionReplaySyntheticFusionStatusV1;
   fusionEligibility: {
+    /** @deprecated Use syntheticFusionStatus — never implies REAL_OBSERVATION authorization. */
     authorized: boolean;
     a2DynamicsStatus: 'COMPUTED' | 'UNAVAILABLE' | 'NOT_RUN';
     ds4EventCoverage: {

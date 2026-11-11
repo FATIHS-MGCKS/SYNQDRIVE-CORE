@@ -29,6 +29,15 @@ Deterministic offline orchestration for **injected evidence bundles only**: vali
 
 Declared attestation bundles are **not** treated as independent field proof.
 
+## Evidence trust closeout (P2401)
+
+| Task | Semantics |
+|------|-----------|
+| T1 | `syntheticFusionStatus` / `researchReplayStatus` separate from `realObservationStatus.authorizationStatus` (`realObservationFusionAuthorized` always `false` on this bridge) |
+| T2 | Motion: `offlineBundleIdentityBinding` vs `persistedMotionRunAttestation: UNVERIFIED_INJECTED` — no fabricated DS4 run authority |
+| T3 | Content fingerprint hashes material artifact fields (excludes `generatedAtIso` + self fingerprint) |
+| T4 | `eventLocalCadenceAssessed` defaults false; caller cannot assert PROVEN cadence on injected bundles |
+
 ## REAL_OBSERVATION policy
 
 `fusionEvidencePolicy: REAL_OBSERVATION_REQUESTED` returns `FUSION_NOT_AUTHORIZED` without re-labeling bundle evidence as synthetic. Fusion on this bridge uses `OFFLINE_INJECTED_SYNTHETIC_GATE` only.

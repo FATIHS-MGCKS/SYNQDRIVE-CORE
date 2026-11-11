@@ -18,6 +18,10 @@ function mapCadenceTier(
 export type BuildAttestationFromOfflineBundleOptionsV1 = {
   attestationBundleId?: string;
   attestationLevel?: Ds4RpmRealDataSourceAttestationBundleV1['dimoDeviceIdentity']['attestationLevel'];
+  /**
+   * Caller override is ignored for `true` — injected bundles never establish PROVEN
+   * event-local cadence without a validated assessment pipeline (future pilot read).
+   */
   eventLocalCadenceAssessed?: boolean;
 };
 
@@ -71,7 +75,7 @@ export function buildDs4RpmRealDataSourceAttestationBundleFromOfflineInputV1(
     v1bAdmissionSucceeded: bundle.v1bResult?.processingOutcome === 'SUCCEEDED',
     v1bProcessingAllowed: bundle.v1bResult?.admission.processingAllowed ?? false,
     vsiCadenceTier: mapCadenceTier(bundle.v1bResult?.tierEvidence?.tier),
-    eventLocalCadenceAssessed: options.eventLocalCadenceAssessed ?? true,
+    eventLocalCadenceAssessed: false,
   };
 
   const provenanceFingerprint = computeDs4RpmRealDataSourceAttestationProvenanceFingerprintV1(base);

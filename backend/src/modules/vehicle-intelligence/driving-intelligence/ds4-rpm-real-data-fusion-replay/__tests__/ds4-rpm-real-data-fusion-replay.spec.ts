@@ -89,7 +89,13 @@ describe('ds4-rpm-real-data-fusion-replay orchestrator v1 (offline injected only
     expect(artifact.outcomeLabels).toContain('TEMPORAL_ALIGNMENT_UNVERIFIED');
     expect(artifact.sourceAttestationVerdict).toBe('SOURCE_NOT_ATTESTED');
     expect(artifact.fusionResult?.status).toBe('COMPUTED');
-    expect(artifact.fusionEligibility.authorized).toBe(true);
+    expect(artifact.researchReplayStatus).toBe('EXECUTED');
+    expect(artifact.syntheticFusionStatus).toBe('COMPUTED');
+    expect(artifact.realObservationStatus.realObservationFusionAuthorized).toBe(false);
+    expect(artifact.realObservationStatus.authorizationStatus).toBe('BLOCKED_BY_ATTESTATION');
+    expect(artifact.realObservationStatus.blockingReasonCodes).toContain(
+      'SYNTHETIC_RESEARCH_COMPUTED_DOES_NOT_AUTHORIZE_REAL_OBSERVATION',
+    );
     expect(artifact.realObservationStatus.shadowProhibitionEffective).toBe(true);
   });
 
@@ -100,9 +106,11 @@ describe('ds4-rpm-real-data-fusion-replay orchestrator v1 (offline injected only
     });
     expect(artifact.sourceAttestationVerdict).toBe('SOURCE_NOT_ATTESTED');
     const correlationRow = artifact.completenessMatrix.find((r) => r.dimension === 'CORRELATION_ELIGIBLE');
-    expect(['OWNER_AUTHORIZED_READ_CONTEXT_MISSING', 'INJECTED_FIXTURE_NOT_PRODUCTION_ATTESTATION']).toContain(
-      correlationRow?.reasonCode,
-    );
+    expect([
+      'OWNER_AUTHORIZED_READ_CONTEXT_MISSING',
+      'INJECTED_FIXTURE_NOT_PRODUCTION_ATTESTATION',
+      'EVENT_LOCAL_CADENCE_NOT_DEFENSIBLE',
+    ]).toContain(correlationRow?.reasonCode);
   });
 
   it('hard-blocks R1 at fusion and r1 containment', () => {
@@ -154,7 +162,7 @@ describe('ds4-rpm-real-data-fusion-replay orchestrator v1 (offline injected only
       codeSha: CODE_SHA,
       generatedAt: GENERATED_AT,
     });
-    expect(artifact.fusionEligibility.authorized).toBe(false);
+    expect(artifact.syntheticFusionStatus).toBe('UNAVAILABLE');
     expect(artifact.fusionResult?.status).toBe('UNAVAILABLE');
   });
 
@@ -198,7 +206,8 @@ describe('ds4-rpm-real-data-fusion-replay orchestrator v1 (offline injected only
     });
     expect(artifact.outcomeLabels).toContain('FUSION_NOT_AUTHORIZED');
     expect(artifact.fusionResult).toBeNull();
-    expect(artifact.realObservationStatus.fusionPathAllowed).toBe(false);
+    expect(artifact.realObservationStatus.realObservationFusionAuthorized).toBe(false);
+    expect(artifact.realObservationStatus.authorizationStatus).toBe('BLOCKED_BY_POLICY');
     expect(artifact.realObservationStatus.blockingReasonCodes).toContain(
       'FUSION_SYNTHETIC_GATE_REJECTS_REAL_OBSERVATION',
     );
@@ -250,5 +259,55 @@ describe('ds4-rpm-real-data-fusion-replay orchestrator v1 (offline injected only
     });
     expect(artifact.outcomeLabels).toContain('RESEARCH_REPLAY_EXECUTED');
     expect(artifact.missingEvidenceInventory.length).toBeGreaterThan(0);
+  });
+
+  it('does not claim independent motion-run attestation on injected bundles', () => {
+    const artifact = executeDs4RpmRealDataFusionOfflineReplayV1(buildSyntheticApiBundleValid(GENERATED_AT), {
+      codeSha: CODE_SHA,
+      generatedAt: GENERATED_AT,
+    });
+    expect(artifact.motionProvenance.persistedMotionRunAttestation).toBe('UNVERIFIED_INJECTED');
+    expect(artifact.motionProvenance.externalMotionRunProvenanceDigest).toBeNull();
+    expect(artifact.motionProvenance.offlineBundleIdentityBinding).toBe('CONSISTENT');
+  });
+
+  it('default injected bundle does not report event-local cadence PROVEN in attestation audit', () => {
+    const artifact = executeDs4RpmRealDataFusionOfflineReplayV1(buildSyntheticApiBundleValid(GENERATED_AT), {
+      codeSha: CODE_SHA,
+      generatedAt: GENERATED_AT,
+    });
+    const cadenceRow = artifact.completenessMatrix.find((r) => r.dimension === 'EVENT_LOCAL_CADENCE_ASSESSABLE');
+    expect(cadenceRow?.state).toBe('UNPROVEN');
+    expect(cadenceRow?.reasonCode).toBe('EVENT_LOCAL_CADENCE_NOT_ASSESSED');
+  });
+
+  it('content fingerprint changes when code SHA changes', () => {
+    const bundle = buildSyntheticApiBundleValid(GENERATED_AT);
+    const a = executeDs4RpmRealDataFusionOfflineReplayV1(bundle, {
+      codeSha: 'sha-alpha',
+      generatedAt: GENERATED_AT,
+    });
+    const b = executeDs4RpmRealDataFusionOfflineReplayV1(bundle, {
+      codeSha: 'sha-beta',
+      generatedAt: GENERATED_AT,
+    });
+    expect(a.deterministicArtifactFingerprint).not.toBe(b.deterministicArtifactFingerprint);
+  });
+
+  it('content fingerprint changes when attestation dimension state changes', () => {
+    const bundle = buildSyntheticApiBundleValid(GENERATED_AT);
+    const baseline = executeDs4RpmRealDataFusionOfflineReplayV1(bundle, {
+      codeSha: CODE_SHA,
+      generatedAt: GENERATED_AT,
+    });
+    const tamperedBundle = {
+      ...bundle,
+      bundleId: 'bundle-id-changes-input-fingerprint',
+    };
+    const shifted = executeDs4RpmRealDataFusionOfflineReplayV1(tamperedBundle, {
+      codeSha: CODE_SHA,
+      generatedAt: GENERATED_AT,
+    });
+    expect(baseline.deterministicArtifactFingerprint).not.toBe(shifted.deterministicArtifactFingerprint);
   });
 });
