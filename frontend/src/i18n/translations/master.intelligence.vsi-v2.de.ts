@@ -167,6 +167,9 @@ export const masterIntelligenceVsiV2De: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.fsd.signals.col.historicalQuery': 'Historische Abfrage',
   'master.intelligence.vsi.fsd.signals.searchIncomplete':
     'Katalogscan nach {{pages}} Seiten gestoppt ({{loaded}} Zeilen geladen). Treffer können unvollständig sein.',
+  'master.intelligence.vsi.fsd.signals.catalogIdentityViolation':
+    'Katalog-Identität hat sich während des Scans geändert (nach {{pages}} Seiten, {{loaded}} Zeilen). Ergebnisse werden nicht als vollständige verifizierte Suche angezeigt.',
+  'master.intelligence.vsi.fsd.signals.searchExhaustive': 'Katalogsuche für Abfrage vollständig durchlaufen.',
   'master.intelligence.vsi.fsd.signals.empty': 'Keine Signale passen zum aktuellen Filter.',
   'master.intelligence.vsi.fsd.signals.declaredNotObserved':
     'Provider-Katalogdeklaration belegt keine beobachtete Messung.',

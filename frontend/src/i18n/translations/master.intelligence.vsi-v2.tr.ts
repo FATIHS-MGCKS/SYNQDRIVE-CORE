@@ -145,6 +145,9 @@ export const masterIntelligenceVsiV2Tr: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.fsd.signals.col.snapshotQuery': "Snapshot query",
   'master.intelligence.vsi.fsd.signals.col.historicalQuery': "Historical query",
   'master.intelligence.vsi.fsd.signals.searchIncomplete': "Catalog scan stopped after {{pages}} pages ({{loaded}} rows loaded). Matches may be incomplete.",
+  'master.intelligence.vsi.fsd.signals.catalogIdentityViolation':
+    'Catalog identity changed while scanning (after {{pages}} pages, {{loaded}} rows). Results are not shown as a complete verified search.',
+  'master.intelligence.vsi.fsd.signals.searchExhaustive': 'Catalog search exhausted for query.',
   'master.intelligence.vsi.fsd.signals.empty': "No signals match the current filter.",
   'master.intelligence.vsi.fsd.signals.declaredNotObserved': "Provider catalog declaration does not prove an observed measurement.",
   'master.intelligence.vsi.fsd.query.planned': "Query planned",

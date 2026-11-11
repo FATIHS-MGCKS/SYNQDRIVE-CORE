@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Page, Route, TestInfo } from '@playwright/test';
@@ -344,6 +345,10 @@ export function viewportLabel(projectName: string): string {
   return 'desktop-1440';
 }
 
+export async function waitForVsiProfileLabels(page: Page) {
+  await page.getByText(/LV ~8h beobachtet/i).waitFor({ state: 'visible', timeout: 120_000 });
+}
+
 export async function waitForVsiDataSettled(page: Page) {
   const loading = page.getByText(/VSI-Lesemodelle werden geladen/i);
   const fsdLoading = page.getByText(/FSD-Read-Modell wird geladen/i);
@@ -369,12 +374,25 @@ export async function assertNoPageOverflow(page: Page) {
 }
 
 export async function captureVsiScreenshot(page: Page, testInfo: TestInfo, artifactBaseName: string) {
-  const primary = testInfo.outputPath(`${artifactBaseName}.png`);
+  const safeName = `${artifactBaseName}-p${testInfo.parallelIndex}`;
+  const primary = testInfo.outputPath(`${safeName}.png`);
   await page.screenshot({ path: primary, fullPage: true });
-  const bundle = path.join('/opt/cursor/artifacts', `${artifactBaseName}.png`);
+  const bundle = path.join('/opt/cursor/artifacts', `${safeName}.png`);
   await fs.mkdir(path.dirname(bundle), { recursive: true });
   await fs.copyFile(primary, bundle);
-  await testInfo.attach(artifactBaseName, { path: bundle, contentType: 'image/png' });
+  await testInfo.attach(safeName, { path: bundle, contentType: 'image/png' });
+}
+
+export function bundleVsiScreenshotArtifactsZip() {
+  const zipPath = '/opt/cursor/artifacts/vsi-p2395-screenshots.zip';
+  try {
+    execSync(`rm -f "${zipPath}" && zip -j -q "${zipPath}" /opt/cursor/artifacts/vsi-*.png`, {
+      stdio: 'pipe',
+    });
+  } catch {
+    // zip may fail when no PNGs yet; Playwright attach still holds per-test shots
+  }
+  return zipPath;
 }
 
 export async function seedVsiMasterIntelligenceAuth(page: Page) {
@@ -411,9 +429,30 @@ export async function openVsiMasterIntelligence(
         )
       : null;
 
+  const pendingOverview = page.waitForResponse(
+    (res) => {
+      try {
+        return /\/admin\/master-intelligence\/vsi\/organizations\/[^/]+\/vehicles\/[^/]+\/overview$/.test(
+          new URL(res.url()).pathname,
+        );
+      } catch {
+        return false;
+      }
+    },
+    { timeout: 90_000 },
+  );
+
+  const pendingProfile =
+    params.tab === 'profiles'
+      ? page.waitForResponse(
+          (res) => res.url().includes('/links/') && res.url().includes('/profile') && !res.url().includes('/fsd'),
+          { timeout: 90_000 },
+        )
+      : null;
+
   await page.goto(`/master?${qs.toString()}`, { waitUntil: 'domcontentloaded' });
   await page.getByTestId('vsi-intelligence-tabbar').waitFor({ state: 'visible', timeout: 90_000 });
-  if (pendingSignals) {
-    await pendingSignals;
-  }
+  await Promise.all(
+    [pendingSignals, pendingOverview, pendingProfile].filter((p): p is Promise<unknown> => p != null),
+  );
 }

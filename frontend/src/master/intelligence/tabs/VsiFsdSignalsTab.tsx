@@ -65,8 +65,15 @@ export function VsiFsdSignalsTab({
     onLoadPage({ cursor: signals.page.nextCursor, append: true });
   }, [onLoadPage, signals?.page.nextCursor, signalsSearch?.query]);
 
-  const showIncompleteSearch =
-    signalsSearch?.query && signalsSearch.catalogExhaustive === false;
+  const showCatalogIdentityViolation = Boolean(signalsSearch?.catalogIdentityViolation);
+  const showIncompleteSearch = Boolean(
+    signalsSearch?.query &&
+      signalsSearch.catalogExhaustive === false &&
+      !showCatalogIdentityViolation,
+  );
+  const showVerifiedSearchComplete = Boolean(
+    signalsSearch?.query && signalsSearch.catalogExhaustive === true && !showCatalogIdentityViolation,
+  );
 
   return (
     <div className="space-y-3" data-testid="vsi-tab-signals">
@@ -107,12 +114,29 @@ export function VsiFsdSignalsTab({
             {t('master.intelligence.vsi.fsd.signals.searchAction' as never)}
           </button>
         </div>
+        {showCatalogIdentityViolation ? (
+          <p
+            className="mt-2 text-xs text-amber-800 dark:text-amber-200"
+            role="alert"
+            data-testid="vsi-fsd-signals-catalog-identity-violation"
+          >
+            {t('master.intelligence.vsi.fsd.signals.catalogIdentityViolation' as never, {
+              pages: signalsSearch!.pagesScanned,
+              loaded: signalsSearch!.totalRowsLoaded,
+            })}
+          </p>
+        ) : null}
         {showIncompleteSearch ? (
           <p className="mt-2 text-xs text-amber-800 dark:text-amber-200" role="status">
             {t('master.intelligence.vsi.fsd.signals.searchIncomplete' as never, {
               pages: signalsSearch!.pagesScanned,
               loaded: signalsSearch!.totalRowsLoaded,
             })}
+          </p>
+        ) : null}
+        {showVerifiedSearchComplete ? (
+          <p className="sr-only" data-testid="vsi-fsd-signals-search-exhaustive">
+            {t('master.intelligence.vsi.fsd.signals.searchExhaustive' as never)}
           </p>
         ) : null}
         {signalsError ? (
