@@ -216,10 +216,47 @@ describe('ds4-rpm-pilot-preparation P2-D2B (offline only)', () => {
   });
 
   it('never marks a candidate as tripSelected', () => {
-    const ranked = rankDs4RpmPilotTripCandidatesV1([audiCandidate(), tiguanCandidate()], {
+    const ranked = rankDs4RpmPilotTripCandidatesV1([audiCandidate(), audiCandidate({ candidateTripId: 'audi-b' })], {
       cohortContext: 'AUDI_A4',
     });
     expect(ranked.every((r) => r.tripSelected === false)).toBe(true);
+  });
+
+  describe('cross-cohort isolation (F1 final)', () => {
+    const mixed = [audiCandidate(), tiguanCandidate()];
+
+    it('Tiguan context with mixed input returns only Tiguan rows', () => {
+      const ranked = rankDs4RpmPilotTripCandidatesV1(mixed, { cohortContext: 'VW_TIGUAN' });
+      expect(ranked.length).toBeGreaterThan(0);
+      expect(ranked.every((r) => r.candidate.cohortVehicleLabel === 'VW_TIGUAN')).toBe(true);
+    });
+
+    it('Audi context with mixed input returns only Audi rows', () => {
+      const ranked = rankDs4RpmPilotTripCandidatesV1(mixed, { cohortContext: 'AUDI_A4' });
+      expect(ranked.every((r) => r.candidate.cohortVehicleLabel === 'AUDI_A4')).toBe(true);
+    });
+
+    it('Tiguan context with Audi-only input yields Tiguan empty abstention', () => {
+      const ranked = rankDs4RpmPilotTripCandidatesV1([audiCandidate()], { cohortContext: 'VW_TIGUAN' });
+      expect(ranked).toHaveLength(1);
+      expect(ranked[0]!.candidate.cohortVehicleLabel).toBe('VW_TIGUAN');
+      expect(ranked[0]!.abstainReasons).toContain('NO_IN_SCOPE_CANDIDATES');
+    });
+
+    it('report builder keeps cohort rankings isolated', () => {
+      const report = buildDs4RpmPilotPreparationReportV1({
+        baseSha: BASE_SHA,
+        offlineTripCandidates: mixed,
+      });
+      expect(
+        report.candidateRankingByCohort.VW_TIGUAN.every(
+          (r) => r.candidate.cohortVehicleLabel === 'VW_TIGUAN',
+        ),
+      ).toBe(true);
+      expect(
+        report.candidateRankingByCohort.AUDI_A4.every((r) => r.candidate.cohortVehicleLabel === 'AUDI_A4'),
+      ).toBe(true);
+    });
   });
 
   it('preserves D2A R1 hard block on injected R1 bundle', () => {

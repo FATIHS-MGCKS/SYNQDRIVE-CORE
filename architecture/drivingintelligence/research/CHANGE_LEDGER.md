@@ -3019,4 +3019,5 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | P2-D2A P2401 T3 final content integrity (2026-11-11) | Full scientific payload fingerprint + 6 red/green sensitivity specs |
 | P2-D2B Audi/Tiguan pilot preparation (2026-11-11) | `ds4-rpm-pilot-preparation-v1` planning report + ranking; KS MS 661 / WOB L 7503 historical inventory; no Production I/O; `DBI_P2D2B_*` |
 | P2-D2B P2402 planning semantics closeout (2026-11-11) | F1 cohort-specific abstention; F2 DATA_QUALITY_ASSESSED gated on `dataQualityAssessmentEvidencePresent` |
+| P2-D2B P2402 cohort isolation fix (2026-11-11) | Ranking filters `cohortVehicleLabel === cohortContext`; cross-cohort leak tests |
 

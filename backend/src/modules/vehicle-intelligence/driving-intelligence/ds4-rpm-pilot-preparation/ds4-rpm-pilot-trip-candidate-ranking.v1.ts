@@ -134,7 +134,11 @@ export function rankDs4RpmPilotTripCandidatesV1(
   candidates: readonly Ds4RpmPilotTripCandidateDescriptorV1[],
   options: RankDs4RpmPilotTripCandidatesOptionsV1,
 ): Ds4RpmPilotRankedTripCandidateV1[] {
-  const scoped = candidates.filter((c) => assertPilotCohortInScope(c.cohortVehicleLabel));
+  const scoped = candidates.filter(
+    (c) =>
+      assertPilotCohortInScope(c.cohortVehicleLabel) &&
+      c.cohortVehicleLabel === options.cohortContext,
+  );
   if (scoped.length === 0) {
     return cohortEmptyAbstain(options.cohortContext, ['NO_IN_SCOPE_CANDIDATES']);
   }

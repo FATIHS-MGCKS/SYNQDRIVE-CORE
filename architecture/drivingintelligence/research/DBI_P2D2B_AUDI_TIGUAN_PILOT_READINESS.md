@@ -77,7 +77,7 @@ org/vehicle/trip/motionRunId binding, persisted event rows (V1/V2 material parit
 
 Offline-only `rankDs4RpmPilotTripCandidatesV1` (requires `cohortContext`):
 
-1. Filter to AUDI_A4 / VW_TIGUAN only.
+1. Filter to active cohort allowlist **and** `cohortVehicleLabel === cohortContext` (no cross-cohort leak).
 2. Empty cohort → cohort-specific abstention (never cross-cohort placeholder).
 3. Invalid rows abstain individually; valid rows remain rankable in the same cohort.
 4. Abstain if V1B fingerprint/admission or motion run missing (per row).
