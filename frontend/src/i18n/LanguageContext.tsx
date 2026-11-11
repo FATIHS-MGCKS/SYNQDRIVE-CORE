@@ -21,6 +21,7 @@ import {
   type LocaleMetadata,
   type SupportedLocale,
 } from './locales';
+import { interpolateTranslationVars } from '../lib/i18n-interpolate';
 import { getLocaleDictionary, getTranslationRegistryEntry } from './translation-registry';
 import { en, type TranslationKey } from './translations/en';
 
@@ -39,15 +40,7 @@ export type TranslateResult = {
 const reportedTranslationFallbacks = new Set<string>();
 
 function interpolate(text: string, vars?: Record<string, string | number>): string {
-  if (!vars) return text;
-  let result = text;
-  const names = Object.keys(vars).sort((a, b) => b.length - a.length);
-  for (const name of names) {
-    const value = String(vars[name]);
-    result = result.replaceAll(`{{${name}}}`, value);
-    result = result.replaceAll(`{${name}}`, value);
-  }
-  return result;
+  return interpolateTranslationVars(text, vars);
 }
 
 function reportTranslationFallback(
