@@ -2,7 +2,8 @@
 
 **Status:** Preflight authority (P2-C1).  
 **Scope:** P2-A1 RPM Episode, **P2-A2 RPM Dynamics**, P2-B1 Kickdown, P2-B2 Cold Engine, P2-B3 Sustained Load, P2-B4 Revving/Idle.  
-**Not in scope:** P2-C2 adapters, reconciliation engine, P2-D DS4×RPM fusion, production detectors.
+**Not in scope:** P2-C2 adapters, reconciliation engine, production detectors.  
+**P2-D1 (research-only):** Offline fusion sidecar — see `DBI_P2D1_DS4_RPM_DYNAMICS_OFFLINE_FUSION_V1.md`; does not change P2-C consumer edges.
 
 ## Mandatory consumer rules
 
@@ -13,6 +14,16 @@
 5. **Label spans are not physical duration** — `researchLabelSpanMs`, bucket spans, and A1 grid spans are MODE_A bucket-label semantics (`BUCKET_LABEL_UNVERIFIED`).
 
 ## Per-module semantics
+
+### P2-D1 DS4×RPM dynamics fusion (research-only)
+
+| Layer | Field | Meaning |
+|-------|--------|---------|
+| Trip status | `status` | `COMPUTED` only when provenance, family, and A2 gates pass; else `UNAVAILABLE` (no trusted fusion) |
+| Shadow plane | `events[].shadowCorrelation` | Verbatim shadow join metrics — **unchanged** by fusion |
+| Fusion plane | `eventLocalDynamics` | Subset of A2 adjacent deltas in DS4 half-open window; label-time hypothesis only |
+| Guards | `scientificGuards.*` | All true in V1 — no causal sync, misuse, or scoring claims |
+| R1 | `tripReasonCodes` | Hard block on `R1_HISTORICAL_OBD_POINT_TIME_CORRELATION_PROHIBITED` |
 
 ### P2-A2 RPM Dynamics (research-only)
 
