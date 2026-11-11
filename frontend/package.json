@@ -46,6 +46,8 @@
     "test:evaluations:e2e:flow": "playwright test -c e2e/playwright.config.ts evaluations-flow.spec.ts --project=desktop-1280",
     "test:evaluations:e2e:a11y": "playwright test -c e2e/playwright.config.ts evaluations-a11y.spec.ts --project=desktop-1280",
     "test:e2e": "playwright test -c e2e/playwright.config.ts",
+    "test:vsi-v2-p2:closeout": "bash scripts/test/vsi-v2-p2-closeout-verify.sh",
+    "test:vsi-v2-p2:e2e": "playwright test -c e2e/playwright.config.ts vsi-master-intelligence-v2.spec.ts --project=mobile-390 --project=tablet-768 --project=desktop-1440",
     "test:voice:e2e": "playwright test -c e2e/playwright.config.ts voice-control-plane-flow.spec.ts --project=desktop-1280",
     "check:surface": "bash scripts/check-surface-legacy.sh",
     "i18n:check": "node scripts/i18n-check.mjs",

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Search, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../../../components/ui/sheet';
 import { useLanguage } from '../../../i18n/LanguageContext';
@@ -13,6 +13,7 @@ import {
   fsdPresentationStateKey,
   fsdStageEvidenceKey,
 } from '../vsi-fsd-display.utils';
+import { vsiIntelligenceTabPanelProps } from '../vsi-tab-panel-a11y';
 import { VsiFsdQueryCell } from './VsiFsdQueryCell';
 
 type Props = {
@@ -41,6 +42,7 @@ export function VsiFsdSignalsTab({
   const { t } = useLanguage();
   const [query, setQuery] = useState('');
   const [detail, setDetail] = useState<MasterFsdSignalExplorerItemV1 | null>(null);
+  const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!scopeKey) return;
@@ -76,9 +78,9 @@ export function VsiFsdSignalsTab({
   );
 
   return (
-    <div className="space-y-3" data-testid="vsi-tab-signals">
+    <div className="space-y-3" data-testid="vsi-tab-signals" {...vsiIntelligenceTabPanelProps('signals')}>
       <MasterPageSection title={t('master.intelligence.vsi.tabs.signals' as never)}>
-        <p className="mb-2 text-xs text-muted-foreground">{t('master.intelligence.vsi.fsd.signals.disclaimer' as never)}</p>
+        <p className="mb-2 text-xs text-foreground/85">{t('master.intelligence.vsi.fsd.signals.disclaimer' as never)}</p>
         {!catalogAuthoritative ? (
           <p className="mb-2 text-xs text-amber-800 dark:text-amber-200" role="status">
             {t('master.intelligence.vsi.fsd.signals.notAuthoritative' as never)}
@@ -91,7 +93,7 @@ export function VsiFsdSignalsTab({
         ) : null}
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-1 min-w-[12rem] flex-col gap-1 text-xs">
-            <span className="text-muted-foreground">{t('master.intelligence.vsi.fsd.signals.search' as never)}</span>
+            <span className="text-foreground/80">{t('master.intelligence.vsi.fsd.signals.search' as never)}</span>
             <span className="relative">
               <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -152,7 +154,7 @@ export function VsiFsdSignalsTab({
         ) : null}
         {signals ? (
           <>
-            <p className="mt-2 text-[10px] text-muted-foreground">
+            <p className="mt-2 text-[11px] text-foreground/80">
               {t('master.intelligence.vsi.fsd.signals.resultMeta' as never, {
                 count: signals.aggregates.logicalSignalsReturned,
                 declared: signals.aggregates.declaredSignalCount ?? '—',
@@ -161,7 +163,7 @@ export function VsiFsdSignalsTab({
             <div className="mt-2 overflow-x-auto rounded border border-border/50">
               <table className="w-full min-w-[48rem] text-left text-[11px]">
                 <caption className="sr-only">{t('master.intelligence.vsi.fsd.signals.tableCaption' as never)}</caption>
-                <thead className="border-b border-border/50 bg-muted/20 text-[10px] uppercase text-muted-foreground">
+                <thead className="border-b border-border/50 bg-muted/30 text-[11px] uppercase text-foreground/75">
                   <tr>
                     <th className="px-2 py-1.5">{t('master.intelligence.vsi.fsd.signals.col.name' as never)}</th>
                     <th className="px-2 py-1.5">{t('master.intelligence.vsi.fsd.signals.col.state' as never)}</th>
@@ -199,7 +201,11 @@ export function VsiFsdSignalsTab({
                         <button
                           type="button"
                           className="underline"
-                          onClick={() => setDetail(row)}
+                          data-testid={`vsi-fsd-signal-detail-open-${row.providerNativeSignalName}`}
+                          onClick={(event) => {
+                            detailTriggerRef.current = event.currentTarget;
+                            setDetail(row);
+                          }}
                         >
                           {t('master.intelligence.vsi.fsd.signals.openDetail' as never)}
                         </button>
@@ -231,6 +237,10 @@ export function VsiFsdSignalsTab({
           side="right"
           className="w-full sm:max-w-md overflow-y-auto"
           data-testid="vsi-fsd-signal-detail-sheet"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            detailTriggerRef.current?.focus();
+          }}
         >
           <SheetHeader>
             <SheetTitle className="font-mono text-sm">{detail?.providerNativeSignalName}</SheetTitle>

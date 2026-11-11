@@ -7,6 +7,7 @@ import type { VsiLedgerFilterState } from '../vsi-ledger-url.types';
 import { SignalLedgerFilterBar } from './SignalLedgerFilterBar';
 import { SignalLedgerTable } from './SignalLedgerTable';
 import { SignalDetailSheet } from './SignalDetailSheet';
+import { vsiIntelligenceTabPanelProps } from '../vsi-tab-panel-a11y';
 import { VsiSignalDetailContent } from './VsiSignalDetailContent';
 
 export type VsiSignalLedgerTabProps = {
@@ -112,7 +113,7 @@ export function VsiSignalLedgerTab({
   const effectiveHighlightKey = selectedInFilter?.canonicalSignalKey ?? null;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="vsi-tab-ledger" {...vsiIntelligenceTabPanelProps('ledger')}>
       <p className="text-xs text-muted-foreground">{t('master.intelligence.vsi.signals.intro' as never)}</p>
       {multiLinkCount > 1 ? (
         <p className="text-[11px] text-muted-foreground" role="status">

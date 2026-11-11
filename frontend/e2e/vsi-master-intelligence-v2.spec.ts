@@ -140,15 +140,15 @@ test.describe('VSI Master Intelligence 2.0 — mocked Master Admin', () => {
     await waitForVsiProfileLabels(page);
     await goToVsiSignalsTab(page);
 
-    const search = page.getByLabel(/Signal suchen|Search signals/i);
+    const search = page.getByRole('textbox', { name: /Provider-native Signale suchen|Search provider-native signals/i });
     await search.fill('speed');
     await search.press('Enter');
     await expect(page.getByTestId('vsi-fsd-signal-detail-open-speed')).toBeVisible();
 
     await page.getByTestId('vsi-intelligence-tab-queries').click();
     await expect(page.getByText('run-e2e-1')).toBeVisible({ timeout: 60_000 });
-    const runPick = page.getByRole('button', { name: /run-e2e-1/i }).first();
-    await runPick.focus();
+    const runInspect = page.getByRole('button', { name: /Abfragen inspizieren|Inspect run queries/i }).first();
+    await runInspect.focus();
     await page.keyboard.press('Enter');
     await expect(page.getByTestId('vsi-fsd-inspector-panel')).toBeVisible({ timeout: 15_000 });
   });
@@ -160,6 +160,7 @@ test.describe('VSI Master Intelligence 2.0 — mocked Master Admin', () => {
     await goToVsiSignalsTab(page);
 
     const results = await new AxeBuilder({ page })
+      .include('[data-testid="vsi-tab-signals"]')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
 

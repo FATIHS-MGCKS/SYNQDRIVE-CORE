@@ -1,0 +1,46 @@
+name: VSI 2.0 P2 — Frontend closeout (PR #2395)
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/master/intelligence/**'
+      - 'frontend/src/master/shell/MasterPageTabs.tsx'
+      - 'frontend/src/i18n/translations/master.intelligence.vsi-v2.*'
+      - 'frontend/src/i18n/vsi-v2-native-locale.test.ts'
+      - 'frontend/e2e/vsi-master-intelligence-v2*.ts'
+      - 'frontend/scripts/test/vsi-v2-p2-closeout-verify.sh'
+      - '.github/workflows/vsi-v2-p2-frontend-closeout.yml'
+  workflow_dispatch:
+
+jobs:
+  vsi-p2-closeout:
+    name: VSI P2 i18n + Playwright + axe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: bash ../backend/scripts/test/ci-playwright-install-chromium.sh
+        working-directory: frontend
+      - name: Run VSI P2 closeout verify
+        run: bash scripts/test/vsi-v2-p2-closeout-verify.sh
+        working-directory: frontend
+        env:
+          CI: 'true'
+          GITHUB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          VSI_ARTIFACTS_DIR: ${{ github.workspace }}/frontend/test-results/vsi-p2395-artifacts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vsi-p2395-visual-closeout-${{ github.sha }}
+          path: |
+            frontend/test-results/vsi-p2395-artifacts/vsi-p2395-screenshots.zip
+            frontend/test-results/vsi-p2395-artifacts/SCREENSHOT_MANIFEST.json
+            frontend/test-results/vsi-p2395-artifacts/vsi-*.png
+          retention-days: 30
+          if-no-files-found: ignore

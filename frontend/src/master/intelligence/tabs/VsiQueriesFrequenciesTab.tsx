@@ -2,6 +2,7 @@ import { Loader2 } from 'lucide-react';
 import { useLanguage } from '../../../i18n/LanguageContext';
 import { MasterPageSection } from '../../shell';
 import type { MasterFsdRunHistoryPageDtoV1, MasterFsdRunInspectorDtoV1 } from '../vsi-master-fsd-read-api.types';
+import { vsiIntelligenceTabPanelProps } from '../vsi-tab-panel-a11y';
 import { VsiFsdRunInspectorPanel } from './VsiFsdRunInspectorPanel';
 
 type Props = {
@@ -34,7 +35,7 @@ export function VsiQueriesFrequenciesTab({
   const { t } = useLanguage();
 
   return (
-    <div className="space-y-4" data-testid="vsi-tab-queries">
+    <div className="space-y-4" data-testid="vsi-tab-queries" {...vsiIntelligenceTabPanelProps('queries')}>
       <MasterPageSection title={t('master.intelligence.vsi.tabs.queries' as never)}>
         <p className="text-xs text-muted-foreground">{t('master.intelligence.vsi.queries.semantics' as never)}</p>
         <ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] text-muted-foreground">

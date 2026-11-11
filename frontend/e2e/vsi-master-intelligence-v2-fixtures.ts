@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { expect, type Page, type Route, type TestInfo } from '@playwright/test';
@@ -472,7 +472,7 @@ with zipfile.ZipFile(${JSON.stringify(zipPath)}, 'w', compression=zipfile.ZIP_DE
     if os.path.isfile(${JSON.stringify(manifestPath)}):
         zf.write(${JSON.stringify(manifestPath)}, arcname='SCREENSHOT_MANIFEST.json')
 `;
-    execSync(`python3 -c ${JSON.stringify(script)}`, { stdio: 'pipe' });
+    execFileSync('python3', ['-c', script], { stdio: 'pipe' });
   } catch {
     // bundle is best-effort when PNGs or Pillow missing; per-test attach still holds shots
   }

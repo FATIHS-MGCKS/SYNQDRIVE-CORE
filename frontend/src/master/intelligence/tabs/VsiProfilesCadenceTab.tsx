@@ -16,6 +16,7 @@ import {
   mapSummaryToLvBadge,
   mapSummaryToRpmBadge,
 } from '../vsi-master-intelligence-ui.utils';
+import { vsiIntelligenceTabPanelProps } from '../vsi-tab-panel-a11y';
 
 type Props = {
   profile: MasterVsiProfileDetailDto | null;
@@ -41,7 +42,7 @@ export function VsiProfilesCadenceTab({ profile, formatTimestamp }: Props) {
   const cadenceIntel = rpmSignal?.cadenceIntelligence;
 
   return (
-    <div className="space-y-4" data-testid="vsi-tab-profiles">
+    <div className="space-y-4" data-testid="vsi-tab-profiles" {...vsiIntelligenceTabPanelProps('profiles')}>
       <MasterPageSection title={t('master.intelligence.vsi.tabs.profiles' as never)}>
         <p className="text-xs text-muted-foreground">{t('master.intelligence.vsi.profiles.intro' as never)}</p>
       </MasterPageSection>

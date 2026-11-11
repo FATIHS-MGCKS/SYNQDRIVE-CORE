@@ -10,6 +10,7 @@ import type {
   MasterVsiRevisionHistoryPageDto,
 } from '../vsi-master-intelligence-api.types';
 import { cn } from '../../../components/ui/utils';
+import { vsiIntelligenceTabPanelProps } from '../vsi-tab-panel-a11y';
 import { VsiFsdRunInspectorPanel } from './VsiFsdRunInspectorPanel';
 
 type Props = {
@@ -58,7 +59,7 @@ export function VsiRunsRevisionsTab({
   const { t } = useLanguage();
 
   return (
-    <div className="space-y-4" data-testid="vsi-tab-runs">
+    <div className="space-y-4" data-testid="vsi-tab-runs" {...vsiIntelligenceTabPanelProps('runs')}>
       {legacyRevisionsUrl ? (
         <p className="text-xs text-muted-foreground" role="status">
           {t('master.intelligence.vsi.runs.legacyRevisions' as never)}

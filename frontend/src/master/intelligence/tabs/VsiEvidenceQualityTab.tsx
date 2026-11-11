@@ -3,6 +3,7 @@ import { MasterPageSection } from '../../shell';
 import type { MasterFsdRunInspectorDtoV1, MasterFsdSummaryDtoV1 } from '../vsi-master-fsd-read-api.types';
 import type { MasterVsiProfileDetailDto } from '../vsi-master-intelligence-api.types';
 import { fsdPresentationStateKey, fsdStageEvidenceKey } from '../vsi-fsd-display.utils';
+import { vsiIntelligenceTabPanelProps } from '../vsi-tab-panel-a11y';
 
 type Props = {
   fsdSummary: MasterFsdSummaryDtoV1 | null;
@@ -30,7 +31,7 @@ export function VsiEvidenceQualityTab({ fsdSummary, profile, inspector }: Props)
   const obs = inspector?.evidenceCoverage.observationCounts;
 
   return (
-    <div className="space-y-4" data-testid="vsi-tab-evidence">
+    <div className="space-y-4" data-testid="vsi-tab-evidence" {...vsiIntelligenceTabPanelProps('evidence')}>
       <MasterPageSection title={t('master.intelligence.vsi.tabs.evidence' as never)}>
         <p className="text-xs text-muted-foreground">{t('master.intelligence.vsi.evidence.intro' as never)}</p>
       </MasterPageSection>

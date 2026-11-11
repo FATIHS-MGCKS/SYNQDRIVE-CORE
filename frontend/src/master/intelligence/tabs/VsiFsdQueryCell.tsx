@@ -7,14 +7,14 @@ export function VsiFsdQueryCell({ triple, stage }: { triple: FsdQueryTriple; sta
   const label = classifyFsdQueryTriple(triple);
 
   if (label === 'unknown') {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className="text-foreground/75">—</span>;
   }
 
   return (
     <span className="block text-[10px] leading-tight" data-stage={stage}>
       <span className="font-medium">{t(`master.intelligence.vsi.fsd.query.${label}` as never)}</span>
       {triple && triple.queryPlanned && triple.queryAccepted != null ? (
-        <span className="text-muted-foreground">
+        <span className="text-foreground/80">
           {' '}
           · {t('master.intelligence.vsi.fsd.query.acceptedFlag' as never)}:{' '}
           {triple.queryAccepted
@@ -23,7 +23,7 @@ export function VsiFsdQueryCell({ triple, stage }: { triple: FsdQueryTriple; sta
         </span>
       ) : null}
       {triple && triple.observedValue != null ? (
-        <span className="text-muted-foreground">
+        <span className="text-foreground/80">
           {' '}
           · {t('master.intelligence.vsi.fsd.query.observedFlag' as never)}:{' '}
           {triple.observedValue

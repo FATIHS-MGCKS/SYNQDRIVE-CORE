@@ -20,6 +20,7 @@ import {
   mapSummaryToRpmBadge,
 } from '../vsi-master-intelligence-ui.utils';
 import { fsdCatalogAvailabilityKey, fsdStageEvidenceKey } from '../vsi-fsd-display.utils';
+import { vsiIntelligenceTabPanelProps } from '../vsi-tab-panel-a11y';
 import { VsiIntelligenceScopeBanner } from './VsiIntelligenceScopeBanner';
 
 type Props = {
@@ -72,7 +73,11 @@ export function VsiOverviewCockpitTab({
       : t('master.intelligence.vsi.fsd.notProven' as never);
 
   return (
-    <div className="space-y-4" data-testid="vsi-tab-overview">
+    <div
+      className="space-y-4"
+      data-testid="vsi-tab-overview"
+      {...vsiIntelligenceTabPanelProps('overview')}
+    >
       <VsiIntelligenceScopeBanner
         orgLabel={orgLabel}
         vehicleLabel={vehicleLabel}
