@@ -35,7 +35,7 @@ Declared attestation bundles are **not** treated as independent field proof.
 |------|-----------|
 | T1 | `syntheticFusionStatus` / `researchReplayStatus` separate from `realObservationStatus.authorizationStatus` (`realObservationFusionAuthorized` always `false` on this bridge) |
 | T2 | Motion: `offlineBundleIdentityBinding` vs `persistedMotionRunAttestation: UNVERIFIED_INJECTED` — no fabricated DS4 run authority |
-| T3 | Content fingerprint hashes material artifact fields (excludes `generatedAtIso` + self fingerprint) |
+| T3 | Content fingerprint hashes full scientific payloads: A2 `dynamicsTripResult`, fusion events (local dynamics, alignment sensitivity), shadow event metrics, attestation dimensions, motion provenance, `codeSha`; excludes self fingerprint + `generatedAtIso` + shadow `provenance.generatedAtIso` |
 | T4 | `eventLocalCadenceAssessed` defaults false; caller cannot assert PROVEN cadence on injected bundles |
 
 ## REAL_OBSERVATION policy

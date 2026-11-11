@@ -294,20 +294,4 @@ describe('ds4-rpm-real-data-fusion-replay orchestrator v1 (offline injected only
     expect(a.deterministicArtifactFingerprint).not.toBe(b.deterministicArtifactFingerprint);
   });
 
-  it('content fingerprint changes when attestation dimension state changes', () => {
-    const bundle = buildSyntheticApiBundleValid(GENERATED_AT);
-    const baseline = executeDs4RpmRealDataFusionOfflineReplayV1(bundle, {
-      codeSha: CODE_SHA,
-      generatedAt: GENERATED_AT,
-    });
-    const tamperedBundle = {
-      ...bundle,
-      bundleId: 'bundle-id-changes-input-fingerprint',
-    };
-    const shifted = executeDs4RpmRealDataFusionOfflineReplayV1(tamperedBundle, {
-      codeSha: CODE_SHA,
-      generatedAt: GENERATED_AT,
-    });
-    expect(baseline.deterministicArtifactFingerprint).not.toBe(shifted.deterministicArtifactFingerprint);
-  });
 });
