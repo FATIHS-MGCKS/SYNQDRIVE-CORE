@@ -34,10 +34,14 @@
 - No ClickHouse write path for fusion artifacts in the first real-data slice.
 - No UI surfacing beyond internal research review tooling.
 
-## Suggested validation slice (future PR)
+## Offline replay bridge (P2-D2A)
+
+Implemented: `executeDs4RpmRealDataFusionOfflineReplayV1` — see `DBI_P2D2A_REAL_DATA_FUSION_REPLAY_BRIDGE.md`.
+
+## Suggested validation slice (real pilot, post-owner authorization)
 
 1. Replay one authorized trip through existing real-data replay harness.
-2. Feed harness output into `executeDs4RpmDynamicsFusionHarness` with `REAL_OBSERVATION`.
+2. Feed harness output into fusion path only when independent attestation + `REAL_OBSERVATION` authority is approved (not P2-D2A injected gate).
 3. Compare shadow metrics to standalone shadow replay (parity).
 4. Record trip block reasons for R1 / unproven family negative controls.
 5. Archive JSON artifact with contract version + kernel version + code SHA.
