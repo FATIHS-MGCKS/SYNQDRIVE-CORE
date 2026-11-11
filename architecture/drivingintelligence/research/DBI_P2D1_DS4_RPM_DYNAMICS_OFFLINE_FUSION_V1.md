@@ -37,7 +37,7 @@ Per event: motion attributes, **verbatim** `shadowCorrelation` payload, fusion c
 ## Binding closeout (P2-D1 F1–F4)
 
 - **F1:** `validateDs4RpmDynamicsFusionBindingGate` resolves DIMO family via `resolveTelemetrySourceFamily`; R1 via `hasUncertainHistoricalObdRecordTime`; cross-checks RPM sample family metadata (`TELEMETRY_SOURCE_FAMILY_CONTRADICTS_DIMO_IDENTITY`).
-- **F2:** Recomputes V1B fingerprint from A2 `tripInput`; rejects cross-plane org/vehicle/trip/link, fingerprint, RPM points, and motion event/payload mismatches before event-local work.
+- **F2:** Recomputes V1B fingerprint from A2 `tripInput`; rejects cross-plane org/vehicle/trip/link, fingerprint, RPM points, and full persisted motion-event material parity (speeds, delta, flags, optional intensity presence/value) before event-local work.
 - **F3:** Requires `evidenceKind` parity on input vs provenance gate; blocks `REAL_OBSERVATION` when gate is synthetic; enforces A2 `evidenceOrigin` compatibility.
 - **F4:** Event-local `countEventLocalDirectionReversals` resets non-FLAT trend memory on `sequenceIndex` change (no gap-crossing reversals); plateaus preserved within a sequence.
 

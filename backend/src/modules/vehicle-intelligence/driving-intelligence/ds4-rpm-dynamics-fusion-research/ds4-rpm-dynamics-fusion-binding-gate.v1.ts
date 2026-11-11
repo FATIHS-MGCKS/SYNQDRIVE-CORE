@@ -4,7 +4,11 @@ import {
 } from '../../telemetry-source-family';
 import { computeDs4RpmHfV1bTierAwareInputFingerprint } from '../rpm-hf-v1b/ds4-rpm-hf-v1b-input-fingerprint';
 import type { Ds4RpmDynamicsResearchInputV1 } from '../ds4-rpm-dynamics-research/ds4-rpm-dynamics-research.contract.v1';
-import type { DiV0MotionCoreShadowPayloadV1 } from '../motion-core-shadow-worker/di-v0-motion-core-shadow.types';
+import type { DiV0MotionCoreShadowPersistedEventIntensityV1 } from '../motion-core-shadow-worker/di-v0-motion-core-shadow-event-row.contract';
+import type {
+  DiV0MotionCoreShadowPersistedEventRow,
+  DiV0MotionCoreShadowPayloadV1,
+} from '../motion-core-shadow-worker/di-v0-motion-core-shadow.types';
 import type { Ds4RpmShadowCorrelationProvenanceGateV1 } from '../ds4-rpm-shadow-correlation/ds4-rpm-shadow-correlation-provenance-gate.v1';
 import { validateRpmSampleSourceFamilyAuthority } from '../ds4-rpm-shadow-correlation/ds4-rpm-shadow-correlation-source-family-gate.v1';
 import type {
@@ -39,7 +43,41 @@ function rpmPointsEqual(
   return true;
 }
 
-function motionEventsConsistent(
+function flagsEqual(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    if (left[i] !== right[i]) return false;
+  }
+  return true;
+}
+
+function persistedIntensityEqual(
+  left: DiV0MotionCoreShadowPersistedEventIntensityV1,
+  right: DiV0MotionCoreShadowPersistedEventIntensityV1,
+): boolean {
+  return (
+    left.meanAccelMps2 === right.meanAccelMps2 &&
+    left.durationS === right.durationS &&
+    left.steps === right.steps &&
+    left.coverageRatio === right.coverageRatio &&
+    left.startUncertaintyS === right.startUncertaintyS &&
+    left.endUncertaintyS === right.endUncertaintyS
+  );
+}
+
+function persistedIntensityConsistent(
+  a: DiV0MotionCoreShadowPersistedEventRow,
+  b: DiV0MotionCoreShadowPersistedEventRow,
+): boolean {
+  const aPresent = a.intensity !== undefined;
+  const bPresent = b.intensity !== undefined;
+  if (aPresent !== bPresent) return false;
+  if (!aPresent) return true;
+  return persistedIntensityEqual(a.intensity!, b.intensity!);
+}
+
+/** Material persisted motion-event parity for fusion binding (F2). */
+export function motionEventsConsistent(
   correlationEvents: Ds4RpmShadowCorrelationInputV1['events'],
   payloadEvents: DiV0MotionCoreShadowPayloadV1['events'],
 ): boolean {
@@ -51,8 +89,12 @@ function motionEventsConsistent(
       a.kind !== b.kind ||
       a.startLabel !== b.startLabel ||
       a.endLabel !== b.endLabel ||
+      a.startSpeedKmh !== b.startSpeedKmh ||
+      a.endSpeedKmh !== b.endSpeedKmh ||
+      a.deltaKmh !== b.deltaKmh ||
       a.quality !== b.quality ||
-      JSON.stringify(a.flags) !== JSON.stringify(b.flags)
+      !flagsEqual(a.flags, b.flags) ||
+      !persistedIntensityConsistent(a, b)
     ) {
       return false;
     }
