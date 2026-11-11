@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * Offline DBI P2-D2D corrected RPM research reports (no production I/O).
- * Logic mirror: ds4-rpm-v1b-research-reporting.v1.ts
+ * Uses persisted tier-aware V1B summaries when provided; never fabricates tierEvidence.
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -23,55 +23,26 @@ const {
 const ORG = 'faa710c9-6d91-4079-a7d5-91fdccdec14a';
 const RECON_PATH =
   process.env.P2D2D_RECON_PATH || '/opt/cursor/artifacts/p2d2d-v1b-vsi-reconciliation.json';
+const TIER_AWARE_DIR = process.env.P2D2D_TIER_AWARE_SUMMARY_DIR || '';
 const OUT_PATH =
   process.env.P2D2D_CORRECTED_OUT || '/opt/cursor/artifacts/p2d2d-rpm-reporting-corrected.json';
 
-function tierEvidenceFromReconciliation(label) {
-  if (label === 'AUDI') {
-    return {
-      availability: 'AVAILABLE',
-      tripId: 'f6c036d1-5f52-430a-aca0-621b905e1089',
-      tier: 'RPM_1S',
-      analysisMode: 'HIGH_RESOLUTION',
-      decisionCode: 'TIER_ASSIGNED',
-      tripCoverageBand: 'PARTIAL_SPAN',
-      analysisReadiness: 'LIMITED_TRIP',
-      cadenceConfidence: 'HIGH',
-      temporalCadenceProfile: {
-        bucketWidthSeconds: 1,
-        nominalCadenceSeconds: 1,
-        sequenceMaxGapSeconds: 2,
-        interPointGapReportThresholdSeconds: 2,
-      },
-    };
-  }
-  return {
-    availability: 'AVAILABLE',
-    tripId: 'ca7d03a0-0702-40b9-acf2-0235c7dd07a1',
-    tier: 'RPM_1S',
-    analysisMode: 'HIGH_RESOLUTION',
-    decisionCode: 'TIER_ASSIGNED',
-    tripCoverageBand: 'FULL_SPAN',
-    analysisReadiness: 'TIER_ANALYTICS_OK',
-    cadenceConfidence: 'HIGH',
-    temporalCadenceProfile: {
-      bucketWidthSeconds: 1,
-      nominalCadenceSeconds: 1,
-      sequenceMaxGapSeconds: 2,
-      interPointGapReportThresholdSeconds: 2,
-    },
-  };
+function loadTierAwarePersistedSummary(tripId) {
+  if (!TIER_AWARE_DIR) return null;
+  const path = join(TIER_AWARE_DIR, `${tripId}.tier-aware.summary.json`);
+  if (!existsSync(path)) return null;
+  return JSON.parse(readFileSync(path, 'utf8'));
 }
 
-function shadowStub(row, variant) {
+function legacyStubFromReconciliation(row) {
   const s = row.slice;
   return {
     contractVersion: 'ds4-rpm-hf-v1b-v1',
     organizationId: ORG,
     vehicleId: row.vehicleId,
     tripId: row.tripId,
-    providerSourceLinkId: null,
-    shadowVariant: variant,
+    providerSourceLinkId: row.providerSourceLinkId ?? s.providerSourceLinkId ?? null,
+    shadowVariant: 'legacy',
     processingOutcome: s.processingOutcome,
     vsiTripClassification: s.vsiTripClassification,
     admission: s.admission,
@@ -88,7 +59,6 @@ function shadowStub(row, variant) {
     },
     intervalStats: s.intervalStats,
     sequenceStats: s.sequenceStats,
-    tierEvidence: variant === 'tier-aware' ? tierEvidenceFromReconciliation(row.label) : undefined,
   };
 }
 
@@ -101,19 +71,32 @@ function main() {
   };
   for (const label of ['AUDI', 'TIGUAN']) {
     const row = { label, ...recon.trips[label] };
-    const legacy = shadowStub(row, 'legacy');
-    const tierAware = shadowStub(row, 'tier-aware');
+    const legacy = legacyStubFromReconciliation(row);
+    const tierAwarePersisted = loadTierAwarePersistedSummary(row.tripId);
+    const tierAware = tierAwarePersisted ?? null;
+    const tierEvidenceProvenance = tierAware ? 'PERSISTED_V1B_PAIR' : 'RECONSTRUCTED_OFFLINE';
+
     const preservedLegacy = {
       observedBucketCoverageRatio: legacy.temporalCoverage.observedBucketCoverageRatio,
       admissionQualityExposure: legacy.admission.qualityExposure,
     };
+
     out.reports[label] = {
+      tierEvidenceProvenance,
+      tierAwarePersistedSummaryLoaded: Boolean(tierAwarePersisted),
       corrected: buildDs4RpmV1bResearchRpmReportV1({
         legacy,
         tierAware,
         telemetrySourceFamily: 'RUPTELA_R1',
+        tierEvidenceProvenance: tierEvidenceProvenance === 'PERSISTED_V1B_PAIR' ? undefined : 'RECONSTRUCTED_OFFLINE',
       }),
       preservedLegacyEvidence: preservedLegacy,
+      preservedHistoricalAggregate: {
+        intervalStats: row.slice.intervalStats,
+        sequenceStats: row.slice.sequenceStats,
+        vsiTripClassification: row.slice.vsiTripClassification,
+        note: 'NON_AUTHORITATIVE_HISTORICAL_SLICE_NOT_TIER_VERIFICATION',
+      },
     };
   }
   mkdirSync(OUT_PATH.replace(/\/[^/]+$/, ''), { recursive: true });

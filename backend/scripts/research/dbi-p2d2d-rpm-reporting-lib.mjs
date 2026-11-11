@@ -28,20 +28,32 @@ export function verifyV1bResearchBindings(legacy, tierAware) {
   if (a.organizationId !== b.organizationId) reasons.push('ORG_MISMATCH');
   if (a.vehicleId !== b.vehicleId) reasons.push('VEHICLE_MISMATCH');
   if (a.tripId !== b.tripId) reasons.push('TRIP_MISMATCH');
-  if (
-    a.providerSourceLinkId != null &&
-    b.providerSourceLinkId != null &&
-    a.providerSourceLinkId !== b.providerSourceLinkId
-  ) {
+  if (a.providerSourceLinkId == null || b.providerSourceLinkId == null) {
+    reasons.push('PROVIDER_SOURCE_LINK_MISSING');
+  } else if (a.providerSourceLinkId !== b.providerSourceLinkId) {
     reasons.push('PROVIDER_SOURCE_LINK_MISMATCH');
   }
   if (legacy.processingOutcome !== 'SUCCEEDED') reasons.push('LEGACY_NOT_SUCCEEDED');
   if (tierAware.processingOutcome !== 'SUCCEEDED') reasons.push('TIER_AWARE_NOT_SUCCEEDED');
+  const te = tierAware.tierEvidence;
+  if (te != null && te.tripId !== legacy.tripId) reasons.push('TIER_EVIDENCE_TRIP_ID_MISMATCH');
   return reasons.length === 0 ? { ok: true } : { ok: false, reasons };
 }
 
-export function buildV1bResearchRpmReport({ legacy, tierAware, telemetrySourceFamily }) {
+function resolveTierEvidenceProvenance(tierAware, explicit) {
+  if (explicit === 'RECONSTRUCTED_OFFLINE') return 'RECONSTRUCTED_OFFLINE';
+  if (tierAware == null) return explicit ?? 'NOT_PROVIDED';
+  return 'PERSISTED_V1B_PAIR';
+}
+
+export function buildV1bResearchRpmReport({
+  legacy,
+  tierAware,
+  telemetrySourceFamily,
+  tierEvidenceProvenance: explicitProv,
+}) {
   const vsi = legacy.vsiTripClassification ?? {};
+  const tierEvidenceProvenance = resolveTierEvidenceProvenance(tierAware, explicitProv);
   const binding = verifyV1bResearchBindings(legacy, tierAware);
   let tierReporting = {
     tierEvidenceVerification: 'UNVERIFIED',
@@ -54,8 +66,15 @@ export function buildV1bResearchRpmReport({ legacy, tierAware, telemetrySourceFa
     tierAwareShadowVariant: tierAware?.shadowVariant ?? UNVERIFIED,
     tierEvidenceDecisionCode: UNVERIFIED,
   };
-  if (binding.ok && tierAware?.tierEvidence?.availability === 'AVAILABLE' && tierAware.tierEvidence.tier) {
-    const te = tierAware.tierEvidence;
+  const te = tierAware?.tierEvidence;
+  const mayVerify =
+    binding.ok &&
+    tierAware != null &&
+    tierEvidenceProvenance === 'PERSISTED_V1B_PAIR' &&
+    te?.availability === 'AVAILABLE' &&
+    te?.tier != null &&
+    te.tripId === legacy.tripId;
+  if (mayVerify) {
     tierReporting = {
       tierEvidenceVerification: 'VERIFIED',
       cadenceTier: te.tier,
@@ -88,6 +107,7 @@ export function buildV1bResearchRpmReport({ legacy, tierAware, telemetrySourceFa
     tripTimeObservationDensity: legacy.temporalCoverage?.observedBucketCoverageRatio ?? null,
     tripTimeObservationDensitySemantics: TRIP_TIME_OBSERVATION_DENSITY_SEMANTICS,
     pollSuccessVerdict: 'NOT_DERIVED_FROM_TRIP_TIME_OBSERVATION_DENSITY',
+    tierEvidenceProvenance,
     tierReporting,
     unknownGapCause: [...new Set(gapCauses)],
     r1TemporalVeto: telemetrySourceFamily === 'RUPTELA_R1' ? 'ACTIVE' : 'NOT_APPLICABLE',
