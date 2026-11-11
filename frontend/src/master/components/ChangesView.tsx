@@ -36,6 +36,26 @@ const PRESET_MODULES = ['Insurance', 'Parts & Accessories', 'Master Admin', 'Veh
 
 export const FALLBACK_ENTRIES: ChangelogEntry[] = [
   {
+    id: 'apds-v3-p1b1-r2-closeout-2026-11-11',
+    version: '4.9.5037',
+    title: 'APDS V3 P1B1 R2 — fleet-wide shadow security/resource closeout',
+    summary: [
+      'Runtime queue holds concurrency until work settles; AbortSignal + bounded DB statement_timeout on causal loads; write-budget mutex scoped to reservation only.',
+      'Physical identity `physical-fetch:{jobId}:run:{attemptsMade}`; enqueue attempt correlated only; baseline provider source link fail-closed.',
+      'PostgreSQL concurrency certification (dual PrismaClient) with valid DIMO DimoVehicle + vehicle_data_source_links provider_reference_check fixture.',
+      'Kill switch default OFF — no extra DIMO requests; P25 shadow path unchanged.',
+    ],
+    reason:
+      'Independent architecture/security remediation blockers H1–H6 on PR #2399 before merge review.',
+    previousBehavior:
+      'Enqueue attempt could stand in for physical id; budget mutex wrapped eligibility/persist; provider_reference_check violated in PG fixtures.',
+    details:
+      'backend/.../apds-v3-offline/apds-v3-shadow-*; architecture/vehicle-device-connectivity/APDS_V3_P1B1_FLEET_WIDE_SHADOW.md; p25-apd-shadow-postgres-ci.sh',
+    affectsArchitecture: true,
+    module: 'Vehicle & Device Connectivity',
+    createdAt: '2026-11-11T04:40:00.000Z',
+  },
+  {
     id: 'service-intelligence-trust-fix-p1-2026-11-10',
     version: '4.9.5036',
     title: 'Service Intelligence trust P1 — evidence provenance + overview honesty',

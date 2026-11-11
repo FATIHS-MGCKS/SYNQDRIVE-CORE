@@ -2,7 +2,8 @@
  * APDS V3 shadow PostgreSQL concurrency certification (disposable DB).
  *   APDS_V3_SHADOW_PG=1 DATABASE_URL=postgresql://... npm test -- apds-v3-shadow-concurrency.postgres.integration.spec.ts
  */
-import { BusinessType, FuelType, PrismaClient } from '@prisma/client';
+import { BusinessType, DimoConnectionStatus, FuelType, PrismaClient } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { APDS_V3_OFFLINE_POLICY_VERSION } from './apds-v3-offline.types';
 import { APDS_V3_SHADOW_ACTIVATION_VERSION } from './apds-v3-shadow.config';
 import {
@@ -16,6 +17,7 @@ const pgEnabled =
 const describePg = databaseUrl && pgEnabled ? describe : describe.skip;
 
 describePg('APDS V3 shadow decision concurrency (PostgreSQL)', () => {
+  jest.setTimeout(120_000);
   const prismaA = new PrismaClient();
   const prismaB = new PrismaClient();
   let organizationA = '';
@@ -24,6 +26,8 @@ describePg('APDS V3 shadow decision concurrency (PostgreSQL)', () => {
   let vehicleB = '';
   let linkA = '';
   let linkB = '';
+  let dimoVehicleA = '';
+  let dimoVehicleB = '';
   const policyVersion = APDS_V3_OFFLINE_POLICY_VERSION;
   const decisionAt = new Date('2026-11-11T10:00:00.000Z');
 
@@ -70,6 +74,33 @@ describePg('APDS V3 shadow decision concurrency (PostgreSQL)', () => {
     });
     organizationB = orgB.id;
 
+    dimoVehicleA = randomUUID();
+    dimoVehicleB = randomUUID();
+    await prismaA.dimoVehicle.create({
+      data: {
+        id: dimoVehicleA,
+        externalId: `apds-v3-ext-${dimoVehicleA}`,
+        tokenId: 8_100_000 + Math.floor(Math.random() * 1_000_000),
+        connectionStatus: DimoConnectionStatus.CONNECTED,
+        make: 'Test',
+        model: 'ApdsV3',
+        year: 2026,
+        fuelType: 'ELECTRIC',
+      },
+    });
+    await prismaA.dimoVehicle.create({
+      data: {
+        id: dimoVehicleB,
+        externalId: `apds-v3-ext-${dimoVehicleB}`,
+        tokenId: 8_200_000 + Math.floor(Math.random() * 1_000_000),
+        connectionStatus: DimoConnectionStatus.CONNECTED,
+        make: 'Test',
+        model: 'ApdsV3',
+        year: 2026,
+        fuelType: 'ELECTRIC',
+      },
+    });
+
     const vA = await prismaA.vehicle.create({
       data: {
         organizationId: organizationA,
@@ -78,6 +109,7 @@ describePg('APDS V3 shadow decision concurrency (PostgreSQL)', () => {
         year: 2026,
         fuelType: FuelType.ELECTRIC,
         vehicleName: `v3-a-${Date.now()}`,
+        dimoVehicleId: dimoVehicleA,
       },
       select: { id: true },
     });
@@ -90,6 +122,7 @@ describePg('APDS V3 shadow decision concurrency (PostgreSQL)', () => {
         year: 2026,
         fuelType: FuelType.ELECTRIC,
         vehicleName: `v3-b-${Date.now()}`,
+        dimoVehicleId: dimoVehicleB,
       },
       select: { id: true },
     });
@@ -100,6 +133,7 @@ describePg('APDS V3 shadow decision concurrency (PostgreSQL)', () => {
         vehicleId: vehicleA,
         provider: 'DIMO',
         sourceType: 'DIMO',
+        dimoVehicleId: dimoVehicleA,
         isActive: true,
       },
       select: { id: true },
@@ -110,6 +144,7 @@ describePg('APDS V3 shadow decision concurrency (PostgreSQL)', () => {
         vehicleId: vehicleB,
         provider: 'DIMO',
         sourceType: 'DIMO',
+        dimoVehicleId: dimoVehicleB,
         isActive: true,
       },
       select: { id: true },
@@ -126,6 +161,9 @@ describePg('APDS V3 shadow decision concurrency (PostgreSQL)', () => {
     });
     await prismaA.vehicle.deleteMany({
       where: { id: { in: [vehicleA, vehicleB] } },
+    });
+    await prismaA.dimoVehicle.deleteMany({
+      where: { id: { in: [dimoVehicleA, dimoVehicleB] } },
     });
     await prismaA.organization.deleteMany({
       where: { id: { in: [organizationA, organizationB] } },
