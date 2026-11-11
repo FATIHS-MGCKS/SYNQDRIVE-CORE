@@ -9,6 +9,7 @@ export function classifyDs4RpmPilotScientificPlanningV1(input: {
   motionRunPresent: boolean;
   rpmPointCount: number;
   authorizedRealObservation: boolean;
+  dataQualityAssessmentEvidencePresent: boolean;
 }): Ds4RpmPilotScientificPlanningClassificationV1[] {
   const classes: Ds4RpmPilotScientificPlanningClassificationV1[] = [];
 
@@ -21,18 +22,26 @@ export function classifyDs4RpmPilotScientificPlanningV1(input: {
     classes.push('TEMPORAL_FUSION_UNVERIFIED');
   } else if (hasUncertainHistoricalObdRecordTime(family)) {
     classes.push('TEMPORAL_FUSION_BLOCKED_R1');
-    classes.push('RPM_ONLY_DESCRIPTIVE');
-    classes.push('DS4_ONLY_DESCRIPTIVE');
-    classes.push('DATA_QUALITY_ASSESSED');
+    if (input.rpmPointCount > 0 || input.v1bAdmissionSucceeded) {
+      classes.push('RPM_ONLY_DESCRIPTIVE');
+    }
+    if (input.motionRunPresent) {
+      classes.push('DS4_ONLY_DESCRIPTIVE');
+    }
+    if (input.dataQualityAssessmentEvidencePresent) {
+      classes.push('DATA_QUALITY_ASSESSED');
+    }
     return [...new Set(classes)];
   }
 
-  if (input.rpmPointCount > 0) {
+  if (input.rpmPointCount > 0 || input.v1bAdmissionSucceeded) {
     classes.push('RPM_ONLY_DESCRIPTIVE');
-    classes.push('DATA_QUALITY_ASSESSED');
   }
   if (input.motionRunPresent) {
     classes.push('DS4_ONLY_DESCRIPTIVE');
+  }
+  if (input.dataQualityAssessmentEvidencePresent) {
+    classes.push('DATA_QUALITY_ASSESSED');
   }
 
   if (

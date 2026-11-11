@@ -28,6 +28,7 @@ function audiCandidate(overrides: Partial<Ds4RpmPilotTripCandidateDescriptorV1> 
     vsiCadenceTier: 'RPM_1S',
     telemetrySourceFamily: 'API_SYNTHETIC',
     sourceFamilyAttestation: 'UNPROVEN',
+    dataQualityAssessmentEvidencePresent: false,
     ...overrides,
   };
 }
@@ -61,12 +62,86 @@ describe('ds4-rpm-pilot-preparation P2-D2B (offline only)', () => {
     expect(report.excludedCohorts).toContain('VW_ARTEON');
   });
 
-  it('abstains on missing vehicle identity and source link', () => {
-    const ranked = rankDs4RpmPilotTripCandidatesV1([
-      audiCandidate({ vehicleId: null }),
-      audiCandidate({ providerSourceLinkId: null }),
-    ]);
-    expect(ranked[0]?.abstainReasons).toContain('MISSING_TENANT_OR_SOURCE_LINK_BINDING');
+  it('F1: empty Tiguan cohort abstains as Tiguan, never Audi placeholder', () => {
+    const ranked = rankDs4RpmPilotTripCandidatesV1([], { cohortContext: 'VW_TIGUAN' });
+    expect(ranked).toHaveLength(1);
+    expect(ranked[0]!.candidate.cohortVehicleLabel).toBe('VW_TIGUAN');
+    expect(ranked[0]!.candidate.cohortVehicleLabel).not.toBe('AUDI_A4');
+    expect(ranked[0]!.abstainReasons).toContain('NO_IN_SCOPE_CANDIDATES');
+  });
+
+  it('F1: invalid and valid Audi candidates — valid ranked, invalid abstains individually', () => {
+    const ranked = rankDs4RpmPilotTripCandidatesV1(
+      [
+        audiCandidate({ candidateTripId: 'bad', vehicleId: null }),
+        audiCandidate({ candidateTripId: 'good' }),
+      ],
+      { cohortContext: 'AUDI_A4' },
+    );
+    expect(ranked.filter((r) => r.rank > 0)).toHaveLength(1);
+    expect(ranked[0]!.candidate.candidateTripId).toBe('good');
+    expect(ranked.some((r) => r.rank === 0 && r.candidate.candidateTripId === 'bad')).toBe(true);
+  });
+
+  it('F1: all invalid candidates abstain individually', () => {
+    const ranked = rankDs4RpmPilotTripCandidatesV1(
+      [audiCandidate({ motionRunPresent: false }), audiCandidate({ candidateTripId: 'bad-2', v1bAdmissionSucceeded: false })],
+      { cohortContext: 'AUDI_A4' },
+    );
+    expect(ranked.every((r) => r.rank === 0)).toBe(true);
+    expect(ranked.every((r) => r.tripSelected === false)).toBe(true);
+  });
+
+  it('ranks trips deterministically with tie-breaker on trip id', () => {
+    const input = [
+      audiCandidate({ candidateTripId: 'trip-z', ds4AccelDecelEventCount: 2 }),
+      audiCandidate({ candidateTripId: 'trip-a', ds4AccelDecelEventCount: 2 }),
+    ];
+    const a = rankDs4RpmPilotTripCandidatesV1(input, { cohortContext: 'AUDI_A4' });
+    const b = rankDs4RpmPilotTripCandidatesV1(input, { cohortContext: 'AUDI_A4' });
+    expect(a[0]!.candidate.candidateTripId).toBe('trip-a');
+    expect(a).toEqual(b);
+  });
+
+  it('F2: R1 with zero RPM points does not emit DATA_QUALITY_ASSESSED', () => {
+    const classes = classifyDs4RpmPilotScientificPlanningV1({
+      telemetrySourceFamily: 'RUPTELA_R1',
+      sourceFamilyAttestation: 'PROVEN',
+      v1bAdmissionSucceeded: true,
+      motionRunPresent: true,
+      rpmPointCount: 0,
+      authorizedRealObservation: false,
+      dataQualityAssessmentEvidencePresent: false,
+    });
+    expect(classes).toContain('TEMPORAL_FUSION_BLOCKED_R1');
+    expect(classes).not.toContain('DATA_QUALITY_ASSESSED');
+  });
+
+  it('F2: RPM points without assessment evidence do not emit DATA_QUALITY_ASSESSED', () => {
+    const classes = classifyDs4RpmPilotScientificPlanningV1({
+      telemetrySourceFamily: 'API_SYNTHETIC',
+      sourceFamilyAttestation: 'PROVEN',
+      v1bAdmissionSucceeded: true,
+      motionRunPresent: true,
+      rpmPointCount: 200,
+      authorizedRealObservation: false,
+      dataQualityAssessmentEvidencePresent: false,
+    });
+    expect(classes).toContain('RPM_ONLY_DESCRIPTIVE');
+    expect(classes).not.toContain('DATA_QUALITY_ASSESSED');
+  });
+
+  it('F2: proven assessment evidence may emit DATA_QUALITY_ASSESSED', () => {
+    const classes = classifyDs4RpmPilotScientificPlanningV1({
+      telemetrySourceFamily: 'API_SYNTHETIC',
+      sourceFamilyAttestation: 'PROVEN',
+      v1bAdmissionSucceeded: true,
+      motionRunPresent: true,
+      rpmPointCount: 200,
+      authorizedRealObservation: false,
+      dataQualityAssessmentEvidencePresent: true,
+    });
+    expect(classes).toContain('DATA_QUALITY_ASSESSED');
   });
 
   it('blocks R1 confirmed candidates from temporal fusion planning', () => {
@@ -77,6 +152,7 @@ describe('ds4-rpm-pilot-preparation P2-D2B (offline only)', () => {
       motionRunPresent: true,
       rpmPointCount: 50,
       authorizedRealObservation: false,
+      dataQualityAssessmentEvidencePresent: false,
     });
     expect(classes).toContain('TEMPORAL_FUSION_BLOCKED_R1');
     expect(classes).not.toContain('TEMPORAL_FUSION_UNVERIFIED');
@@ -90,6 +166,7 @@ describe('ds4-rpm-pilot-preparation P2-D2B (offline only)', () => {
       motionRunPresent: true,
       rpmPointCount: 10,
       authorizedRealObservation: false,
+      dataQualityAssessmentEvidencePresent: false,
     });
     expect(classes).toContain('TEMPORAL_FUSION_UNVERIFIED');
   });
@@ -102,49 +179,33 @@ describe('ds4-rpm-pilot-preparation P2-D2B (offline only)', () => {
       motionRunPresent: true,
       rpmPointCount: 100,
       authorizedRealObservation: false,
+      dataQualityAssessmentEvidencePresent: false,
     });
     expect(classes).toContain('TEMPORAL_FUSION_UNVERIFIED');
     expect(classes).toContain('REAL_OBSERVATION_NOT_AUTHORIZED');
   });
 
   it('keeps RPM_1S and RPM_2S tiers distinct in ranking scores', () => {
-    const r1s = rankDs4RpmPilotTripCandidatesV1([
-      audiCandidate({ candidateTripId: 'trip-1s', vsiCadenceTier: 'RPM_1S' }),
-    ]);
-    const r2s = rankDs4RpmPilotTripCandidatesV1([
-      audiCandidate({ candidateTripId: 'trip-2s', vsiCadenceTier: 'RPM_2S' }),
-    ]);
+    const r1s = rankDs4RpmPilotTripCandidatesV1(
+      [audiCandidate({ candidateTripId: 'trip-1s', vsiCadenceTier: 'RPM_1S' })],
+      { cohortContext: 'AUDI_A4' },
+    );
+    const r2s = rankDs4RpmPilotTripCandidatesV1(
+      [audiCandidate({ candidateTripId: 'trip-2s', vsiCadenceTier: 'RPM_2S' })],
+      { cohortContext: 'AUDI_A4' },
+    );
     expect(r1s[0]!.selectionScore).toBeGreaterThan(r2s[0]!.selectionScore);
   });
 
   it('ranks RPM_3S lower and marks observation-only fusion path via D2A fixture', () => {
-    const ranked = rankDs4RpmPilotTripCandidatesV1([
-      audiCandidate({ vsiCadenceTier: 'RPM_3S', rpmPointCount: 40 }),
-    ]);
+    const ranked = rankDs4RpmPilotTripCandidatesV1(
+      [audiCandidate({ vsiCadenceTier: 'RPM_3S', rpmPointCount: 40 })],
+      { cohortContext: 'AUDI_A4' },
+    );
     expect(ranked[0]!.candidate.vsiCadenceTier).toBe('RPM_3S');
     expect(
       buildDs4RpmPilotPreparationReportV1({ baseSha: BASE_SHA }).rpmReadiness.AUDI_A4.rpm3sEventLocalFusionEligible,
     ).toBe(false);
-  });
-
-  it('abstains when motion run missing or v1b fingerprint missing', () => {
-    const missingMotion = rankDs4RpmPilotTripCandidatesV1([audiCandidate({ motionRunPresent: false })]);
-    expect(missingMotion[0]!.abstainReasons).toContain('NO_DEFENSIBLE_CANDIDATES_AFTER_GATES');
-    const missingFp = rankDs4RpmPilotTripCandidatesV1([audiCandidate({ v1bInputFingerprintPresent: false })]);
-    expect(missingFp[0]!.abstainReasons).toContain('NO_DEFENSIBLE_CANDIDATES_AFTER_GATES');
-  });
-
-  it('ranks trips deterministically with tie-breaker on trip id', () => {
-    const a = rankDs4RpmPilotTripCandidatesV1([
-      audiCandidate({ candidateTripId: 'trip-z', ds4AccelDecelEventCount: 2 }),
-      audiCandidate({ candidateTripId: 'trip-a', ds4AccelDecelEventCount: 2 }),
-    ]);
-    expect(a[0]!.candidate.candidateTripId).toBe('trip-a');
-    const b = rankDs4RpmPilotTripCandidatesV1([
-      audiCandidate({ candidateTripId: 'trip-z', ds4AccelDecelEventCount: 2 }),
-      audiCandidate({ candidateTripId: 'trip-a', ds4AccelDecelEventCount: 2 }),
-    ]);
-    expect(a).toEqual(b);
   });
 
   it('confirms no production reads in preparation report', () => {
@@ -155,7 +216,9 @@ describe('ds4-rpm-pilot-preparation P2-D2B (offline only)', () => {
   });
 
   it('never marks a candidate as tripSelected', () => {
-    const ranked = rankDs4RpmPilotTripCandidatesV1([audiCandidate(), tiguanCandidate()]);
+    const ranked = rankDs4RpmPilotTripCandidatesV1([audiCandidate(), tiguanCandidate()], {
+      cohortContext: 'AUDI_A4',
+    });
     expect(ranked.every((r) => r.tripSelected === false)).toBe(true);
   });
 

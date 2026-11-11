@@ -75,11 +75,12 @@ org/vehicle/trip/motionRunId binding, persisted event rows (V1/V2 material parit
 
 ## Candidate trip selection procedure
 
-Offline-only `rankDs4RpmPilotTripCandidatesV1`:
+Offline-only `rankDs4RpmPilotTripCandidatesV1` (requires `cohortContext`):
 
 1. Filter to AUDI_A4 / VW_TIGUAN only.
-2. Abstain if identity or source link missing.
-3. Abstain if V1B fingerprint/admission or motion run missing.
+2. Empty cohort → cohort-specific abstention (never cross-cohort placeholder).
+3. Invalid rows abstain individually; valid rows remain rankable in the same cohort.
+4. Abstain if V1B fingerprint/admission or motion run missing (per row).
 4. Score: DS4 events, RPM points, cadence tier, penalties for gaps/duplicates/conflicts.
 5. Tie-break: lexicographic `candidateTripId`.
 6. **`tripSelected` remains false** — no invented production selection.

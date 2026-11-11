@@ -21,13 +21,16 @@ export function assertPilotCohortInScope(
   return ACTIVE_COHORTS.has(cohort as Ds4RpmPilotPreparationTargetCohortV1);
 }
 
-function abstain(reasons: string[]): Ds4RpmPilotRankedTripCandidateV1[] {
+function cohortEmptyAbstain(
+  cohortContext: Ds4RpmPilotPreparationTargetCohortV1,
+  reasons: readonly string[],
+): Ds4RpmPilotRankedTripCandidateV1[] {
   return [
     {
       rank: 0,
       candidate: {
-        candidateTripId: 'ABSTAIN',
-        cohortVehicleLabel: 'AUDI_A4',
+        candidateTripId: 'COHORT_EMPTY',
+        cohortVehicleLabel: cohortContext,
         organizationId: null,
         vehicleId: null,
         providerSourceLinkId: null,
@@ -42,17 +45,62 @@ function abstain(reasons: string[]): Ds4RpmPilotRankedTripCandidateV1[] {
         vsiCadenceTier: null,
         telemetrySourceFamily: null,
         sourceFamilyAttestation: 'UNKNOWN',
+        dataQualityAssessmentEvidencePresent: false,
       },
       selectionScore: -1,
       planningClassifications: [],
       tripSelected: false,
-      abstainReasons: reasons,
+      abstainReasons: [...reasons],
     },
   ];
 }
 
+function candidateAbstainRow(
+  candidate: Ds4RpmPilotTripCandidateDescriptorV1,
+  reasons: readonly string[],
+): Ds4RpmPilotRankedTripCandidateV1 {
+  return {
+    rank: 0,
+    candidate,
+    selectionScore: -1,
+    planningClassifications: classifyDs4RpmPilotScientificPlanningV1({
+      telemetrySourceFamily: candidate.telemetrySourceFamily,
+      sourceFamilyAttestation: candidate.sourceFamilyAttestation,
+      v1bAdmissionSucceeded: candidate.v1bAdmissionSucceeded,
+      motionRunPresent: candidate.motionRunPresent,
+      rpmPointCount: candidate.rpmPointCount,
+      authorizedRealObservation: false,
+      dataQualityAssessmentEvidencePresent: candidate.dataQualityAssessmentEvidencePresent,
+    }),
+    tripSelected: false,
+    abstainReasons: [...reasons],
+  };
+}
+
+function identityMissing(candidate: Ds4RpmPilotTripCandidateDescriptorV1): boolean {
+  return (
+    candidate.organizationId == null ||
+    candidate.vehicleId == null ||
+    candidate.providerSourceLinkId == null
+  );
+}
+
+function gateReasons(candidate: Ds4RpmPilotTripCandidateDescriptorV1, selectionScore: number): string[] {
+  const reasons: string[] = [];
+  if (identityMissing(candidate)) {
+    reasons.push('MISSING_TENANT_OR_SOURCE_LINK_BINDING');
+    return reasons;
+  }
+  if (selectionScore < 0) {
+    if (!candidate.motionRunPresent) reasons.push('MISSING_MOTION_RUN');
+    if (!candidate.v1bInputFingerprintPresent) reasons.push('MISSING_V1B_INPUT_FINGERPRINT');
+    if (!candidate.v1bAdmissionSucceeded) reasons.push('V1B_ADMISSION_NOT_SUCCEEDED');
+  }
+  return reasons;
+}
+
 function scoreCandidate(c: Ds4RpmPilotTripCandidateDescriptorV1): number {
-  if (c.organizationId == null || c.vehicleId == null || c.providerSourceLinkId == null) {
+  if (identityMissing(c)) {
     return -1;
   }
   if (!c.v1bInputFingerprintPresent || !c.v1bAdmissionSucceeded) {
@@ -74,65 +122,74 @@ function scoreCandidate(c: Ds4RpmPilotTripCandidateDescriptorV1): number {
   return score;
 }
 
+export type RankDs4RpmPilotTripCandidatesOptionsV1 = {
+  cohortContext: Ds4RpmPilotPreparationTargetCohortV1;
+};
+
 /**
  * Deterministic offline ranking — does not select a trip as authoritative.
- * Tie-breaker: higher score, then lexicographic candidateTripId.
+ * Invalid rows abstain individually; valid rows ranked within cohort.
  */
 export function rankDs4RpmPilotTripCandidatesV1(
   candidates: readonly Ds4RpmPilotTripCandidateDescriptorV1[],
+  options: RankDs4RpmPilotTripCandidatesOptionsV1,
 ): Ds4RpmPilotRankedTripCandidateV1[] {
   const scoped = candidates.filter((c) => assertPilotCohortInScope(c.cohortVehicleLabel));
   if (scoped.length === 0) {
-    return abstain(['NO_IN_SCOPE_CANDIDATES']);
+    return cohortEmptyAbstain(options.cohortContext, ['NO_IN_SCOPE_CANDIDATES']);
   }
 
-  const missingIdentity = scoped.some(
-    (c) => c.organizationId == null || c.vehicleId == null || c.providerSourceLinkId == null,
-  );
-  if (missingIdentity) {
-    return abstain(['MISSING_TENANT_OR_SOURCE_LINK_BINDING']);
-  }
+  const abstainRows: Ds4RpmPilotRankedTripCandidateV1[] = [];
+  const defensible: Array<{
+    candidate: Ds4RpmPilotTripCandidateDescriptorV1;
+    selectionScore: number;
+    planningClassifications: ReturnType<typeof classifyDs4RpmPilotScientificPlanningV1>;
+  }> = [];
 
-  const scored = scoped
-    .map((candidate) => {
-      const selectionScore = scoreCandidate(candidate);
-      const planningClassifications = classifyDs4RpmPilotScientificPlanningV1({
+  for (const candidate of scoped) {
+    const selectionScore = scoreCandidate(candidate);
+    if (selectionScore < 0) {
+      abstainRows.push(candidateAbstainRow(candidate, gateReasons(candidate, selectionScore)));
+      continue;
+    }
+    defensible.push({
+      candidate,
+      selectionScore,
+      planningClassifications: classifyDs4RpmPilotScientificPlanningV1({
         telemetrySourceFamily: candidate.telemetrySourceFamily,
         sourceFamilyAttestation: candidate.sourceFamilyAttestation,
         v1bAdmissionSucceeded: candidate.v1bAdmissionSucceeded,
         motionRunPresent: candidate.motionRunPresent,
         rpmPointCount: candidate.rpmPointCount,
         authorizedRealObservation: false,
-      });
-      const abstainReasons: string[] = [];
-      if (selectionScore < 0) {
-        if (!candidate.motionRunPresent) abstainReasons.push('MISSING_MOTION_RUN');
-        if (!candidate.v1bInputFingerprintPresent) abstainReasons.push('MISSING_V1B_INPUT_FINGERPRINT');
-        if (!candidate.v1bAdmissionSucceeded) abstainReasons.push('V1B_ADMISSION_NOT_SUCCEEDED');
-      }
-      return {
-        candidate,
-        selectionScore,
-        planningClassifications,
-        abstainReasons,
-      };
-    })
-    .filter((row) => row.selectionScore >= 0)
-    .sort((a, b) => {
-      if (b.selectionScore !== a.selectionScore) return b.selectionScore - a.selectionScore;
-      return a.candidate.candidateTripId.localeCompare(b.candidate.candidateTripId);
+        dataQualityAssessmentEvidencePresent: candidate.dataQualityAssessmentEvidencePresent,
+      }),
     });
-
-  if (scored.length === 0) {
-    return abstain(['NO_DEFENSIBLE_CANDIDATES_AFTER_GATES']);
   }
 
-  return scored.map((row, index) => ({
+  defensible.sort((a, b) => {
+    if (b.selectionScore !== a.selectionScore) return b.selectionScore - a.selectionScore;
+    return a.candidate.candidateTripId.localeCompare(b.candidate.candidateTripId);
+  });
+
+  const ranked: Ds4RpmPilotRankedTripCandidateV1[] = defensible.map((row, index) => ({
     rank: index + 1,
     candidate: row.candidate,
     selectionScore: row.selectionScore,
     planningClassifications: row.planningClassifications,
     tripSelected: false,
-    abstainReasons: row.abstainReasons,
+    abstainReasons: [],
   }));
+
+  abstainRows.sort((a, b) =>
+    a.candidate.candidateTripId.localeCompare(b.candidate.candidateTripId),
+  );
+
+  if (ranked.length === 0) {
+    return abstainRows.length > 0
+      ? abstainRows
+      : cohortEmptyAbstain(options.cohortContext, ['NO_DEFENSIBLE_CANDIDATES_AFTER_GATES']);
+  }
+
+  return [...ranked, ...abstainRows];
 }

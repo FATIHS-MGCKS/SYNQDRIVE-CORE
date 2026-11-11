@@ -34,8 +34,14 @@ export function buildDs4RpmPilotPreparationReportV1(input: {
   ) as Ds4RpmPilotPreparationReportV1['ds4Readiness'];
 
   const candidateRankingByCohort = {
-    AUDI_A4: rankDs4RpmPilotTripCandidatesV1(candidates.filter((c) => c.cohortVehicleLabel === 'AUDI_A4')),
-    VW_TIGUAN: rankDs4RpmPilotTripCandidatesV1(candidates.filter((c) => c.cohortVehicleLabel === 'VW_TIGUAN')),
+    AUDI_A4: rankDs4RpmPilotTripCandidatesV1(
+      candidates.filter((c) => c.cohortVehicleLabel === 'AUDI_A4'),
+      { cohortContext: 'AUDI_A4' },
+    ),
+    VW_TIGUAN: rankDs4RpmPilotTripCandidatesV1(
+      candidates.filter((c) => c.cohortVehicleLabel === 'VW_TIGUAN'),
+      { cohortContext: 'VW_TIGUAN' },
+    ),
   } satisfies Ds4RpmPilotPreparationReportV1['candidateRankingByCohort'];
 
   const minimalReadPlan = Object.fromEntries(

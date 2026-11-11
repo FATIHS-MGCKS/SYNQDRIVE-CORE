@@ -84,6 +84,8 @@ export type Ds4RpmPilotTripCandidateDescriptorV1 = {
   vsiCadenceTier: Ds4RpmPilotCadenceReadinessTierV1 | null;
   telemetrySourceFamily: TelemetrySourceFamily | null;
   sourceFamilyAttestation: 'PROVEN' | 'UNPROVEN' | 'UNKNOWN';
+  /** True only when independent assessment artifacts exist — never from RPM point count alone. */
+  dataQualityAssessmentEvidencePresent: boolean;
 };
 
 export type Ds4RpmPilotRankedTripCandidateV1 = {
