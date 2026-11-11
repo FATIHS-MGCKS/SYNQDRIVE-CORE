@@ -2,6 +2,7 @@
 
 | Date | Change | Author/workstream |
 |------|--------|-------------------|
+| 2026-11-11 | APDS V3 P1B1 R2 final closeout — runtime/budget mutex scope, physical-fetch vs enqueue correlation, baseline link fail-closed, P2C strict advance, dual-client Postgres concurrency cert (`apds-v3-shadow-concurrency.postgres.integration.spec.ts`); valid DIMO `DimoVehicle` fixture for `vehicle_data_source_links_provider_reference_check`; SynqDrive Code Changes/Architektur; no deploy (PR #2399) | APDS V3 P1B1 |
 | 2026-11-10 | APDS V3 P1B0 architecture remediation (H1–H5): B2∩B4 intersection semantics, consumer fail-closed gate, causal evidence validator, replay accounting, verified baseline `isSnapshotPollDue` adapter; PR #2396 | APDS V3 P1B0 |
 | 2026-11-10 | APDS V3 P1B0 offline-only consumer demand registry, VSI information-gain heuristic, V3 policy evaluator, replay core + CLI harness; architecture contracts; no production activation (draft PR) | APDS V3 P1B0 |
 | 2026-10-24 | APDS shadow P1 — frozen `INVALID_LEGACY_DEVELOPMENT_TRIP_EVIDENCE` exclusion for vehicle `8c850ff1-…` trips `00842a6e-…` / `ba613969-…` in reconciliation query corpus only; no `vehicle_trips` mutation; metrics + structured log | P2.5 APDS shadow |
