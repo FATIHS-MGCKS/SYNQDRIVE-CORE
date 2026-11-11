@@ -1,3 +1,4 @@
+import { masterIntelligenceVsiV2Tr } from './master.intelligence.vsi-v2.tr';
 export const masterIntelligenceTr = {
   'master.nav.vsiIntelligence': 'VSI – sinyal istihbaratı',
   'master.nav.apdsIntelligence': 'APDS – uyarlanabilir polling',
@@ -82,7 +83,7 @@ export const masterIntelligenceTr = {
   'master.intelligence.section.crossLinks': 'Çapraz bağlantılar',
   'master.intelligence.section.previewComponents': 'Sunum önizlemesi (canlı veri yok)',
   'master.intelligence.section.evidenceSemantics': 'Kanıt anlamları',
-  'master.intelligence.url.invalidParams': 'Geçersiz URL parametreleri yok sayıldı: {{params}}',
+  'master.intelligence.url.invalidParams': 'Geçersiz URL parametreleri yok sayıldı: {params}',
   'master.intelligence.vsi.previewNote':
     'Rozetler yalnızca backend etiket anlamını gösterir. PR1’de üretim verisi yüklenmez.',
   'master.intelligence.vsi.empty.title': 'Okuma API’leri henüz bağlı değil',
@@ -96,7 +97,7 @@ export const masterIntelligenceTr = {
   'master.intelligence.crossLink.vsi': 'VSI aç',
   'master.intelligence.crossLink.apds': 'APDS aç',
   'master.intelligence.crossLink.contextMissing':
-    '{{target}} bağlantısı URL’de daha fazla bağlam gerektirir (PR2/PR3).',
+    '{target} bağlantısı URL’de daha fazla bağlam gerektirir (PR2/PR3).',
   'master.intelligence.badge.lv.LV_8H_OBSERVED': 'LV ~8 sa gözlemlendi',
   'master.intelligence.badge.lv.LV_24H_OBSERVED': 'LV ~24 sa gözlemlendi',
   'master.intelligence.badge.lv.UNKNOWN': 'LV bilinmiyor',
@@ -114,7 +115,7 @@ export const masterIntelligenceTr = {
   'master.intelligence.badge.rpm.explain.UNKNOWN': 'Kararlı etiket için yetersiz RPM kadans kanıtı.',
   'master.intelligence.badge.rpm.notApplicableNote':
     'ICE RPM profili uygulanamaz (ör. BEV). Bu, bilinmeyen sinyal kalitesi ile aynı değildir.',
-  'master.intelligence.badge.limitation': 'Backend sınırlaması: {{code}}',
+  'master.intelligence.badge.limitation': 'Backend sınırlaması: {code}',
   'master.intelligence.confidence.HIGH': 'Güven: yüksek',
   'master.intelligence.confidence.MEDIUM': 'Güven: orta',
   'master.intelligence.confidence.LOW': 'Güven: düşük',
@@ -142,7 +143,7 @@ export const masterIntelligenceTr = {
   'master.intelligence.evidence.kind.evaluation_blocked': 'Tür: değerlendirme engellendi',
   'master.intelligence.blocked.title': 'Değerlendirme engellendi',
   'master.intelligence.blocked.body':
-    'Profil sınıflandırması duraklatıldı ({{code}}). Eski etiket güncel gibi gösterilmemelidir.',
+    'Profil sınıflandırması duraklatıldı ({code}). Eski etiket güncel gibi gösterilmemelidir.',
 
   'master.intelligence.section.fleetOverview': 'Filo kapsamı ve profiller',
   'master.intelligence.section.signals': 'Sinyal detayı',
@@ -164,8 +165,8 @@ export const masterIntelligenceTr = {
   'master.intelligence.vsi.noProfiles.body':
     'Bu araç için henüz capability profili yok. Bu, devre dışı revizyon geçmişi ile aynı değildir.',
 
-  'master.intelligence.vsi.decision.lv': 'LV karar kodu: {{code}}',
-  'master.intelligence.vsi.decision.rpm': 'RPM karar kodu: {{code}}',
+  'master.intelligence.vsi.decision.lv': 'LV karar kodu: {code}',
+  'master.intelligence.vsi.decision.rpm': 'RPM karar kodu: {code}',
 
   'master.intelligence.vsi.signals.intro':
     'Kadans etiketleri gözlemlenen iletim desenlerini anlatır; yerel donanım yapılandırması değildir.',
@@ -214,7 +215,7 @@ export const masterIntelligenceTr = {
   'master.intelligence.vsi.signals.rpmDual.snapshotShort': 'Anlık görüntü',
   'master.intelligence.vsi.signals.rpmDual.cadenceShort': 'HF/kadans',
   'master.intelligence.vsi.signals.rpmDual.hfEvidenceLine':
-    '{{profile}} profili · {{samples}} HF örneği (panele bakın)',
+    '{profile} profili · {samples} HF örneği (panele bakın)',
   'master.intelligence.vsi.signals.rpmDual.seePanel': 'Aşağıdaki panele bakın',
 
   'master.intelligence.vsi.signals.limitations': 'Sınırlamalar',
@@ -338,7 +339,7 @@ export const masterIntelligenceTr = {
   'master.intelligence.vsi.ledger.filters.hasLimitations': 'Sınırlamalı',
   'master.intelligence.vsi.ledger.filters.hasHf': 'Atfedilebilir HF',
   'master.intelligence.vsi.ledger.filters.hideNA': 'Uygulanamazları gizle',
-  'master.intelligence.vsi.ledger.filters.resultCount': '{{total}} sinyalden {{shown}}',
+  'master.intelligence.vsi.ledger.filters.resultCount': '{total} sinyalden {shown}',
   'master.intelligence.vsi.ledger.col.signal': 'Sinyal',
   'master.intelligence.vsi.ledger.col.qualityConfidence': 'Kalite / güven',
   'master.intelligence.vsi.ledger.col.lastObservation': 'Son geçerli gözlem',
@@ -346,11 +347,11 @@ export const masterIntelligenceTr = {
   'master.intelligence.vsi.ledger.col.provenance': 'Kanıt',
   'master.intelligence.vsi.ledger.col.action': 'Ayrıntıyı aç',
   'master.intelligence.vsi.ledger.table.caption': 'Araç sinyal kanıt defteri',
-  'master.intelligence.vsi.ledger.selectSignal': '{{signal}} sinyalini seç',
+  'master.intelligence.vsi.ledger.selectSignal': '{signal} sinyalini seç',
   'master.intelligence.vsi.ledger.emptyFiltered': 'Filtrelere uyan sinyal yok.',
   'master.intelligence.vsi.ledger.multiLinkNotice':
-    '{{count}} kaynak bağlantısı — kanıt yalnızca seçili bağlantı için geçerlidir.',
-  'master.intelligence.vsi.ledger.footerMeta': '{{count}} sinyal · profil revizyonu {{revision}}',
+    '{count} kaynak bağlantısı — kanıt yalnızca seçili bağlantı için geçerlidir.',
+  'master.intelligence.vsi.ledger.footerMeta': '{count} sinyal · profil revizyonu {revision}',
 
   'master.intelligence.vsi.ledger.detail.section.summary': 'Kanıt özeti',
   'master.intelligence.vsi.ledger.detail.section.timeline': 'Kanıt zaman çizelgesi',
@@ -361,7 +362,7 @@ export const masterIntelligenceTr = {
   'master.intelligence.vsi.ledger.detail.timeline.evaluatedAt': 'Profil değerlendirme zamanı',
   'master.intelligence.vsi.ledger.detail.context.vehicle': 'Araç',
   'master.intelligence.vsi.ledger.detail.context.link': 'Kaynak bağlantısı',
-  'master.intelligence.vsi.ledger.detail.context.revision': 'Profil revizyonu {{revision}}',
+  'master.intelligence.vsi.ledger.detail.context.revision': 'Profil revizyonu {revision}',
   'master.intelligence.vsi.ledger.detail.lv.standbyProfile': 'LV bekleme profili',
   'master.intelligence.vsi.ledger.detail.lv.classification': 'Sınıflandırma kararı',
   'master.intelligence.vsi.ledger.detail.lv.confidence': 'Kanıt güveni',
@@ -414,7 +415,7 @@ export const masterIntelligenceTr = {
   'master.intelligence.tireCalibration.accuracy.notEvaluable.body':
     'Independent measurement pairs are not persisted yet. MAE, bias, and coverage cannot be computed.',
   'master.intelligence.tireCalibration.accuracy.policyOpportunities':
-    'Policy pairing opportunities (sampled, not confirmed pairs): {{count}}',
+    'Policy pairing opportunities (sampled, not confirmed pairs): {count}',
   'master.intelligence.tireCalibration.quality.sampledScope':
     'Rejection counts are from a sampled policy re-evaluation (recent measurements × wheels) — not a global census.',
   'master.intelligence.tireCalibration.quality.pairableCount': 'Policy-eligible pairings (sampled)',
@@ -516,4 +517,6 @@ export const masterIntelligenceTr = {
   'master.intelligence.tireCalibration.inventory.attribution.notLinkedToCurrent':
     'Historical measurement is not attributed to the currently mounted tire.',
 
+
+  ...masterIntelligenceVsiV2Tr,
 } as const;

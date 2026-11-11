@@ -35,7 +35,12 @@ import {
 } from './navigation/master-nav-url';
 import { isBillingOnlyMasterUser } from './navigation/master-nav-permissions';
 import { applyMasterDrilldownUrl } from './navigation/master-drilldown';
-import { pushMasterIntelligenceUrl, emptyIntelligenceContext } from './intelligence/master-intelligence-url';
+import {
+  pushMasterIntelligenceUrl,
+  emptyIntelligenceContext,
+  parseMasterIntelligenceContext,
+} from './intelligence/master-intelligence-url';
+import { normalizeContextForIntelligenceView } from './intelligence/master-intelligence-context-hygiene.util';
 import type { MasterNavLocationState } from './navigation/master-nav.types';
 import { Toaster, toast } from 'sonner';
 import type { Organization, PlatformUser } from './data/platform-data';
@@ -200,7 +205,17 @@ export default function App() {
     if (normalized.settingsTab) setSettingsTab(normalized.settingsTab);
     setArchCategory(parseArchCategory(normalized.archCategory));
     setHmTab(parseHmTab(normalized.hmTab));
-    pushMasterNavState(normalized, true);
+    const search =
+      migrated !== window.location.search ? migrated : window.location.search;
+    if (normalized.view === 'vsi-intelligence' || normalized.view === 'apds-intelligence') {
+      const intelligenceContext = normalizeContextForIntelligenceView(
+        normalized.view,
+        parseMasterIntelligenceContext(search),
+      );
+      pushMasterIntelligenceUrl(normalized.view, intelligenceContext, { replace: true });
+    } else {
+      pushMasterNavState(normalized, true);
+    }
   }, []);
 
   useEffect(() => {

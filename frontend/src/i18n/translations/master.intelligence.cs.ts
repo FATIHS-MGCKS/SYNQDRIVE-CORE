@@ -1,3 +1,4 @@
+import { masterIntelligenceVsiV2Cs } from './master.intelligence.vsi-v2.cs';
 export const masterIntelligenceCs = {
   'master.nav.vsiIntelligence': 'VSI – inteligence signálů',
   'master.nav.apdsIntelligence': 'APDS – adaptivní polling',
@@ -82,7 +83,7 @@ export const masterIntelligenceCs = {
   'master.intelligence.section.crossLinks': 'Přechody',
   'master.intelligence.section.previewComponents': 'Náhled prezentace (ne živá data)',
   'master.intelligence.section.evidenceSemantics': 'Význam důkazů',
-  'master.intelligence.url.invalidParams': 'Ignorované neplatné parametry URL: {{params}}',
+  'master.intelligence.url.invalidParams': 'Ignorované neplatné parametry URL: {params}',
   'master.intelligence.vsi.previewNote':
     'Odznaky ukazují jen sémantiku backendových štítků. V PR1 se nenačítají produkční data.',
   'master.intelligence.vsi.empty.title': 'Read API zatím nepropojena',
@@ -95,7 +96,7 @@ export const masterIntelligenceCs = {
   'master.intelligence.crossLink.device': 'Otevřít inventář zařízení',
   'master.intelligence.crossLink.vsi': 'Otevřít VSI',
   'master.intelligence.crossLink.apds': 'Otevřít APDS',
-  'master.intelligence.crossLink.contextMissing': 'Odkaz na {{target}} vyžaduje více kontextu v URL (PR2/PR3).',
+  'master.intelligence.crossLink.contextMissing': 'Odkaz na {target} vyžaduje více kontextu v URL (PR2/PR3).',
   'master.intelligence.badge.lv.LV_8H_OBSERVED': 'LV ~8 h pozorováno',
   'master.intelligence.badge.lv.LV_24H_OBSERVED': 'LV ~24 h pozorováno',
   'master.intelligence.badge.lv.UNKNOWN': 'LV neznámé',
@@ -113,7 +114,7 @@ export const masterIntelligenceCs = {
   'master.intelligence.badge.rpm.explain.UNKNOWN': 'Nedostatečné důkazy kadence RPM pro stabilní štítek.',
   'master.intelligence.badge.rpm.notApplicableNote':
     'Profil RPM spalovacího motoru neplatí (např. BEV). To není totéž jako neznámá kvalita signálu.',
-  'master.intelligence.badge.limitation': 'Omezení backendu: {{code}}',
+  'master.intelligence.badge.limitation': 'Omezení backendu: {code}',
   'master.intelligence.confidence.HIGH': 'Spolehlivost: vysoká',
   'master.intelligence.confidence.MEDIUM': 'Spolehlivost: střední',
   'master.intelligence.confidence.LOW': 'Spolehlivost: nízká',
@@ -141,7 +142,7 @@ export const masterIntelligenceCs = {
   'master.intelligence.evidence.kind.evaluation_blocked': 'Druh: vyhodnocení blokováno',
   'master.intelligence.blocked.title': 'Vyhodnocení blokováno',
   'master.intelligence.blocked.body':
-    'Klasifikace profilu pozastavena ({{code}}). Starší štítek nesmí být zobrazen jako aktuální.',
+    'Klasifikace profilu pozastavena ({code}). Starší štítek nesmí být zobrazen jako aktuální.',
 
   'master.intelligence.section.fleetOverview': 'Rozsah flotily a profily',
   'master.intelligence.section.signals': 'Detail signálu',
@@ -163,8 +164,8 @@ export const masterIntelligenceCs = {
   'master.intelligence.vsi.noProfiles.body':
     'Pro toto vozidlo zatím neexistuje capability profil. To není totéž jako vypnutá historie revizí.',
 
-  'master.intelligence.vsi.decision.lv': 'LV rozhodovací kód: {{code}}',
-  'master.intelligence.vsi.decision.rpm': 'RPM rozhodovací kód: {{code}}',
+  'master.intelligence.vsi.decision.lv': 'LV rozhodovací kód: {code}',
+  'master.intelligence.vsi.decision.rpm': 'RPM rozhodovací kód: {code}',
 
   'master.intelligence.vsi.signals.intro':
     'Cadence štítky popisují pozorované vzory přenosu, ne nativní konfiguraci hardwaru.',
@@ -214,7 +215,7 @@ export const masterIntelligenceCs = {
   'master.intelligence.vsi.signals.rpmDual.snapshotShort': 'Snímek',
   'master.intelligence.vsi.signals.rpmDual.cadenceShort': 'HF/kadence',
   'master.intelligence.vsi.signals.rpmDual.hfEvidenceLine':
-    'Profil {{profile}} · {{samples}} HF vzorků (viz panel)',
+    'Profil {profile} · {samples} HF vzorků (viz panel)',
   'master.intelligence.vsi.signals.rpmDual.seePanel': 'Viz panel níže',
 
   'master.intelligence.vsi.revision.loading': 'Načítání historie revizí…',
@@ -336,7 +337,7 @@ export const masterIntelligenceCs = {
   'master.intelligence.vsi.ledger.filters.hasLimitations': 'Má limitace',
   'master.intelligence.vsi.ledger.filters.hasHf': 'Má přiřaditelné HF',
   'master.intelligence.vsi.ledger.filters.hideNA': 'Skrýt neplatné',
-  'master.intelligence.vsi.ledger.filters.resultCount': '{{shown}} z {{total}} signálů',
+  'master.intelligence.vsi.ledger.filters.resultCount': '{shown} z {total} signálů',
   'master.intelligence.vsi.ledger.col.signal': 'Signál',
   'master.intelligence.vsi.ledger.col.qualityConfidence': 'Kvalita / spolehlivost',
   'master.intelligence.vsi.ledger.col.lastObservation': 'Poslední platné pozorování',
@@ -344,11 +345,11 @@ export const masterIntelligenceCs = {
   'master.intelligence.vsi.ledger.col.provenance': 'Důkazy',
   'master.intelligence.vsi.ledger.col.action': 'Otevřít detail',
   'master.intelligence.vsi.ledger.table.caption': 'Registr důkazů signálů vozidla',
-  'master.intelligence.vsi.ledger.selectSignal': 'Vybrat signál {{signal}}',
+  'master.intelligence.vsi.ledger.selectSignal': 'Vybrat signál {signal}',
   'master.intelligence.vsi.ledger.emptyFiltered': 'Žádný signál neodpovídá filtrům.',
   'master.intelligence.vsi.ledger.multiLinkNotice':
-    '{{count}} source linků — důkazy platí pouze pro vybraný link.',
-  'master.intelligence.vsi.ledger.footerMeta': '{{count}} signálů · revize profilu {{revision}}',
+    '{count} source linků — důkazy platí pouze pro vybraný link.',
+  'master.intelligence.vsi.ledger.footerMeta': '{count} signálů · revize profilu {revision}',
 
   'master.intelligence.vsi.ledger.detail.section.summary': 'Souhrn důkazů',
   'master.intelligence.vsi.ledger.detail.section.timeline': 'Časová osa důkazů',
@@ -359,7 +360,7 @@ export const masterIntelligenceCs = {
   'master.intelligence.vsi.ledger.detail.timeline.evaluatedAt': 'Profil vyhodnocen',
   'master.intelligence.vsi.ledger.detail.context.vehicle': 'Vozidlo',
   'master.intelligence.vsi.ledger.detail.context.link': 'Zdrojový odkaz',
-  'master.intelligence.vsi.ledger.detail.context.revision': 'Revize profilu {{revision}}',
+  'master.intelligence.vsi.ledger.detail.context.revision': 'Revize profilu {revision}',
   'master.intelligence.vsi.ledger.detail.lv.standbyProfile': 'LV standby profil',
   'master.intelligence.vsi.ledger.detail.lv.classification': 'Rozhodnutí klasifikace',
   'master.intelligence.vsi.ledger.detail.lv.confidence': 'Spolehlivost důkazu',
@@ -412,7 +413,7 @@ export const masterIntelligenceCs = {
   'master.intelligence.tireCalibration.accuracy.notEvaluable.body':
     'Independent measurement pairs are not persisted yet. MAE, bias, and coverage cannot be computed.',
   'master.intelligence.tireCalibration.accuracy.policyOpportunities':
-    'Policy pairing opportunities (sampled, not confirmed pairs): {{count}}',
+    'Policy pairing opportunities (sampled, not confirmed pairs): {count}',
   'master.intelligence.tireCalibration.quality.sampledScope':
     'Rejection counts are from a sampled policy re-evaluation (recent measurements × wheels) — not a global census.',
   'master.intelligence.tireCalibration.quality.pairableCount': 'Policy-eligible pairings (sampled)',
@@ -514,4 +515,6 @@ export const masterIntelligenceCs = {
   'master.intelligence.tireCalibration.inventory.attribution.notLinkedToCurrent':
     'Historical measurement is not attributed to the currently mounted tire.',
 
+
+  ...masterIntelligenceVsiV2Cs,
 } as const;

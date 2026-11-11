@@ -1,31 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { MasterPageHeader, MasterPageSection, MasterPageTabs } from '../shell';
 import { MasterIntelligenceContextProvider } from './MasterIntelligenceContextProvider';
 import { useMasterIntelligenceContext } from './useMasterIntelligenceContext';
 import { IntelligenceCrossLink } from './IntelligenceCrossLink';
 import { IntelligenceEmptyState } from './IntelligenceEmptyState';
-import {
-  EvaluationBlockedBanner,
-  EvidenceFreshnessHint,
-} from './EvidenceFreshnessHint';
-import {
-  ObservedDensityBadge,
-  ProfileConfidenceIndicator,
-  SignalProfileBadge,
-} from './SignalProfileBadge';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { api } from '../../lib/api';
-import { cn } from '../../components/ui/utils';
 import { useVsiMasterIntelligenceData } from './useVsiMasterIntelligenceData';
-import {
-  evidenceKindFromSummary,
-  mapConfidenceLevel,
-  mapObservedDensity,
-  mapSummaryToLvBadge,
-  mapSummaryToRpmBadge,
-} from './vsi-master-intelligence-ui.utils';
-import type { MasterVsiProfileSummaryDto } from './vsi-master-intelligence-api.types';
+import { useVsiMasterFsdReadData } from './useVsiMasterFsdReadData';
+import { resolveVsiTabForRender, isLegacyRevisionsTab } from './vsi-tab-navigation.util';
+import { VsiOverviewCockpitTab } from './tabs/VsiOverviewCockpitTab';
+import { VsiFsdSignalsTab } from './tabs/VsiFsdSignalsTab';
+import { VsiProfilesCadenceTab } from './tabs/VsiProfilesCadenceTab';
+import { VsiQueriesFrequenciesTab } from './tabs/VsiQueriesFrequenciesTab';
+import { VsiEvidenceQualityTab } from './tabs/VsiEvidenceQualityTab';
+import { VsiRunsRevisionsTab } from './tabs/VsiRunsRevisionsTab';
 import { VsiSignalLedgerTab } from './ledger/VsiSignalLedgerTab';
 import {
   EMPTY_VSI_LEDGER_FILTERS,
@@ -37,6 +27,7 @@ import {
   pruneLedgerFiltersForSignals,
 } from './vsi-ledger-url.util';
 import { applyVerifiedProviderSourceLink } from './master-intelligence-context-hygiene.util';
+import { resolveEffectiveProviderSourceLink } from './vsi-effective-link.util';
 
 function formatUtcProvenance(iso: string | null | undefined, locale: string): string {
   if (!iso) return '—';
@@ -44,57 +35,6 @@ function formatUtcProvenance(iso: string | null | undefined, locale: string): st
   if (Number.isNaN(ms)) return '—';
   const d = new Date(ms);
   return `${d.toISOString()} (${d.toLocaleString(locale)})`;
-}
-
-function ProfileSummaryCard({ profile }: { profile: MasterVsiProfileSummaryDto }) {
-  const { t } = useLanguage();
-  const lv = mapSummaryToLvBadge(profile);
-  const rpm = mapSummaryToRpmBadge(profile);
-
-  return (
-    <div className="rounded-lg border border-border/60 bg-card/30 p-3 text-xs">
-      <p className="font-medium">{profile.provider ?? profile.providerIdentity}</p>
-      <p className="mt-1 font-mono text-[10px] text-muted-foreground">{profile.providerSourceLinkId}</p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        <SignalProfileBadge kind="lv" profile={lv.profile} limitationCode={lv.limitationCode} />
-        <SignalProfileBadge kind="rpm" profile={rpm.profile} applicability={rpm.applicability} />
-        {profile.observedDensityLabel ? (
-          <ObservedDensityBadge density={mapObservedDensity(profile.observedDensityLabel)} />
-        ) : null}
-        {profile.lvEvidenceConfidence ? (
-          <ProfileConfidenceIndicator level={mapConfidenceLevel(profile.lvEvidenceConfidence)} />
-        ) : null}
-      </div>
-      {profile.evaluationBlocked ? (
-        <EvaluationBlockedBanner
-          limitationCode={profile.evaluationBlockedCodes[0]}
-          className="mt-3"
-        />
-      ) : null}
-      <EvidenceFreshnessHint
-        className="mt-3"
-        kind={evidenceKindFromSummary(profile)}
-        evaluatedAt={profile.evaluatedAt}
-        providerSourceTimestamp={profile.lastMaterializedSourceTimestamp}
-        providerFetchedAt={profile.lastMaterializedProviderFetchAt}
-        profileRevision={profile.profileRevision}
-      />
-      {profile.lvClassificationDecisionCode ? (
-        <p className="mt-2 text-muted-foreground">
-          {t('master.intelligence.vsi.decision.lv' as never, {
-            code: profile.lvClassificationDecisionCode,
-          })}
-        </p>
-      ) : null}
-      {profile.rpmClassificationDecisionCode ? (
-        <p className="text-muted-foreground">
-          {t('master.intelligence.vsi.decision.rpm' as never, {
-            code: profile.rpmClassificationDecisionCode,
-          })}
-        </p>
-      ) : null}
-    </div>
-  );
 }
 
 function VsiMasterIntelligenceContent() {
@@ -170,7 +110,21 @@ function VsiMasterIntelligenceContent() {
     [overview],
   );
 
-  const selectedLinkId = context.providerSourceLinkId;
+  const linkResolution = useMemo(
+    () =>
+      resolveEffectiveProviderSourceLink({
+        urlLinkId: context.providerSourceLinkId,
+        overview: overview ?? null,
+      }),
+    [context.providerSourceLinkId, overview],
+  );
+
+  const selectedLinkId = linkResolution.effectiveLinkId;
+
+  useEffect(() => {
+    if (!linkResolution.shouldPersistInUrl || !selectedLinkId) return;
+    setContextInUrl({ providerSourceLinkId: selectedLinkId }, { replace: true });
+  }, [linkResolution.shouldPersistInUrl, selectedLinkId, setContextInUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -254,10 +208,38 @@ function VsiMasterIntelligenceContent() {
   );
 
   const onTabChange = useCallback(
-    (tab: VsiIntelligenceTab) => {
-      setContextInUrl({ vsiTab: tab }, { replace: true });
+    (tab: string) => {
+      setContextInUrl({ vsiTab: tab as VsiIntelligenceTab }, { replace: true });
     },
     [setContextInUrl],
+  );
+
+  const fsd = useVsiMasterFsdReadData({
+    orgId: context.orgId,
+    vehicleId: context.vehicleId,
+    providerSourceLinkId: selectedLinkId,
+  });
+
+  const scopeKey = fsd.scopeKey;
+  const runsPrimedForScopeRef = useRef<string | null>(null);
+
+  const renderTab = resolveVsiTabForRender(context.vsiTab);
+
+  useEffect(() => {
+    if (!scopeKey) {
+      runsPrimedForScopeRef.current = null;
+      return;
+    }
+    const tab = resolveVsiTabForRender(context.vsiTab);
+    if (tab !== 'runs' && tab !== 'queries') return;
+    if (runsPrimedForScopeRef.current === scopeKey) return;
+    runsPrimedForScopeRef.current = scopeKey;
+    void fsd.loadRuns();
+  }, [scopeKey, context.vsiTab, fsd.loadRuns]);
+
+  const selectedOverviewProfile = useMemo(
+    () => overview?.profiles.find((p) => p.providerSourceLinkId === selectedLinkId) ?? null,
+    [overview, selectedLinkId],
   );
 
   const ledgerFilters = context.ledgerFilters;
@@ -301,25 +283,43 @@ function VsiMasterIntelligenceContent() {
   }, [linkOptions, selectedLinkId]);
 
   const hasScope = Boolean(context.orgId && context.vehicleId);
-  const activeTab = context.vsiTab;
+  const activeTab = renderTab;
 
   const tabs = useMemo(
     () => [
+      { id: 'overview' as const, label: t('master.intelligence.vsi.tabs.overview' as never) },
       {
-        id: 'overview' as const,
-        label: t('master.intelligence.vsi.tabs.overview' as never),
+        id: 'signals' as const,
+        label: t('master.intelligence.vsi.tabs.signals' as never),
+        disabled: !selectedLinkId,
+      },
+      {
+        id: 'profiles' as const,
+        label: t('master.intelligence.vsi.tabs.profiles' as never),
+        disabled: !profile,
+      },
+      {
+        id: 'queries' as const,
+        label: t('master.intelligence.vsi.tabs.queries' as never),
+        disabled: !selectedLinkId,
+      },
+      {
+        id: 'evidence' as const,
+        label: t('master.intelligence.vsi.tabs.evidence' as never),
+        disabled: !selectedLinkId && !profile,
+      },
+      {
+        id: 'runs' as const,
+        label: t('master.intelligence.vsi.tabs.runs' as never),
+        disabled: !selectedLinkId,
       },
       {
         id: 'ledger' as const,
         label: t('master.intelligence.vsi.tabs.ledger' as never),
         disabled: !profile,
       },
-      {
-        id: 'revisions' as const,
-        label: t('master.intelligence.vsi.tabs.revisions' as never),
-      },
     ],
-    [t, profile],
+    [t, profile, selectedLinkId],
   );
 
   return (
@@ -415,12 +415,24 @@ function VsiMasterIntelligenceContent() {
           />
         ) : null}
 
-        {hasScope && !loading && !error && overview && overview.profiles.length === 0 ? (
+        {hasScope &&
+        !loading &&
+        !error &&
+        overview &&
+        overview.profiles.length === 0 &&
+        !fsd.summary &&
+        !fsd.summaryLoading &&
+        !selectedLinkId ? (
           <IntelligenceEmptyState
             titleKey="master.intelligence.vsi.noProfiles.title"
             bodyKey="master.intelligence.vsi.noProfiles.body"
             className="mt-4"
           />
+        ) : null}
+        {hasScope && selectedLinkId && overview?.profiles.length === 0 && !profile && !loading ? (
+          <p className="mt-3 text-xs text-amber-800 dark:text-amber-200" role="status">
+            {t('master.intelligence.vsi.link.vsiProfileMissing' as never)}
+          </p>
         ) : null}
       </MasterPageSection>
 
@@ -435,15 +447,82 @@ function VsiMasterIntelligenceContent() {
       ) : null}
 
       {hasScope && activeTab === 'overview' ? (
-        <MasterPageSection title={t('master.intelligence.vsi.tabs.overview' as never)}>
-          {overview && overview.profiles.length > 0 ? (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {overview.profiles.map((p) => (
-                <ProfileSummaryCard key={p.providerSourceLinkId} profile={p} />
-              ))}
-            </div>
-          ) : null}
-        </MasterPageSection>
+        <VsiOverviewCockpitTab
+          orgLabel={orgOptions.find((o) => o.id === context.orgId)?.label ?? context.orgId}
+          vehicleLabel={vehicleContextLabel ?? null}
+          linkLabel={linkContextLabel ?? null}
+          providerSourceLinkId={selectedLinkId}
+          selectedProfile={selectedOverviewProfile}
+          allProfiles={overview?.profiles ?? []}
+          fsdSummary={fsd.summary}
+          fsdSummaryLoading={fsd.summaryLoading}
+          fsdSummaryError={fsd.summaryError}
+          formatTimestamp={formatTimestamp}
+          onOpenCanonicalLedger={() => onTabChange('ledger')}
+          onOpenFsdSignals={() => onTabChange('signals')}
+        />
+      ) : null}
+
+      {hasScope && activeTab === 'signals' && selectedLinkId ? (
+        <VsiFsdSignalsTab
+          scopeKey={scopeKey}
+          signals={fsd.signals}
+          signalsSearch={fsd.signalsSearch}
+          signalsLoading={fsd.signalsLoading}
+          signalsError={fsd.signalsError}
+          onLoadPage={fsd.loadSignalsPage}
+          onSearch={fsd.searchSignals}
+          catalogAuthoritative={fsd.summary?.catalog.availability === 'AUTHORITATIVE_LIVE'}
+          historicalLink={fsd.summary?.execution.fsd4.historicalCrossStreamLink ?? 'NOT_AVAILABLE'}
+        />
+      ) : null}
+
+      {hasScope && activeTab === 'profiles' ? (
+        <VsiProfilesCadenceTab profile={profile} formatTimestamp={formatTimestamp} />
+      ) : null}
+
+      {hasScope && activeTab === 'queries' && selectedLinkId ? (
+        <VsiQueriesFrequenciesTab
+          runs={fsd.runs}
+          runsLoading={fsd.runsLoading}
+          runsError={fsd.runsError}
+          inspector={fsd.inspector}
+          inspectorLoading={fsd.inspectorLoading}
+          inspectorError={fsd.inspectorError}
+          selectedRunId={fsd.selectedRunId}
+          onLoadRuns={() => void fsd.loadRuns()}
+          onLoadMoreRuns={() => void fsd.loadRuns({ cursor: fsd.runs?.page.nextCursor ?? null, append: true })}
+          onSelectRun={(runId) => void fsd.loadInspector(runId)}
+          formatTimestamp={formatTimestamp}
+        />
+      ) : null}
+
+      {hasScope && activeTab === 'evidence' ? (
+        <VsiEvidenceQualityTab fsdSummary={fsd.summary} profile={profile} inspector={fsd.inspector} />
+      ) : null}
+
+      {hasScope && activeTab === 'runs' && selectedLinkId ? (
+        <VsiRunsRevisionsTab
+          runs={fsd.runs}
+          runsLoading={fsd.runsLoading}
+          runsError={fsd.runsError}
+          onLoadRuns={() => void fsd.loadRuns()}
+          onLoadMoreRuns={() => void fsd.loadRuns({ cursor: fsd.runs?.page.nextCursor ?? null, append: true })}
+          onSelectRun={(runId) => void fsd.loadInspector(runId)}
+          selectedRunId={fsd.selectedRunId}
+          inspector={fsd.inspector}
+          inspectorLoading={fsd.inspectorLoading}
+          inspectorError={fsd.inspectorError}
+          revisions={revisions}
+          revisionsLoading={revisionsLoading}
+          revisionsError={revisionsError}
+          revisionAsOf={revisionAsOf}
+          asOf={context.asOf}
+          capabilityExplanation={capabilityExplanation}
+          formatTimestamp={formatTimestamp}
+          onRefreshRevisions={refreshRevisions}
+          legacyRevisionsUrl={isLegacyRevisionsTab(context.vsiTab)}
+        />
       ) : null}
 
       {hasScope && activeTab === 'ledger' ? (
@@ -476,95 +555,6 @@ function VsiMasterIntelligenceContent() {
             />
           ) : null}
         </MasterPageSection>
-      ) : null}
-
-      {hasScope && activeTab === 'revisions' ? (
-        <>
-          {revisionsError ? (
-            <MasterPageSection title={t('master.intelligence.section.revisions' as never)}>
-              <div className="rounded border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive" role="alert">
-                <p>{t('master.intelligence.vsi.revision.loadError' as never)}</p>
-                <p className="mt-1 font-mono">{revisionsError}</p>
-                <button type="button" className="mt-2 underline" onClick={() => void refreshRevisions()}>
-                  {t('master.intelligence.vsi.revision.retry' as never)}
-                </button>
-              </div>
-            </MasterPageSection>
-          ) : null}
-
-          {revisionsLoading ? (
-            <MasterPageSection title={t('master.intelligence.section.revisions' as never)}>
-              <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                {t('master.intelligence.vsi.revision.loading' as never)}
-              </p>
-            </MasterPageSection>
-          ) : null}
-
-          {revisions ? (
-            <MasterPageSection title={t('master.intelligence.section.revisions' as never)}>
-              {revisions.captureStatus === 'NOT_CAPTURED' ? (
-                <div className="rounded border border-amber-500/30 bg-amber-500/5 p-3 text-xs" role="status">
-                  <p className="font-medium">{t('master.intelligence.vsi.revision.notCaptured' as never)}</p>
-                  <p className="mt-1 text-muted-foreground">
-                    {t('master.intelligence.vsi.revision.notCapturedExplain' as never)}
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <ul className="space-y-2 text-xs">
-                    {revisions.items.map((item) => (
-                      <li
-                        key={item.profileRevision}
-                        className="rounded border border-border/50 px-2 py-1.5 font-mono"
-                      >
-                        rev {item.profileRevision} · LV {item.lvStandbyProfile} · RPM {item.rpmActiveProfile}
-                        <span className="ml-2 text-muted-foreground">
-                          {formatTimestamp(item.evaluatedAt)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  {revisions.page.hasMore ? (
-                    <p className="mt-2 text-muted-foreground">
-                      {t('master.intelligence.vsi.revision.moreAvailable' as never)}
-                    </p>
-                  ) : null}
-                </>
-              )}
-            </MasterPageSection>
-          ) : null}
-
-          {revisionAsOf && context.asOf ? (
-            <MasterPageSection title={t('master.intelligence.vsi.asOf.title' as never)}>
-              <p className="text-xs text-muted-foreground">
-                {t('master.intelligence.vsi.asOf.decisionAt' as never)}:{' '}
-                {formatTimestamp(revisionAsOf.decisionAt)}
-              </p>
-              <p className="mt-1 text-xs">
-                {t('master.intelligence.vsi.asOf.authority' as never)}: {revisionAsOf.authority}
-              </p>
-              {revisionAsOf.selectedRevision ? (
-                <p className="mt-1 font-mono text-xs">
-                  rev {revisionAsOf.selectedRevision.profileRevision} · LV{' '}
-                  {revisionAsOf.selectedRevision.lvStandbyProfile}
-                </p>
-              ) : null}
-            </MasterPageSection>
-          ) : null}
-
-          {capabilityExplanation ? (
-            <MasterPageSection title={t('master.intelligence.section.capability' as never)}>
-              <pre
-                className={cn(
-                  'max-h-64 overflow-auto rounded border border-border/50 bg-muted/20 p-2 text-[10px]',
-                )}
-              >
-                {JSON.stringify(capabilityExplanation, null, 2)}
-              </pre>
-            </MasterPageSection>
-          ) : null}
-        </>
       ) : null}
 
       <MasterPageSection title={t('master.intelligence.section.crossLinks' as never)}>

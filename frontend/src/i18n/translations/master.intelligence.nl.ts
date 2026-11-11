@@ -1,3 +1,4 @@
+import { masterIntelligenceVsiV2Nl } from './master.intelligence.vsi-v2.nl';
 export const masterIntelligenceNl = {
   'master.nav.vsiIntelligence': 'VSI – signaalintelligentie',
   'master.nav.apdsIntelligence': 'APDS – adaptief pollen',
@@ -82,7 +83,7 @@ export const masterIntelligenceNl = {
   'master.intelligence.section.crossLinks': 'Kruislinks',
   'master.intelligence.section.previewComponents': 'Presentatiepreview (geen live data)',
   'master.intelligence.section.evidenceSemantics': 'Betekenis van bewijs',
-  'master.intelligence.url.invalidParams': 'Ongeldige URL-parameters genegeerd: {{params}}',
+  'master.intelligence.url.invalidParams': 'Ongeldige URL-parameters genegeerd: {params}',
   'master.intelligence.vsi.previewNote':
     'Badges tonen alleen backend-labelsemantiek. Geen productiedata in PR1.',
   'master.intelligence.vsi.empty.title': 'Read-API’s nog niet gekoppeld',
@@ -96,7 +97,7 @@ export const masterIntelligenceNl = {
   'master.intelligence.crossLink.vsi': 'VSI openen',
   'master.intelligence.crossLink.apds': 'APDS openen',
   'master.intelligence.crossLink.contextMissing':
-    'Link naar {{target}} vereist meer context in de URL (PR2/PR3).',
+    'Link naar {target} vereist meer context in de URL (PR2/PR3).',
   'master.intelligence.badge.lv.LV_8H_OBSERVED': 'LV ~8 u waargenomen',
   'master.intelligence.badge.lv.LV_24H_OBSERVED': 'LV ~24 u waargenomen',
   'master.intelligence.badge.lv.UNKNOWN': 'LV onbekend',
@@ -114,7 +115,7 @@ export const masterIntelligenceNl = {
   'master.intelligence.badge.rpm.explain.UNKNOWN': 'Onvoldoende RPM-cadansbewijs voor een stabiel label.',
   'master.intelligence.badge.rpm.notApplicableNote':
     'ICE RPM-profiel niet van toepassing (bv. BEV). Dat is niet hetzelfde als onbekende signaalkwaliteit.',
-  'master.intelligence.badge.limitation': 'Backendbeperking: {{code}}',
+  'master.intelligence.badge.limitation': 'Backendbeperking: {code}',
   'master.intelligence.confidence.HIGH': 'Vertrouwen: hoog',
   'master.intelligence.confidence.MEDIUM': 'Vertrouwen: middel',
   'master.intelligence.confidence.LOW': 'Vertrouwen: laag',
@@ -142,7 +143,7 @@ export const masterIntelligenceNl = {
   'master.intelligence.evidence.kind.evaluation_blocked': 'Soort: evaluatie geblokkeerd',
   'master.intelligence.blocked.title': 'Evaluatie geblokkeerd',
   'master.intelligence.blocked.body':
-    'Profielclassificatie gepauzeerd ({{code}}). Een ouder label mag niet als actueel worden getoond.',
+    'Profielclassificatie gepauzeerd ({code}). Een ouder label mag niet als actueel worden getoond.',
 
   'master.intelligence.section.fleetOverview': 'Vlootscope en profielen',
   'master.intelligence.section.signals': 'Signaaldetail',
@@ -164,8 +165,8 @@ export const masterIntelligenceNl = {
   'master.intelligence.vsi.noProfiles.body':
     'Er is nog geen capability-profiel voor dit voertuig. Dat is niet hetzelfde als uitgeschakelde revisiehistorie.',
 
-  'master.intelligence.vsi.decision.lv': 'LV-beslissingscode: {{code}}',
-  'master.intelligence.vsi.decision.rpm': 'RPM-beslissingscode: {{code}}',
+  'master.intelligence.vsi.decision.lv': 'LV-beslissingscode: {code}',
+  'master.intelligence.vsi.decision.rpm': 'RPM-beslissingscode: {code}',
 
   'master.intelligence.vsi.signals.intro':
     'Cadence-labels beschrijven waargenomen transmissiepatronen, geen native hardwareconfiguratie.',
@@ -215,7 +216,7 @@ export const masterIntelligenceNl = {
   'master.intelligence.vsi.signals.rpmDual.snapshotShort': 'Snapshot',
   'master.intelligence.vsi.signals.rpmDual.cadenceShort': 'HF/cadans',
   'master.intelligence.vsi.signals.rpmDual.hfEvidenceLine':
-    'Profiel {{profile}} · {{samples}} HF-monsters (zie paneel)',
+    'Profiel {profile} · {samples} HF-monsters (zie paneel)',
   'master.intelligence.vsi.signals.rpmDual.seePanel': 'Zie paneel hieronder',
 
   'master.intelligence.vsi.revision.loading': 'Revisiehistorie laden…',
@@ -337,7 +338,7 @@ export const masterIntelligenceNl = {
   'master.intelligence.vsi.ledger.filters.hasLimitations': 'Met beperkingen',
   'master.intelligence.vsi.ledger.filters.hasHf': 'Toeschrijfbaar HF',
   'master.intelligence.vsi.ledger.filters.hideNA': 'Verberg niet van toepassing',
-  'master.intelligence.vsi.ledger.filters.resultCount': '{{shown}} van {{total}} signalen',
+  'master.intelligence.vsi.ledger.filters.resultCount': '{shown} van {total} signalen',
   'master.intelligence.vsi.ledger.col.signal': 'Signaal',
   'master.intelligence.vsi.ledger.col.qualityConfidence': 'Kwaliteit / vertrouwen',
   'master.intelligence.vsi.ledger.col.lastObservation': 'Laatste geldige observatie',
@@ -345,11 +346,11 @@ export const masterIntelligenceNl = {
   'master.intelligence.vsi.ledger.col.provenance': 'Bewijs',
   'master.intelligence.vsi.ledger.col.action': 'Detail openen',
   'master.intelligence.vsi.ledger.table.caption': 'Bewijsregister voertuigsignalen',
-  'master.intelligence.vsi.ledger.selectSignal': 'Selecteer signaal {{signal}}',
+  'master.intelligence.vsi.ledger.selectSignal': 'Selecteer signaal {signal}',
   'master.intelligence.vsi.ledger.emptyFiltered': 'Geen signalen komen overeen met de filters.',
   'master.intelligence.vsi.ledger.multiLinkNotice':
-    '{{count}} bronlinks — bewijs geldt alleen voor de geselecteerde link.',
-  'master.intelligence.vsi.ledger.footerMeta': '{{count}} signalen · profielrevisie {{revision}}',
+    '{count} bronlinks — bewijs geldt alleen voor de geselecteerde link.',
+  'master.intelligence.vsi.ledger.footerMeta': '{count} signalen · profielrevisie {revision}',
 
   'master.intelligence.vsi.ledger.detail.section.summary': 'Bewijssamenvatting',
   'master.intelligence.vsi.ledger.detail.section.timeline': 'Bewijstijdlijn',
@@ -360,7 +361,7 @@ export const masterIntelligenceNl = {
   'master.intelligence.vsi.ledger.detail.timeline.evaluatedAt': 'Profiel geëvalueerd op',
   'master.intelligence.vsi.ledger.detail.context.vehicle': 'Voertuig',
   'master.intelligence.vsi.ledger.detail.context.link': 'Bronlink',
-  'master.intelligence.vsi.ledger.detail.context.revision': 'Profielrevisie {{revision}}',
+  'master.intelligence.vsi.ledger.detail.context.revision': 'Profielrevisie {revision}',
   'master.intelligence.vsi.ledger.detail.lv.standbyProfile': 'LV-standbyprofiel',
   'master.intelligence.vsi.ledger.detail.lv.classification': 'Classificatiebeslissing',
   'master.intelligence.vsi.ledger.detail.lv.confidence': 'Bewijsvertrouwen',
@@ -413,7 +414,7 @@ export const masterIntelligenceNl = {
   'master.intelligence.tireCalibration.accuracy.notEvaluable.body':
     'Independent measurement pairs are not persisted yet. MAE, bias, and coverage cannot be computed.',
   'master.intelligence.tireCalibration.accuracy.policyOpportunities':
-    'Policy pairing opportunities (sampled, not confirmed pairs): {{count}}',
+    'Policy pairing opportunities (sampled, not confirmed pairs): {count}',
   'master.intelligence.tireCalibration.quality.sampledScope':
     'Rejection counts are from a sampled policy re-evaluation (recent measurements × wheels) — not a global census.',
   'master.intelligence.tireCalibration.quality.pairableCount': 'Policy-eligible pairings (sampled)',
@@ -515,4 +516,6 @@ export const masterIntelligenceNl = {
   'master.intelligence.tireCalibration.inventory.attribution.notLinkedToCurrent':
     'Historical measurement is not attributed to the currently mounted tire.',
 
+
+  ...masterIntelligenceVsiV2Nl,
 } as const;
