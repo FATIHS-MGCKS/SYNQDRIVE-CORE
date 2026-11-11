@@ -3020,4 +3020,6 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | P2-D2B Audi/Tiguan pilot preparation (2026-11-11) | `ds4-rpm-pilot-preparation-v1` planning report + ranking; KS MS 661 / WOB L 7503 historical inventory; no Production I/O; `DBI_P2D2B_*` |
 | P2-D2B P2402 planning semantics closeout (2026-11-11) | F1 cohort-specific abstention; F2 DATA_QUALITY_ASSESSED gated on `dataQualityAssessmentEvidencePresent` |
 | P2-D2B P2402 cohort isolation fix (2026-11-11) | Ranking filters `cohortVehicleLabel === cohortContext`; cross-cohort leak tests |
+| P2-D2D RPM research reporting correction (2026-11-11) | `ds4-rpm-v1b-research-reporting-v1` — trip-time observation density decoupled from poll/tier quality; tier readiness from verified tier-aware `tierEvidence` only; VPS `dbi-p2d2d-domain-analysis.mjs` pairs legacy+tier-aware rows; `DBI_P2D2D_RPM_REPORTING_CORRECTION` |
+| P2-D2D P2404 provenance fix (2026-11-11) | Fail-closed binding (source-link, tierEvidence.tripId); remove offline CLI hardcoded tierEvidence; `RECONSTRUCTED_OFFLINE` never VERIFIED; `DBI_P2D2D_P2404_PROVENANCE_FIX` |
 
