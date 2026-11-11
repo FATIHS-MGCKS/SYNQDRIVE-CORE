@@ -10,6 +10,8 @@ import {
   usesLocaleDictionary,
 } from './LanguageContext';
 import { LOCALE_STORAGE_KEY, readPersistedLocale, writePersistedLocale } from './locales';
+import * as translationRegistry from './translation-registry';
+import { en } from './translations/en';
 
 function Probe({ onChange }: { onChange: (value: ReturnType<typeof useLanguage>) => void }) {
   const value = useLanguage();
@@ -95,6 +97,30 @@ describe('platform LanguageProvider runtime', () => {
     const result = translateKey('en', missingKey);
     expect(result.source).toBe('missing-key');
     expect(result.text).toBe('this.key.does.not.exist');
+  });
+
+  it('interpolates double-brace templates on the English fallback path', () => {
+    const fallbackKey = 'topbar.welcomeBack' as const;
+    const originalTemplate = en[fallbackKey];
+    const originalGet = translationRegistry.getLocaleDictionary;
+    try {
+      (en as Record<string, string>)[fallbackKey] = 'Welcome {{name}} · role {role}';
+      vi.spyOn(translationRegistry, 'getLocaleDictionary').mockImplementation((locale) => {
+        const dictionary = originalGet(locale);
+        if (locale === 'pl') {
+          const { [fallbackKey]: _removed, ...withoutKey } = dictionary as Record<string, string>;
+          return withoutKey;
+        }
+        return dictionary;
+      });
+
+      const result = translateKey('pl', fallbackKey, { name: 'Morgan', role: 'admin' });
+      expect(result.source).toBe('fallback-en');
+      expect(result.text).toBe('Welcome Morgan · role admin');
+    } finally {
+      (en as Record<string, string>)[fallbackKey] = originalTemplate;
+      vi.restoreAllMocks();
+    }
   });
 
 });

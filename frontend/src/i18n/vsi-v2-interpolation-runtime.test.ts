@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { interpolateTranslationVars } from '../lib/i18n-interpolate';
 import { translateKey } from './LanguageContext';
+import * as translationRegistry from './translation-registry';
 import { OFFICIAL_PRODUCT_LOCALE_CODES, type SupportedLocale } from './locales';
 
 const RESULT_META_KEY = 'master.intelligence.vsi.fsd.signals.resultMeta' as const;
@@ -14,6 +14,10 @@ function assertNoUnresolvedPlaceholders(text: string) {
 }
 
 describe('VSI / master intelligence interpolation at runtime', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('renders German FSD signal count metadata without stray braces', () => {
     const result = translateKey('de', RESULT_META_KEY, { count: 1, declared: 2 });
     expect(result.text).toBe('1 Zeilen · deklariert 2');
@@ -45,10 +49,22 @@ describe('VSI / master intelligence interpolation at runtime', () => {
     assertNoUnresolvedPlaceholders(result.text);
   });
 
-  it('LanguageContext uses dual-brace interpolation via lib helper', () => {
-    expect(
-      interpolateTranslationVars('{{count}} · {declared}', { count: 1, declared: 2 }),
-    ).toBe('1 · 2');
+  it('translateKey resolves mixed {{count}} and {declared} placeholders at runtime', () => {
+    const originalGet = translationRegistry.getLocaleDictionary;
+    vi.spyOn(translationRegistry, 'getLocaleDictionary').mockImplementation((locale) => {
+      if (locale === 'en') {
+        return {
+          ...originalGet('en'),
+          'common.save': '{{count}} items · status {declared}',
+        };
+      }
+      return originalGet(locale);
+    });
+
+    const result = translateKey('en', 'common.save', { count: 4, declared: 'ok' });
+    expect(result.text).toBe('4 items · status ok');
+    expect(result.source).toBe('locale');
+    assertNoUnresolvedPlaceholders(result.text);
   });
 
   it('resolves VSI templates at runtime without stray braces', () => {
