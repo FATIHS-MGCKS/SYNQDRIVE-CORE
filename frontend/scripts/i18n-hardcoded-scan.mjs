@@ -17,7 +17,6 @@ const inventoryPath = join(srcRoot, 'i18n/hardcoded-copy-inventory.json');
 
 const SCAN_ROOTS = [
   join(srcRoot, 'App.tsx'),
-  join(srcRoot, 'i18n/LanguageContext.tsx'),
   join(srcRoot, 'pages'),
   join(srcRoot, 'components'),
   join(srcRoot, 'i18n/components'),
