@@ -4,6 +4,7 @@ import {
   DS4_RPM_TRIP_TIME_OBSERVATION_DENSITY_SEMANTICS,
   DS4_RPM_V1B_RESEARCH_REPORTING_CONTRACT_VERSION,
   type Ds4RpmV1bResearchRpmReportV1,
+  type Ds4RpmV1bResearchLegacySummaryProvenanceV1,
   type Ds4RpmV1bResearchTierEvidenceProvenanceV1,
   type Ds4RpmV1bResearchTierReportingV1,
 } from './ds4-rpm-v1b-research-reporting.contract.v1';
@@ -14,6 +15,8 @@ export type Ds4RpmV1bResearchSummaryPairV1 = {
   telemetrySourceFamily?: 'RUPTELA_R1' | 'API_SYNTHETIC' | 'UNKNOWN';
   /** When RECONSTRUCTED_OFFLINE, tier fields never VERIFIED even if slices look complete. */
   tierEvidenceProvenance?: Ds4RpmV1bResearchTierEvidenceProvenanceV1;
+  /** Reconstructed legacy slices (e.g. reconciliation CLI) never pair-verify with tier-aware alone. */
+  legacySummaryProvenance?: Ds4RpmV1bResearchLegacySummaryProvenanceV1;
 };
 
 const UNVERIFIED = 'UNVERIFIED' as const;
@@ -95,10 +98,18 @@ export function deriveUnknownGapCauseLabelsV1(
   return [...new Set(causes)];
 }
 
+function resolveLegacySummaryProvenance(
+  explicit?: Ds4RpmV1bResearchLegacySummaryProvenanceV1,
+): Ds4RpmV1bResearchLegacySummaryProvenanceV1 {
+  return explicit ?? 'PERSISTED_V1B_SUMMARY';
+}
+
 function resolveTierEvidenceProvenance(
   tierAware: Ds4RpmHfV1bShadowResultV1 | null,
+  legacySummaryProvenance: Ds4RpmV1bResearchLegacySummaryProvenanceV1,
   explicit?: Ds4RpmV1bResearchTierEvidenceProvenanceV1,
 ): Ds4RpmV1bResearchTierEvidenceProvenanceV1 {
+  if (legacySummaryProvenance === 'RECONSTRUCTED_OFFLINE') return 'RECONSTRUCTED_OFFLINE';
   if (explicit === 'RECONSTRUCTED_OFFLINE') return 'RECONSTRUCTED_OFFLINE';
   if (tierAware == null) return explicit ?? 'NOT_PROVIDED';
   return 'PERSISTED_V1B_PAIR';
@@ -153,8 +164,19 @@ function buildTierReporting(
 export function buildDs4RpmV1bResearchRpmReportV1(
   input: Ds4RpmV1bResearchSummaryPairV1,
 ): Ds4RpmV1bResearchRpmReportV1 {
-  const { legacy, tierAware, telemetrySourceFamily, tierEvidenceProvenance: explicitProv } = input;
-  const tierEvidenceProvenance = resolveTierEvidenceProvenance(tierAware, explicitProv);
+  const {
+    legacy,
+    tierAware,
+    telemetrySourceFamily,
+    tierEvidenceProvenance: explicitProv,
+    legacySummaryProvenance: explicitLegacyProv,
+  } = input;
+  const legacySummaryProvenance = resolveLegacySummaryProvenance(explicitLegacyProv);
+  const tierEvidenceProvenance = resolveTierEvidenceProvenance(
+    tierAware,
+    legacySummaryProvenance,
+    explicitProv,
+  );
   const vsi = legacy.vsiTripClassification;
   return {
     contractVersion: DS4_RPM_V1B_RESEARCH_REPORTING_CONTRACT_VERSION,
@@ -168,6 +190,7 @@ export function buildDs4RpmV1bResearchRpmReportV1(
     tripTimeObservationDensitySemantics: DS4_RPM_TRIP_TIME_OBSERVATION_DENSITY_SEMANTICS,
     pollSuccessVerdict: DS4_RPM_POLL_SUCCESS_NOT_DERIVED_FROM_TRIP_TIME_DENSITY,
     tierEvidenceProvenance,
+    legacySummaryProvenance,
     tierReporting: buildTierReporting(legacy, tierAware, tierEvidenceProvenance),
     unknownGapCause: deriveUnknownGapCauseLabelsV1(legacy),
     r1TemporalVeto: telemetrySourceFamily === 'RUPTELA_R1' ? 'ACTIVE' : 'NOT_APPLICABLE',

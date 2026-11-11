@@ -90,6 +90,37 @@ describe('ds4-rpm-v1b-research-reporting provenance and binding', () => {
     expect(bind.reasons).toContain('TIER_EVIDENCE_TRIP_ID_MISMATCH');
   });
 
+  it('reconstructed legacy plus genuine tier-aware summary stays UNVERIFIED when bindings match', () => {
+    const points = buildRpmPointsEverySeconds('2026-01-01T10:00:01.000Z', 12, 1);
+    const { legacy: genuineLegacy, tierAware } = pair(
+      buildTierTripInput({
+        rpmPoints: points,
+        tierRow: buildTierTripClassification({
+          tier: 'RPM_1S',
+          analysisReadiness: 'TIER_ANALYTICS_OK',
+        }),
+      }),
+    );
+  const bind = verifyDs4RpmV1bResearchSummaryBindingsV1(genuineLegacy, tierAware);
+    expect(bind.ok).toBe(true);
+
+    const reconstructedLegacy = {
+      ...genuineLegacy,
+      tierEvidence: undefined,
+      shadowVariant: 'legacy' as const,
+    };
+    const report = buildDs4RpmV1bResearchRpmReportV1({
+      legacy: reconstructedLegacy,
+      tierAware,
+      legacySummaryProvenance: 'RECONSTRUCTED_OFFLINE',
+      tierEvidenceProvenance: 'RECONSTRUCTED_OFFLINE',
+    });
+    expect(report.legacySummaryProvenance).toBe('RECONSTRUCTED_OFFLINE');
+    expect(report.tierEvidenceProvenance).toBe('RECONSTRUCTED_OFFLINE');
+    expect(report.tierReporting.tierEvidenceVerification).toBe('UNVERIFIED');
+    expect(report.tierReporting.analysisReadiness).toBe('UNVERIFIED');
+  });
+
   it('RECONSTRUCTED_OFFLINE never marks tier evidence VERIFIED', () => {
     const points = buildRpmPointsEverySeconds('2026-01-01T10:00:01.000Z', 8, 1);
     const { legacy, tierAware } = pair(

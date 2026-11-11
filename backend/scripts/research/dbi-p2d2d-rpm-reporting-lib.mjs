@@ -40,7 +40,12 @@ export function verifyV1bResearchBindings(legacy, tierAware) {
   return reasons.length === 0 ? { ok: true } : { ok: false, reasons };
 }
 
-function resolveTierEvidenceProvenance(tierAware, explicit) {
+function resolveLegacySummaryProvenance(explicit) {
+  return explicit ?? 'PERSISTED_V1B_SUMMARY';
+}
+
+function resolveTierEvidenceProvenance(tierAware, legacySummaryProvenance, explicit) {
+  if (legacySummaryProvenance === 'RECONSTRUCTED_OFFLINE') return 'RECONSTRUCTED_OFFLINE';
   if (explicit === 'RECONSTRUCTED_OFFLINE') return 'RECONSTRUCTED_OFFLINE';
   if (tierAware == null) return explicit ?? 'NOT_PROVIDED';
   return 'PERSISTED_V1B_PAIR';
@@ -51,9 +56,15 @@ export function buildV1bResearchRpmReport({
   tierAware,
   telemetrySourceFamily,
   tierEvidenceProvenance: explicitProv,
+  legacySummaryProvenance: explicitLegacyProv,
 }) {
   const vsi = legacy.vsiTripClassification ?? {};
-  const tierEvidenceProvenance = resolveTierEvidenceProvenance(tierAware, explicitProv);
+  const legacySummaryProvenance = resolveLegacySummaryProvenance(explicitLegacyProv);
+  const tierEvidenceProvenance = resolveTierEvidenceProvenance(
+    tierAware,
+    legacySummaryProvenance,
+    explicitProv,
+  );
   const binding = verifyV1bResearchBindings(legacy, tierAware);
   let tierReporting = {
     tierEvidenceVerification: 'UNVERIFIED',
@@ -108,6 +119,7 @@ export function buildV1bResearchRpmReport({
     tripTimeObservationDensitySemantics: TRIP_TIME_OBSERVATION_DENSITY_SEMANTICS,
     pollSuccessVerdict: 'NOT_DERIVED_FROM_TRIP_TIME_OBSERVATION_DENSITY',
     tierEvidenceProvenance,
+    legacySummaryProvenance,
     tierReporting,
     unknownGapCause: [...new Set(gapCauses)],
     r1TemporalVeto: telemetrySourceFamily === 'RUPTELA_R1' ? 'ACTIVE' : 'NOT_APPLICABLE',

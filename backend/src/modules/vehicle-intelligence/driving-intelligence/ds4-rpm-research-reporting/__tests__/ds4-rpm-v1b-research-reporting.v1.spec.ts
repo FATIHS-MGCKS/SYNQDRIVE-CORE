@@ -68,6 +68,7 @@ describe('ds4-rpm-v1b-research-reporting.v1', () => {
     expect(report.vsiTripProfile).toBe('RPM_1HZ');
     expect(report.vsiVehicleProfile).toBe('RPM_1HZ');
     expect(report.tierEvidenceProvenance).toBe('PERSISTED_V1B_PAIR');
+    expect(report.legacySummaryProvenance).toBe('PERSISTED_V1B_SUMMARY');
     expect(report.tierReporting.tierEvidenceVerification).toBe('VERIFIED');
     expect(report.tierReporting.analysisReadiness).toBe('TIER_ANALYTICS_OK');
     expect(report.tierReporting.tripCoverageBand).toBe('FULL_SPAN');

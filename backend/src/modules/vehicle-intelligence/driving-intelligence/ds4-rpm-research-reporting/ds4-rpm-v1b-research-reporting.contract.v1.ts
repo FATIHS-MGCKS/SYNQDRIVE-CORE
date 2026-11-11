@@ -13,6 +13,10 @@ export type Ds4RpmV1bResearchTierEvidenceProvenanceV1 =
   | 'RECONSTRUCTED_OFFLINE'
   | 'NOT_PROVIDED';
 
+export type Ds4RpmV1bResearchLegacySummaryProvenanceV1 =
+  | 'PERSISTED_V1B_SUMMARY'
+  | 'RECONSTRUCTED_OFFLINE';
+
 export type Ds4RpmV1bResearchTierReportingV1 = {
   tierEvidenceVerification: 'VERIFIED' | 'UNVERIFIED';
   cadenceTier: string | 'UNVERIFIED';
@@ -37,6 +41,7 @@ export type Ds4RpmV1bResearchRpmReportV1 = {
   tripTimeObservationDensitySemantics: typeof DS4_RPM_TRIP_TIME_OBSERVATION_DENSITY_SEMANTICS;
   pollSuccessVerdict: typeof DS4_RPM_POLL_SUCCESS_NOT_DERIVED_FROM_TRIP_TIME_DENSITY;
   tierEvidenceProvenance: Ds4RpmV1bResearchTierEvidenceProvenanceV1;
+  legacySummaryProvenance: Ds4RpmV1bResearchLegacySummaryProvenanceV1;
   tierReporting: Ds4RpmV1bResearchTierReportingV1;
   unknownGapCause: readonly string[];
   r1TemporalVeto: 'ACTIVE' | 'NOT_APPLICABLE';

@@ -74,7 +74,8 @@ function main() {
     const legacy = legacyStubFromReconciliation(row);
     const tierAwarePersisted = loadTierAwarePersistedSummary(row.tripId);
     const tierAware = tierAwarePersisted ?? null;
-    const tierEvidenceProvenance = tierAware ? 'PERSISTED_V1B_PAIR' : 'RECONSTRUCTED_OFFLINE';
+    const legacySummaryProvenance = 'RECONSTRUCTED_OFFLINE';
+    const tierEvidenceProvenance = 'RECONSTRUCTED_OFFLINE';
 
     const preservedLegacy = {
       observedBucketCoverageRatio: legacy.temporalCoverage.observedBucketCoverageRatio,
@@ -83,12 +84,14 @@ function main() {
 
     out.reports[label] = {
       tierEvidenceProvenance,
+      legacySummaryProvenance,
       tierAwarePersistedSummaryLoaded: Boolean(tierAwarePersisted),
       corrected: buildDs4RpmV1bResearchRpmReportV1({
         legacy,
         tierAware,
         telemetrySourceFamily: 'RUPTELA_R1',
-        tierEvidenceProvenance: tierEvidenceProvenance === 'PERSISTED_V1B_PAIR' ? undefined : 'RECONSTRUCTED_OFFLINE',
+        tierEvidenceProvenance,
+        legacySummaryProvenance,
       }),
       preservedLegacyEvidence: preservedLegacy,
       preservedHistoricalAggregate: {
