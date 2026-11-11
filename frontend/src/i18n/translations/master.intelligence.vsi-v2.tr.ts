@@ -26,7 +26,7 @@ export const masterIntelligenceVsiV2Tr: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.cockpit.openCanonicalLedger': 'Kanonik VSI sinyal defterini aç',
   'master.intelligence.vsi.cockpit.lvCard': 'LV bekleme profili',
   'master.intelligence.vsi.cockpit.rpmCard': 'RPM kadans profili',
-  'master.intelligence.vsi.cockpit.multiLink': 'Bu araçta {{count}} sağlayıcı kaynak bağlantısı',
+  'master.intelligence.vsi.cockpit.multiLink': 'Bu araçta {count} sağlayıcı kaynak bağlantısı',
 
   'master.intelligence.vsi.fsd.loading': 'FSD okuma modeli yükleniyor…',
   'master.intelligence.vsi.fsd.partialTitle': 'FSD okuma modeli kullanılamıyor',
@@ -91,7 +91,7 @@ export const masterIntelligenceVsiV2Tr: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.fsd.signals.notAuthoritative': 'Katalog bu kapsam için yetkili olarak işaretlenmemiş.',
   'master.intelligence.vsi.fsd.signals.search': 'Provider-native sinyalleri ara',
   'master.intelligence.vsi.fsd.signals.searchAction': 'Ara',
-  'master.intelligence.vsi.fsd.signals.resultMeta': '{{count}} satır · bildirilen {{declared}}',
+  'master.intelligence.vsi.fsd.signals.resultMeta': '{count} satır · bildirilen {declared}',
   'master.intelligence.vsi.fsd.signals.tableCaption': 'FSD provider-native sinyal kataloğu',
   'master.intelligence.vsi.fsd.signals.col.name': 'Sağlayıcı sinyali',
   'master.intelligence.vsi.fsd.signals.col.state': 'Sunum',
@@ -148,7 +148,7 @@ export const masterIntelligenceVsiV2Tr: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.evidence.runCounts': 'Çalıştırma gözlem sayıları (denetleyici)',
   'master.intelligence.vsi.evidence.selectRun': 'Sayıları yüklemek için bir çalıştırmada istek denetleyicisini açın.',
   'master.intelligence.vsi.evidence.vsiProfile': 'VSI profil sınırlamaları',
-  'master.intelligence.vsi.evidence.profileRevision': 'Profil revizyonu {{revision}}',
+  'master.intelligence.vsi.evidence.profileRevision': 'Profil revizyonu {revision}',
   'master.intelligence.vsi.evidence.count.observed': 'Gözlemlendi',
   'master.intelligence.vsi.evidence.count.nullObserved': 'NULL gözlemlendi',
   'master.intelligence.vsi.evidence.count.deferred': 'Ertelendi',
@@ -169,9 +169,9 @@ export const masterIntelligenceVsiV2Tr: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.fsd.signals.col.snapshotQuery': 'Anlık görüntü sorgusu',
   'master.intelligence.vsi.fsd.signals.col.historicalQuery': 'Geçmiş sorgu',
   'master.intelligence.vsi.fsd.signals.searchIncomplete':
-    'Katalog taraması {{pages}} sayfa sonra durdu ({{loaded}} satır yüklendi). Eşleşmeler eksik olabilir.',
+    'Katalog taraması {pages} sayfa sonra durdu ({loaded} satır yüklendi). Eşleşmeler eksik olabilir.',
   'master.intelligence.vsi.fsd.signals.catalogIdentityViolation':
-    'Tarama sırasında katalog kimliği değişti ({{pages}} sayfa, {{loaded}} satır sonra). Sonuçlar eksiksiz doğrulanmış arama olarak gösterilmez.',
+    'Tarama sırasında katalog kimliği değişti ({pages} sayfa, {loaded} satır sonra). Sonuçlar eksiksiz doğrulanmış arama olarak gösterilmez.',
   'master.intelligence.vsi.fsd.signals.searchExhaustive': 'Sorgu için katalog araması tüketildi.',
   'master.intelligence.vsi.fsd.signals.empty': 'Geçerli süze uyan sinyal yok.',
   'master.intelligence.vsi.fsd.signals.declaredNotObserved':

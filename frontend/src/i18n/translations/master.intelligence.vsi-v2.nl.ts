@@ -26,7 +26,7 @@ export const masterIntelligenceVsiV2Nl: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.cockpit.openCanonicalLedger': 'Canoniek VSI-signaalledger openen',
   'master.intelligence.vsi.cockpit.lvCard': 'LV-standbyprofiel',
   'master.intelligence.vsi.cockpit.rpmCard': 'RPM-cadansprofiel',
-  'master.intelligence.vsi.cockpit.multiLink': '{{count}} provider-bronlinks voor dit voertuig',
+  'master.intelligence.vsi.cockpit.multiLink': '{count} provider-bronlinks voor dit voertuig',
 
   'master.intelligence.vsi.fsd.loading': 'FSD-readmodel laden…',
   'master.intelligence.vsi.fsd.partialTitle': 'FSD-readmodel niet beschikbaar',
@@ -91,7 +91,7 @@ export const masterIntelligenceVsiV2Nl: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.fsd.signals.notAuthoritative': 'Catalogus is voor dit bereik niet als gezaghebbend gemarkeerd.',
   'master.intelligence.vsi.fsd.signals.search': 'Provider-native signalen zoeken',
   'master.intelligence.vsi.fsd.signals.searchAction': 'Zoeken',
-  'master.intelligence.vsi.fsd.signals.resultMeta': '{{count}} rijen · gedeclareerd {{declared}}',
+  'master.intelligence.vsi.fsd.signals.resultMeta': '{count} rijen · gedeclareerd {declared}',
   'master.intelligence.vsi.fsd.signals.tableCaption': 'FSD provider-native signaalcatalogus',
   'master.intelligence.vsi.fsd.signals.col.name': 'Providersignaal',
   'master.intelligence.vsi.fsd.signals.col.state': 'Presentatie',
@@ -148,7 +148,7 @@ export const masterIntelligenceVsiV2Nl: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.evidence.runCounts': 'Run-observatietellingen (inspector)',
   'master.intelligence.vsi.evidence.selectRun': 'Open de aanvraaginspector op een run om tellingen te laden.',
   'master.intelligence.vsi.evidence.vsiProfile': 'VSI-profilbeperkingen',
-  'master.intelligence.vsi.evidence.profileRevision': 'Profielrevisie {{revision}}',
+  'master.intelligence.vsi.evidence.profileRevision': 'Profielrevisie {revision}',
   'master.intelligence.vsi.evidence.count.observed': 'Waargenomen',
   'master.intelligence.vsi.evidence.count.nullObserved': 'NULL waargenomen',
   'master.intelligence.vsi.evidence.count.deferred': 'Uitgesteld',
@@ -169,9 +169,9 @@ export const masterIntelligenceVsiV2Nl: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.fsd.signals.col.snapshotQuery': 'Snapshotquery',
   'master.intelligence.vsi.fsd.signals.col.historicalQuery': 'Historische query',
   'master.intelligence.vsi.fsd.signals.searchIncomplete':
-    'Catalogusscan gestopt na {{pages}} pagina’s ({{loaded}} rijen geladen). Treffers kunnen onvolledig zijn.',
+    'Catalogusscan gestopt na {pages} pagina’s ({loaded} rijen geladen). Treffers kunnen onvolledig zijn.',
   'master.intelligence.vsi.fsd.signals.catalogIdentityViolation':
-    'Catalogusidentiteit gewijzigd tijdens scannen (na {{pages}} pagina’s, {{loaded}} rijen). Resultaten worden niet als volledige geverifieerde zoekopdracht getoond.',
+    'Catalogusidentiteit gewijzigd tijdens scannen (na {pages} pagina’s, {loaded} rijen). Resultaten worden niet als volledige geverifieerde zoekopdracht getoond.',
   'master.intelligence.vsi.fsd.signals.searchExhaustive': 'Cataloguszoekopdracht uitgeput voor query.',
   'master.intelligence.vsi.fsd.signals.empty': 'Geen signalen passen bij het huidige filter.',
   'master.intelligence.vsi.fsd.signals.declaredNotObserved':

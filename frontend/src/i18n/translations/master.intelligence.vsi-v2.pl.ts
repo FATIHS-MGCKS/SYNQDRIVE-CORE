@@ -26,7 +26,7 @@ export const masterIntelligenceVsiV2Pl: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.cockpit.openCanonicalLedger': 'Otwórz kanoniczny rejestr sygnałów VSI',
   'master.intelligence.vsi.cockpit.lvCard': 'Profil gotowości LV',
   'master.intelligence.vsi.cockpit.rpmCard': 'Profil kadencji RPM',
-  'master.intelligence.vsi.cockpit.multiLink': '{{count}} linków źródłowych providera dla tego pojazdu',
+  'master.intelligence.vsi.cockpit.multiLink': '{count} linków źródłowych providera dla tego pojazdu',
 
   'master.intelligence.vsi.fsd.loading': 'Ładowanie modelu odczytu FSD…',
   'master.intelligence.vsi.fsd.partialTitle': 'Model odczytu FSD niedostępny',
@@ -91,7 +91,7 @@ export const masterIntelligenceVsiV2Pl: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.fsd.signals.notAuthoritative': 'Katalog nie jest oznaczony jako autorytatywny dla tego zakresu.',
   'master.intelligence.vsi.fsd.signals.search': 'Szukaj sygnałów provider-native',
   'master.intelligence.vsi.fsd.signals.searchAction': 'Szukaj',
-  'master.intelligence.vsi.fsd.signals.resultMeta': '{{count}} wierszy · zadeklarowano {{declared}}',
+  'master.intelligence.vsi.fsd.signals.resultMeta': '{count} wierszy · zadeklarowano {declared}',
   'master.intelligence.vsi.fsd.signals.tableCaption': 'Katalog sygnałów FSD provider-native',
   'master.intelligence.vsi.fsd.signals.col.name': 'Sygnał providera',
   'master.intelligence.vsi.fsd.signals.col.state': 'Prezentacja',
@@ -148,7 +148,7 @@ export const masterIntelligenceVsiV2Pl: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.evidence.runCounts': 'Liczniki obserwacji uruchomienia (inspektor)',
   'master.intelligence.vsi.evidence.selectRun': 'Otwórz inspektor żądań dla uruchomienia, aby załadować liczniki.',
   'master.intelligence.vsi.evidence.vsiProfile': 'Ograniczenia profilu VSI',
-  'master.intelligence.vsi.evidence.profileRevision': 'Rewizja profilu {{revision}}',
+  'master.intelligence.vsi.evidence.profileRevision': 'Rewizja profilu {revision}',
   'master.intelligence.vsi.evidence.count.observed': 'Zaobserwowany',
   'master.intelligence.vsi.evidence.count.nullObserved': 'NULL zaobserwowany',
   'master.intelligence.vsi.evidence.count.deferred': 'Odroczony',
@@ -169,9 +169,9 @@ export const masterIntelligenceVsiV2Pl: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.fsd.signals.col.snapshotQuery': 'Zapytanie snapshotu',
   'master.intelligence.vsi.fsd.signals.col.historicalQuery': 'Zapytanie historyczne',
   'master.intelligence.vsi.fsd.signals.searchIncomplete':
-    'Skan katalogu zatrzymany po {{pages}} stronach (załadowano {{loaded}} wierszy). Dopasowania mogą być niekompletne.',
+    'Skan katalogu zatrzymany po {pages} stronach (załadowano {loaded} wierszy). Dopasowania mogą być niekompletne.',
   'master.intelligence.vsi.fsd.signals.catalogIdentityViolation':
-    'Tożsamość katalogu zmieniła się podczas skanowania (po {{pages}} stronach, {{loaded}} wierszach). Wyniki nie są pokazywane jako pełne zweryfikowane wyszukiwanie.',
+    'Tożsamość katalogu zmieniła się podczas skanowania (po {pages} stronach, {loaded} wierszach). Wyniki nie są pokazywane jako pełne zweryfikowane wyszukiwanie.',
   'master.intelligence.vsi.fsd.signals.searchExhaustive': 'Wyszukiwanie katalogowe wyczerpane dla zapytania.',
   'master.intelligence.vsi.fsd.signals.empty': 'Żaden sygnał nie pasuje do bieżącego filtra.',
   'master.intelligence.vsi.fsd.signals.declaredNotObserved':

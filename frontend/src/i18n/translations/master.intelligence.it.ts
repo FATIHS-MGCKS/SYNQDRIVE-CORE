@@ -83,7 +83,7 @@ export const masterIntelligenceIt = {
   'master.intelligence.section.crossLinks': 'Collegamenti incrociati',
   'master.intelligence.section.previewComponents': 'Anteprima presentazione (nessun dato live)',
   'master.intelligence.section.evidenceSemantics': 'Semantica delle prove',
-  'master.intelligence.url.invalidParams': 'Parametri URL non validi ignorati: {{params}}',
+  'master.intelligence.url.invalidParams': 'Parametri URL non validi ignorati: {params}',
   'master.intelligence.vsi.previewNote':
     'I badge mostrano solo la semantica delle etichette backend. Nessun dato di produzione in PR1.',
   'master.intelligence.vsi.empty.title': 'API di lettura non ancora collegate',
@@ -97,7 +97,7 @@ export const masterIntelligenceIt = {
   'master.intelligence.crossLink.vsi': 'Apri VSI',
   'master.intelligence.crossLink.apds': 'Apri APDS',
   'master.intelligence.crossLink.contextMissing':
-    'Il link a {{target}} richiede più contesto nell’URL (PR2/PR3).',
+    'Il link a {target} richiede più contesto nell’URL (PR2/PR3).',
   'master.intelligence.badge.lv.LV_8H_OBSERVED': 'LV ~8 h osservato',
   'master.intelligence.badge.lv.LV_24H_OBSERVED': 'LV ~24 h osservato',
   'master.intelligence.badge.lv.UNKNOWN': 'LV sconosciuto',
@@ -115,7 +115,7 @@ export const masterIntelligenceIt = {
   'master.intelligence.badge.rpm.explain.UNKNOWN': 'Prove di cadenza RPM insufficienti per un’etichetta stabile.',
   'master.intelligence.badge.rpm.notApplicableNote':
     'Profilo RPM ICE non applicabile (es. BEV). Non equivale a qualità segnale sconosciuta.',
-  'master.intelligence.badge.limitation': 'Limitazione backend: {{code}}',
+  'master.intelligence.badge.limitation': 'Limitazione backend: {code}',
   'master.intelligence.confidence.HIGH': 'Confidenza: alta',
   'master.intelligence.confidence.MEDIUM': 'Confidenza: media',
   'master.intelligence.confidence.LOW': 'Confidenza: bassa',
@@ -143,7 +143,7 @@ export const masterIntelligenceIt = {
   'master.intelligence.evidence.kind.evaluation_blocked': 'Tipo: valutazione bloccata',
   'master.intelligence.blocked.title': 'Valutazione bloccata',
   'master.intelligence.blocked.body':
-    'Classificazione profilo in pausa ({{code}}). Un’etichetta precedente non deve essere mostrata come attuale.',
+    'Classificazione profilo in pausa ({code}). Un’etichetta precedente non deve essere mostrata come attuale.',
 
   'master.intelligence.section.fleetOverview': 'Ambito flotta e profili',
   'master.intelligence.section.signals': 'Dettaglio segnale',
@@ -165,8 +165,8 @@ export const masterIntelligenceIt = {
   'master.intelligence.vsi.noProfiles.body':
     'Non esiste ancora un profilo capability per questo veicolo. Non equivale a cronologia revisioni disabilitata.',
 
-  'master.intelligence.vsi.decision.lv': 'Codice decisione LV: {{code}}',
-  'master.intelligence.vsi.decision.rpm': 'Codice decisione RPM: {{code}}',
+  'master.intelligence.vsi.decision.lv': 'Codice decisione LV: {code}',
+  'master.intelligence.vsi.decision.rpm': 'Codice decisione RPM: {code}',
 
   'master.intelligence.vsi.signals.intro':
     'Le etichette di cadenza descrivono pattern di trasmissione osservati, non la configurazione hardware nativa.',
@@ -216,7 +216,7 @@ export const masterIntelligenceIt = {
   'master.intelligence.vsi.signals.rpmDual.snapshotShort': 'Snapshot',
   'master.intelligence.vsi.signals.rpmDual.cadenceShort': 'HF/cadenza',
   'master.intelligence.vsi.signals.rpmDual.hfEvidenceLine':
-    'Profilo {{profile}} · {{samples}} campioni HF (vedi pannello)',
+    'Profilo {profile} · {samples} campioni HF (vedi pannello)',
   'master.intelligence.vsi.signals.rpmDual.seePanel': 'Vedi pannello sotto',
 
   'master.intelligence.vsi.revision.loading': 'Caricamento cronologia revisioni…',
@@ -338,7 +338,7 @@ export const masterIntelligenceIt = {
   'master.intelligence.vsi.ledger.filters.hasLimitations': 'Con limitazioni',
   'master.intelligence.vsi.ledger.filters.hasHf': 'HF attribuibile',
   'master.intelligence.vsi.ledger.filters.hideNA': 'Nascondi non applicabile',
-  'master.intelligence.vsi.ledger.filters.resultCount': '{{shown}} di {{total}} segnali',
+  'master.intelligence.vsi.ledger.filters.resultCount': '{shown} di {total} segnali',
   'master.intelligence.vsi.ledger.col.signal': 'Segnale',
   'master.intelligence.vsi.ledger.col.qualityConfidence': 'Qualità / confidenza',
   'master.intelligence.vsi.ledger.col.lastObservation': 'Ultima osservazione valida',
@@ -346,11 +346,11 @@ export const masterIntelligenceIt = {
   'master.intelligence.vsi.ledger.col.provenance': 'Evidenza',
   'master.intelligence.vsi.ledger.col.action': 'Apri dettaglio',
   'master.intelligence.vsi.ledger.table.caption': 'Registro evidenze segnali veicolo',
-  'master.intelligence.vsi.ledger.selectSignal': 'Seleziona segnale {{signal}}',
+  'master.intelligence.vsi.ledger.selectSignal': 'Seleziona segnale {signal}',
   'master.intelligence.vsi.ledger.emptyFiltered': 'Nessun segnale corrisponde ai filtri.',
   'master.intelligence.vsi.ledger.multiLinkNotice':
-    '{{count}} link sorgente — l’evidenza vale solo per il link selezionato.',
-  'master.intelligence.vsi.ledger.footerMeta': '{{count}} segnali · revisione profilo {{revision}}',
+    '{count} link sorgente — l’evidenza vale solo per il link selezionato.',
+  'master.intelligence.vsi.ledger.footerMeta': '{count} segnali · revisione profilo {revision}',
 
   'master.intelligence.vsi.ledger.detail.section.summary': 'Riepilogo evidenze',
   'master.intelligence.vsi.ledger.detail.section.timeline': 'Timeline evidenze',
@@ -361,7 +361,7 @@ export const masterIntelligenceIt = {
   'master.intelligence.vsi.ledger.detail.timeline.evaluatedAt': 'Profilo valutato il',
   'master.intelligence.vsi.ledger.detail.context.vehicle': 'Veicolo',
   'master.intelligence.vsi.ledger.detail.context.link': 'Link sorgente',
-  'master.intelligence.vsi.ledger.detail.context.revision': 'Revisione profilo {{revision}}',
+  'master.intelligence.vsi.ledger.detail.context.revision': 'Revisione profilo {revision}',
   'master.intelligence.vsi.ledger.detail.lv.standbyProfile': 'Profilo standby LV',
   'master.intelligence.vsi.ledger.detail.lv.classification': 'Decisione di classificazione',
   'master.intelligence.vsi.ledger.detail.lv.confidence': 'Confidenza evidenza',
@@ -414,7 +414,7 @@ export const masterIntelligenceIt = {
   'master.intelligence.tireCalibration.accuracy.notEvaluable.body':
     'Independent measurement pairs are not persisted yet. MAE, bias, and coverage cannot be computed.',
   'master.intelligence.tireCalibration.accuracy.policyOpportunities':
-    'Policy pairing opportunities (sampled, not confirmed pairs): {{count}}',
+    'Policy pairing opportunities (sampled, not confirmed pairs): {count}',
   'master.intelligence.tireCalibration.quality.sampledScope':
     'Rejection counts are from a sampled policy re-evaluation (recent measurements × wheels) — not a global census.',
   'master.intelligence.tireCalibration.quality.pairableCount': 'Policy-eligible pairings (sampled)',

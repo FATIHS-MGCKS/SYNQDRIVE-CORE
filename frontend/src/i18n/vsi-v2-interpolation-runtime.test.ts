@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { interpolateTranslationVars } from '../lib/i18n-interpolate';
 import { translateKey } from './LanguageContext';
 import { OFFICIAL_PRODUCT_LOCALE_CODES, type SupportedLocale } from './locales';
 
@@ -44,9 +45,16 @@ describe('VSI / master intelligence interpolation at runtime', () => {
     assertNoUnresolvedPlaceholders(result.text);
   });
 
-  it('resolves double-brace VSI templates without leaving stray braces', () => {
+  it('LanguageContext uses dual-brace interpolation via lib helper', () => {
+    expect(
+      interpolateTranslationVars('{{count}} · {declared}', { count: 1, declared: 2 }),
+    ).toBe('1 · 2');
+  });
+
+  it('resolves VSI templates at runtime without stray braces', () => {
     const viaKey = translateKey('en', RESULT_META_KEY, { count: 1, declared: 2 });
     expect(viaKey.text).toBe('1 rows returned · declared count 2');
     assertNoUnresolvedPlaceholders(viaKey.text);
   });
+
 });

@@ -26,7 +26,7 @@ export const masterIntelligenceVsiV2Cs: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.cockpit.openCanonicalLedger': 'Otevřít kanonickou knihu signálů VSI',
   'master.intelligence.vsi.cockpit.lvCard': 'Profil pohotovosti LV',
   'master.intelligence.vsi.cockpit.rpmCard': 'Profil kadence RPM',
-  'master.intelligence.vsi.cockpit.multiLink': '{{count}} zdrojových odkazů poskytovatele pro toto vozidlo',
+  'master.intelligence.vsi.cockpit.multiLink': '{count} zdrojových odkazů poskytovatele pro toto vozidlo',
 
   'master.intelligence.vsi.fsd.loading': 'Načítání read modelu FSD…',
   'master.intelligence.vsi.fsd.partialTitle': 'Read model FSD nedostupný',
@@ -91,7 +91,7 @@ export const masterIntelligenceVsiV2Cs: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.fsd.signals.notAuthoritative': 'Katalog není pro tento rozsah označen jako autoritativní.',
   'master.intelligence.vsi.fsd.signals.search': 'Hledat signály provider-native',
   'master.intelligence.vsi.fsd.signals.searchAction': 'Hledat',
-  'master.intelligence.vsi.fsd.signals.resultMeta': '{{count}} řádků · deklarováno {{declared}}',
+  'master.intelligence.vsi.fsd.signals.resultMeta': '{count} řádků · deklarováno {declared}',
   'master.intelligence.vsi.fsd.signals.tableCaption': 'Katalog signálů FSD provider-native',
   'master.intelligence.vsi.fsd.signals.col.name': 'Signál poskytovatele',
   'master.intelligence.vsi.fsd.signals.col.state': 'Prezentace',
@@ -148,7 +148,7 @@ export const masterIntelligenceVsiV2Cs: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.evidence.runCounts': 'Počty pozorování běhu (inspektor)',
   'master.intelligence.vsi.evidence.selectRun': 'Otevřete inspektor požadavků u běhu pro načtení počtů.',
   'master.intelligence.vsi.evidence.vsiProfile': 'Omezení profilu VSI',
-  'master.intelligence.vsi.evidence.profileRevision': 'Revize profilu {{revision}}',
+  'master.intelligence.vsi.evidence.profileRevision': 'Revize profilu {revision}',
   'master.intelligence.vsi.evidence.count.observed': 'Pozorováno',
   'master.intelligence.vsi.evidence.count.nullObserved': 'NULL pozorováno',
   'master.intelligence.vsi.evidence.count.deferred': 'Odloženo',
@@ -169,9 +169,9 @@ export const masterIntelligenceVsiV2Cs: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.fsd.signals.col.snapshotQuery': 'Dotaz snapshotu',
   'master.intelligence.vsi.fsd.signals.col.historicalQuery': 'Historický dotaz',
   'master.intelligence.vsi.fsd.signals.searchIncomplete':
-    'Sken katalogu zastaven po {{pages}} stránkách (načteno {{loaded}} řádků). Shody mohou být neúplné.',
+    'Sken katalogu zastaven po {pages} stránkách (načteno {loaded} řádků). Shody mohou být neúplné.',
   'master.intelligence.vsi.fsd.signals.catalogIdentityViolation':
-    'Identita katalogu se při skenování změnila (po {{pages}} stránkách, {{loaded}} řádcích). Výsledky nejsou zobrazeny jako úplné ověřené vyhledávání.',
+    'Identita katalogu se při skenování změnila (po {pages} stránkách, {loaded} řádcích). Výsledky nejsou zobrazeny jako úplné ověřené vyhledávání.',
   'master.intelligence.vsi.fsd.signals.searchExhaustive': 'Vyhledávání v katalogu pro dotaz vyčerpáno.',
   'master.intelligence.vsi.fsd.signals.empty': 'Žádný signál neodpovídá aktuálnímu filtru.',
   'master.intelligence.vsi.fsd.signals.declaredNotObserved':

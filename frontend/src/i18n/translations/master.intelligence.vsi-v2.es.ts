@@ -26,7 +26,7 @@ export const masterIntelligenceVsiV2Es: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.cockpit.openCanonicalLedger': 'Abrir libro canónico de señales VSI',
   'master.intelligence.vsi.cockpit.lvCard': 'Perfil de espera LV',
   'master.intelligence.vsi.cockpit.rpmCard': 'Perfil de cadencia RPM',
-  'master.intelligence.vsi.cockpit.multiLink': '{{count}} enlaces fuente del proveedor en este vehículo',
+  'master.intelligence.vsi.cockpit.multiLink': '{count} enlaces fuente del proveedor en este vehículo',
 
   'master.intelligence.vsi.fsd.loading': 'Cargando modelo de lectura FSD…',
   'master.intelligence.vsi.fsd.partialTitle': 'Modelo de lectura FSD no disponible',
@@ -91,7 +91,7 @@ export const masterIntelligenceVsiV2Es: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.fsd.signals.notAuthoritative': 'El catálogo no está marcado como autoritativo para este ámbito.',
   'master.intelligence.vsi.fsd.signals.search': 'Buscar señales provider-native',
   'master.intelligence.vsi.fsd.signals.searchAction': 'Buscar',
-  'master.intelligence.vsi.fsd.signals.resultMeta': '{{count}} filas · declaradas {{declared}}',
+  'master.intelligence.vsi.fsd.signals.resultMeta': '{count} filas · declaradas {declared}',
   'master.intelligence.vsi.fsd.signals.tableCaption': 'Catálogo de señales FSD provider-native',
   'master.intelligence.vsi.fsd.signals.col.name': 'Señal del proveedor',
   'master.intelligence.vsi.fsd.signals.col.state': 'Presentación',
@@ -148,7 +148,7 @@ export const masterIntelligenceVsiV2Es: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.evidence.runCounts': 'Recuentos de observación por ejecución (inspector)',
   'master.intelligence.vsi.evidence.selectRun': 'Abra el inspector de solicitudes en una ejecución para cargar los recuentos.',
   'master.intelligence.vsi.evidence.vsiProfile': 'Limitaciones del perfil VSI',
-  'master.intelligence.vsi.evidence.profileRevision': 'Revisión de perfil {{revision}}',
+  'master.intelligence.vsi.evidence.profileRevision': 'Revisión de perfil {revision}',
   'master.intelligence.vsi.evidence.count.observed': 'Observado',
   'master.intelligence.vsi.evidence.count.nullObserved': 'NULL observado',
   'master.intelligence.vsi.evidence.count.deferred': 'Aplazado',
@@ -169,9 +169,9 @@ export const masterIntelligenceVsiV2Es: Record<VsiV2Key, string> = {
   'master.intelligence.vsi.fsd.signals.col.snapshotQuery': 'Consulta de instantánea',
   'master.intelligence.vsi.fsd.signals.col.historicalQuery': 'Consulta histórica',
   'master.intelligence.vsi.fsd.signals.searchIncomplete':
-    'Escaneo de catálogo detenido tras {{pages}} páginas ({{loaded}} filas cargadas). Las coincidencias pueden estar incompletas.',
+    'Escaneo de catálogo detenido tras {pages} páginas ({loaded} filas cargadas). Las coincidencias pueden estar incompletas.',
   'master.intelligence.vsi.fsd.signals.catalogIdentityViolation':
-    'La identidad del catálogo cambió durante el escaneo (tras {{pages}} páginas, {{loaded}} filas). Los resultados no se muestran como búsqueda verificada completa.',
+    'La identidad del catálogo cambió durante el escaneo (tras {pages} páginas, {loaded} filas). Los resultados no se muestran como búsqueda verificada completa.',
   'master.intelligence.vsi.fsd.signals.searchExhaustive': 'Búsqueda de catálogo agotada para la consulta.',
   'master.intelligence.vsi.fsd.signals.empty': 'Ninguna señal coincide con el filtro actual.',
   'master.intelligence.vsi.fsd.signals.declaredNotObserved':

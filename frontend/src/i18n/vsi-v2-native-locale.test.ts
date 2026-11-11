@@ -64,7 +64,7 @@ const LOCALES = {
 const EN_KEYS = Object.keys(masterIntelligenceVsiV2En) as VsiV2Key[];
 
 function extractPlaceholders(value: string): string[] {
-  const matches = value.match(/\{\{[^}]+\}\}/g);
+  const matches = value.match(/\{\{[^}]+\}\}|\{[a-zA-Z0-9_]+\}/g);
   return matches ? [...matches].sort() : [];
 }
 
@@ -74,6 +74,7 @@ function stripAllowedInternationalTerms(value: string): string {
     result = result.split(token).join('');
   }
   result = result.replace(/\{\{[^}]+\}\}/g, '');
+  result = result.replace(/\{[a-zA-Z0-9_]+\}/g, '');
   return result.replace(/\s+/g, ' ').trim();
 }
 

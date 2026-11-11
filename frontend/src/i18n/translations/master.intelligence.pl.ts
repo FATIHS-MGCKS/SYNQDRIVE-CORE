@@ -91,7 +91,7 @@ export const masterIntelligencePl = {
   'master.intelligence.section.previewComponents': 'Podgląd prezentacji (bez danych na żywo)',
   'master.intelligence.section.evidenceSemantics': 'Znaczenie dowodów',
 
-  'master.intelligence.url.invalidParams': 'Zignorowano nieprawidłowe parametry URL: {{params}}',
+  'master.intelligence.url.invalidParams': 'Zignorowano nieprawidłowe parametry URL: {params}',
 
   'master.intelligence.vsi.previewNote':
     'Odznaki pokazują tylko semantykę etykiet backendu. W PR1 nie ładujemy danych produkcyjnych.',
@@ -108,7 +108,7 @@ export const masterIntelligencePl = {
   'master.intelligence.crossLink.vsi': 'Otwórz VSI',
   'master.intelligence.crossLink.apds': 'Otwórz APDS',
   'master.intelligence.crossLink.contextMissing':
-    'Link do {{target}} wymaga więcej kontekstu w URL (PR2/PR3).',
+    'Link do {target} wymaga więcej kontekstu w URL (PR2/PR3).',
 
   'master.intelligence.badge.lv.LV_8H_OBSERVED': 'LV ~8 h obserwowane',
   'master.intelligence.badge.lv.LV_24H_OBSERVED': 'LV ~24 h obserwowane',
@@ -130,7 +130,7 @@ export const masterIntelligencePl = {
   'master.intelligence.badge.rpm.notApplicableNote':
     'Profil RPM spalinowy nie ma zastosowania (np. BEV). To nie to samo co nieznana jakość sygnału.',
 
-  'master.intelligence.badge.limitation': 'Ograniczenie backendu: {{code}}',
+  'master.intelligence.badge.limitation': 'Ograniczenie backendu: {code}',
 
   'master.intelligence.confidence.HIGH': 'Pewność: wysoka',
   'master.intelligence.confidence.MEDIUM': 'Pewność: średnia',
@@ -163,7 +163,7 @@ export const masterIntelligencePl = {
 
   'master.intelligence.blocked.title': 'Ocena zablokowana',
   'master.intelligence.blocked.body':
-    'Klasyfikacja profilu wstrzymana ({{code}}). Starsza etykieta nie może być pokazana jako aktualna.',
+    'Klasyfikacja profilu wstrzymana ({code}). Starsza etykieta nie może być pokazana jako aktualna.',
 
   'master.intelligence.section.fleetOverview': 'Zakres floty i profile',
   'master.intelligence.section.signals': 'Szczegóły sygnału',
@@ -185,8 +185,8 @@ export const masterIntelligencePl = {
   'master.intelligence.vsi.noProfiles.body':
     'Dla tego pojazdu nie ma jeszcze profilu capability. To nie to samo co wyłączona historia rewizji.',
 
-  'master.intelligence.vsi.decision.lv': 'Kod decyzji LV: {{code}}',
-  'master.intelligence.vsi.decision.rpm': 'Kod decyzji RPM: {{code}}',
+  'master.intelligence.vsi.decision.lv': 'Kod decyzji LV: {code}',
+  'master.intelligence.vsi.decision.rpm': 'Kod decyzji RPM: {code}',
 
   'master.intelligence.vsi.signals.intro':
     'Etykiety cadence opisują obserwowane wzorce transmisji, nie konfigurację sprzętu.',
@@ -236,7 +236,7 @@ export const masterIntelligencePl = {
   'master.intelligence.vsi.signals.rpmDual.snapshotShort': 'Migawka',
   'master.intelligence.vsi.signals.rpmDual.cadenceShort': 'HF/kadencja',
   'master.intelligence.vsi.signals.rpmDual.hfEvidenceLine':
-    'Profil {{profile}} · {{samples}} próbek HF (patrz panel)',
+    'Profil {profile} · {samples} próbek HF (patrz panel)',
   'master.intelligence.vsi.signals.rpmDual.seePanel': 'Patrz panel poniżej',
 
   'master.intelligence.vsi.revision.loading': 'Ładowanie historii rewizji…',
@@ -358,7 +358,7 @@ export const masterIntelligencePl = {
   'master.intelligence.vsi.ledger.filters.hasLimitations': 'Ma ograniczenia',
   'master.intelligence.vsi.ledger.filters.hasHf': 'Ma przypisywalne HF',
   'master.intelligence.vsi.ledger.filters.hideNA': 'Ukryj nie dotyczy',
-  'master.intelligence.vsi.ledger.filters.resultCount': '{{shown}} z {{total}} sygnałów',
+  'master.intelligence.vsi.ledger.filters.resultCount': '{shown} z {total} sygnałów',
   'master.intelligence.vsi.ledger.col.signal': 'Sygnał',
   'master.intelligence.vsi.ledger.col.qualityConfidence': 'Jakość / pewność',
   'master.intelligence.vsi.ledger.col.lastObservation': 'Ostatnia ważna obserwacja',
@@ -366,11 +366,11 @@ export const masterIntelligencePl = {
   'master.intelligence.vsi.ledger.col.provenance': 'Dowody',
   'master.intelligence.vsi.ledger.col.action': 'Otwórz szczegóły',
   'master.intelligence.vsi.ledger.table.caption': 'Rejestr dowodów sygnałów pojazdu',
-  'master.intelligence.vsi.ledger.selectSignal': 'Wybierz sygnał {{signal}}',
+  'master.intelligence.vsi.ledger.selectSignal': 'Wybierz sygnał {signal}',
   'master.intelligence.vsi.ledger.emptyFiltered': 'Żaden sygnał nie pasuje do filtrów.',
   'master.intelligence.vsi.ledger.multiLinkNotice':
-    '{{count}} linków źródłowych — dowody dotyczą tylko wybranego linku.',
-  'master.intelligence.vsi.ledger.footerMeta': '{{count}} sygnałów · rewizja profilu {{revision}}',
+    '{count} linków źródłowych — dowody dotyczą tylko wybranego linku.',
+  'master.intelligence.vsi.ledger.footerMeta': '{count} sygnałów · rewizja profilu {revision}',
 
   'master.intelligence.vsi.ledger.detail.section.summary': 'Podsumowanie dowodów',
   'master.intelligence.vsi.ledger.detail.section.timeline': 'Oś czasu dowodów',
@@ -381,7 +381,7 @@ export const masterIntelligencePl = {
   'master.intelligence.vsi.ledger.detail.timeline.evaluatedAt': 'Profil oceniono',
   'master.intelligence.vsi.ledger.detail.context.vehicle': 'Pojazd',
   'master.intelligence.vsi.ledger.detail.context.link': 'Link źródła',
-  'master.intelligence.vsi.ledger.detail.context.revision': 'Rewizja profilu {{revision}}',
+  'master.intelligence.vsi.ledger.detail.context.revision': 'Rewizja profilu {revision}',
   'master.intelligence.vsi.ledger.detail.lv.standbyProfile': 'Profil standby LV',
   'master.intelligence.vsi.ledger.detail.lv.classification': 'Decyzja klasyfikacji',
   'master.intelligence.vsi.ledger.detail.lv.confidence': 'Pewność dowodu',
@@ -434,7 +434,7 @@ export const masterIntelligencePl = {
   'master.intelligence.tireCalibration.accuracy.notEvaluable.body':
     'Independent measurement pairs are not persisted yet. MAE, bias, and coverage cannot be computed.',
   'master.intelligence.tireCalibration.accuracy.policyOpportunities':
-    'Policy pairing opportunities (sampled, not confirmed pairs): {{count}}',
+    'Policy pairing opportunities (sampled, not confirmed pairs): {count}',
   'master.intelligence.tireCalibration.quality.sampledScope':
     'Rejection counts are from a sampled policy re-evaluation (recent measurements × wheels) — not a global census.',
   'master.intelligence.tireCalibration.quality.pairableCount': 'Policy-eligible pairings (sampled)',

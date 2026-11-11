@@ -22,7 +22,7 @@ export const masterIntelligenceVsiV2En = {
   'master.intelligence.vsi.cockpit.openCanonicalLedger': 'Open canonical VSI signal ledger',
   'master.intelligence.vsi.cockpit.lvCard': 'LV standby profile',
   'master.intelligence.vsi.cockpit.rpmCard': 'RPM cadence profile',
-  'master.intelligence.vsi.cockpit.multiLink': '{{count}} provider source links on this vehicle',
+  'master.intelligence.vsi.cockpit.multiLink': '{count} provider source links on this vehicle',
 
   'master.intelligence.vsi.fsd.loading': 'Loading FSD read model…',
   'master.intelligence.vsi.fsd.partialTitle': 'FSD read model unavailable',
@@ -86,7 +86,7 @@ export const masterIntelligenceVsiV2En = {
   'master.intelligence.vsi.fsd.signals.notAuthoritative': 'Catalog is not marked authoritative for this scope.',
   'master.intelligence.vsi.fsd.signals.search': 'Search provider-native signals',
   'master.intelligence.vsi.fsd.signals.searchAction': 'Search',
-  'master.intelligence.vsi.fsd.signals.resultMeta': '{{count}} rows returned · declared count {{declared}}',
+  'master.intelligence.vsi.fsd.signals.resultMeta': '{count} rows returned · declared count {declared}',
   'master.intelligence.vsi.fsd.signals.tableCaption': 'FSD provider-native signal catalog',
   'master.intelligence.vsi.fsd.signals.col.name': 'Provider signal',
   'master.intelligence.vsi.fsd.signals.col.state': 'Presentation',
@@ -142,7 +142,7 @@ export const masterIntelligenceVsiV2En = {
   'master.intelligence.vsi.evidence.runCounts': 'Run observation counts (inspector)',
   'master.intelligence.vsi.evidence.selectRun': 'Open the request inspector on a run to load observation counts.',
   'master.intelligence.vsi.evidence.vsiProfile': 'VSI profile limitations',
-  'master.intelligence.vsi.evidence.profileRevision': 'Profile revision {{revision}}',
+  'master.intelligence.vsi.evidence.profileRevision': 'Profile revision {revision}',
   'master.intelligence.vsi.evidence.count.observed': 'Observed',
   'master.intelligence.vsi.evidence.count.nullObserved': 'Null observed',
   'master.intelligence.vsi.evidence.count.deferred': 'Deferred',
@@ -162,9 +162,9 @@ export const masterIntelligenceVsiV2En = {
   'master.intelligence.vsi.fsd.signals.col.snapshotQuery': 'Snapshot query',
   'master.intelligence.vsi.fsd.signals.col.historicalQuery': 'Historical query',
   'master.intelligence.vsi.fsd.signals.searchIncomplete':
-    'Catalog scan stopped after {{pages}} pages ({{loaded}} rows loaded). Matches may be incomplete.',
+    'Catalog scan stopped after {pages} pages ({loaded} rows loaded). Matches may be incomplete.',
   'master.intelligence.vsi.fsd.signals.catalogIdentityViolation':
-    'Catalog identity changed while scanning (after {{pages}} pages, {{loaded}} rows). Results are not shown as a complete verified search.',
+    'Catalog identity changed while scanning (after {pages} pages, {loaded} rows). Results are not shown as a complete verified search.',
   'master.intelligence.vsi.fsd.signals.searchExhaustive': 'Catalog search exhausted for query.',
   'master.intelligence.vsi.fsd.signals.empty': 'No signals match the current filter.',
   'master.intelligence.vsi.fsd.signals.declaredNotObserved':
