@@ -52,6 +52,14 @@ test.describe('VSI Master Intelligence 2.0 — mocked Master Admin', () => {
     await openVsiMasterIntelligence(page, { tab: 'overview' });
     await waitForVsiProfileLabels(page);
     await goToVsiSignalsTab(page);
+    const signalsPanel = page.getByTestId('vsi-tab-signals');
+    await expect(signalsPanel).toBeVisible({ timeout: 60_000 });
+    const resultMeta = signalsPanel.locator('p').filter({ hasText: /Zeilen · deklariert/i });
+    await expect(resultMeta).toBeVisible({ timeout: 15_000 });
+    const metaText = (await resultMeta.first().innerText()).trim();
+    expect(metaText).not.toMatch(/\{\{/);
+    expect(metaText).not.toMatch(/\{[a-zA-Z_]+\}/);
+    expect(metaText).toBe('1 Zeilen · deklariert 2');
     await assertNoPageOverflow(page);
     await captureVsiScreenshot(page, testInfo, `vsi-signals-${vp}`);
 

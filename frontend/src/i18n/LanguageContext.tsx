@@ -41,8 +41,11 @@ const reportedTranslationFallbacks = new Set<string>();
 function interpolate(text: string, vars?: Record<string, string | number>): string {
   if (!vars) return text;
   let result = text;
-  for (const [name, value] of Object.entries(vars)) {
-    result = result.replaceAll(`{${name}}`, String(value));
+  const names = Object.keys(vars).sort((a, b) => b.length - a.length);
+  for (const name of names) {
+    const value = String(vars[name]);
+    result = result.replaceAll(`{{${name}}}`, value);
+    result = result.replaceAll(`{${name}}`, value);
   }
   return result;
 }
