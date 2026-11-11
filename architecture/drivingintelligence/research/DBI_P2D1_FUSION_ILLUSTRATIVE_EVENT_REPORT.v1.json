@@ -1,0 +1,33 @@
+{
+  "contractVersion": "ds4-rpm-dynamics-fusion-research-v1",
+  "kernelVersion": "ds4-rpm-dynamics-fusion-kernel-v1",
+  "researchOnly": true,
+  "evidenceKind": "SYNTHETIC_FIXTURE",
+  "eventIndex": 0,
+  "motionEvent": {
+    "kind": "ACCELERATION",
+    "startLabel": "2033-11-30T01:33:20Z",
+    "endLabel": "2033-11-30T01:33:28Z",
+    "quality": "OK",
+    "flags": []
+  },
+  "fusionClassification": "PARTIAL",
+  "alignmentHypothesisNote": "RESEARCH_LABEL_TIME_HYPOTHESIS_NOT_PHYSICAL_SYNC",
+  "eventLocalDynamics": {
+    "dynamicsStatus": "SUPPORTED_DESCRIPTIVE",
+    "localAdmittedPairCount": 3,
+    "deltaDistribution": { "positiveCount": 3, "negativeCount": 0, "zeroCount": 0 },
+    "observedDirectionReversalCount": 0,
+    "minAbsDeltaRpm": 25,
+    "maxAbsDeltaRpm": 35,
+    "labelGapMsMin": 1000,
+    "labelGapMsMax": 1000
+  },
+  "scientificLimitationFlags": [
+    "SOURCE_TIMESTAMP_PHASE_UNKNOWN",
+    "RPM_OBSERVATION_SUPPORT_WIDTH_UNKNOWN",
+    "FUSION_LABEL_TIME_HYPOTHESIS_ONLY",
+    "NOT_CAUSAL_RPM_RESPONSE_TO_DS4_EVENT"
+  ],
+  "note": "Illustrative single-event excerpt — shadowCorrelation block omitted for brevity; full runs include verbatim shadow join metrics."
+}

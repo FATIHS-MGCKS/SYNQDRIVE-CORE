@@ -2,6 +2,8 @@
 
 | Date | Change | Author/workstream |
 |------|--------|-------------------|
+| 2026-11-10 | APDS V3 P1B0 architecture remediation (H1–H5): B2∩B4 intersection semantics, consumer fail-closed gate, causal evidence validator, replay accounting, verified baseline `isSnapshotPollDue` adapter; PR #2396 | APDS V3 P1B0 |
+| 2026-11-10 | APDS V3 P1B0 offline-only consumer demand registry, VSI information-gain heuristic, V3 policy evaluator, replay core + CLI harness; architecture contracts; no production activation (draft PR) | APDS V3 P1B0 |
 | 2026-10-24 | APDS shadow P1 — frozen `INVALID_LEGACY_DEVELOPMENT_TRIP_EVIDENCE` exclusion for vehicle `8c850ff1-…` trips `00842a6e-…` / `ba613969-…` in reconciliation query corpus only; no `vehicle_trips` mutation; metrics + structured log | P2.5 APDS shadow |
 | 2026-10-24 | APDS shadow P5 — parallel VSI `lv_voltage` availability projection (`LV_*` classes) for shadow observability; B2/B4 baseline unchanged; Prometheus `synqdrive_apd_shadow_vsi_lv_availability_*` | P2.5 APDS / VSI |
 | 2026-10-08 | APDS-9.5B shadow execution V2.1 — LV bootstrap eligibility for `FORCED_SOURCE_TIMESTAMP_MISSING` without expanding advancing decisions; read/write path + Postgres tests; no Production deploy (VDC-EVID-P25-APDS-9-5B-001) | Vehicle & Device Connectivity / P2.5 APDS |

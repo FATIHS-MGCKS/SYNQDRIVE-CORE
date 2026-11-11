@@ -3009,4 +3009,12 @@ Granular scientific evolution record for the 2026-08-30 → 2026-09-06 workstrea
 | DBI P2-C4 W3B governance doc closeout (2026-11-10, PR #2390) | Authority index requirement table: A1/B1/B2 REQUIRED; B3/B4 NOT_REQUIRED (docs only) |
 | DBI P2-C4 W3-048 A1 index namespace priming (2026-11-10) | Cross-kernel glossary index authority; W3-048 consumer guard spec; preventive classification (no reconciliation behavior change) |
 | DBI P2-C4 W3-C B1 support tier enum closeout (2026-11-10) | `B1_CANDIDATE_SUPPORT_TIER_INVALID`; envelope + candidate enum check (`STRONG`/`MODERATE`/`WEAK`); DI-DEF-045 FIXED; `w3c-b1-support-tier.enum.spec.ts` |
+| P2-A2 RPM dynamics research V1 (2026-11-10) | `ds4-rpm-dynamics-research` kernel + shared canon helper; A1 binding reuse; synthetic tests; P2-D/E interface proposal |
+| P2-A2 scientific semantics remediation (2026-11-10, PR #2398) | P1: zero-pair `NOT_ASSESSABLE`, no singleton FLAT runs; P2: plateau-aware non-FLAT reversal counting; P2-D label-time requirement doc |
+| P2-A2 Fable scientific closeout (2026-11-10, PR #2398) | C1 R1 claim parity; C2 run `stepCount` + boundary docs; C3 noise/cadence semantics; C4 canonical `globalIdx` authority; consumer glossary A2 row |
+| P2-D1 DS4×RPM dynamics offline fusion V1 (2026-11-10) | `ds4-rpm-dynamics-fusion-research` — reuses shadow join + A2 + provenance/R1 gates; event-local adjacent-delta filtering; 20 synthetic adversarial tests; `DBI_P2D1_*` + P2-D2 real-data requirements |
+| P2-D1 fusion binding closeout (2026-11-11, PR #2400) | `ds4-rpm-dynamics-fusion-binding-gate.v1.ts` F1–F3; F4 sequence-local reversals; 11 adversarial closeout specs |
+| P2-D2A real-data fusion replay bridge (2026-11-11) | `ds4-rpm-real-data-fusion-replay` — offline orchestrator wiring PR-B2 shadow + PR-B3 attestation audit + P2-D1 fusion (`SYNTHETIC_FIXTURE` gate); 13 adversarial specs; `DBI_P2D2A_*` |
+| P2-D2A P2401 evidence trust closeout (2026-11-11) | T1 authorization semantics; T2 motion provenance honesty; T3 content fingerprint; T4 cadence UNPROVEN default; 17 specs |
+| P2-D2A P2401 T3 final content integrity (2026-11-11) | Full scientific payload fingerprint + 6 red/green sensitivity specs |
 
