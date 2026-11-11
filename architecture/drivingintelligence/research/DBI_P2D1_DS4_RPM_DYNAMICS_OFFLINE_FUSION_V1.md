@@ -34,6 +34,13 @@ Per event: motion attributes, **verbatim** `shadowCorrelation` payload, fusion c
 5. Alignment sensitivity reuses shadow `offsetSecondsProbed` — diagnostic pair counts only.
 6. No fabricated points, no dRPM/dt, no causal DS4→RPM claims.
 
+## Binding closeout (P2-D1 F1–F4)
+
+- **F1:** `validateDs4RpmDynamicsFusionBindingGate` resolves DIMO family via `resolveTelemetrySourceFamily`; R1 via `hasUncertainHistoricalObdRecordTime`; cross-checks RPM sample family metadata (`TELEMETRY_SOURCE_FAMILY_CONTRADICTS_DIMO_IDENTITY`).
+- **F2:** Recomputes V1B fingerprint from A2 `tripInput`; rejects cross-plane org/vehicle/trip/link, fingerprint, RPM points, and motion event/payload mismatches before event-local work.
+- **F3:** Requires `evidenceKind` parity on input vs provenance gate; blocks `REAL_OBSERVATION` when gate is synthetic; enforces A2 `evidenceOrigin` compatibility.
+- **F4:** Event-local `countEventLocalDirectionReversals` resets non-FLAT trend memory on `sequenceIndex` change (no gap-crossing reversals); plateaus preserved within a sequence.
+
 ## Mandatory gates (trip block → fusion `UNAVAILABLE`)
 
 - R1: `R1_HISTORICAL_OBD_POINT_TIME_CORRELATION_PROHIBITED` (hard block via source-family authority)

@@ -1,12 +1,12 @@
 import { resolveTelemetrySourceFamily } from '../../telemetry-source-family';
 import { computeDs4RpmDynamicsResearchV1 } from '../ds4-rpm-dynamics-research/ds4-rpm-dynamics-research.kernel.v1';
+import { validateDs4RpmDynamicsFusionBindingGate } from './ds4-rpm-dynamics-fusion-binding-gate.v1';
 import type { Ds4RpmDynamicsResearchInputV1 } from '../ds4-rpm-dynamics-research/ds4-rpm-dynamics-research.contract.v1';
 import { canonicalizeDs4RpmResearchPoints } from '../ds4-rpm-research-shared/ds4-rpm-research-point-canon.v1';
 import { DS4_RPM_REAL_DATA_UNSUPPORTED_SCIENTIFIC_CLAIMS } from '../ds4-rpm-real-data-replay/ds4-rpm-real-data-scientific-claims.v1';
 import type { DiV0MotionCoreShadowPayloadV1 } from '../motion-core-shadow-worker/di-v0-motion-core-shadow.types';
 import { validateDs4RpmShadowCorrelationProvenanceGate } from '../ds4-rpm-shadow-correlation/ds4-rpm-shadow-correlation-provenance-gate.v1';
 import type { Ds4RpmShadowCorrelationProvenanceGateV1 } from '../ds4-rpm-shadow-correlation/ds4-rpm-shadow-correlation-provenance-gate.v1';
-import { validateRpmSampleSourceFamilyAuthority } from '../ds4-rpm-shadow-correlation/ds4-rpm-shadow-correlation-source-family-gate.v1';
 import type {
   Ds4RpmShadowCorrelationEvidenceKind,
   Ds4RpmShadowCorrelationInputV1,
@@ -58,22 +58,32 @@ export function computeDs4RpmDynamicsFusionResearchV1(
   input: Ds4RpmDynamicsFusionResearchInputV1,
 ): Ds4RpmDynamicsFusionResearchResultV1 {
   const tripReasonCodes: Ds4RpmDynamicsFusionResearchReasonCode[] = [];
-  const family = resolveTelemetrySourceFamily(input.dynamicsInput.dimoVehicleRawJson);
-  const provenance = validateDs4RpmShadowCorrelationProvenanceGate(
-    input.correlation,
-    input.provenanceGate,
-  );
+
+  const binding = validateDs4RpmDynamicsFusionBindingGate({
+    evidenceKind: input.evidenceKind,
+    provenanceGate: input.provenanceGate,
+    correlation: input.correlation,
+    dynamicsInput: input.dynamicsInput,
+    motionPayload: input.motionPayload,
+  });
+  if (!binding.ok) {
+    tripReasonCodes.push(...binding.reasonCodes);
+  }
+  const family = binding.ok
+    ? binding.dimoTelemetrySourceFamily
+    : resolveTelemetrySourceFamily(input.dynamicsInput.dimoVehicleRawJson);
+
+  const provenance = validateDs4RpmShadowCorrelationProvenanceGate(input.correlation, {
+    ...input.provenanceGate,
+    evidenceKind: input.evidenceKind,
+    recomputedV1bInputFingerprint: binding.recomputedV1bInputFingerprint,
+    canonicalTripRpmPoints: input.dynamicsInput.tripInput.rpmPoints.map((p) => ({
+      recordedAtIso: p.recordedAtIso,
+      valueRpm: p.valueRpm,
+    })),
+  });
   if (!provenance.ok) {
     tripReasonCodes.push(...provenance.reasonCodes);
-  }
-  tripReasonCodes.push(
-    ...validateRpmSampleSourceFamilyAuthority({
-      evidenceKind: input.evidenceKind,
-      rpmSamples: input.correlation.rpmSamples,
-    }),
-  );
-  if (family === 'UNKNOWN') {
-    tripReasonCodes.push('TELEMETRY_SOURCE_FAMILY_UNKNOWN');
   }
 
   const shadowEvents = joinDs4EventsWithRpmEvidenceV1(input.correlation, {
@@ -89,9 +99,15 @@ export function computeDs4RpmDynamicsFusionResearchV1(
   }
 
   const tripBlocked =
+    !binding.ok ||
     tripReasonCodes.includes('R1_HISTORICAL_OBD_POINT_TIME_CORRELATION_PROHIBITED') ||
     tripReasonCodes.includes('SOURCE_FAMILY_BINDING_UNPROVEN') ||
     tripReasonCodes.includes('TELEMETRY_SOURCE_FAMILY_UNKNOWN') ||
+    tripReasonCodes.includes('TELEMETRY_SOURCE_FAMILY_CONTRADICTS_DIMO_IDENTITY') ||
+    tripReasonCodes.includes('FUSION_PROVENANCE_EVIDENCE_KIND_MISMATCH') ||
+    tripReasonCodes.includes('FUSION_SYNTHETIC_GATE_REJECTS_REAL_OBSERVATION') ||
+    tripReasonCodes.includes('FUSION_EVIDENCE_ORIGIN_INCOMPATIBLE') ||
+    tripReasonCodes.includes('FUSION_MOTION_EVENT_PAYLOAD_MISMATCH') ||
     tripReasonCodes.includes('A2_DYNAMICS_ABSTAINED') ||
     !provenance.ok;
 
@@ -205,7 +221,7 @@ export function computeDs4RpmDynamicsFusionResearchV1(
     tripId: input.correlation.tripId,
     providerSourceLinkId: input.correlation.rpmSamples?.providerSourceLinkId ?? null,
     motionRunId: input.correlation.motion.runId,
-    v1bInputFingerprint: input.provenanceGate.recomputedV1bInputFingerprint,
+    v1bInputFingerprint: binding.recomputedV1bInputFingerprint,
     a2ContractVersion: dynamicsResult.contractVersion,
     a2KernelVersion: dynamicsResult.kernelVersion,
     telemetrySourceFamily: family,

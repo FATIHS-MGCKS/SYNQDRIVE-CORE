@@ -13,15 +13,21 @@ function classifyLocalPairs(pairCount: number): Ds4RpmDynamicsFusionResearchCont
   return 'AVAILABLE';
 }
 
-function countLocalReversals(
+export function countEventLocalDirectionReversals(
   deltas: readonly Ds4RpmDynamicsResearchAdjacentDeltaV1[],
 ): number {
   let lastNonFlat: 'RISE' | 'FALL' | null = null;
+  let lastSequenceIndex: number | null = null;
   let reversals = 0;
   for (const d of deltas) {
+    if (lastSequenceIndex != null && d.sequenceIndex !== lastSequenceIndex) {
+      lastNonFlat = null;
+    }
+    lastSequenceIndex = d.sequenceIndex;
     if (d.direction === 'FLAT') continue;
-    if (lastNonFlat != null && lastNonFlat !== d.direction) reversals += 1;
-    lastNonFlat = d.direction;
+    const stepDir = d.direction === 'RISE' ? 'RISE' : 'FALL';
+    if (lastNonFlat != null && lastNonFlat !== stepDir) reversals += 1;
+    lastNonFlat = stepDir;
   }
   return reversals;
 }
@@ -85,7 +91,7 @@ export function summarizeEventLocalDynamics(
     dynamicsStatus,
     localAdmittedPairCount: filtered.length,
     deltaDistribution: dist,
-    observedDirectionReversalCount: countLocalReversals(filtered),
+    observedDirectionReversalCount: countEventLocalDirectionReversals(filtered),
     minAbsDeltaRpm: absMagnitudes.length > 0 ? Math.min(...absMagnitudes) : null,
     maxAbsDeltaRpm: absMagnitudes.length > 0 ? Math.max(...absMagnitudes) : null,
     labelGapMsMin: gaps.length > 0 ? Math.min(...gaps) : null,
