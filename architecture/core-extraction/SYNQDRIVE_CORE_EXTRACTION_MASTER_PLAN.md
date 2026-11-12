@@ -271,6 +271,22 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 
 **TRIAL (B5):** `canAccessProductUi=true`, `canActivateVehicles=false` (fail-closed für Fahrzeugaktivierung; aligned mit `product-entitlement.authority` ACTIVE-only für VO).
 
+**Guard-Parität (B2/B5 — P1A-Closeout):**
+
+| Pfad | Durchsetzung |
+|---|---|
+| `core.entitlements.v1` HTTP API | JWT + `OrgScopingGuard` nur; keine `ProductLicenseGuard`-Verdrahtung |
+| `EntitlementsQueryService.capabilities` | **Deklarativ** — keine Route-/Guard-Enforcement; Apps dürfen nicht als produktiv durchgesetzt behandeln |
+| `ProductLicenseGuard` | `status === ACTIVE` nur — **kein TRIAL**, kein `expiresAt` |
+| VO-4 `assertOrganizationProductEntitled` | **ACTIVE** only — kein `expiresAt` |
+| Billing `EntitlementResolverService` (legacy) | `ACTIVE` \| `TRIAL` status — kein `expiresAt` |
+
+**`OrganizationProduct.expiresAt`:** Schema-Feld vorhanden, **in keiner bestehenden Authority durchgesetzt**. P1A liefert `licenseTermExpired` (faktisch) + `expiresAtPolicy=NOT_ENFORCED_STATUS_ONLY_PARITY`; Capabilities folgen weiterhin nur `OrgProductStatus` (Parität zu Guards). **Produktive Nutzung expiry-basierter Denial blockiert** bis Owner-Entscheidung.
+
+**Tests:** Unit-Policy, Query-Service, Controller-Metadaten, **HTTP-Integration** (`AuthGuard` + `OrgScopingGuard`, gemocktes Prisma).
+
+**CI:** GitHub Actions im Repo **deaktiviert** (Owner) — keine automatische PR-CI-Bestätigung; lokale Jest/tsc/registry-Validator als Nachweis.
+
 **Nicht in P1A:** Entitlement-Outbox, M2M (B1), Trip/DBI/VSI, VYMOD-Slug, Schema-Migration, Produktions-Deploy.
 
 ### 6.2 Ursprünglich geplanter erster PR — Outbox (verschoben)
@@ -309,7 +325,8 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 - **PRODUCTION_RUNTIME**: aktuelle Produktiv-SHAs, echte Worker-Typologie, Queue-Namen-Kollisionen und DB-Lifecycle; P0/P1 ohne VPS-Audit.
 - **DB_SPLIT_STRATEGY**: spätere separate DBs vs. getrennte Schemas; zunächst technische und fachliche Schreibgrenzen.
 - **M2M_AUTH**: Token-Aussteller, Audience/Scope, Autorisierung, Rotation, Revocation.
-- **TRIAL_POLICY**: Zugriff auf UI vs. Fahrzeugaktivierung.
+- **TRIAL_POLICY**: Zugriff auf UI vs. Fahrzeugaktivierung (P1A API deklariert UI für TRIAL; Guards enforce nur ACTIVE).
+- **ORG_PRODUCT_EXPIRES_AT**: DB-Feld ohne Laufzeit-Durchsetzung in Guards/Billing/VO — Owner-Entscheidung offen.
 - **MESSAGE_DELIVERY**: exakte Outbox-Transaktionsgrenzen, Retry, Idempotenz, Tenant Fan-out.
 - **APP_REPOS**: Ziel-Rental-Repo/-Name und exakter Deploy-Cutover; nicht aus dem historischen `SYNQDRIVE-alpha`-Namen ableiten.
 - **SHARED_DOMAIN_CLASSIFICATION**: Stations, Service Cases, Insurance, Parts, Fines, Vendors, Tasks, Docs, PaymentEmailProcessor, Operator.
@@ -326,7 +343,8 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | 2026-11-12 | `SYNQDRIVE_CORE_P1_BOUNDARY_CONTRACT_DESIGN` | **DESIGN_READY**, Entitlements/Read/Trip-Link/Event-Verträge entworfen; B1–B5 offen | Keine Codeänderung, kein Deploy | Docs-Handoff + freigegebener kleiner P1A-PR |
 | 2026-11-12 | Masterplan V1.0 (Entwurf) | **DOKUMENTIERT**, nur Plan/Übergabe – keine Implementierung | Docs-only, Repo-PR/Commit separat nachzuweisen | Owner-Review, dann P1A-Scope |
 | 2026-11-12 | `SYNQDRIVE_CORE_MASTER_PLAN_BOOTSTRAP` | **PASS** (Repo-Abgleich §2.1); Masterplan unter `architecture/core-extraction/`; PR #1 merged | Docs-only | P1A |
-| 2026-11-12 | `SYNQDRIVE_CORE_P1A_ENTITLEMENTS_AND_AGENT_GOVERNANCE` | **DRAFT_PR #2** · SHA `70e3face6` auf Branch `cursor/p1a-core-entitlements-5019` | Entitlements Read API v1 + `AGENTS.md` Governance; **kein Deploy/Prod** | Owner-Review; CI; P1B M2M; Outbox Follow-up |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1A_ENTITLEMENTS_AND_AGENT_GOVERNANCE` | **DRAFT_PR #2** · Base `97b5a27c4dbd5244a7259bdb303a1f385532aba4` (main post #1) · Branch `cursor/p1a-core-entitlements-5019` | Entitlements Read API v1 + `AGENTS.md` Governance; **kein Deploy/Prod** | Security closeout |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1A_SECURITY_AND_SEMANTIC_CLOSEOUT` | **DRAFT_PR #2** · HEAD `f03806f394a118556ab3e12ec6fd9e7da5f7302e` | expiresAt-Transparenz; HTTP Auth/Tenant-Tests; Guard-Parität; Actions aus | Owner-Review PR #2 |
 
 **Updatevorlage für neue Einträge:**
 

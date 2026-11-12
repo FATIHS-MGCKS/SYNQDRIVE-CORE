@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { OrgProductPlan, OrgProductStatus, ProductSlug } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
-import { isEntitledForAnyAccess, resolveEntitlementCapabilities } from './entitlements-policy';
+import {
+  isEntitledForAnyAccess,
+  isOrganizationProductLicenseTermExpired,
+  ORGANIZATION_PRODUCT_EXPIRES_AT_POLICY,
+  resolveEntitlementCapabilities,
+} from './entitlements-policy';
 import {
   CORE_ENTITLEMENTS_CONTRACT_VERSION,
   CORE_ENTITLEMENTS_M2M_PRODUCTION_READY,
@@ -83,6 +88,7 @@ export class EntitlementsQueryService {
     },
   ): EntitlementProductRecordV1 {
     const capabilities = resolveEntitlementCapabilities(row.status);
+    const licenseTermExpired = isOrganizationProductLicenseTermExpired(row.expiresAt);
     return {
       contractVersion: CORE_ENTITLEMENTS_CONTRACT_VERSION,
       organizationId,
@@ -94,7 +100,9 @@ export class EntitlementsQueryService {
       plan: row.plan,
       activatedAt: row.activatedAt?.toISOString() ?? null,
       expiresAt: row.expiresAt?.toISOString() ?? null,
+      licenseTermExpired,
       capabilities,
+      expiresAtPolicy: ORGANIZATION_PRODUCT_EXPIRES_AT_POLICY,
     };
   }
 
@@ -114,7 +122,9 @@ export class EntitlementsQueryService {
       plan: null,
       activatedAt: null,
       expiresAt: null,
+      licenseTermExpired: false,
       capabilities,
+      expiresAtPolicy: ORGANIZATION_PRODUCT_EXPIRES_AT_POLICY,
     };
   }
 }

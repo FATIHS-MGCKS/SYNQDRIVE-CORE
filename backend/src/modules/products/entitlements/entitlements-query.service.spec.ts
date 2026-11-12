@@ -23,7 +23,7 @@ describe('EntitlementsQueryService', () => {
         status: OrgProductStatus.ACTIVE,
         plan: OrgProductPlan.STARTER,
         activatedAt: new Date('2026-01-01T00:00:00.000Z'),
-        expiresAt: null,
+        expiresAt: new Date('2030-01-01T00:00:00.000Z'),
         product: { id: 'p1', slug: ProductSlug.RENTAL, name: 'Rental' },
       },
     ]);
@@ -56,5 +56,24 @@ describe('EntitlementsQueryService', () => {
     await expect(service.getForOrganizationProduct(orgId, 'VYMOD')).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('exposes licenseTermExpired without revoking ACTIVE capabilities (expiresAt not enforced)', async () => {
+    prisma.organizationProduct.findFirst.mockResolvedValue({
+      productId: 'p1',
+      status: OrgProductStatus.ACTIVE,
+      plan: OrgProductPlan.STARTER,
+      activatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      expiresAt: new Date('2020-01-01T00:00:00.000Z'),
+      product: { id: 'p1', slug: ProductSlug.RENTAL, name: 'Rental' },
+    });
+
+    const result = await service.getForOrganizationProduct(orgId, ProductSlug.RENTAL);
+    expect(result.licenseTermExpired).toBe(true);
+    expect(result.expiresAtPolicy).toBe('NOT_ENFORCED_STATUS_ONLY_PARITY');
+    expect(result.capabilities).toEqual({
+      canAccessProductUi: true,
+      canActivateVehicles: true,
+    });
   });
 });

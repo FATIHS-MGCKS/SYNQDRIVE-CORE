@@ -39,3 +39,21 @@ export function resolveEntitlementCapabilities(
 export function isEntitledForAnyAccess(status: OrgProductStatus | null | undefined): boolean {
   return resolveEntitlementCapabilities(status).canAccessProductUi;
 }
+
+/**
+ * Factual clock comparison only. Does not gate capabilities — see `ORGANIZATION_PRODUCT_EXPIRES_AT_POLICY`.
+ */
+export function isOrganizationProductLicenseTermExpired(
+  expiresAt: Date | null | undefined,
+  asOf: Date = new Date(),
+): boolean {
+  if (!expiresAt) return false;
+  return expiresAt.getTime() < asOf.getTime();
+}
+
+/**
+ * Runtime enforcement of `OrganizationProduct.expiresAt` is undefined in existing authorities:
+ * ProductLicenseGuard, VO-4 `assertOrganizationProductEntitled`, and billing legacy resolver
+ * ignore `expiresAt` (status-only). Do not infer expiry-based denial here without owner decision.
+ */
+export const ORGANIZATION_PRODUCT_EXPIRES_AT_POLICY = 'NOT_ENFORCED_STATUS_ONLY_PARITY' as const;

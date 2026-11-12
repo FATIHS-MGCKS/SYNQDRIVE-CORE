@@ -1,5 +1,9 @@
 import { OrgProductStatus } from '@prisma/client';
-import { isEntitledForAnyAccess, resolveEntitlementCapabilities } from './entitlements-policy';
+import {
+  isEntitledForAnyAccess,
+  isOrganizationProductLicenseTermExpired,
+  resolveEntitlementCapabilities,
+} from './entitlements-policy';
 
 describe('entitlements-policy', () => {
   it('ACTIVE grants UI and vehicle activation', () => {
@@ -34,5 +38,25 @@ describe('entitlements-policy', () => {
       canActivateVehicles: false,
     });
     expect(isEntitledForAnyAccess(undefined)).toBe(false);
+  });
+
+  describe('OrganizationProduct.expiresAt (status-only parity with ProductLicenseGuard)', () => {
+    const past = new Date('2020-01-01T00:00:00.000Z');
+    const future = new Date('2030-01-01T00:00:00.000Z');
+    const asOf = new Date('2026-06-01T00:00:00.000Z');
+
+    it('reports licenseTermExpired factually when expiresAt is in the past', () => {
+      expect(isOrganizationProductLicenseTermExpired(past, asOf)).toBe(true);
+      expect(isOrganizationProductLicenseTermExpired(future, asOf)).toBe(false);
+      expect(isOrganizationProductLicenseTermExpired(null, asOf)).toBe(false);
+    });
+
+    it('keeps ACTIVE capabilities when licenseTermExpired (no expiresAt enforcement yet)', () => {
+      expect(resolveEntitlementCapabilities(OrgProductStatus.ACTIVE)).toEqual({
+        canAccessProductUi: true,
+        canActivateVehicles: true,
+      });
+      expect(isOrganizationProductLicenseTermExpired(past, asOf)).toBe(true);
+    });
   });
 });
