@@ -268,7 +268,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 
 ### 6.1 P1A-Implementierung (Draft PR #2 — noch nicht auf `main`)
 
-**GitHub PR #2 (Stand Abruf via API):** Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` (`main` nach Merge PR #1) · Head `d55383a0e48bcf15aba8343fa5433aa389973806` · Branch `cursor/p1a-core-entitlements-5019` · State: **OPEN / Draft**.  
+**GitHub PR #2 (verifizieren mit `gh pr view 2 --json baseRefOid,headRefOid`):** Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` (`main` nach Merge PR #1) · Head zum Zeitpunkt der letzten Journal-Pflege `162502ce319382230edec481727e0726cad6f570` · Branch `cursor/p1a-core-entitlements-5019` · State: **OPEN / Draft** (Docs-only Commits können Head fortschreiben).  
 **`origin/main` HEAD** (ohne P1A-Code): weiterhin `97b5a27c48a7521ff6f909f764d46fee4940eaec`, bis PR #2 gemergt ist.
 
 **Code-Review P1A:** bestanden (Owner/Review). Merge/Deploy weiterhin nur mit expliziter Owner-Freigabe.
@@ -351,7 +351,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | 2026-11-12 | `SYNQDRIVE_CORE_MASTER_PLAN_BOOTSTRAP` | **PASS** (Repo-Abgleich §2.1); Masterplan unter `architecture/core-extraction/`; PR #1 merged | Docs-only | P1A |
 | 2026-11-12 | `SYNQDRIVE_CORE_P1A_ENTITLEMENTS_AND_AGENT_GOVERNANCE` | **DRAFT_PR #2** · GitHub Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` · Branch `cursor/p1a-core-entitlements-5019` | Entitlements Read API v1 + `AGENTS.md` Governance; **nur PR-Branch, nicht `main`**; kein Deploy/Prod | Security closeout |
 | 2026-11-12 | `SYNQDRIVE_CORE_P1A_SECURITY_AND_SEMANTIC_CLOSEOUT` | **DRAFT_PR #2** · Commit `6eec326886699d0e731d16f09c030bf5ee887008` (Closeout-Code) | expiresAt-Transparenz; HTTP Auth/Tenant-Tests; Guard-Parität | Doc-SHA-Korrektur |
-| 2026-11-12 | `SYNQDRIVE_CORE_P1A_FINAL_DOCUMENTATION_CORRECTION` | **DRAFT_PR #2** · GitHub Head `d55383a0e48bcf15aba8343fa5433aa389973806` · Code-Review **PASS** | Journal/Handoff-SHAs an GitHub-Refs; CI=Actions aus; P1A bis Merge nicht auf `main` | Owner-Merge PR #2 (wenn freigegeben) |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1A_FINAL_DOCUMENTATION_CORRECTION` | **DRAFT_PR #2** · GitHub Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` · Code-Review **PASS** | Journal/Handoff; falscher Base-SHA korrigiert; P1A **nur PR-Branch**; CI=Actions aus | PR-Head per GitHub API; Owner-Merge PR #2 |
 
 **Updatevorlage für neue Einträge:**
 
