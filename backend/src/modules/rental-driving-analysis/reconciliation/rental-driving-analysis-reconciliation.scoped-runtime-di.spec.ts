@@ -51,30 +51,7 @@ describe('RentalDrivingAnalysisReconciliationPort — scoped runtime DI', () => 
           provide: TRIP_BOOKING_OVERLAP_PORT,
           useValue: overlapPort,
         },
-        {
-          provide: DrivingAnalysisReconciliationService,
-          useFactory: (
-            prisma: PrismaService,
-            analysisInit: DrivingAnalysisInitService,
-            jobDispatcher: DrivingIntelligenceJobDispatcherService,
-            jobRepository: DrivingIntelligenceJobRepository,
-            rentalReconciliation: typeof overlapPort,
-          ) =>
-            new DrivingAnalysisReconciliationService(
-              prisma,
-              analysisInit,
-              jobDispatcher,
-              jobRepository,
-              rentalReconciliation as any,
-            ),
-          inject: [
-            PrismaService,
-            DrivingAnalysisInitService,
-            DrivingIntelligenceJobDispatcherService,
-            DrivingIntelligenceJobRepository,
-            RENTAL_DRIVING_ANALYSIS_RECONCILIATION_PORT,
-          ],
-        },
+        DrivingAnalysisReconciliationService,
       ],
     }).compile();
   });

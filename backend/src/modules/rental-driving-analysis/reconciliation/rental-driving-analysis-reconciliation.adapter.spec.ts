@@ -53,6 +53,30 @@ describe('RentalDrivingAnalysisReconciliationPortAdapter', () => {
     ]);
   });
 
+  it('remediate skips when booking is not org-scoped (tenant negative)', async () => {
+    prisma.booking.findFirst.mockResolvedValue(null);
+
+    const outcome = await adapter.remediateBookingWithoutRentalAnalysis({
+      finding: {
+        checkType: RENTAL_RECONCILIATION_CHECK_BOOKING_WITHOUT_ANALYSIS,
+        organizationId: 'org-tenant-A',
+        entityType: 'booking',
+        entityId: 'book-cross-tenant',
+      },
+      idempotencyKey: 'reconcile:BOOKING_WITHOUT_RENTAL_ANALYSIS:book-cross-tenant:1',
+    });
+
+    expect(prisma.booking.findFirst).toHaveBeenCalledWith({
+      where: { id: 'book-cross-tenant', organizationId: 'org-tenant-A' },
+      select: { vehicleId: true, status: true },
+    });
+    expect(outcome).toBe('skipped');
+    expect(prisma.vehicleTrip.findFirst).not.toHaveBeenCalled();
+    expect(prisma.drivingAnalysisRun.findFirst).not.toHaveBeenCalled();
+    expect(analysisInit.initializeForCompletedTrip).not.toHaveBeenCalled();
+    expect(jobDispatcher.enqueue).not.toHaveBeenCalled();
+  });
+
   it('remediate skips when booking missing vehicle or not completed', async () => {
     prisma.booking.findFirst.mockResolvedValue({ vehicleId: null, status: BookingStatus.ACTIVE });
     const outcome = await adapter.remediateBookingWithoutRentalAnalysis({
