@@ -254,8 +254,8 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **M0** | Alpha → Core Main-only Kopie | **DONE** | SHA/Tree/History parity | Alpha unverändert |
 | **P0** | Repository-Ownership und Dependency Audit | **DONE** | 16 Kopplungen dokumentiert | READ_ONLY |
 | **P1D** | Entitlement, Core-Read, Trip-Link Contract Design | **DONE – DESIGN_ONLY** | DESIGN_READY | Keine Codeänderung |
-| **P1A** | Core-Entitlement-Read-API + EntitlementsQueryService + Tests + AGENTS-Governance | **DRAFT_PR** (nicht gemergt, nicht produktiv) | JWT+OrgScoping; keine Outbox/VYMOD/Trip-Änderung | Owner-Review; kein Deploy |
-| **P1B** | M2M/Service-Auth und Product-scoped IAM festigen | **NOT_STARTED** | Eindeutige Token-Aussteller, Audience, Scope, Rotation, Denial-Tests | Bestehende JWT-Flows schützen |
+| **P1A** | Core-Entitlement-Read-API + EntitlementsQueryService + Tests + AGENTS-Governance | **MERGED** (`main` `78e66dce…`, PR #2) | JWT+OrgScoping; nicht produktiv deployed | P1B Service Auth |
+| **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **DRAFT_PR** (PR folgt) | `CORE_APP_M2M_ENABLED` default off; separate signing secret | Kein Prod-Deploy |
 | **P2** | Trip ↔ Booking Entkopplung | **NOT_STARTED** | Trip-FSM ohne Booking-Imports oder Booking-DB-Join; RentalLink im Rental-Owner | Gated Cutover, keine unkontrollierten Dual Writes |
 | **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **NOT_STARTED** | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
@@ -266,10 +266,9 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 
 **Wichtig:** Phasennummern sind Planungsbezeichner dieses Dokuments und nicht die bestehenden P1/P2-Kürzel fachlicher SYNQDRIVE-Workstreams wie VSI, DBI oder APDS. Diese werden nicht umbenannt oder eigenmächtig aktiviert.
 
-### 6.1 P1A-Implementierung (Draft PR #2 — noch nicht auf `main`)
+### 6.1 P1A — **MERGED** (PR #2 → `main` `78e66dce51a09d98550eebf780dda25a189d3d2d`)
 
-**GitHub PR #2 (verifizieren mit `gh pr view 2 --json baseRefOid,headRefOid`):** Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` (`main` nach Merge PR #1). **Head nicht im Markdown pinnen** (jedes Docs-Commit auf dem PR-Branch verändert `headRefOid`). Branch `cursor/p1a-core-entitlements-5019` · State: **OPEN / Draft**.  
-**`origin/main` HEAD** (ohne P1A-Code): weiterhin `97b5a27c48a7521ff6f909f764d46fee4940eaec`, bis PR #2 gemergt ist.
+Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Code-Review P1A:** bestanden (Owner/Review). Merge/Deploy weiterhin nur mit expliziter Owner-Freigabe.
 
@@ -295,7 +294,25 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 
 **Nicht in P1A:** Entitlement-Outbox, M2M (B1), Trip/DBI/VSI, VYMOD-Slug, Schema-Migration, Produktions-Deploy.
 
-### 6.2 Ursprünglich geplanter erster PR — Outbox (verschoben)
+### 6.2 P1B-PR1 — Core App Service Auth (Draft-PR, Entitlements-Allowlist only)
+
+**Entscheidung:** Voice-MCP-ähnliche kurzlebige Service-JWTs mit eigenem `CORE_APP_M2M_SIGNING_SECRET`, getrennt von User-JWT und Voice-MCP.
+
+**Implementiert (Repository, Feature-Gate default OFF):**
+
+- Prisma: `core_app_service_clients`, `core_app_service_org_grants`
+- Exchange: `POST /api/v1/auth/core-app/token` (client credentials + org + scope)
+- Admin: `POST/PATCH /api/v1/admin/core-app-service-clients/*` (MASTER_ADMIN, kein UI)
+- Verifier: `CoreAppM2mTokenService` + `CoreAppEntitlementsAuthGuard`; `AuthGuard` lehnt Service-JWT auf Nicht-Allowlist ab
+- **Allowlist:** nur `GET /api/v1/core/entitlements/v1/organizations/:orgId[...]`
+- Env: `CORE_APP_M2M_ENABLED=false` (default); `CORE_APP_M2M_SIGNING_SECRET` required when enabled
+- TTL ≤ 300s; Revocation via client/grant status + `credentialVersion`/`grantVersion` (kein per-token DB)
+
+**Limitierungen:** Kein Vehicle/Trip/Master-Admin; kein distributed rate-limit; keine auto-provisioned clients; GitHub Actions aus.
+
+**B1:** teilweise adressiert (Foundation); weitere APIs und M2M-Härtung in Folge-PRs.
+
+### 6.3 Ursprünglich geplanter erster PR — Outbox (verschoben)
 
 Änderungen an Produktzuweisungen über geprüfte Outbox/Ereignislogik: **nicht** in P1A (kein Schema-Umbau). Separater Follow-up-PR nach Owner-Freigabe.
 
@@ -351,7 +368,9 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | 2026-11-12 | `SYNQDRIVE_CORE_MASTER_PLAN_BOOTSTRAP` | **PASS** (Repo-Abgleich §2.1); Masterplan unter `architecture/core-extraction/`; PR #1 merged | Docs-only | P1A |
 | 2026-11-12 | `SYNQDRIVE_CORE_P1A_ENTITLEMENTS_AND_AGENT_GOVERNANCE` | **DRAFT_PR #2** · GitHub Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` · Branch `cursor/p1a-core-entitlements-5019` | Entitlements Read API v1 + `AGENTS.md` Governance; **nur PR-Branch, nicht `main`**; kein Deploy/Prod | Security closeout |
 | 2026-11-12 | `SYNQDRIVE_CORE_P1A_SECURITY_AND_SEMANTIC_CLOSEOUT` | **DRAFT_PR #2** · Commit `6eec326886699d0e731d16f09c030bf5ee887008` (Closeout-Code) | expiresAt-Transparenz; HTTP Auth/Tenant-Tests; Guard-Parität | Doc-SHA-Korrektur |
-| 2026-11-12 | `SYNQDRIVE_CORE_P1A_FINAL_DOCUMENTATION_CORRECTION` | **DRAFT_PR #2** · GitHub Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` · Code-Review **PASS** | Journal/Handoff; falscher Base-SHA korrigiert; P1A **nur PR-Branch**; CI=Actions aus | PR-Head per GitHub API; Owner-Merge PR #2 |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1A_FINAL_DOCUMENTATION_CORRECTION` | **DRAFT_PR #2** · GitHub Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` · Code-Review **PASS** | Journal/Handoff; CI=Actions aus | PR #2 merged |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1A` merge | **MERGED PR #2** → `main` `78e66dce51a09d98550eebf780dda25a189d3d2d` | Entitlements API v1 on main; no prod deploy | P1B-PR1 |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1B_PR1_SERVICE_AUTH_FOUNDATION` | **DRAFT_PR** (siehe PR-Nummer im Commit) · Base `78e66dce51a09d98550eebf780dda25a189d3d2d` | Core App M2M foundation; migration `20261112120000_core_app_m2m_p1b_pr1`; gate default OFF | Owner review; no deploy |
 
 **Updatevorlage für neue Einträge:**
 

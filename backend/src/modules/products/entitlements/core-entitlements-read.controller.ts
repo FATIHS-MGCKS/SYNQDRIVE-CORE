@@ -1,5 +1,5 @@
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { OrgScopingGuard } from '@shared/auth/org-scoping.guard';
+import { CoreAppEntitlementsAuthGuard } from '@modules/core-app-m2m/core-app-entitlements-auth.guard';
 import { EntitlementsQueryService } from './entitlements-query.service';
 
 /**
@@ -7,13 +7,13 @@ import { EntitlementsQueryService } from './entitlements-query.service';
  *
  * Full path: /api/v1/core/entitlements/v1/organizations/:orgId[...]
  *
- * Authentication: user JWT via global AuthGuard only (no M2M — blocker B1).
- * Authorization: OrgScopingGuard (tenant isolation; MASTER_ADMIN cross-org read).
+ * Authentication: user JWT (global AuthGuard) or core app service JWT when CORE_APP_M2M_ENABLED.
+ * Authorization: CoreAppEntitlementsAuthGuard (OrgScoping for users; service principal for M2M).
  *
  * Writes remain on admin/products (MASTER_ADMIN) — not exposed here.
  */
 @Controller('core/entitlements/v1')
-@UseGuards(OrgScopingGuard)
+@UseGuards(CoreAppEntitlementsAuthGuard)
 export class CoreEntitlementsReadController {
   constructor(private readonly entitlements: EntitlementsQueryService) {}
 

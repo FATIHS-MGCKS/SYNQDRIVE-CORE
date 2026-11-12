@@ -1,11 +1,14 @@
 import { registerAs } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
+import { assertCoreAppM2mSigningSecretWhenEnabled } from '@modules/core-app-m2m/core-app-m2m.config';
 
 export default registerAs('app', () => {
   const logger = new Logger('AppConfig');
   const nodeEnv = process.env.NODE_ENV || 'development';
 
   // JWT_SECRET is required in all environments — fail fast if absent
+  assertCoreAppM2mSigningSecretWhenEnabled(process.env);
+
   if (!process.env.JWT_SECRET) {
     const msg = 'FATAL: JWT_SECRET environment variable is not set. The application will not start without a configured JWT secret.';
     logger.error(msg);

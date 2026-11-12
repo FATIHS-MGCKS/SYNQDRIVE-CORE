@@ -1,0 +1,58 @@
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { ProductSlug } from '@prisma/client';
+import { Roles } from '@shared/decorators/roles.decorator';
+import { RolesGuard } from '@shared/auth/roles.guard';
+import { CoreAppM2mClientService } from './core-app-m2m-client.service';
+import { isCoreAppM2mEnabled } from './core-app-m2m.config';
+
+@Controller('admin/core-app-service-clients')
+@UseGuards(RolesGuard)
+@Roles('MASTER_ADMIN')
+export class CoreAppM2mAdminController {
+  constructor(private readonly clients: CoreAppM2mClientService) {}
+
+  @Post()
+  async createClient(
+    @Body()
+    body: {
+      clientId: string;
+      displayName: string;
+      productSlug: ProductSlug;
+      allowedScopes?: string[];
+    },
+  ) {
+    return this.clients.createClient(body);
+  }
+
+  @Post(':id/grants')
+  async addGrant(@Param('id') serviceClientId: string, @Body() body: { organizationId: string }) {
+    const grant = await this.clients.createOrgGrant(serviceClientId, body.organizationId);
+    return { grant };
+  }
+
+  @Patch(':id/rotate-credential')
+  async rotateCredential(@Param('id') serviceClientId: string) {
+    return this.clients.rotateCredential(serviceClientId);
+  }
+
+  @Patch(':id/disable')
+  async disable(@Param('id') serviceClientId: string) {
+    await this.clients.disableClient(serviceClientId);
+    return { status: 'DISABLED' };
+  }
+
+  @Patch(':id/grants/:grantId/revoke')
+  async revokeGrant(@Param('grantId') grantId: string) {
+    const grant = await this.clients.revokeGrant(grantId);
+    return { grant };
+  }
+
+  @Get('status')
+  status() {
+    return {
+      coreAppM2mEnabled: isCoreAppM2mEnabled(),
+    };
+  }
+}
+
+// fix missing Get import - use simple endpoint without Get or add Get

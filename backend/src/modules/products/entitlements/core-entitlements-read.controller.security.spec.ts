@@ -1,4 +1,4 @@
-import { OrgScopingGuard } from '@shared/auth/org-scoping.guard';
+import { CoreAppEntitlementsAuthGuard } from '@modules/core-app-m2m/core-app-entitlements-auth.guard';
 import { CoreEntitlementsReadController } from './core-entitlements-read.controller';
 
 describe('CoreEntitlementsReadController security metadata', () => {
@@ -7,9 +7,9 @@ describe('CoreEntitlementsReadController security metadata', () => {
     expect(path).toBe('core/entitlements/v1');
   });
 
-  it('applies OrgScopingGuard for tenant isolation', () => {
+  it('applies CoreAppEntitlementsAuthGuard for user and service principals', () => {
     const guards = Reflect.getMetadata('__guards__', CoreEntitlementsReadController);
-    expect(guards).toEqual(expect.arrayContaining([OrgScopingGuard]));
+    expect(guards).toEqual(expect.arrayContaining([CoreAppEntitlementsAuthGuard]));
   });
 
   it('exposes org-scoped list route', () => {

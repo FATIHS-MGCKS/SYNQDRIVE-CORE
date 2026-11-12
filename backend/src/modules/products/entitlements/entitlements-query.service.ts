@@ -9,7 +9,7 @@ import {
 } from './entitlements-policy';
 import {
   CORE_ENTITLEMENTS_CONTRACT_VERSION,
-  CORE_ENTITLEMENTS_M2M_PRODUCTION_READY,
+  resolveCoreEntitlementsM2mProductionReady,
   type EntitlementOrganizationListV1,
   type EntitlementProductRecordV1,
 } from './entitlements-query.types';
@@ -46,7 +46,7 @@ export class EntitlementsQueryService {
     return {
       contractVersion: CORE_ENTITLEMENTS_CONTRACT_VERSION,
       organizationId,
-      m2mProductionReady: CORE_ENTITLEMENTS_M2M_PRODUCTION_READY,
+      m2mProductionReady: resolveCoreEntitlementsM2mProductionReady(),
       products,
     };
   }

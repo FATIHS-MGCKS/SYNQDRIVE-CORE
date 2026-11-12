@@ -1,6 +1,12 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import { sessionClaimsFromJwt } from '@shared/auth/auth-session-claims.types';
+import { CORE_APP_SERVICE_TOKEN_TYPE } from '@modules/core-app-m2m/core-app-m2m.constants';
+import {
+  isCoreAppM2mAllowlistedApiPath,
+  isCoreAppM2mExchangePath,
+} from '@modules/core-app-m2m/core-app-m2m.allowlist';
+import { isCoreAppM2mEnabled } from '@modules/core-app-m2m/core-app-m2m.config';
 
 /**
  * Exact paths (not prefixes) that require no authentication.
@@ -28,6 +34,7 @@ const PUBLIC_EXACT_PATHS = new Set<string>([
   '/api/v1/webhooks/resend/outbound-email',
   // Prometheus scrape: skips JWT; MetricsAuthGuard enforces METRICS_BEARER_TOKEN instead.
   '/api/v1/metrics',
+  '/api/v1/auth/core-app/token',
 ]);
 
 /**
@@ -86,6 +93,23 @@ export class AuthGuard implements CanActivate {
     const token = this.extractToken(request);
     if (!token) {
       throw new UnauthorizedException('Missing authentication token');
+    }
+
+    const unsafe = jwt.decode(token, { complete: true }) as jwt.Jwt | null;
+    const payloadTyp = (unsafe?.payload as Record<string, unknown> | undefined)?.typ;
+    if (payloadTyp === CORE_APP_SERVICE_TOKEN_TYPE) {
+      if (!isCoreAppM2mEnabled()) {
+        throw new UnauthorizedException('Service authentication is disabled');
+      }
+      if (isCoreAppM2mExchangePath(pathWithoutQuery)) {
+        throw new UnauthorizedException('Service tokens cannot access the token exchange endpoint');
+      }
+      if (!isCoreAppM2mAllowlistedApiPath(pathWithoutQuery)) {
+        throw new UnauthorizedException('Service token not permitted for this route');
+      }
+      request.authPrincipalKind = 'core_app_service';
+      request.coreAppServiceBearerToken = token;
+      return true;
     }
 
     return this.validateJwt(request, token);
