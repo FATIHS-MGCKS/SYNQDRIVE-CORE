@@ -268,7 +268,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 
 ### 6.1 P1A-Implementierung (Draft PR #2 — noch nicht auf `main`)
 
-**GitHub PR #2 (verifizieren mit `gh pr view 2 --json baseRefOid,headRefOid`):** Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` (`main` nach Merge PR #1) · Head zum Zeitpunkt der letzten Journal-Pflege `5fbe716d207903858fabf381063d17097f009cff` · Branch `cursor/p1a-core-entitlements-5019` · State: **OPEN / Draft** (Docs-only Commits können Head fortschreiben).  
+**GitHub PR #2 (verifizieren mit `gh pr view 2 --json baseRefOid,headRefOid`):** Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` (`main` nach Merge PR #1). **Head nicht im Markdown pinnen** (jedes Docs-Commit auf dem PR-Branch verändert `headRefOid`). Branch `cursor/p1a-core-entitlements-5019` · State: **OPEN / Draft**.  
 **`origin/main` HEAD** (ohne P1A-Code): weiterhin `97b5a27c48a7521ff6f909f764d46fee4940eaec`, bis PR #2 gemergt ist.
 
 **Code-Review P1A:** bestanden (Owner/Review). Merge/Deploy weiterhin nur mit expliziter Owner-Freigabe.
