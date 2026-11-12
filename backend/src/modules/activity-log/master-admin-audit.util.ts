@@ -99,6 +99,8 @@ const SENSITIVE_BODY_KEY_FRAGMENTS = [
   'secret',
   'apikey',
   'api_key',
+  'clientsecret',
+  'client_secret',
   'authorization',
   'refresh',
   'otp',

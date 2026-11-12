@@ -32,6 +32,20 @@ export class EntitlementsQueryService {
     }
   }
 
+  /** M2M list scope — single authorized product only (product isolation). */
+  async listForOrganizationProductOnly(
+    organizationId: string,
+    productSlug: ProductSlug,
+  ): Promise<EntitlementOrganizationListV1> {
+    const product = await this.getForOrganizationProduct(organizationId, productSlug);
+    return {
+      contractVersion: CORE_ENTITLEMENTS_CONTRACT_VERSION,
+      organizationId,
+      m2mProductionReady: resolveCoreEntitlementsM2mProductionReady(),
+      products: [product],
+    };
+  }
+
   async listForOrganization(organizationId: string): Promise<EntitlementOrganizationListV1> {
     await this.assertOrganizationExists(organizationId);
 

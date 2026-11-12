@@ -99,6 +99,25 @@ describe('Core app M2M — HTTP security integration', () => {
       status: CoreAppServiceGrantStatus.ACTIVE,
     }));
 
+    (prisma.organizationProduct.findMany as jest.Mock).mockImplementation(async () => [
+      {
+        productId: 'p1',
+        status: OrgProductStatus.ACTIVE,
+        plan: 'STARTER',
+        activatedAt: new Date(),
+        expiresAt: null,
+        product: { id: 'p1', slug: ProductSlug.RENTAL, name: 'Rental' },
+      },
+      {
+        productId: 'p2',
+        status: OrgProductStatus.ACTIVE,
+        plan: 'STARTER',
+        activatedAt: new Date(),
+        expiresAt: null,
+        product: { id: 'p2', slug: ProductSlug.FLEET, name: 'Fleet' },
+      },
+    ]);
+
     const moduleRef = await Test.createTestingModule({
       controllers: [CoreEntitlementsReadController, DummyAdminSurfaceController],
       providers: [
@@ -148,10 +167,37 @@ describe('Core app M2M — HTTP security integration', () => {
 
   it('allows valid service token on own organization entitlements', async () => {
     const token = serviceToken(ORG_A);
-    await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .get(`/api/v1/core/entitlements/v1/organizations/${ORG_A}`)
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
+    expect(res.body.products).toHaveLength(1);
+    expect(res.body.products[0].productSlug).toBe(ProductSlug.RENTAL);
+    expect(prisma.organizationProduct.findMany).not.toHaveBeenCalled();
+  });
+
+  it('denies service token requesting another product slug', async () => {
+    const token = serviceToken(ORG_A);
+    await request(app.getHttpServer())
+      .get(`/api/v1/core/entitlements/v1/organizations/${ORG_A}/products/${ProductSlug.FLEET}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403);
+  });
+
+  it('rejects a still-valid JWT after product entitlement is revoked', async () => {
+    (prisma.organizationProduct.findFirst as jest.Mock).mockResolvedValueOnce({
+      productId: 'p1',
+      status: OrgProductStatus.SUSPENDED,
+      plan: 'STARTER',
+      activatedAt: new Date(),
+      expiresAt: null,
+      product: { id: 'p1', slug: ProductSlug.RENTAL, name: 'Rental' },
+    });
+    const token = serviceToken(ORG_A);
+    await request(app.getHttpServer())
+      .get(`/api/v1/core/entitlements/v1/organizations/${ORG_A}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403);
   });
 
   it('denies service token for foreign organization route', async () => {

@@ -255,7 +255,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P0** | Repository-Ownership und Dependency Audit | **DONE** | 16 Kopplungen dokumentiert | READ_ONLY |
 | **P1D** | Entitlement, Core-Read, Trip-Link Contract Design | **DONE – DESIGN_ONLY** | DESIGN_READY | Keine Codeänderung |
 | **P1A** | Core-Entitlement-Read-API + EntitlementsQueryService + Tests + AGENTS-Governance | **MERGED** (`main` `78e66dce…`, PR #2) | JWT+OrgScoping; nicht produktiv deployed | P1B Service Auth |
-| **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **DRAFT_PR** (PR folgt) | `CORE_APP_M2M_ENABLED` default off; separate signing secret | Kein Prod-Deploy |
+| **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **DRAFT_PR #3** (`cursor/p1b-service-auth-foundation-5019`) | `CORE_APP_M2M_ENABLED` default off; separate signing secret; security closeout auf PR-Branch | Kein Prod-Deploy |
 | **P2** | Trip ↔ Booking Entkopplung | **NOT_STARTED** | Trip-FSM ohne Booking-Imports oder Booking-DB-Join; RentalLink im Rental-Owner | Gated Cutover, keine unkontrollierten Dual Writes |
 | **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **NOT_STARTED** | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
@@ -294,23 +294,33 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Nicht in P1A:** Entitlement-Outbox, M2M (B1), Trip/DBI/VSI, VYMOD-Slug, Schema-Migration, Produktions-Deploy.
 
-### 6.2 P1B-PR1 — Core App Service Auth (Draft-PR, Entitlements-Allowlist only)
+### 6.2 P1B-PR1 — Core App Service Auth (Draft-PR #3, Entitlements-Allowlist only)
+
+**GitHub:** PR #3 · Branch `cursor/p1b-service-auth-foundation-5019` · Base `78e66dce51a09d98550eebf780dda25a189d3d2d` · HEAD siehe Closeout-Journal.
 
 **Entscheidung:** Voice-MCP-ähnliche kurzlebige Service-JWTs mit eigenem `CORE_APP_M2M_SIGNING_SECRET`, getrennt von User-JWT und Voice-MCP.
 
 **Implementiert (Repository, Feature-Gate default OFF):**
 
-- Prisma: `core_app_service_clients`, `core_app_service_org_grants`
+- Prisma: `core_app_service_clients`, `core_app_service_org_grants` (Migration `20261112120000_core_app_m2m_p1b_pr1`)
 - Exchange: `POST /api/v1/auth/core-app/token` (client credentials + org + scope)
-- Admin: `POST/PATCH /api/v1/admin/core-app-service-clients/*` (MASTER_ADMIN, kein UI)
+- Admin: `POST/PATCH /api/v1/admin/core-app-service-clients/*` (`MASTER_ADMIN` + `MasterAdminMfaGuard` / `MASTER_API_KEYS` step-up, kein UI)
 - Verifier: `CoreAppM2mTokenService` + `CoreAppEntitlementsAuthGuard`; `AuthGuard` lehnt Service-JWT auf Nicht-Allowlist ab
-- **Allowlist:** nur `GET /api/v1/core/entitlements/v1/organizations/:orgId[...]`
-- Env: `CORE_APP_M2M_ENABLED=false` (default); `CORE_APP_M2M_SIGNING_SECRET` required when enabled
-- TTL ≤ 300s; Revocation via client/grant status + `credentialVersion`/`grantVersion` (kein per-token DB)
+- **Allowlist (M2M):** nur `GET /api/v1/core/entitlements/v1/organizations/:orgId` und `.../products/:productSlug` — **ein Produkt pro Service-Client** (Listenfilter + 403 auf fremdes `productSlug`)
+- Env: `CORE_APP_M2M_ENABLED=false` (default); `CORE_APP_M2M_SIGNING_SECRET` required when enabled; **fail-closed** wenn Secret = `JWT_SECRET` oder `VOICE_MCP_TOKEN_SECRET` oder &lt; 32 Zeichen
+- TTL ≤ 300s; Revocation via client/grant status + `credentialVersion`/`grantVersion`; **Live-Recheck** `OrganizationProduct` + `allowedScopes` auf jedem geschützten M2M-Request (nicht nur beim Exchange)
+- Exchange rate-limit: **nur** Express/Nest `req.ip` (kein Client-`x-forwarded-for`); in-memory Buckets mit Ablauf + Obergrenze; Repository: **kein** `trust proxy` in `main.ts`
 
-**Limitierungen:** Kein Vehicle/Trip/Master-Admin; kein distributed rate-limit; keine auto-provisioned clients; GitHub Actions aus.
+**Security closeout (`SYNQDRIVE_CORE_P1B_PR1_SECURITY_CLOSEOUT`):** Produkt-Isolation, Entitlement-Revocation auf API, Scope-Recheck, Signing-Isolation, Admin MFA + Grant↔Client-Bindung, Audit-Redaction für `client_secret`, HTTP-Negativtests.
 
-**B1:** teilweise adressiert (Foundation); weitere APIs und M2M-Härtung in Folge-PRs.
+**Limitierungen / LIVE_ACTIVATION_BLOCKER:**
+
+- **Distributed rate limiting:** Nest `ThrottlerModule` + Exchange-Limiter sind **pro Replica in-memory**; Redis (BullMQ) wird **nicht** als Throttler-Storage genutzt → **M2M bleibt mit `CORE_APP_M2M_ENABLED=false` bis verteiltes Rate-Limit verifiziert**
+- Kein Vehicle/Trip/Master-Admin für Service-JWT; keine auto-provisioned clients; **kein Produktions-Deploy** in diesem Workstream
+- **Postgres-Migrations-Integration:** opt-in `CORE_APP_M2M_POSTGRES_INTEGRATION=1` — in Cloud-Agent-Umgebung ohne Docker/DB **NOT_VERIFIED** (Merge-Gate: isolierte DB nötig)
+- GitHub Actions **deaktiviert** — kein CI-PASS behauptet
+
+**B1:** teilweise adressiert (Foundation + Closeout); weitere APIs in Folge-PRs.
 
 ### 6.3 Ursprünglich geplanter erster PR — Outbox (verschoben)
 
@@ -370,7 +380,8 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P1A_SECURITY_AND_SEMANTIC_CLOSEOUT` | **DRAFT_PR #2** · Commit `6eec326886699d0e731d16f09c030bf5ee887008` (Closeout-Code) | expiresAt-Transparenz; HTTP Auth/Tenant-Tests; Guard-Parität | Doc-SHA-Korrektur |
 | 2026-11-12 | `SYNQDRIVE_CORE_P1A_FINAL_DOCUMENTATION_CORRECTION` | **DRAFT_PR #2** · GitHub Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` · Code-Review **PASS** | Journal/Handoff; CI=Actions aus | PR #2 merged |
 | 2026-11-12 | `SYNQDRIVE_CORE_P1A` merge | **MERGED PR #2** → `main` `78e66dce51a09d98550eebf780dda25a189d3d2d` | Entitlements API v1 on main; no prod deploy | P1B-PR1 |
-| 2026-11-12 | `SYNQDRIVE_CORE_P1B_PR1_SERVICE_AUTH_FOUNDATION` | **DRAFT_PR** (siehe PR-Nummer im Commit) · Base `78e66dce51a09d98550eebf780dda25a189d3d2d` | Core App M2M foundation; migration `20261112120000_core_app_m2m_p1b_pr1`; gate default OFF | Owner review; no deploy |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1B_PR1_SERVICE_AUTH_FOUNDATION` | **DRAFT_PR #3** · Base `78e66dce51a09d98550eebf780dda25a189d3d2d` | Core App M2M foundation; migration `20261112120000_core_app_m2m_p1b_pr1`; gate default OFF | Security closeout |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1B_PR1_SECURITY_CLOSEOUT` | **DRAFT_PR #3** (siehe HEAD nach Push) · Base `78e66dce51a09d98550eebf780dda25a189d3d2d` | R1–R5 Fixes + Tests; Masterplan §6.2; **kein** Deploy/Prod/CI | Owner review PR #3; DB-Integration lokal; distributed RL vor Flag-On |
 
 **Updatevorlage für neue Einträge:**
 

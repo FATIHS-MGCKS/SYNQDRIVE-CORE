@@ -2,11 +2,15 @@ import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/co
 import { ProductSlug } from '@prisma/client';
 import { Roles } from '@shared/decorators/roles.decorator';
 import { RolesGuard } from '@shared/auth/roles.guard';
+import { MasterAdminMfaGuard } from '@shared/auth/master-admin-mfa.guard';
+import { RequireMasterAdminMfa } from '@shared/decorators/require-master-admin-mfa.decorator';
+import { STEP_UP_ACTION } from '@modules/iam-mfa/iam-mfa.policy';
 import { CoreAppM2mClientService } from './core-app-m2m-client.service';
 import { isCoreAppM2mEnabled } from './core-app-m2m.config';
 
 @Controller('admin/core-app-service-clients')
-@UseGuards(RolesGuard)
+@UseGuards(RolesGuard, MasterAdminMfaGuard)
+@RequireMasterAdminMfa(STEP_UP_ACTION.MASTER_API_KEYS)
 @Roles('MASTER_ADMIN')
 export class CoreAppM2mAdminController {
   constructor(private readonly clients: CoreAppM2mClientService) {}
@@ -42,8 +46,8 @@ export class CoreAppM2mAdminController {
   }
 
   @Patch(':id/grants/:grantId/revoke')
-  async revokeGrant(@Param('grantId') grantId: string) {
-    const grant = await this.clients.revokeGrant(grantId);
+  async revokeGrant(@Param('id') serviceClientId: string, @Param('grantId') grantId: string) {
+    const grant = await this.clients.revokeGrantForClient(serviceClientId, grantId);
     return { grant };
   }
 
@@ -54,5 +58,3 @@ export class CoreAppM2mAdminController {
     };
   }
 }
-
-// fix missing Get import - use simple endpoint without Get or add Get

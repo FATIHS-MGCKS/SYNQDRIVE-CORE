@@ -1,6 +1,11 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Param, Req, UseGuards } from '@nestjs/common';
 import { CoreAppEntitlementsAuthGuard } from '@modules/core-app-m2m/core-app-entitlements-auth.guard';
+import type { CoreAppServicePrincipal } from '@modules/core-app-m2m/core-app-m2m.types';
 import { EntitlementsQueryService } from './entitlements-query.service';
+
+type EntitlementsRequest = {
+  coreAppServicePrincipal?: CoreAppServicePrincipal;
+};
 
 /**
  * Versioned read API for organization product entitlements (P1A).
@@ -18,7 +23,11 @@ export class CoreEntitlementsReadController {
   constructor(private readonly entitlements: EntitlementsQueryService) {}
 
   @Get('organizations/:orgId')
-  listOrganizationEntitlements(@Param('orgId') orgId: string) {
+  listOrganizationEntitlements(@Param('orgId') orgId: string, @Req() req: EntitlementsRequest) {
+    const principal = req.coreAppServicePrincipal;
+    if (principal) {
+      return this.entitlements.listForOrganizationProductOnly(orgId, principal.productSlug);
+    }
     return this.entitlements.listForOrganization(orgId);
   }
 
@@ -26,7 +35,12 @@ export class CoreEntitlementsReadController {
   getOrganizationProductEntitlement(
     @Param('orgId') orgId: string,
     @Param('productSlug') productSlug: string,
+    @Req() req: EntitlementsRequest,
   ) {
+    const principal = req.coreAppServicePrincipal;
+    if (principal && productSlug !== principal.productSlug) {
+      throw new ForbiddenException('Service token is not authorized for this product');
+    }
     return this.entitlements.getForOrganizationProduct(orgId, productSlug);
   }
 }

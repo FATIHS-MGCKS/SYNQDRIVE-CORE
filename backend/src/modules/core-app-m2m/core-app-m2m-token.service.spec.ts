@@ -6,6 +6,7 @@ describe('CoreAppM2mTokenService', () => {
   const originalEnv = process.env;
   const clients = {
     loadClientGrantForVerification: jest.fn(),
+    assertM2mAuthorizationLive: jest.fn(),
   };
   let service: CoreAppM2mTokenService;
 
@@ -25,9 +26,11 @@ describe('CoreAppM2mTokenService', () => {
         productSlug: 'RENTAL',
         credentialVersion: 2,
         status: 'ACTIVE',
+        allowedScopes: ['core:entitlements:read'],
       },
       grant: { organizationId: 'org-a', grantVersion: 3, status: 'ACTIVE' },
     });
+    clients.assertM2mAuthorizationLive.mockResolvedValue(undefined);
   });
 
   afterAll(() => {

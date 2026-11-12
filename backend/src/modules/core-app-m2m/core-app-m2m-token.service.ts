@@ -123,6 +123,13 @@ export class CoreAppM2mTokenService {
       throw new ForbiddenException('Service token client mismatch');
     }
 
+    await this.clients.assertM2mAuthorizationLive({
+      organizationId,
+      productSlug,
+      client,
+      requiredScope: allowedScope,
+    });
+
     return {
       kind: 'core_app_service',
       clientDbId: client.id,

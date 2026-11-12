@@ -106,6 +106,52 @@ export class CoreAppM2mClientService {
     });
   }
 
+  async revokeGrantForClient(serviceClientId: string, grantId: string) {
+    const grant = await this.prisma.coreAppServiceOrgGrant.findFirst({
+      where: { id: grantId, serviceClientId },
+    });
+    if (!grant) {
+      throw new NotFoundException('Grant not found for this service client');
+    }
+    return this.revokeGrant(grantId);
+  }
+
+  assertScopeAllowedOnClient(
+    client: { allowedScopes: unknown },
+    scope: CoreAppM2mAllowedScope,
+  ): void {
+    const scopes = client.allowedScopes as string[];
+    if (!scopes.includes(scope)) {
+      throw new ForbiddenException('Scope not allowed for this client');
+    }
+  }
+
+  async assertProductEntitlementForOrganization(
+    organizationId: string,
+    productSlug: ProductSlug,
+  ): Promise<void> {
+    const orgProduct = await this.prisma.organizationProduct.findFirst({
+      where: {
+        organizationId,
+        product: { slug: productSlug },
+      },
+      select: { status: true },
+    });
+    if (!orgProduct || !isEntitledForAnyAccess(orgProduct.status)) {
+      throw new ForbiddenException('Organization product entitlement not active for this operation');
+    }
+  }
+
+  async assertM2mAuthorizationLive(input: {
+    organizationId: string;
+    productSlug: ProductSlug;
+    client: { allowedScopes: unknown };
+    requiredScope: CoreAppM2mAllowedScope;
+  }): Promise<void> {
+    this.assertScopeAllowedOnClient(input.client, input.requiredScope);
+    await this.assertProductEntitlementForOrganization(input.organizationId, input.productSlug);
+  }
+
   async validateExchangeCredentials(input: {
     clientId: string;
     clientSecret: string;

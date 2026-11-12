@@ -12,7 +12,9 @@ export function resolveCoreAppM2mSigningSecret(env: NodeJS.ProcessEnv = process.
   return dedicated;
 }
 
-export function assertCoreAppM2mSigningSecretWhenEnabled(env: NodeJS.ProcessEnv = process.env): void {
+const MIN_M2M_SIGNING_SECRET_LENGTH = 32;
+
+export function validateCoreAppM2mSigningSecretIsolation(env: NodeJS.ProcessEnv = process.env): void {
   if (!isCoreAppM2mEnabled(env)) {
     return;
   }
@@ -22,6 +24,23 @@ export function assertCoreAppM2mSigningSecretWhenEnabled(env: NodeJS.ProcessEnv 
       'CORE_APP_M2M_ENABLED=true requires CORE_APP_M2M_SIGNING_SECRET (must not reuse JWT_SECRET).',
     );
   }
+  if (secret.length < MIN_M2M_SIGNING_SECRET_LENGTH) {
+    throw new Error(
+      `CORE_APP_M2M_SIGNING_SECRET must be at least ${MIN_M2M_SIGNING_SECRET_LENGTH} characters when M2M is enabled.`,
+    );
+  }
+  const jwtSecret = env.JWT_SECRET?.trim();
+  if (jwtSecret && secret === jwtSecret) {
+    throw new Error('CORE_APP_M2M_SIGNING_SECRET must not equal JWT_SECRET.');
+  }
+  const voiceSecret = env.VOICE_MCP_TOKEN_SECRET?.trim();
+  if (voiceSecret && secret === voiceSecret) {
+    throw new Error('CORE_APP_M2M_SIGNING_SECRET must not reuse VOICE_MCP_TOKEN_SECRET.');
+  }
+}
+
+export function assertCoreAppM2mSigningSecretWhenEnabled(env: NodeJS.ProcessEnv = process.env): void {
+  validateCoreAppM2mSigningSecretIsolation(env);
 }
 
 export function resolveCoreAppM2mTokenTtlSeconds(env: NodeJS.ProcessEnv = process.env): number {
