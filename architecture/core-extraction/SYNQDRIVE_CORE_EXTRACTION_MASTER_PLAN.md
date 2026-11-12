@@ -412,14 +412,14 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 2. `AGENTS.md`, `architecture/SYNQDRIVE_RENTAL_ARCHITECTURE.md`, `architecture/MODULE_AUTHORITY_STANDARD.md` lesen; betroffene spezifische Module-Authorities konsultieren.
 3. Den **wirklichen aktuellen Main-SHA** in `SYNQDRIVE-CORE` ermitteln; dokumentierte Baseline und offene PRs abgleichen. Nicht von einer unveränderten Kopie ausgehen.
 4. OWNER_DECISION respektieren: **Master Admin komplett in Core; Plattform-SoR und Vehicle Intelligence in Core; Rental und Consumer-Fachlogik in Apps.**
-5. Das Workstream-Gate ermitteln: P0 und P1-Design abgeschlossen; **P1A implementiert auf Draft PR #2**, aber **nicht auf `main`** bis Merge — `git rev-parse origin/main` vs. PR-Head (`gh pr view …`) immer trennen.
+5. Das Workstream-Gate ermitteln: P0 und P1-Design abgeschlossen; **P1A ist über PR #2 gemergt** (`main` `78e66dce51a09d98550eebf780dda25a189d3d2d`); **P1B-PR1 liegt auf offenem PR #3** (`cursor/p1b-service-auth-foundation-5019`) — P1B-Code **nicht** auf `main` bis Merge; `git rev-parse origin/main` vs. PR-Head (`gh pr view 3`) immer trennen.
 6. Vor jeglichem Code die bereits vorhandenen Contracts, Guards, Prisma-Modelle, Outbox-, Billing- und Trip-Eigentumsgrenzen untersuchen; keine Neuentwicklung vorhandener Systeme.
 7. Nur den explizit autorisierten Scope bearbeiten. Kein automatischer Merge/Deploy/Prod-Zugriff; keine Secret-Offenlegung; keine Änderungen in Alpha ohne Erlaubnis.
 8. Abschlussreport mit OPERATION, Base/New SHA, PR, Änderungen, Tests, CI, DB/Prod-Status, Risiken, Owner-Gates ausgeben und dieses Fortschrittsjournal aktualisieren.
 
 ### Kurzkontext für neue Chats
 
-> Wir spalten `FATIHS-MGCKS/SYNQDRIVE-alpha` in ein zentrales `FATIHS-MGCKS/SYNQDRIVE-CORE` und eigenständige **eigene** App-Repositories auf. Core hält Master Admin, Plattform-IAM, Entitlements, SaaS-Billing und Fahrzeugintelligenz; Rental-Apps konsumieren versionierte Core-APIs/Events. **Aktuell:** `main` nach Masterplan-Bootstrap `97b5a27c48a7521ff6f909f764d46fee4940eaec`; **P1A Entitlements Read API** ist implementiert und review-bestanden auf **Draft PR #2** (Head laut GitHub), **nicht** auf `main` bis Merge. P0/P1D Design abgeschlossen. **GitHub Actions deaktiviert** — keine automatische PR-CI; siehe Journal §10. Kein Deploy/Prod ohne Owner-Freigabe. Fortschritt: Journal dieser Datei.
+> Wir spalten `FATIHS-MGCKS/SYNQDRIVE-alpha` in ein zentrales `FATIHS-MGCKS/SYNQDRIVE-CORE` und eigenständige **eigene** App-Repositories auf. Core hält Master Admin, Plattform-IAM, Entitlements, SaaS-Billing und Fahrzeugintelligenz; Rental-Apps konsumieren versionierte Core-APIs/Events. **Aktuell:** `main` `78e66dce51a09d98550eebf780dda25a189d3d2d` — **P1A MERGED** (PR #2, Entitlements Read API v1); **P1B-PR1 GO_FOR_MERGE** auf **PR #3** (noch nicht auf `main` bis Owner-Merge). M2M (`CORE_APP_M2M_ENABLED`) **nicht** produktiv aktiviert; verteiltes Rate-Limiting bleibt **LIVE_ACTIVATION_BLOCKER**. P0/P1D Design abgeschlossen. **GitHub Actions deaktiviert** — keine automatische PR-CI; siehe Journal §10. Kein Deploy/Prod ohne Owner-Freigabe. Fortschritt: Journal §10 dieser Datei.
 
 ---
 
