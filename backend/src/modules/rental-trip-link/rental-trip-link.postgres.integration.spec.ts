@@ -167,7 +167,8 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
       tripId: trip.id,
       status: RentalTripLinkStatus.ACTIVE,
       bookingId: bookingB.id,
-      linkSource: TripBookingLinkSource.TIME_WINDOW,
+      linkSource: TripBookingLinkSource.EXPLICIT,
+      createdBy: RentalTripLinkCreatedBy.USER,
     });
     trackLink(b.id);
 
@@ -287,7 +288,7 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
     expect(currents).toHaveLength(1);
   });
 
-  it('7 — failed establish leaves prior current intact', async () => {
+  it('7 — transaction rollback after supersede leaves prior current intact', async () => {
     const orgId = await seedOrg();
     const vehicleId = await seedVehicle(orgId);
     const { booking } = await seedBooking(orgId, vehicleId, '7');
@@ -300,19 +301,28 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
       linkSource: TripBookingLinkSource.EXPLICIT,
     });
     trackLink(row.id);
+
     await expect(
       repository.supersedeAndEstablishCurrent({
         organizationId: orgId,
         tripId: trip.id,
         status: RentalTripLinkStatus.ACTIVE,
         bookingId: booking.id,
-        customerId: 'wrong-customer',
         linkSource: TripBookingLinkSource.EXPLICIT,
+        __integrationFailCreateAfterSupersede: true,
       }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-    const current = await repository.findCurrentByTrip(orgId, trip.id);
-    expect(current?.id).toBe(row.id);
-    expect(current?.status).toBe(RentalTripLinkStatus.ACTIVE);
+    ).rejects.toThrow(/rental_trip_links_active_booking_chk|check constraint/i);
+
+    const reloaded = await prisma.rentalTripLink.findUnique({ where: { id: row.id } });
+    expect(reloaded?.status).toBe(RentalTripLinkStatus.ACTIVE);
+    expect(reloaded?.supersededAt).toBeNull();
+    expect(reloaded?.supersededById).toBeNull();
+
+    const currents = await prisma.rentalTripLink.findMany({
+      where: { organizationId: orgId, tripId: trip.id, supersededAt: null },
+    });
+    expect(currents).toHaveLength(1);
+    expect(currents[0]?.id).toBe(row.id);
   });
 
   it('8 — cross-tenant and missing trip/booking rejected', async () => {
@@ -341,7 +351,7 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('9 — SQL constraints block invalid direct inserts', async () => {
+  it('9 — SQL CHECK constraints (not FK noise) block invalid rows', async () => {
     const orgId = await seedOrg();
     const vehicleId = await seedVehicle(orgId);
     const trip = await seedTrip(vehicleId, null);
@@ -352,11 +362,11 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
           organizationId: orgId,
           tripId: trip.id,
           status: RentalTripLinkStatus.UNLINKED,
-          bookingId: 'fake-booking',
+          bookingId: '00000000-0000-0000-0000-000000000001',
           createdBy: RentalTripLinkCreatedBy.SYSTEM,
         },
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/rental_trip_links_unlinked_payload_chk|check constraint/i);
 
     await expect(
       prisma.rentalTripLink.create({
@@ -367,7 +377,19 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
           createdBy: RentalTripLinkCreatedBy.SYSTEM,
         },
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/rental_trip_links_active_booking_chk|check constraint/i);
+
+    await expect(
+      prisma.rentalTripLink.create({
+        data: {
+          organizationId: orgId,
+          tripId: trip.id,
+          status: RentalTripLinkStatus.SUPERSEDED,
+          supersededAt: null,
+          createdBy: RentalTripLinkCreatedBy.SYSTEM,
+        },
+      }),
+    ).rejects.toThrow(/rental_trip_links_superseded_status_chk|check constraint/i);
 
     const { booking } = await seedBooking(orgId, vehicleId, '9');
     const active = await repository.supersedeAndEstablishCurrent({
@@ -378,6 +400,14 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
       linkSource: TripBookingLinkSource.EXPLICIT,
     });
     trackLink(active.id);
+
+    await expect(
+      prisma.rentalTripLink.update({
+        where: { id: active.id },
+        data: { supersededAt: new Date() },
+      }),
+    ).rejects.toThrow(/rental_trip_links_current_requires_null_superseded_at_chk|check constraint/i);
+
     await expect(
       prisma.rentalTripLink.create({
         data: {

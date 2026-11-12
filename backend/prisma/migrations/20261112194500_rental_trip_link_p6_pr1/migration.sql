@@ -53,6 +53,9 @@ CREATE UNIQUE INDEX "rental_trip_links_org_trip_current_uq"
 ALTER TABLE "rental_trip_links" ADD CONSTRAINT "rental_trip_links_current_status_chk"
     CHECK ("superseded_at" IS NOT NULL OR "status" IN ('ACTIVE', 'UNLINKED'));
 
+ALTER TABLE "rental_trip_links" ADD CONSTRAINT "rental_trip_links_current_requires_null_superseded_at_chk"
+    CHECK ("status" NOT IN ('ACTIVE', 'UNLINKED') OR "superseded_at" IS NULL);
+
 ALTER TABLE "rental_trip_links" ADD CONSTRAINT "rental_trip_links_superseded_status_chk"
     CHECK ("status" != 'SUPERSEDED' OR "superseded_at" IS NOT NULL);
 
