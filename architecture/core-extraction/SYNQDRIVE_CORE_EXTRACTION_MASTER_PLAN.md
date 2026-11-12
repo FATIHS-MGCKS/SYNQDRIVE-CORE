@@ -177,7 +177,16 @@ Diese 16 Positionen sind **Audit-Befunde und keine Umsetzungsgenehmigung**. Bevo
 
 ### 5.1 Contract A – Product Entitlements
 
-**Geplanter API-Prefix:** `/api/v1/core/entitlements/v1` (noch **nicht** implementiert).
+**API-Prefix:** `/api/v1/core/entitlements/v1` — **implementiert (P1A, Repository-only; nicht produktiv)**.
+
+| Methode | Pfad (nach globalem `api/v1`) | Auth |
+|---|---|---|
+| `GET` | `core/entitlements/v1/organizations/:orgId` | User JWT + `OrgScopingGuard` |
+| `GET` | `core/entitlements/v1/organizations/:orgId/products/:productSlug` | User JWT + `OrgScopingGuard` |
+
+**Code:** `backend/src/modules/products/entitlements/` (`EntitlementsQueryService`, `entitlements-policy.ts`, `CoreEntitlementsReadController`).  
+**Schreibpfad unverändert:** `admin/products` (`ProductsController` / `ProductsService`).  
+**Keine Entitlement-Outbox in P1A** (Folge-PR empfohlen).
 
 - **Write Owner:** Core Master Admin / `admin/products`.
 - **Read Owner:** Core, geschützt und tenant-spezifisch für Apps.
@@ -244,7 +253,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **M0** | Alpha → Core Main-only Kopie | **DONE** | SHA/Tree/History parity | Alpha unverändert |
 | **P0** | Repository-Ownership und Dependency Audit | **DONE** | 16 Kopplungen dokumentiert | READ_ONLY |
 | **P1D** | Entitlement, Core-Read, Trip-Link Contract Design | **DONE – DESIGN_ONLY** | DESIGN_READY | Keine Codeänderung |
-| **P1A** | Kleiner Core-Entitlement-Read-API-PR + QueryService, geeignete Outbox/Tests | **NOT_STARTED** | Auth, Tenant-Isolation, Idempotenz, Statussemantik, CI; keine Trips/VYMOD-Änderung | No merge/deploy ohne Owner |
+| **P1A** | Core-Entitlement-Read-API + EntitlementsQueryService + Tests + AGENTS-Governance | **DRAFT_PR** (nicht gemergt, nicht produktiv) | JWT+OrgScoping; keine Outbox/VYMOD/Trip-Änderung | Owner-Review; kein Deploy |
 | **P1B** | M2M/Service-Auth und Product-scoped IAM festigen | **NOT_STARTED** | Eindeutige Token-Aussteller, Audience, Scope, Rotation, Denial-Tests | Bestehende JWT-Flows schützen |
 | **P2** | Trip ↔ Booking Entkopplung | **NOT_STARTED** | Trip-FSM ohne Booking-Imports oder Booking-DB-Join; RentalLink im Rental-Owner | Gated Cutover, keine unkontrollierten Dual Writes |
 | **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **NOT_STARTED** | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
@@ -256,9 +265,17 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 
 **Wichtig:** Phasennummern sind Planungsbezeichner dieses Dokuments und nicht die bestehenden P1/P2-Kürzel fachlicher SYNQDRIVE-Workstreams wie VSI, DBI oder APDS. Diese werden nicht umbenannt oder eigenmächtig aktiviert.
 
-### 6.1 Vorgesehener erster Implementierungs-PR (NICHT gestartet)
+### 6.1 P1A-Implementierung (Repository — siehe Draft-PR im Journal)
 
-**Nur:** Core Entitlements Read API v1, ein dedizierter EntitlementsQueryService, sichere Tenant-/Auth-Verträge, Änderungen an Produktzuweisungen über geprüfte Outbox/Ereignislogik und gezielte Tests. **Nicht enthalten:** Trip-Refactor, RentalTripLink-Migration, VYMOD-Enum, Produktions-Flags oder API-Gateway-Rewrite.
+**Umgesetzt:** `EntitlementsQueryService`, zentrale Capability-Policy (`canAccessProductUi` / `canActivateVehicles`), versionierte Read-DTOs `core.entitlements.v1`, geschützte GET-Endpunkte, Unit-/Security-Metadaten-Tests, `AGENTS.md` Abschnitt „SYNQDRIVE CORE EXTRACTION — MANDATORY HANDOFF“.
+
+**TRIAL (B5):** `canAccessProductUi=true`, `canActivateVehicles=false` (fail-closed für Fahrzeugaktivierung; aligned mit `product-entitlement.authority` ACTIVE-only für VO).
+
+**Nicht in P1A:** Entitlement-Outbox, M2M (B1), Trip/DBI/VSI, VYMOD-Slug, Schema-Migration, Produktions-Deploy.
+
+### 6.2 Ursprünglich geplanter erster PR — Outbox (verschoben)
+
+Änderungen an Produktzuweisungen über geprüfte Outbox/Ereignislogik: **nicht** in P1A (kein Schema-Umbau). Separater Follow-up-PR nach Owner-Freigabe.
 
 **Vor dem PR:** B1/B5 soweit für API-Durchsetzung erforderlich präzisieren; Statussemantik und tatsächliche Einbindung von `ProductLicenseGuard` prüfen. Wenn Outbox den Umfang stark vergrößert: in minimale auditierbare PRs aufteilen statt zu overengineeren.
 
@@ -308,7 +325,8 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | 2026-11-12 | `SYNQDRIVE_CORE_P0_FULL_ARCHITECTURE_OWNERSHIP_AUDIT` | **ASSESSMENT_COMPLETE**, 16 `SPLIT_REQUIRED`, Master Admin = Core | STRICT_READ_ONLY | P1 Contract Design |
 | 2026-11-12 | `SYNQDRIVE_CORE_P1_BOUNDARY_CONTRACT_DESIGN` | **DESIGN_READY**, Entitlements/Read/Trip-Link/Event-Verträge entworfen; B1–B5 offen | Keine Codeänderung, kein Deploy | Docs-Handoff + freigegebener kleiner P1A-PR |
 | 2026-11-12 | Masterplan V1.0 (Entwurf) | **DOKUMENTIERT**, nur Plan/Übergabe – keine Implementierung | Docs-only, Repo-PR/Commit separat nachzuweisen | Owner-Review, dann P1A-Scope |
-| 2026-11-12 | `SYNQDRIVE_CORE_MASTER_PLAN_BOOTSTRAP` | **PASS** (Repo-Abgleich §2.1); Masterplan unter `architecture/core-extraction/`; Draft-PR | Nur Markdown-Dokumentation | Owner-Review Masterplan, dann P1A |
+| 2026-11-12 | `SYNQDRIVE_CORE_MASTER_PLAN_BOOTSTRAP` | **PASS** (Repo-Abgleich §2.1); Masterplan unter `architecture/core-extraction/`; PR #1 merged | Docs-only | P1A |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1A_ENTITLEMENTS_AND_AGENT_GOVERNANCE` | **DRAFT_PR** — Entitlements Read API v1 + Governance; siehe PR im Journal-Eintrag unten | Code in Core-Repo; **kein Deploy/Prod** | Owner-Review P1A; P1B M2M; Outbox Follow-up |
 
 **Updatevorlage für neue Einträge:**
 
