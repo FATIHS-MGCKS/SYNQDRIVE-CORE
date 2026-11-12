@@ -1,9 +1,11 @@
-import { Injectable, Logger, Optional, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import type { DrivingIntelligenceJob } from '@prisma/client';
 import { MisuseCaseReconcileService } from './misuse-case-reconcile.service';
 import { inferMisuseReconcileTrigger } from './misuse-case-reconcile.trigger';
-import { RentalDrivingAnalysisRecomputeTriggerService } from '../../../rental-driving-analysis/rental-driving-analysis-recompute.trigger';
-import { RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS } from '../../../rental-driving-analysis/rental-driving-analysis.recompute.types';
+import {
+  TRIP_RENTAL_RECOMPUTE_PORT,
+  type TripRentalRecomputePort,
+} from '../../trips/ports/trip-rental-recompute.port';
 
 @Injectable()
 export class DrivingMisuseReconcileJobHandler {
@@ -12,8 +14,8 @@ export class DrivingMisuseReconcileJobHandler {
   constructor(
     private readonly reconcile: MisuseCaseReconcileService,
     @Optional()
-    @Inject(forwardRef(() => RentalDrivingAnalysisRecomputeTriggerService))
-    private readonly rentalRecomputeTrigger?: RentalDrivingAnalysisRecomputeTriggerService,
+    @Inject(TRIP_RENTAL_RECOMPUTE_PORT)
+    private readonly rentalRecompute?: TripRentalRecomputePort,
   ) {}
 
   async handle(job: DrivingIntelligenceJob): Promise<void> {
@@ -36,13 +38,11 @@ export class DrivingMisuseReconcileJobHandler {
     );
 
     if (job.bookingId) {
-      await this.rentalRecomputeTrigger?.enqueueForBooking({
+      await this.rentalRecompute?.notifyMisuseReconciled({
         organizationId: job.organizationId,
         vehicleId: job.vehicleId,
         bookingId: job.bookingId,
         tripId: job.tripId,
-        reason: RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.MISUSE_RECONCILED,
-        correlationId: `rental-recompute:${job.bookingId}:${RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.MISUSE_RECONCILED}`,
       });
     }
   }

@@ -36,4 +36,50 @@ export class TripRentalRecomputePortAdapter implements TripRentalRecomputePort {
       correlationId: `rental-recompute:${input.bookingId}:${RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.BOOKING_ASSIGNMENT_CORRECTED}`,
     });
   }
+
+  notifyAttributionChanged(input: {
+    organizationId: string;
+    vehicleId: string;
+    bookingId: string;
+    tripId: string;
+  }): Promise<unknown> {
+    return this.trigger.enqueueForBooking({
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      bookingId: input.bookingId,
+      tripId: input.tripId,
+      reason: RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.ATTRIBUTION_CHANGED,
+      correlationId: `rental-recompute:${input.bookingId}:${RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.ATTRIBUTION_CHANGED}`,
+    });
+  }
+
+  notifyTripAnalysisCompleted(input: {
+    organizationId: string;
+    vehicleId: string;
+    tripId: string;
+  }): Promise<unknown> {
+    return this.trigger.enqueueForTrip({
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      tripId: input.tripId,
+      reason: RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.TRIP_ANALYSIS_COMPLETED,
+      correlationId: `rental-recompute:trip-analysis:${input.tripId}:${RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.TRIP_ANALYSIS_COMPLETED}`,
+    });
+  }
+
+  notifyMisuseReconciled(input: {
+    organizationId: string;
+    vehicleId: string;
+    bookingId: string;
+    tripId: string;
+  }): Promise<unknown> {
+    return this.trigger.enqueueForBooking({
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      bookingId: input.bookingId,
+      tripId: input.tripId,
+      reason: RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.MISUSE_RECONCILED,
+      correlationId: `rental-recompute:${input.bookingId}:${RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.MISUSE_RECONCILED}`,
+    });
+  }
 }

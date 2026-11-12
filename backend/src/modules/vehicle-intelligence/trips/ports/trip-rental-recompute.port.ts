@@ -14,4 +14,24 @@ export interface TripRentalRecomputePort {
     bookingId: string;
     tripId: string;
   }): Promise<unknown>;
+
+  notifyAttributionChanged(input: {
+    organizationId: string;
+    vehicleId: string;
+    bookingId: string;
+    tripId: string;
+  }): Promise<unknown>;
+
+  notifyTripAnalysisCompleted(input: {
+    organizationId: string;
+    vehicleId: string;
+    tripId: string;
+  }): Promise<unknown>;
+
+  notifyMisuseReconciled(input: {
+    organizationId: string;
+    vehicleId: string;
+    bookingId: string;
+    tripId: string;
+  }): Promise<unknown>;
 }

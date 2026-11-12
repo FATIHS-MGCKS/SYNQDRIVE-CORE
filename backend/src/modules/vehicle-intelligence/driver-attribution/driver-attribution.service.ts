@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, Optional, forwardRef } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { DriverAttributionSource, HandoverKind } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
 import { resolveBookingDriverPool, isDriverInBookingPool } from '../../bookings/booking-allowed-drivers/booking-allowed-drivers.util';
@@ -15,8 +15,10 @@ import { DRIVER_ATTRIBUTION_MODEL_VERSION } from './driver-attribution.config';
 import { pickCanonicalDriverAttribution } from './driver-attribution-priority';
 import { DriverAttributionRepository } from './driver-attribution.repository';
 import type { DriverAttributionEvidence, UpsertDriverAttributionInput } from './driver-attribution.types';
-import { RentalDrivingAnalysisRecomputeTriggerService } from '../../rental-driving-analysis/rental-driving-analysis-recompute.trigger';
-import { RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS } from '../../rental-driving-analysis/rental-driving-analysis.recompute.types';
+import {
+  TRIP_RENTAL_RECOMPUTE_PORT,
+  type TripRentalRecomputePort,
+} from '../trips/ports/trip-rental-recompute.port';
 
 const HANDOVER_WINDOW_MS = 6 * 60 * 60 * 1000;
 
@@ -28,8 +30,8 @@ export class DriverAttributionService {
     private readonly tripAttributionService: TripAttributionService,
     private readonly jobDispatcher: DrivingIntelligenceJobDispatcherService,
     @Optional()
-    @Inject(forwardRef(() => RentalDrivingAnalysisRecomputeTriggerService))
-    private readonly rentalRecomputeTrigger?: RentalDrivingAnalysisRecomputeTriggerService,
+    @Inject(TRIP_RENTAL_RECOMPUTE_PORT)
+    private readonly rentalRecompute?: TripRentalRecomputePort,
   ) {}
 
   findByTrip(organizationId: string, tripId: string) {
@@ -397,13 +399,11 @@ export class DriverAttributionService {
     });
 
     if (input.bookingId) {
-      await this.rentalRecomputeTrigger?.enqueueForBooking({
+      await this.rentalRecompute?.notifyAttributionChanged({
         organizationId: input.organizationId,
         vehicleId: input.vehicleId,
         bookingId: input.bookingId,
         tripId: input.tripId,
-        reason: RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.ATTRIBUTION_CHANGED,
-        correlationId: `rental-recompute:${input.bookingId}:${RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.ATTRIBUTION_CHANGED}`,
       });
     }
   }

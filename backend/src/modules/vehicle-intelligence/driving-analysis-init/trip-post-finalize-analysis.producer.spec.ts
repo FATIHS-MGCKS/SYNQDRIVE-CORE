@@ -35,6 +35,9 @@ describe('TripPostFinalizeAnalysisProducer', () => {
     const rentalRecompute: TripRentalRecomputePort = {
       notifyTripCompleted: jest.fn().mockResolvedValue({ enqueued: true }),
       notifyBookingAssignmentCorrected: jest.fn(),
+      notifyAttributionChanged: jest.fn(),
+      notifyTripAnalysisCompleted: jest.fn(),
+      notifyMisuseReconciled: jest.fn(),
     };
     const producer = new TripPostFinalizeAnalysisProducer(
       analysisInit as unknown as DrivingAnalysisInitService,
@@ -69,6 +72,9 @@ describe('TripPostFinalizeAnalysisProducer', () => {
     const rentalRecompute: TripRentalRecomputePort = {
       notifyTripCompleted: jest.fn().mockRejectedValue(new Error('queue down')),
       notifyBookingAssignmentCorrected: jest.fn(),
+      notifyAttributionChanged: jest.fn(),
+      notifyTripAnalysisCompleted: jest.fn(),
+      notifyMisuseReconciled: jest.fn(),
     };
     const producer = new TripPostFinalizeAnalysisProducer(
       analysisInit as unknown as DrivingAnalysisInitService,
