@@ -1,4 +1,4 @@
-import { Injectable, Optional, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import {
   TripAssignmentStatus,
   TripAssignmentSubjectType,
@@ -10,12 +10,14 @@ import { TripMetricsService } from '../../observability/trip-metrics.service';
 import { resolveDrivingAttributionRoles } from './driving-attribution-roles/driving-attribution-roles';
 import type { BookingOverlapCandidate } from './trip-canonical-hydration.types';
 import { pickBookingForAssignment } from './trip-canonical-hydration.booking-match';
-import { RentalDrivingAnalysisRecomputeTriggerService } from '../../rental-driving-analysis/rental-driving-analysis-recompute.trigger';
-import { RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS } from '../../rental-driving-analysis/rental-driving-analysis.recompute.types';
 import {
   TRIP_BOOKING_OVERLAP_PORT,
   type TripBookingOverlapPort,
 } from './ports/trip-booking-overlap.port';
+import {
+  TRIP_RENTAL_RECOMPUTE_PORT,
+  type TripRentalRecomputePort,
+} from './ports/trip-rental-recompute.port';
 
 export interface TripAssignmentResolution {
   assignmentStatus: TripAssignmentStatus;
@@ -56,8 +58,8 @@ export class TripAssignmentService {
     private readonly bookingOverlap: TripBookingOverlapPort,
     @Optional() private readonly tripMetrics?: TripMetricsService,
     @Optional()
-    @Inject(forwardRef(() => RentalDrivingAnalysisRecomputeTriggerService))
-    private readonly rentalRecomputeTrigger?: RentalDrivingAnalysisRecomputeTriggerService,
+    @Inject(TRIP_RENTAL_RECOMPUTE_PORT)
+    private readonly rentalRecompute?: TripRentalRecomputePort,
   ) {}
 
   async applyAssignmentToTrip(tripId: string): Promise<TripAssignmentResolution | null> {
@@ -106,14 +108,12 @@ export class TripAssignmentService {
 
     if (resolution.assignedBookingId) {
       if (vehicle?.organizationId) {
-        void this.rentalRecomputeTrigger
-          ?.enqueueForBooking({
+        void this.rentalRecompute
+          ?.notifyBookingAssignmentCorrected({
             organizationId: vehicle.organizationId,
             vehicleId: trip.vehicleId,
             bookingId: resolution.assignedBookingId,
             tripId,
-            reason: RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.BOOKING_ASSIGNMENT_CORRECTED,
-            correlationId: `rental-recompute:${resolution.assignedBookingId}:${RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.BOOKING_ASSIGNMENT_CORRECTED}`,
           })
           .catch(() => {});
       }
