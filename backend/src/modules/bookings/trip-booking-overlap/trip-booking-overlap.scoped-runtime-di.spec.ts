@@ -2,6 +2,9 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { TripAssignmentService } from '@modules/vehicle-intelligence/trips/trip-assignment.service';
 import { TripAnalyticsCanonicalService } from '@modules/vehicle-intelligence/trips/trip-analytics-canonical.service';
 import { TripAttributionService } from '@modules/vehicle-intelligence/trips/trip-attribution.service';
+import { DriverAttributionService } from '@modules/vehicle-intelligence/driver-attribution/driver-attribution.service';
+import { DriverAttributionRepository } from '@modules/vehicle-intelligence/driver-attribution/driver-attribution.repository';
+import { DrivingIntelligenceJobDispatcherService } from '@modules/vehicle-intelligence/driving-intelligence-jobs/driving-intelligence-jobs.dispatcher.service';
 import { TRIP_BOOKING_OVERLAP_PORT } from '@modules/vehicle-intelligence/trips/ports/trip-booking-overlap.port';
 import { TripBookingOverlapModule } from './trip-booking-overlap.module';
 import { TripBookingOverlapPrismaAdapter } from './trip-booking-overlap.adapter';
@@ -20,17 +23,28 @@ describe('TripBookingOverlap — scoped runtime DI', () => {
         TripAssignmentService,
         TripAnalyticsCanonicalService,
         TripAttributionService,
+        DriverAttributionService,
         {
           provide: PrismaService,
           useValue: {
             vehicle: { findUnique: jest.fn() },
-            vehicleTrip: { findMany: jest.fn(), aggregate: jest.fn(), count: jest.fn() },
+            vehicleTrip: { findMany: jest.fn(), aggregate: jest.fn(), count: jest.fn(), findFirst: jest.fn() },
             tripDrivingImpact: { findMany: jest.fn(), findUnique: jest.fn(), aggregate: jest.fn() },
             driverAttribution: { findMany: jest.fn() },
             booking: { findFirst: jest.fn(), findMany: jest.fn() },
+            bookingHandoverProtocol: { findFirst: jest.fn() },
+            drivingAnalysisRun: { findFirst: jest.fn() },
             tripBehaviorEvent: { findMany: jest.fn(), groupBy: jest.fn() },
             $queryRaw: jest.fn().mockResolvedValue([]),
           },
+        },
+        {
+          provide: DriverAttributionRepository,
+          useValue: { findByTrip: jest.fn(), upsertSnapshot: jest.fn() },
+        },
+        {
+          provide: DrivingIntelligenceJobDispatcherService,
+          useValue: { enqueue: jest.fn() },
         },
       ],
     }).compile();
@@ -62,5 +76,14 @@ describe('TripBookingOverlap — scoped runtime DI', () => {
     const attribution = moduleRef.get(TripAttributionService);
     expect(attribution).toBeInstanceOf(TripAttributionService);
     expect((attribution as unknown as { bookingOverlap: unknown }).bookingOverlap).toBe(port);
+  });
+
+  it('injects TRIP_BOOKING_OVERLAP_PORT into DriverAttributionService', () => {
+    const port = moduleRef.get(TRIP_BOOKING_OVERLAP_PORT);
+    const driverAttribution = moduleRef.get(DriverAttributionService);
+    expect(driverAttribution).toBeInstanceOf(DriverAttributionService);
+    expect((driverAttribution as unknown as { bookingOverlap: unknown }).bookingOverlap).toBe(
+      port,
+    );
   });
 });

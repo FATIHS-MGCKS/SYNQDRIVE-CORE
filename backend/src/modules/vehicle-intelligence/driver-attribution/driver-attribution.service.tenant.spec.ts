@@ -15,11 +15,20 @@ describe('DriverAttributionService tenant security', () => {
     const prisma = makePrisma();
     prisma.vehicleTrip.findFirst.mockResolvedValue(null);
 
+    const bookingOverlap = {
+      loadBookingAttributionContext: jest.fn(),
+      findPickupHandoverProofForTrip: jest.fn(),
+      loadDriverPoolForBooking: jest.fn(),
+      findFirstOverlapForTrip: jest.fn(),
+      findOverlapsForVehicleWindow: jest.fn(),
+      loadDriverPoolsForBookings: jest.fn(),
+    };
     const service = new DriverAttributionService(
       prisma,
       { findByTrip: jest.fn() } as any,
       { resolveAttributionForTrip: jest.fn() } as any,
       { enqueue: jest.fn() } as any,
+      bookingOverlap as any,
     );
 
     await expect(

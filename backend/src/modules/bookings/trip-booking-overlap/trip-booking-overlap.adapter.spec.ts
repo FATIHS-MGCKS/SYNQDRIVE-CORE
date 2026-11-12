@@ -1,4 +1,5 @@
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus, HandoverKind } from '@prisma/client';
+import { BOOKING_PICKUP_HANDOVER_WINDOW_MS } from '@modules/vehicle-intelligence/trips/ports/trip-booking-overlap.port';
 import { TripBookingOverlapPrismaAdapter } from './trip-booking-overlap.adapter';
 
 describe('TripBookingOverlapPrismaAdapter', () => {
@@ -6,6 +7,9 @@ describe('TripBookingOverlapPrismaAdapter', () => {
     booking: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
+    },
+    bookingHandoverProtocol: {
+      findFirst: jest.fn(),
     },
   };
   let adapter: TripBookingOverlapPrismaAdapter;
@@ -101,5 +105,47 @@ describe('TripBookingOverlapPrismaAdapter', () => {
     });
     expect(map.size).toBe(0);
     expect(prisma.booking.findMany).not.toHaveBeenCalled();
+  });
+
+  it('loadBookingAttributionContext returns null for missing booking', async () => {
+    prisma.booking.findFirst.mockResolvedValue(null);
+    const ctx = await adapter.loadBookingAttributionContext({
+      organizationId: 'org-1',
+      bookingId: 'missing',
+    });
+    expect(ctx).toBeNull();
+    expect(prisma.booking.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'missing', organizationId: 'org-1' },
+      }),
+    );
+  });
+
+  it('findPickupHandoverProofForTrip queries PICKUP window with signatures', async () => {
+    prisma.bookingHandoverProtocol.findFirst.mockResolvedValue(null);
+    const tripStart = new Date('2026-05-01T10:00:00Z');
+    const tripEnd = new Date('2026-05-01T11:00:00Z');
+    await adapter.findPickupHandoverProofForTrip({
+      organizationId: 'org-1',
+      bookingId: 'book-1',
+      tripStart,
+      tripEnd,
+    });
+    const windowStart = new Date(tripStart.getTime() - BOOKING_PICKUP_HANDOVER_WINDOW_MS);
+    const windowEnd = new Date(tripEnd.getTime() + BOOKING_PICKUP_HANDOVER_WINDOW_MS);
+    expect(prisma.bookingHandoverProtocol.findFirst).toHaveBeenCalledWith({
+      where: {
+        organizationId: 'org-1',
+        bookingId: 'book-1',
+        kind: HandoverKind.PICKUP,
+        performedAt: { gte: windowStart, lte: windowEnd },
+        OR: [
+          { customerSignatureName: { not: null } },
+          { staffSignatureName: { not: null } },
+        ],
+      },
+      orderBy: { performedAt: 'desc' },
+      select: expect.any(Object),
+    });
   });
 });

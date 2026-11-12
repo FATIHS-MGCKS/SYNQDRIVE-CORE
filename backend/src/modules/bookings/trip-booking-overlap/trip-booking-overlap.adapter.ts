@@ -1,8 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus, HandoverKind } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
 import { resolveBookingDriverPool } from '../booking-allowed-drivers/booking-allowed-drivers.util';
-import type { TripBookingOverlapPort } from '@modules/vehicle-intelligence/trips/ports/trip-booking-overlap.port';
+import {
+  BOOKING_PICKUP_HANDOVER_WINDOW_MS,
+  type TripBookingOverlapPort,
+} from '@modules/vehicle-intelligence/trips/ports/trip-booking-overlap.port';
 import type {
   BookingDriverPoolContext,
   BookingOverlapCandidate,
@@ -127,6 +130,75 @@ export class TripBookingOverlapPrismaAdapter implements TripBookingOverlapPort {
     return {
       allowedDriverIds: pool.allowedDriverIds,
       primaryDriverId: pool.primaryDriverId,
+    };
+  }
+
+  async loadBookingAttributionContext(input: {
+    organizationId: string;
+    bookingId: string;
+  }) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: input.bookingId, organizationId: input.organizationId },
+      select: {
+        customerId: true,
+        assignedDriverId: true,
+        customer: { select: { customerType: true } },
+      },
+    });
+    if (!booking) {
+      return null;
+    }
+    return {
+      customerId: booking.customerId,
+      assignedDriverId: booking.assignedDriverId,
+      customerType: booking.customer?.customerType ?? null,
+    };
+  }
+
+  async findPickupHandoverProofForTrip(input: {
+    organizationId: string;
+    bookingId: string;
+    tripStart: Date;
+    tripEnd: Date | null;
+  }) {
+    const windowStart = new Date(input.tripStart.getTime() - BOOKING_PICKUP_HANDOVER_WINDOW_MS);
+    const windowEnd = new Date(
+      (input.tripEnd ?? input.tripStart).getTime() + BOOKING_PICKUP_HANDOVER_WINDOW_MS,
+    );
+
+    const protocol = await this.prisma.bookingHandoverProtocol.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        bookingId: input.bookingId,
+        kind: HandoverKind.PICKUP,
+        performedAt: { gte: windowStart, lte: windowEnd },
+        OR: [
+          { customerSignatureName: { not: null } },
+          { staffSignatureName: { not: null } },
+        ],
+      },
+      orderBy: { performedAt: 'desc' },
+      select: {
+        id: true,
+        bookingId: true,
+        kind: true,
+        performedAt: true,
+        customerSignatureName: true,
+        staffSignatureName: true,
+      },
+    });
+
+    if (!protocol) {
+      return null;
+    }
+
+    return {
+      protocolId: protocol.id,
+      bookingId: protocol.bookingId,
+      kind: protocol.kind,
+      performedAt: protocol.performedAt,
+      customerSignatureName: protocol.customerSignatureName,
+      staffSignatureName: protocol.staffSignatureName,
     };
   }
 }

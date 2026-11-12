@@ -256,7 +256,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P1D** | Entitlement, Core-Read, Trip-Link Contract Design | **DONE – DESIGN_ONLY** | DESIGN_READY | Keine Codeänderung |
 | **P1A** | Core-Entitlement-Read-API + EntitlementsQueryService + Tests + AGENTS-Governance | **MERGED** (`main` `78e66dce…`, PR #2) | JWT+OrgScoping; nicht produktiv deployed | P1B Service Auth |
 | **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
-| **P2** | Trip ↔ Booking Entkopplung | **IN_PROGRESS** (P2-PR1–PR3 merged; P2-PR4 Draft) | Overlap + Recompute Ports (5 Notifications); Attribution über Overlap-Port | RentalTripLink/Cutover |
+| **P2** | Trip ↔ Booking Entkopplung | **IN_PROGRESS** (P2-PR1–PR4 merged; P2-PR5 Draft) | Overlap + Recompute Ports; DriverAttribution Booking reads über Overlap-Port | RentalTripLink/Cutover |
 | **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **NOT_STARTED** | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
@@ -356,7 +356,7 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Unverändert:** `resolveAttribution`-Entscheidungslogik, PRIVATE/EXPLICIT/TIME_WINDOW, Batch-Hydration über Port, Full VI Bootstrap **BASELINE_BLOCKED** (separates Thema).
 
-### 6.6 P2-PR4 — Remaining recompute call sites (Draft-PR)
+### 6.6 P2-PR4 — Remaining recompute call sites (MERGED → `main` `d5b528569…`, PR #7)
 
 **Scope:** `TRIP_RENTAL_RECOMPUTE_PORT` um `notifyAttributionChanged`, `notifyTripAnalysisCompleted`, `notifyMisuseReconciled` erweitert; Core-Call-Sites `DriverAttributionService`, `DrivingAnalysisStageOrchestratorService`, `DrivingMisuseReconcileJobHandler` — keine direkten `RentalDrivingAnalysisRecomputeTriggerService`-Imports mehr in diesen drei Pfaden.
 
@@ -365,6 +365,16 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 **Nicht in Scope:** `DrivingIntelligenceJobHandlerRegistry`, DriverAttribution `prisma.booking`, RentalTripLink, Schema, Events/Outbox, VI-Vollboot.
 
 **Bootstrap:** Full `VehicleIntelligenceModule` **BASELINE_BLOCKED** unverändert.
+
+### 6.7 P2-PR5 — DriverAttribution booking decoupling (Draft-PR)
+
+**Scope:** `DriverAttributionService` nutzt `TRIP_BOOKING_OVERLAP_PORT` für `loadBookingAttributionContext`, `findPickupHandoverProofForTrip`, `loadDriverPoolForBooking` — keine direkten `prisma.booking` / `bookingHandoverProtocol`-Queries, keine `booking-allowed-drivers.util`-Imports in Core.
+
+**Port-Erweiterung:** `loadBookingAttributionContext` (customerId, assignedDriverId, customerType; null bei fehlendem Booking); `findPickupHandoverProofForTrip` (±6h PICKUP + Signatur; `performedAt desc`).
+
+**Security note (unverändert):** leerer `allowedDriverIds`-Pool erlaubt weiterhin jeden Driver (`isDriverInBookingPool`-Semantik in Core gespiegelt) — separates Härtungs-Thema, nicht Teil dieses strukturellen PR.
+
+**Bootstrap:** Full VI **BASELINE_BLOCKED** unverändert.
 
 ### 6.4 P2-PR2 — Trip Rental Recompute Port (MERGED → `main` `98a6068f8…`, PR #5)
 
@@ -454,7 +464,9 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR3_TRIP_ATTRIBUTION_BOOKING_DECOUPLING` | **DRAFT_PR #6** · Base `98a6068f8…` | TripAttribution → `TripBookingOverlapPort`; **kein** Schema/Deploy | Review |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR3` | **MERGED** · PR #6 → `main` `3c55761682812c086d8dc3c056ea1345ca5151f6` | Attribution Booking-Port | P2-PR4 Recompute |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_REMAINING_COUPLING_AND_CUTOVER_AUDIT` | **READ_ONLY** · `main` `3c5576168…` | DESIGN_READY; 3 nächste PRs identifiziert | P2-PR4 |
-| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR4_REMAINING_RECOMPUTE_CALLS` | **DRAFT_PR** · Base `3c5576168…` | Recompute Port +3 notifications; 3 Core-Trigger-Imports entfernt; Registry unverändert | Review |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR4_REMAINING_RECOMPUTE_CALLS` | **DRAFT_PR #7** · Base `3c5576168…` | Recompute Port +3 notifications; 3 Core-Trigger-Imports entfernt; Registry unverändert | Review |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR4` | **MERGED** · PR #7 → `main` `d5b52856921a928fb3c22456f0b855f35a2677d5` | Recompute fan-out | P2-PR5 DriverAttribution |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR5_DRIVER_ATTRIBUTION_BOOKING_DECOUPLING` | **DRAFT_PR** · Base `d5b528569…` | Overlap-Port für Attribution/Handover/Driver-Pool; **kein** Schema | Review |
 
 **Updatevorlage für neue Einträge:**
 

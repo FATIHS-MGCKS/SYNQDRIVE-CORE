@@ -1,7 +1,11 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
-import { DriverAttributionSource, HandoverKind } from '@prisma/client';
+import { DriverAttributionSource } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
-import { resolveBookingDriverPool, isDriverInBookingPool } from '../../bookings/booking-allowed-drivers/booking-allowed-drivers.util';
+import type { BookingDriverPoolContext } from '../trips/trip-canonical-hydration.types';
+import {
+  TRIP_BOOKING_OVERLAP_PORT,
+  type TripBookingOverlapPort,
+} from '../trips/ports/trip-booking-overlap.port';
 import { DRIVING_INTELLIGENCE_PIPELINE_MODEL_VERSION } from '../driving-analysis-init/driving-analysis-init.types';
 import { DrivingIntelligenceJobDispatcherService } from '../driving-intelligence-jobs/driving-intelligence-jobs.dispatcher.service';
 import { TripAttributionService } from '../trips/trip-attribution.service';
@@ -20,8 +24,6 @@ import {
   type TripRentalRecomputePort,
 } from '../trips/ports/trip-rental-recompute.port';
 
-const HANDOVER_WINDOW_MS = 6 * 60 * 60 * 1000;
-
 @Injectable()
 export class DriverAttributionService {
   constructor(
@@ -29,6 +31,8 @@ export class DriverAttributionService {
     private readonly repository: DriverAttributionRepository,
     private readonly tripAttributionService: TripAttributionService,
     private readonly jobDispatcher: DrivingIntelligenceJobDispatcherService,
+    @Inject(TRIP_BOOKING_OVERLAP_PORT)
+    private readonly bookingOverlap: TripBookingOverlapPort,
     @Optional()
     @Inject(TRIP_RENTAL_RECOMPUTE_PORT)
     private readonly rentalRecompute?: TripRentalRecomputePort,
@@ -226,13 +230,9 @@ export class DriverAttributionService {
 
     const booking =
       trip.assignedBookingId != null
-        ? await this.prisma.booking.findFirst({
-            where: { id: trip.assignedBookingId, organizationId },
-            select: {
-              customerId: true,
-              assignedDriverId: true,
-              customer: { select: { customerType: true } },
-            },
+        ? await this.bookingOverlap.loadBookingAttributionContext({
+            organizationId,
+            bookingId: trip.assignedBookingId,
           })
         : null;
 
@@ -275,7 +275,7 @@ export class DriverAttributionService {
       tripActualDriverId: trip.actualDriverId,
       bookingCustomerId: booking?.customerId ?? trip.bookingCustomerId,
       bookingAssignedDriverId: booking?.assignedDriverId ?? trip.assignedDriverId,
-      bookingCustomerType: booking?.customer.customerType ?? null,
+      bookingCustomerType: booking?.customerType ?? null,
       tripAttributionScope: attribution.scope,
       tripAttributionConfidence: attribution.confidence,
       tripAttributionReason: attribution.reason,
@@ -293,41 +293,12 @@ export class DriverAttributionService {
   }): Promise<HandoverProofContext | null> {
     if (!input.bookingId) return null;
 
-    const windowStart = new Date(input.tripStart.getTime() - HANDOVER_WINDOW_MS);
-    const windowEnd = new Date((input.tripEnd ?? input.tripStart).getTime() + HANDOVER_WINDOW_MS);
-
-    const protocol = await this.prisma.bookingHandoverProtocol.findFirst({
-      where: {
-        organizationId: input.organizationId,
-        bookingId: input.bookingId,
-        kind: HandoverKind.PICKUP,
-        performedAt: { gte: windowStart, lte: windowEnd },
-        OR: [
-          { customerSignatureName: { not: null } },
-          { staffSignatureName: { not: null } },
-        ],
-      },
-      orderBy: { performedAt: 'desc' },
-      select: {
-        id: true,
-        bookingId: true,
-        kind: true,
-        performedAt: true,
-        customerSignatureName: true,
-        staffSignatureName: true,
-      },
+    return this.bookingOverlap.findPickupHandoverProofForTrip({
+      organizationId: input.organizationId,
+      bookingId: input.bookingId,
+      tripStart: input.tripStart,
+      tripEnd: input.tripEnd,
     });
-
-    if (!protocol) return null;
-
-    return {
-      protocolId: protocol.id,
-      bookingId: protocol.bookingId,
-      kind: protocol.kind,
-      performedAt: protocol.performedAt,
-      customerSignatureName: protocol.customerSignatureName,
-      staffSignatureName: protocol.staffSignatureName,
-    };
   }
 
   private buildResolverEvidence(input: {
@@ -413,28 +384,28 @@ export class DriverAttributionService {
     bookingId: string;
     driverId: string;
   }) {
-    const booking = await this.prisma.booking.findFirst({
-      where: { id: input.bookingId, organizationId: input.organizationId },
-      select: {
-        customerId: true,
-        assignedDriverId: true,
-        allowedDrivers: { select: { customerId: true, role: true } },
-      },
-    });
-    if (!booking) {
-      throw new NotFoundException('Booking not found for organization');
-    }
-
-    const pool = resolveBookingDriverPool({
-      bookingCustomerId: booking.customerId,
-      assignedDriverId: booking.assignedDriverId,
-      allowedRows: booking.allowedDrivers,
+    const pool = await this.bookingOverlap.loadDriverPoolForBooking({
+      organizationId: input.organizationId,
+      bookingId: input.bookingId,
     });
 
-    if (!isDriverInBookingPool(input.driverId, pool)) {
+    if (!this.isDriverAllowedInBookingPool(input.driverId, pool)) {
       throw new BadRequestException(
         'Driver is not in the allowed driver pool for this booking',
       );
     }
+  }
+
+  /**
+   * Mirrors rental `isDriverInBookingPool` — empty allowedDriverIds permits any driver
+   * (legacy permissive policy; security follow-up tracked in Master Plan P2-PR5).
+   */
+  private isDriverAllowedInBookingPool(
+    driverId: string,
+    pool: Pick<BookingDriverPoolContext, 'allowedDriverIds'>,
+  ): boolean {
+    if (!driverId) return false;
+    if (pool.allowedDriverIds.length === 0) return true;
+    return pool.allowedDriverIds.includes(driverId);
   }
 }
