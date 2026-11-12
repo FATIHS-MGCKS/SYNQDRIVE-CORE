@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '@shared/database/prisma.service';
 import {
   type Prisma,
@@ -33,6 +33,10 @@ import {
   scopedVehicleTripWhere,
 } from '../tenant/vehicle-intelligence-tenant.scope';
 import { CanonicalTripHydrationBatchLoader } from './trip-canonical-hydration.batch';
+import {
+  TRIP_BOOKING_OVERLAP_PORT,
+  type TripBookingOverlapPort,
+} from './ports/trip-booking-overlap.port';
 import type { CanonicalTripDecisionSummary } from './trip-canonical-hydration.types';
 import type { TripHydrationTripInput } from './trip-canonical-hydration.types';
 import {
@@ -162,8 +166,10 @@ export class TripAnalyticsCanonicalService {
     private readonly prisma: PrismaService,
     private readonly tripAssignmentService: TripAssignmentService,
     private readonly tripAttributionService: TripAttributionService,
+    @Inject(TRIP_BOOKING_OVERLAP_PORT)
+    private readonly bookingOverlap: TripBookingOverlapPort,
   ) {
-    this.hydrationBatchLoader = new CanonicalTripHydrationBatchLoader(prisma);
+    this.hydrationBatchLoader = new CanonicalTripHydrationBatchLoader(prisma, bookingOverlap);
   }
 
   async hydrateTrips<T extends TripProjection>(

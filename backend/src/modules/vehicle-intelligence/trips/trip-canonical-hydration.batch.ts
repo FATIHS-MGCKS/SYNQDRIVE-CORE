@@ -1,12 +1,12 @@
-import { BookingStatus, Prisma, type TripDrivingImpactAnalysisStatus } from '@prisma/client';
+import { Prisma, type TripDrivingImpactAnalysisStatus } from '@prisma/client';
 import type {
   DriverAttributionSource,
   DriverAttributionType,
   DrivingAttributionConfidence,
 } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
-import { resolveBookingDriverPool } from '../../bookings/booking-allowed-drivers/booking-allowed-drivers.util';
 import { pickCanonicalDriverAttribution } from '../driver-attribution/driver-attribution-priority';
+import type { TripBookingOverlapPort } from './ports/trip-booking-overlap.port';
 import type { TripAttributionBookingOverlap } from './trip-attribution.types';
 import {
   CANONICAL_HYDRATION_TRIP_ID_BATCH,
@@ -61,7 +61,10 @@ function chunkIds(ids: string[], size: number): string[][] {
 }
 
 export class CanonicalTripHydrationBatchLoader {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly bookingOverlap: TripBookingOverlapPort,
+  ) {}
 
   async prefetch(
     organizationId: string,
@@ -174,24 +177,11 @@ export class CanonicalTripHydrationBatchLoader {
       }, vehicleTrips[0]!.endTime ?? vehicleTrips[0]!.startTime);
 
       onQuery();
-      const bookings = await this.prisma.booking.findMany({
-        where: {
-          organizationId,
-          vehicleId,
-          status: { in: [BookingStatus.ACTIVE, BookingStatus.COMPLETED] },
-          startDate: { lte: maxEnd },
-          endDate: { gte: minStart },
-        },
-        select: {
-          id: true,
-          vehicleId: true,
-          customerId: true,
-          assignedDriverId: true,
-          startDate: true,
-          endDate: true,
-          customer: { select: { customerType: true } },
-        },
-        orderBy: { startDate: 'desc' },
+      const bookings = await this.bookingOverlap.findOverlapsForVehicleWindow({
+        organizationId,
+        vehicleId,
+        windowStart: minStart,
+        windowEnd: maxEnd,
       });
       map.set(vehicleId, bookings);
     }
@@ -208,25 +198,12 @@ export class CanonicalTripHydrationBatchLoader {
     if (bookingIds.length === 0) return map;
 
     onQuery();
-    const bookings = await this.prisma.booking.findMany({
-      where: { organizationId, id: { in: bookingIds } },
-      select: {
-        id: true,
-        customerId: true,
-        assignedDriverId: true,
-        allowedDrivers: { select: { customerId: true, role: true } },
-      },
+    const pools = await this.bookingOverlap.loadDriverPoolsForBookings({
+      organizationId,
+      bookingIds,
     });
-
-    for (const booking of bookings) {
-      map.set(
-        booking.id,
-        resolveBookingDriverPool({
-          bookingCustomerId: booking.customerId,
-          assignedDriverId: booking.assignedDriverId,
-          allowedRows: booking.allowedDrivers,
-        }),
-      );
+    for (const [bookingId, pool] of pools) {
+      map.set(bookingId, pool);
     }
     return map;
   }

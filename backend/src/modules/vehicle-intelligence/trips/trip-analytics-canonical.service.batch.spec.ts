@@ -3,6 +3,14 @@ import { TripAnalyticsCanonicalService } from './trip-analytics-canonical.servic
 import { TripAssignmentService } from './trip-assignment.service';
 import { TripAttributionService } from './trip-attribution.service';
 
+function makeBookingOverlap() {
+  return {
+    findFirstOverlapForTrip: jest.fn().mockResolvedValue(null),
+    findOverlapsForVehicleWindow: jest.fn().mockResolvedValue([]),
+    loadDriverPoolsForBookings: jest.fn().mockResolvedValue(new Map()),
+  };
+}
+
 function makePrisma() {
   return {
     tripDrivingImpact: { findMany: jest.fn().mockResolvedValue([]) },
@@ -11,6 +19,7 @@ function makePrisma() {
     vehicle: {
       findFirst: jest.fn().mockResolvedValue({ id: 'vehicle-1' }),
       findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn().mockResolvedValue({ organizationId: 'org-1' }),
     },
     tripBehaviorEvent: { groupBy: jest.fn().mockResolvedValue([]) },
     vehicleTrip: { aggregate: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
@@ -59,15 +68,22 @@ function baseTrip(id: string) {
 
 describe('TripAnalyticsCanonicalService batch hydration', () => {
   let prisma: ReturnType<typeof makePrisma>;
+  let overlap: ReturnType<typeof makeBookingOverlap>;
   let assignmentService: TripAssignmentService;
   let attributionService: TripAttributionService;
   let service: TripAnalyticsCanonicalService;
 
   beforeEach(() => {
     prisma = makePrisma();
-    assignmentService = new TripAssignmentService(prisma);
+    overlap = makeBookingOverlap();
+    assignmentService = new TripAssignmentService(prisma, overlap as any);
     attributionService = new TripAttributionService(prisma);
-    service = new TripAnalyticsCanonicalService(prisma, assignmentService, attributionService);
+    service = new TripAnalyticsCanonicalService(
+      prisma,
+      assignmentService,
+      attributionService,
+      overlap as any,
+    );
   });
 
   it('hydrates a single trip through the shared batch path', async () => {
@@ -86,7 +102,7 @@ describe('TripAnalyticsCanonicalService batch hydration', () => {
 
     expect(result.canonicalTripSummary.scores.drivingStressScore).toBe(42);
     expect(prisma.tripDrivingImpact.findMany).toHaveBeenCalledTimes(1);
-    expect(prisma.booking.findMany).toHaveBeenCalledTimes(1);
+    expect(overlap.findOverlapsForVehicleWindow).toHaveBeenCalledTimes(1);
     expect(prisma.driverAttribution.findMany).toHaveBeenCalledTimes(1);
   });
 
@@ -99,6 +115,25 @@ describe('TripAnalyticsCanonicalService batch hydration', () => {
   });
 
   it('matches sequential assignment + attribution semantics for booking overlap', async () => {
+    const bookingCandidate = {
+      id: 'booking-9',
+      vehicleId: 'vehicle-1',
+      customerId: 'customer-99',
+      assignedDriverId: null,
+      startDate: new Date('2026-03-01T07:00:00Z'),
+      endDate: new Date('2026-03-01T10:00:00Z'),
+      customer: { customerType: 'INDIVIDUAL' as const },
+    };
+    overlap.findFirstOverlapForTrip.mockResolvedValue(bookingCandidate);
+    overlap.findOverlapsForVehicleWindow.mockResolvedValue([bookingCandidate]);
+    overlap.loadDriverPoolsForBookings.mockResolvedValue(
+      new Map([
+        [
+          'booking-9',
+          { allowedDriverIds: [], primaryDriverId: null },
+        ],
+      ]),
+    );
     prisma.booking.findFirst.mockImplementation(async (args: { where?: { id?: string } }) => {
       if (args.where?.id) {
         return {
@@ -108,36 +143,8 @@ describe('TripAnalyticsCanonicalService batch hydration', () => {
           allowedDrivers: [],
         };
       }
-      return {
-        id: 'booking-9',
-        vehicleId: 'vehicle-1',
-        customerId: 'customer-99',
-        assignedDriverId: null,
-        startDate: new Date('2026-03-01T07:00:00Z'),
-        endDate: new Date('2026-03-01T10:00:00Z'),
-        customer: { customerType: 'INDIVIDUAL' },
-      };
+      return null;
     });
-    prisma.booking.findMany
-      .mockResolvedValueOnce([
-        {
-          id: 'booking-9',
-          vehicleId: 'vehicle-1',
-          customerId: 'customer-99',
-          assignedDriverId: null,
-          startDate: new Date('2026-03-01T07:00:00Z'),
-          endDate: new Date('2026-03-01T10:00:00Z'),
-          customer: { customerType: 'INDIVIDUAL' },
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: 'booking-9',
-          customerId: 'customer-99',
-          assignedDriverId: null,
-          allowedDrivers: [],
-        },
-      ]);
 
     const trip = {
       ...baseTrip('trip-seq'),
