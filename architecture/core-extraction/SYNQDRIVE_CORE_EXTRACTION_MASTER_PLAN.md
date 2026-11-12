@@ -256,7 +256,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P1D** | Entitlement, Core-Read, Trip-Link Contract Design | **DONE – DESIGN_ONLY** | DESIGN_READY | Keine Codeänderung |
 | **P1A** | Core-Entitlement-Read-API + EntitlementsQueryService + Tests + AGENTS-Governance | **MERGED** (`main` `78e66dce…`, PR #2) | JWT+OrgScoping; nicht produktiv deployed | P1B Service Auth |
 | **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
-| **P2** | Trip ↔ Booking Entkopplung | **IN_PROGRESS** (P2-PR1–PR5 merged; P2-PR6 Draft) | Overlap-Port für Attribution/Jobs; Recompute vollständig portiert | RentalTripLink/Cutover |
+| **P2** | Trip ↔ Booking Entkopplung | **IN_PROGRESS** (P2-PR1–PR6 merged; P2-PR7 Draft) | Overlap + Rental-Reconciliation-Port | RentalTripLink / Job-handler decouple |
 | **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **NOT_STARTED** | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
@@ -376,13 +376,23 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Bootstrap:** Full VI **BASELINE_BLOCKED** unverändert.
 
-### 6.8 P2-PR6 — Driving intelligence job booking validation (Draft-PR)
+### 6.8 P2-PR6 — Driving intelligence job booking validation (MERGED → `main` `1c96544f9…`, PR #9)
 
-**Scope:** `DrivingIntelligenceJobRepository.assertBookingInOrg` delegiert an `TRIP_BOOKING_OVERLAP_PORT.resolveBookingVehicleForOrganization` — keine direkte `prisma.booking` in Core-Job-Repository.
+**Scope:** `DrivingIntelligenceJobRepository.assertBookingInOrg` → `TRIP_BOOKING_OVERLAP_PORT.resolveBookingVehicleForOrganization`.
 
 **Parität:** Idempotency-Short-Circuit vor Validierung; `NotFoundException` / `Booking vehicle mismatch for organization`; nullable `vehicleId`.
 
-**Offen (Architektur):** Langfristige **Core-vs-Rental Job-Ownership** für `RENTAL_DRIVING_ANALYSIS_RECOMPUTE` und verwandte Rental-Queues bleibt **UNRESOLVED** — strukturell getrennt von Booking-Validierung; kein Handler-Registry-Umbau in diesem PR.
+**Offen (Architektur):** Langfristige **Core-vs-Rental Job-Ownership** für `RENTAL_DRIVING_ANALYSIS_RECOMPUTE` bleibt **UNRESOLVED** (separat von Booking-Validierung).
+
+**Bootstrap:** Full VI **BASELINE_BLOCKED** unverändert.
+
+### 6.9 P2-PR7 — Rental reconciliation port slice (Draft-PR)
+
+**Scope:** `RENTAL_DRIVING_ANALYSIS_RECONCILIATION_PORT` — `BOOKING_WITHOUT_RENTAL_ANALYSIS` Scan+Remediate in Rental-Adapter; Core `DrivingAnalysisReconciliationService` delegiert ausschließlich diesen Check.
+
+**Parität:** Finding-Form, Lookback/Limit, Idempotency-Key, `REPAIR_FINALIZE`, `RENTAL_DRIVING_ANALYSIS_RECOMPUTE`, `reconcile-booking:` correlation; `recordReconciliation` nur in Core.
+
+**Offen:** `DrivingIntelligenceJobHandlerRegistry` direkter Rental-Handler-Import (P2-PR8).
 
 **Bootstrap:** Full VI **BASELINE_BLOCKED** unverändert.
 
@@ -478,7 +488,10 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR4` | **MERGED** · PR #7 → `main` `d5b52856921a928fb3c22456f0b855f35a2677d5` | Recompute fan-out | P2-PR5 DriverAttribution |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR5_DRIVER_ATTRIBUTION_BOOKING_DECOUPLING` | **DRAFT_PR #8** · Base `d5b528569…` | Overlap-Port für Attribution/Handover/Driver-Pool; **kein** Schema | Review |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR5` | **MERGED** · PR #8 → `main` `263c6d84c56936549300517dd4926307b121cee1` | DriverAttribution Booking-Port | P2-PR6 Jobs |
-| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR6_JOB_BOOKING_VALIDATION_DECOUPLING` | **DRAFT_PR** · Base `263c6d84c…` | Job repo booking validation via Overlap-Port | Review |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR6_JOB_BOOKING_VALIDATION_DECOUPLING` | **DRAFT_PR #9** · Base `263c6d84c…` | Job repo booking validation via Overlap-Port | Review |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR6` | **MERGED** · PR #9 → `main` `1c96544f9e19f4b4367c79b2527982f3aaded5a0` | Job booking assert via Overlap-Port | P2-PR7 Reconciliation |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_POST_PR6_REMAINING_RENTAL_COUPLING_AUDIT` | **READ_ONLY** · `main` `1c96544f9…` | P2-PR7 Scope bestätigt | P2-PR7 Implementierung |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR7_RENTAL_RECONCILIATION_PORT` | **DRAFT_PR** · Base `1c96544f9…` | Rental reconciliation port; kein Schema | Review |
 
 **Updatevorlage für neue Einträge:**
 
