@@ -167,11 +167,20 @@ describe('TripRentalRecomputePort — Core call-site semantics', () => {
         notifyTripAnalysisCompleted: jest.fn(),
         notifyMisuseReconciled: jest.fn(),
       };
+      const bookingOverlap = {
+        findFirstOverlapForTrip: jest.fn(),
+        findOverlapsForVehicleWindow: jest.fn(),
+        loadDriverPoolsForBookings: jest.fn(),
+        loadDriverPoolForBooking: jest.fn(),
+        loadBookingAttributionContext: jest.fn(),
+        findPickupHandoverProofForTrip: jest.fn(),
+      };
       const service = new DriverAttributionService(
         prisma as any,
         {} as any,
         {} as any,
         jobDispatcher as any,
+        bookingOverlap as any,
         rentalRecompute,
       );
 
@@ -210,11 +219,20 @@ describe('TripRentalRecomputePort — Core call-site semantics', () => {
         notifyTripAnalysisCompleted: jest.fn(),
         notifyMisuseReconciled: jest.fn(),
       };
+      const bookingOverlap = {
+        findFirstOverlapForTrip: jest.fn(),
+        findOverlapsForVehicleWindow: jest.fn(),
+        loadDriverPoolsForBookings: jest.fn(),
+        loadDriverPoolForBooking: jest.fn(),
+        loadBookingAttributionContext: jest.fn(),
+        findPickupHandoverProofForTrip: jest.fn(),
+      };
       const service = new DriverAttributionService(
         prisma as any,
         {} as any,
         {} as any,
         jobDispatcher as any,
+        bookingOverlap as any,
         rentalRecompute,
       );
 

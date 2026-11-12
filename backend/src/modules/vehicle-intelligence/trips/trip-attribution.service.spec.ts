@@ -13,6 +13,8 @@ function makeOverlapPort(
       allowedDriverIds: [],
       primaryDriverId: null,
     }),
+    loadBookingAttributionContext: jest.fn().mockResolvedValue(null),
+    findPickupHandoverProofForTrip: jest.fn().mockResolvedValue(null),
     ...overrides,
   };
 }
