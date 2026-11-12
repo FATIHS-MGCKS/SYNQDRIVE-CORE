@@ -86,9 +86,8 @@ export class TripAssignmentService {
       where: { id: trip.vehicleId },
       select: { organizationId: true },
     });
-    const resolution = await this.resolveForTrip(trip, {
+    const resolution = await this.resolveForTripInternal(trip, vehicle?.organizationId ?? null, {
       recordMetric: true,
-      organizationId: vehicle?.organizationId ?? null,
     });
     await this.prisma.vehicleTrip.update({
       where: { id: tripId },
@@ -125,14 +124,19 @@ export class TripAssignmentService {
 
   async resolveForTrip(
     trip: TripAssignmentInput,
-    options: { recordMetric?: boolean; organizationId?: string | null } = {},
+    options: { recordMetric?: boolean } = {},
+  ): Promise<TripAssignmentResolution> {
+    const organizationId = await this.resolveTrustedOrganizationIdForVehicle(trip.vehicleId);
+    return this.resolveForTripInternal(trip, organizationId, options);
+  }
+
+  private async resolveForTripInternal(
+    trip: TripAssignmentInput,
+    trustedOrganizationId: string | null,
+    options: { recordMetric?: boolean } = {},
   ): Promise<TripAssignmentResolution> {
     const fallback = this.normalizeFallbackAssignment(trip);
-    const organizationId =
-      options.organizationId !== undefined
-        ? options.organizationId
-        : await this.resolveTrustedOrganizationIdForVehicle(trip.vehicleId);
-    const bookingAssignment = await this.findBookingAssignment(trip, organizationId);
+    const bookingAssignment = await this.findBookingAssignment(trip, trustedOrganizationId);
     const resolution = bookingAssignment ?? fallback;
     if (options.recordMetric) {
       this.tripMetrics?.tripAssignmentResolutions.inc({

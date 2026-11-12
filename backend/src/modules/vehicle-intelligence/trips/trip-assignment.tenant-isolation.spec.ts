@@ -85,6 +85,23 @@ describe('TripAssignmentService — tenant isolation', () => {
     expect(bookingOverlap.findFirstOverlapForTrip).not.toHaveBeenCalled();
   });
 
+  it('always resolves organization from Vehicle — public API cannot inject tenant', async () => {
+    const { prisma, bookingOverlap } = makeMocks();
+    prisma.vehicle.findUnique.mockResolvedValue({ organizationId: 'org-from-vehicle' });
+    bookingOverlap.findFirstOverlapForTrip.mockResolvedValue(null);
+    const service = new TripAssignmentService(prisma, bookingOverlap as any);
+
+    await service.resolveForTrip(baseTrip as any);
+
+    expect(prisma.vehicle.findUnique).toHaveBeenCalledWith({
+      where: { id: 'vehicle-1' },
+      select: { organizationId: true },
+    });
+    expect(bookingOverlap.findFirstOverlapForTrip).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-from-vehicle' }),
+    );
+  });
+
   it('uses trusted organizationId in port call (wrong org yields no auto-assignment)', async () => {
     const { prisma, bookingOverlap } = makeMocks();
     prisma.vehicle.findUnique.mockResolvedValue({ organizationId: 'org-a' });

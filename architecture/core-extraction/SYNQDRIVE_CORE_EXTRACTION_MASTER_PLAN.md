@@ -340,7 +340,7 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Refactor:** `TripAssignmentService.findBookingAssignment` und `CanonicalTripHydrationBatchLoader` (Booking-Queries + Driver-Pools) nutzen ausschließlich den Port — **keine** `prisma.booking`-Aufrufe mehr in diesen Core-Pfaden.
 
-**Tenant (Closeout):** `findFirstOverlapForTrip` erfordert `organizationId`; Quelle = **`Vehicle.organizationId`** (serverseitig in `TripAssignmentService`, kein Caller-Trust). Fehlt Vehicle/Org → fail-closed (kein Booking-Lookup; explizite `VehicleTrip`-Links bleiben über `normalizeFallbackAssignment`).
+**Tenant (Closeout):** `findFirstOverlapForTrip` erfordert `organizationId`; Quelle = **`Vehicle.organizationId`** (serverseitig in `TripAssignmentService`, kein Caller-Trust; öffentliches `resolveForTrip` akzeptiert **kein** `organizationId`-Option-Override). `applyAssignmentToTrip` nutzt intern `resolveForTripInternal` mit bereits aus Vehicle gelesener Org. Fehlt Vehicle/Org → fail-closed. **VI full Nest compile:** Blocker `PlatformAdminModule` imports-Array (bestehend, nicht P2-Port-spezifisch).
 
 **Unverändert:** Trip-FSM, Finalize, DS4/DBI-Pipelines, Assignment-Outcomes (gültige Daten), `VehicleTrip`-Booking-Spalten, Rental-Recompute-Hooks, Query-Batching/`queryCount`.
 
@@ -410,6 +410,7 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_TRIP_BOOKING_DECOUPLING_AUDIT` | **READ_ONLY** · `main` `77e9843aa…` | Dependency map; P2-PR1 = Booking Overlap Port; DESIGN_READY | P2-PR1 Implementierung |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_BOOKING_OVERLAP_PORT` | **DRAFT_PR #4** · Base `77e9843aa…` · HEAD `9236a5923…` | Port + Adapter; Tests lokal; **kein** Schema/Deploy | Tenant closeout |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_TENANT_AND_INTEGRATION_CLOSEOUT` | **DRAFT_PR #4** (aktualisiert) | Org-scope via Vehicle; Nest-DI + disposable Postgres 3/3 PASS | P2 review / optional merge |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_FINAL_SECURITY_DI_CLOSEOUT` | **DRAFT_PR #4** | Tenant-Override entfernt (`resolveForTrip` nur Vehicle-Lookup); VI full `Test.createTestingModule` **BLOCKED** (PlatformAdminModule imports[5] undefined / cycle) | VI boot graph fix out-of-scope oder Folge-PR |
 
 **Updatevorlage für neue Einträge:**
 
