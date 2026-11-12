@@ -1726,6 +1726,7 @@ model Organization {
   bookingHandoverDrafts                                     BookingHandoverDraft[]
   activityLogs                                              ActivityLog[]
   rentalDrivingAnalyses                                     RentalDrivingAnalysis[]
+  rentalTripLinks                                           RentalTripLink[]
   vendors                                                   Vendor[]
   chatAgent                                                 OrganizationChatAgent?
   chatMessages                                              ChatMessage[]
@@ -6781,6 +6782,7 @@ model Booking {
   actualPickupStation           Station?                        @relation("BookingActualPickupStation", fields: [actualPickupStationId], references: [id], onDelete: SetNull)
   actualReturnStation           Station?                        @relation("BookingActualReturnStation", fields: [actualReturnStationId], references: [id], onDelete: SetNull)
   rentalDrivingAnalyses         RentalDrivingAnalysis[]
+  rentalTripLinks               RentalTripLink[]
   handoverProtocols             BookingHandoverProtocol[]
   handoverDrafts                BookingHandoverDraft[]
   verificationChecks            CustomerVerificationCheck[]
@@ -7308,6 +7310,44 @@ model RentalDrivingAnalysis {
   @@index([inputFingerprint])
   @@index([supersedesAnalysisId])
   @@map("rental_driving_analyses")
+}
+
+// ------------------------------------------------
+// RENTAL TRIP LINK (booking ↔ trip overlay, rental-owned)
+// ------------------------------------------------
+
+model RentalTripLink {
+  id               String                  @id @default(uuid())
+  organizationId   String                  @map("organization_id")
+  tripId           String                  @map("trip_id")
+  bookingId        String?                 @map("booking_id")
+  customerId       String?                 @map("customer_id")
+  linkSource       TripBookingLinkSource?  @map("link_source")
+  status           RentalTripLinkStatus
+  /// Set when this row is no longer the current decision for (organizationId, tripId).
+  supersededAt     DateTime?               @map("superseded_at")
+  supersededById   String?                 @map("superseded_by_id")
+  correctionReason String?                 @map("correction_reason")
+  legacyFingerprint String?                @map("legacy_fingerprint")
+  linkedAt         DateTime                @default(now()) @map("linked_at")
+  createdBy        RentalTripLinkCreatedBy @default(SYSTEM) @map("created_by")
+  createdByUserId  String?                 @map("created_by_user_id")
+  correlationId    String?                 @map("correlation_id")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  trip           VehicleTrip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  booking        Booking?     @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  supersededBy   RentalTripLink?  @relation("RentalTripLinkSupersession", fields: [supersededById], references: [id], onDelete: SetNull)
+  supersedes     RentalTripLink[] @relation("RentalTripLinkSupersession")
+
+  @@index([organizationId])
+  @@index([tripId])
+  @@index([bookingId])
+  @@index([organizationId, tripId])
+  @@index([tripId, supersededAt])
+  @@map("rental_trip_links")
 }
 
 // ------------------------------------------------
@@ -11603,6 +11643,18 @@ enum TripBookingLinkSource {
   TIME_WINDOW
 }
 
+enum RentalTripLinkStatus {
+  ACTIVE
+  SUPERSEDED
+  UNLINKED
+}
+
+enum RentalTripLinkCreatedBy {
+  SYSTEM
+  USER
+  BACKFILL
+}
+
 /// Canonical persisted route display quality (Trip Route Architecture V2).
 /// Distinct from processing/job lifecycle — see DrivingIntelligenceJob for execution state.
 enum RouteQuality {
@@ -11766,6 +11818,7 @@ model VehicleTrip {
   diV0S4WorkItems                     DiV0S4WorkItem[]
   diV0S4EvidenceSnapshots             DiV0S4EvidenceSnapshot[]
   drivingIntelligenceJobs             DrivingIntelligenceJob[]
+  rentalTripLinks                     RentalTripLink[]
   driverAttributions                  DriverAttribution[]
   repairs                             TripRepair[]
   rpmWebhookCandidates                RpmWebhookCandidate[]

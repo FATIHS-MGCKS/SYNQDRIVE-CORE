@@ -10,9 +10,10 @@ import { RENTAL_DRIVING_ANALYSIS_RECONCILIATION_PORT } from '@modules/vehicle-in
 import { rentalDrivingAnalysisReconciliationPortProviders } from './reconciliation/rental-driving-analysis-reconciliation.providers';
 import { RENTAL_DRIVING_ANALYSIS_RECOMPUTE_JOB_HANDLER_PORT } from '@modules/vehicle-intelligence/driving-intelligence-jobs/ports/rental-driving-analysis-recompute-job-handler.port';
 import { rentalDrivingAnalysisRecomputeJobHandlerPortProviders } from './rental-driving-analysis-recompute-job-handler.providers';
+import { RentalTripLinkModule } from '../rental-trip-link/rental-trip-link.module';
 
 @Module({
-  imports: [forwardRef(() => VehicleIntelligenceModule)],
+  imports: [forwardRef(() => VehicleIntelligenceModule), RentalTripLinkModule],
   controllers: [RentalDrivingAnalysisController],
   providers: [
     RentalDrivingAnalysisService,
@@ -29,6 +30,7 @@ import { rentalDrivingAnalysisRecomputeJobHandlerPortProviders } from './rental-
     TRIP_RENTAL_RECOMPUTE_PORT,
     RENTAL_DRIVING_ANALYSIS_RECONCILIATION_PORT,
     RENTAL_DRIVING_ANALYSIS_RECOMPUTE_JOB_HANDLER_PORT,
+    RentalTripLinkModule,
   ],
 })
 export class RentalDrivingAnalysisModule {}
