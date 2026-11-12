@@ -97,24 +97,84 @@ describe('DrivingIntelligenceJobProcessorService', () => {
     );
   });
 
-  it('does not mark completed when rental handler is missing (fail-closed registry)', async () => {
-    const registry = new DrivingIntelligenceJobHandlerRegistry();
-    registry.onModuleInit();
-    const processor = new DrivingIntelligenceJobProcessorService(repository, registry);
-    repository.findById.mockResolvedValue(
-      makeJob({ jobType: 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE', bookingId: 'book-1' }),
-    );
-    repository.markInProgress.mockResolvedValue(
-      makeJob({
-        jobType: 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE',
-        bookingId: 'book-1',
-        attemptCount: 1,
-      }),
-    );
+  describe('missing rental handler (fail-closed registry)', () => {
+    function makeProcessorWithEmptyRegistry() {
+      const registry = new DrivingIntelligenceJobHandlerRegistry();
+      registry.onModuleInit();
+      return new DrivingIntelligenceJobProcessorService(repository, registry);
+    }
 
-    const outcome = await processor.processPersistentJob('org-1', 'job-rental');
-    expect(outcome.result).not.toBe('completed');
-    expect(repository.markCompleted).not.toHaveBeenCalled();
+    it('schedules retry with HANDLER_TRANSIENT on first attempt', async () => {
+      const processor = makeProcessorWithEmptyRegistry();
+      repository.findById.mockResolvedValue(
+        makeJob({
+          id: 'job-rental',
+          jobType: 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE',
+          bookingId: 'book-1',
+          maxAttempts: 3,
+        }),
+      );
+      repository.markInProgress.mockResolvedValue(
+        makeJob({
+          id: 'job-rental',
+          jobType: 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE',
+          bookingId: 'book-1',
+          attemptCount: 1,
+          maxAttempts: 3,
+        }),
+      );
+
+      const outcome = await processor.processPersistentJob('org-1', 'job-rental');
+
+      expect(outcome).toEqual({
+        result: 'retry',
+        errorCode: DRIVING_INTELLIGENCE_JOB_ERROR_CODES.HANDLER_TRANSIENT,
+        message: expect.stringContaining('handler not configured'),
+      });
+      expect(repository.markRetryScheduled).toHaveBeenCalledWith(
+        'job-rental',
+        1,
+        DRIVING_INTELLIGENCE_JOB_ERROR_CODES.HANDLER_TRANSIENT,
+        expect.stringContaining('handler not configured'),
+      );
+      expect(repository.markCompleted).not.toHaveBeenCalled();
+      expect(repository.markDeadLetter).not.toHaveBeenCalled();
+    });
+
+    it('dead-letters with MAX_ATTEMPTS_EXCEEDED on final attempt', async () => {
+      const processor = makeProcessorWithEmptyRegistry();
+      repository.findById.mockResolvedValue(
+        makeJob({
+          id: 'job-rental',
+          jobType: 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE',
+          bookingId: 'book-1',
+          maxAttempts: 3,
+        }),
+      );
+      repository.markInProgress.mockResolvedValue(
+        makeJob({
+          id: 'job-rental',
+          jobType: 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE',
+          bookingId: 'book-1',
+          attemptCount: 3,
+          maxAttempts: 3,
+        }),
+      );
+
+      const outcome = await processor.processPersistentJob('org-1', 'job-rental');
+
+      expect(outcome).toEqual({
+        result: 'dead_letter',
+        errorCode: DRIVING_INTELLIGENCE_JOB_ERROR_CODES.MAX_ATTEMPTS_EXCEEDED,
+        message: expect.stringContaining('handler not configured'),
+      });
+      expect(repository.markDeadLetter).toHaveBeenCalledWith(
+        'job-rental',
+        DRIVING_INTELLIGENCE_JOB_ERROR_CODES.MAX_ATTEMPTS_EXCEEDED,
+        expect.stringContaining('handler not configured'),
+      );
+      expect(repository.markCompleted).not.toHaveBeenCalled();
+    });
   });
 
   it('re-throws retryable errors for BullMQ worker backoff', async () => {
