@@ -56,4 +56,11 @@ describe('TripBookingOverlap — scoped runtime DI', () => {
     expect((assignment as unknown as { bookingOverlap: unknown }).bookingOverlap).toBe(port);
     expect((analytics as unknown as { bookingOverlap: unknown }).bookingOverlap).toBe(port);
   });
+
+  it('injects TRIP_BOOKING_OVERLAP_PORT into TripAttributionService', () => {
+    const port = moduleRef.get(TRIP_BOOKING_OVERLAP_PORT);
+    const attribution = moduleRef.get(TripAttributionService);
+    expect(attribution).toBeInstanceOf(TripAttributionService);
+    expect((attribution as unknown as { bookingOverlap: unknown }).bookingOverlap).toBe(port);
+  });
 });

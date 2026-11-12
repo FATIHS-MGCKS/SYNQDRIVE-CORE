@@ -1,21 +1,29 @@
 import { TripAssignmentStatus } from '@prisma/client';
 import { TripAttributionService } from './trip-attribution.service';
+import type { TripBookingOverlapPort } from './ports/trip-booking-overlap.port';
 
-function makeMockPrisma() {
+function makeOverlapPort(
+  overrides: Partial<TripBookingOverlapPort> = {},
+): TripBookingOverlapPort {
   return {
-    booking: {
-      findFirst: jest.fn(),
-    },
-  } as any;
+    findFirstOverlapForTrip: jest.fn().mockResolvedValue(null),
+    findOverlapsForVehicleWindow: jest.fn().mockResolvedValue([]),
+    loadDriverPoolsForBookings: jest.fn().mockResolvedValue(new Map()),
+    loadDriverPoolForBooking: jest.fn().mockResolvedValue({
+      allowedDriverIds: [],
+      primaryDriverId: null,
+    }),
+    ...overrides,
+  };
 }
 
 describe('TripAttributionService', () => {
-  let prisma: ReturnType<typeof makeMockPrisma>;
+  let bookingOverlap: TripBookingOverlapPort;
   let service: TripAttributionService;
 
   beforeEach(() => {
-    prisma = makeMockPrisma();
-    service = new TripAttributionService(prisma);
+    bookingOverlap = makeOverlapPort();
+    service = new TripAttributionService(bookingOverlap);
   });
 
   it('private trip with notable behavior stays non-customer-relevant', () => {
@@ -83,7 +91,7 @@ describe('TripAttributionService', () => {
   });
 
   it('overlap without assigned booking yields time-window hint', async () => {
-    prisma.booking.findFirst.mockResolvedValue({
+    bookingOverlap.findFirstOverlapForTrip = jest.fn().mockResolvedValue({
       id: 'book-3',
       vehicleId: 'veh-1',
       customerId: 'cust-3',

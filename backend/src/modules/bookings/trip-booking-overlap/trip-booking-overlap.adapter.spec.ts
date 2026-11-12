@@ -75,6 +75,25 @@ describe('TripBookingOverlapPrismaAdapter', () => {
     expect(prisma.booking.findFirst.mock.calls[0][0].where.organizationId).toBe('org-b');
   });
 
+  it('findFirstOverlapForTrip applies optional bookingId before selecting first row', async () => {
+    prisma.booking.findFirst.mockResolvedValue(null);
+    await adapter.findFirstOverlapForTrip({
+      organizationId: 'org-1',
+      vehicleId: 'veh-1',
+      tripStart: new Date('2026-03-01T08:00:00Z'),
+      tripEnd: new Date('2026-03-01T09:00:00Z'),
+      bookingId: 'book-filter',
+    });
+    expect(prisma.booking.findFirst.mock.calls[0][0].where.id).toBe('book-filter');
+  });
+
+  it('loadDriverPoolForBooking throws NotFoundException for foreign or missing booking', async () => {
+    prisma.booking.findFirst = jest.fn().mockResolvedValue(null);
+    await expect(
+      adapter.loadDriverPoolForBooking({ organizationId: 'org-1', bookingId: 'missing' }),
+    ).rejects.toThrow('Booking not found for organization');
+  });
+
   it('loadDriverPoolsForBookings skips query when no booking ids', async () => {
     const map = await adapter.loadDriverPoolsForBookings({
       organizationId: 'org-1',

@@ -18,7 +18,14 @@ export interface TripBookingOverlapPort {
     vehicleId: string;
     tripStart: Date;
     tripEnd: Date;
+    /** When set, constrain overlap lookup to this booking before selecting the first row. */
+    bookingId?: string | null;
   }): Promise<BookingOverlapCandidate | null>;
+
+  loadDriverPoolForBooking(input: {
+    organizationId: string;
+    bookingId: string;
+  }): Promise<BookingDriverPoolContext>;
 
   findOverlapsForVehicleWindow(input: {
     organizationId: string;
