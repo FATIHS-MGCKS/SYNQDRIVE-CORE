@@ -351,6 +351,18 @@ cd frontend && npm test
 - Figma is visual source of truth; codebase is functional source of truth.
 - AI Upload: never auto-apply unconfirmed extraction results.
 
+## SYNQDRIVE CORE EXTRACTION — MANDATORY HANDOFF
+
+Applies to all work on **SYNQDRIVE-CORE** involving Core/Rental extraction, shared platform services, or cross-product APIs.
+
+1. **Read first:** [`architecture/core-extraction/SYNQDRIVE_CORE_EXTRACTION_MASTER_PLAN.md`](architecture/core-extraction/SYNQDRIVE_CORE_EXTRACTION_MASTER_PLAN.md) in full before substantive work.
+2. **Baseline sync:** Compare documented baseline SHA and the progress journal (§10) with the actual `main` branch and open PRs.
+3. **Owner decisions (binding):** Full Master Admin stays in Core; platform IAM, organizations, products, entitlements, and SaaS billing stay in Core; vehicle data and intelligence (DIMO, VSI, PDI, FSD, APDS, Trip FSM, DS4, DBI, Health, OneAuto) stay in Core; rental-specific business logic moves to separate app repositories later.
+4. **Design ≠ shipped:** Planned contracts and registry rows must not be treated as implemented or production-validated without code and test evidence.
+5. **After each workstream:** Update the master plan journal with date, operation, PR, commit SHA, changes, tests/CI, DB migrations, production status (if any), blockers, and next gate—in the same PR when the workstream is substantive.
+6. **Architecture authorities** in `architecture/SYNQDRIVE_RENTAL_ARCHITECTURE.md` and module authorities remain mandatory per the architecture-first workflow above.
+7. **No merge, deploy, production DB mutation, or production activation** without explicit owner authorization for that action.
+
 ## Internationalization (i18n)
 
 SynqDrive officially supports **9 product locales**: `de`, `en`, `pl`, `fr`, `cs`, `nl`, `es`, `tr`, `it`.
