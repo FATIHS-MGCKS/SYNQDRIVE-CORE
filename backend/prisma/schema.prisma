@@ -309,6 +309,16 @@ enum OrgProductStatus {
   CANCELLED
 }
 
+enum CoreAppServiceClientStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum CoreAppServiceGrantStatus {
+  ACTIVE
+  REVOKED
+}
+
 enum OrgProductPlan {
   STARTER
   BUSINESS
@@ -1655,6 +1665,7 @@ model Organization {
 
   memberships                                               OrganizationMembership[]
   organizationProducts                                      OrganizationProduct[]
+  coreAppServiceOrgGrants                                   CoreAppServiceOrgGrant[]
   stations                                                  Station[]
   vehicleStationTransfers                                   VehicleStationTransfer[]
   vehicles                                                  Vehicle[]
@@ -2935,6 +2946,40 @@ model Product {
   organizationProducts OrganizationProduct[]
 
   @@map("products")
+}
+
+model CoreAppServiceClient {
+  id                String                     @id @default(uuid())
+  clientId          String                     @unique @map("client_id")
+  displayName       String                     @map("display_name")
+  productSlug       ProductSlug                @map("product_slug")
+  credentialHash    String                     @map("credential_hash")
+  credentialVersion Int                        @default(1) @map("credential_version")
+  status            CoreAppServiceClientStatus @default(ACTIVE)
+  allowedScopes     String[]                   @default([]) @map("allowed_scopes")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
+
+  orgGrants CoreAppServiceOrgGrant[]
+
+  @@map("core_app_service_clients")
+}
+
+model CoreAppServiceOrgGrant {
+  id              String                    @id @default(uuid())
+  serviceClientId String                    @map("service_client_id")
+  organizationId  String                    @map("organization_id")
+  status          CoreAppServiceGrantStatus @default(ACTIVE)
+  grantVersion    Int                       @default(1) @map("grant_version")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+
+  serviceClient CoreAppServiceClient @relation(fields: [serviceClientId], references: [id], onDelete: Cascade)
+  organization  Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceClientId, organizationId])
+  @@index([organizationId])
+  @@map("core_app_service_org_grants")
 }
 
 model OrganizationProduct {

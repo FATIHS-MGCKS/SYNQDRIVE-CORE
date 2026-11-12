@@ -6,6 +6,8 @@ import * as jwt from 'jsonwebtoken';
 import * as request from 'supertest';
 import { AuthGuard } from '@shared/auth/auth.guard';
 import { OrgScopingGuard } from '@shared/auth/org-scoping.guard';
+import { CoreAppEntitlementsAuthGuard } from '@modules/core-app-m2m/core-app-entitlements-auth.guard';
+import { CoreAppM2mTokenService } from '@modules/core-app-m2m/core-app-m2m-token.service';
 import { PrismaService } from '@shared/database/prisma.service';
 import { CoreEntitlementsReadController } from './core-entitlements-read.controller';
 import { EntitlementsQueryService } from './entitlements-query.service';
@@ -102,7 +104,9 @@ describe('CoreEntitlementsReadController — HTTP security integration', () => {
       controllers: [CoreEntitlementsReadController],
       providers: [
         EntitlementsQueryService,
+        CoreAppEntitlementsAuthGuard,
         OrgScopingGuard,
+        { provide: CoreAppM2mTokenService, useValue: { verifyBearerToken: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: APP_GUARD, useClass: AuthGuard },
       ],

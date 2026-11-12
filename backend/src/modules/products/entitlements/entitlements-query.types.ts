@@ -8,8 +8,14 @@ export type OrganizationProductExpiresAtPolicy = typeof ORGANIZATION_PRODUCT_EXP
 
 export const CORE_ENTITLEMENTS_CONTRACT_VERSION = 'core.entitlements.v1' as const;
 
-/** Machine-to-backend access via service tokens is not production-ready (blocker B1). */
-export const CORE_ENTITLEMENTS_M2M_PRODUCTION_READY = false as const;
+import { isCoreAppM2mProductionReady } from '@modules/core-app-m2m/core-app-m2m.config';
+
+/** True only when operator sets CORE_APP_M2M_PRODUCTION_READY after validated live gates — not from enablement alone. */
+export function resolveCoreEntitlementsM2mProductionReady(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return isCoreAppM2mProductionReady(env);
+}
 
 export type EntitlementProductRecordV1 = {
   contractVersion: typeof CORE_ENTITLEMENTS_CONTRACT_VERSION;
@@ -35,6 +41,6 @@ export type EntitlementProductRecordV1 = {
 export type EntitlementOrganizationListV1 = {
   contractVersion: typeof CORE_ENTITLEMENTS_CONTRACT_VERSION;
   organizationId: string;
-  m2mProductionReady: typeof CORE_ENTITLEMENTS_M2M_PRODUCTION_READY;
+  m2mProductionReady: boolean;
   products: EntitlementProductRecordV1[];
 };
