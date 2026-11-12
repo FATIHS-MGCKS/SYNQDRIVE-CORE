@@ -6,11 +6,19 @@ import {
   buildReconciliationIdempotencyKey,
 } from './driving-analysis-reconciliation.types';
 
+function makeRentalReconciliationPort() {
+  return {
+    scanBookingsWithoutRentalAnalysis: jest.fn().mockResolvedValue([]),
+    remediateBookingWithoutRentalAnalysis: jest.fn().mockResolvedValue('skipped'),
+  };
+}
+
 function buildService(overrides?: {
   prisma?: Record<string, unknown>;
   analysisInit?: Record<string, unknown>;
   jobDispatcher?: Record<string, unknown>;
   jobRepository?: Record<string, unknown>;
+  rentalReconciliation?: ReturnType<typeof makeRentalReconciliationPort>;
 }) {
   const prisma = {
     organization: { findMany: jest.fn().mockResolvedValue([{ id: 'org-1' }]) },
@@ -49,14 +57,17 @@ function buildService(overrides?: {
     ...overrides?.jobRepository,
   };
 
+  const rentalReconciliation = overrides?.rentalReconciliation ?? makeRentalReconciliationPort();
+
   const service = new DrivingAnalysisReconciliationService(
     prisma,
     analysisInit as any,
     jobDispatcher as any,
     jobRepository as any,
+    rentalReconciliation as any,
   );
 
-  return { service, prisma, analysisInit, jobDispatcher, jobRepository };
+  return { service, prisma, analysisInit, jobDispatcher, jobRepository, rentalReconciliation };
 }
 
 describe('DrivingAnalysisReconciliationService', () => {

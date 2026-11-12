@@ -1,5 +1,5 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
-import { BookingStatus, Prisma, TripStatus } from '@prisma/client';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Prisma, TripStatus } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
 import { ClickHouseAnalysisHealthService } from '@modules/clickhouse/clickhouse-analysis-health.service';
 import { isClickHouseReachableForAnalysis } from '@modules/clickhouse/clickhouse-analysis-degradation';
@@ -21,6 +21,10 @@ import {
   type DrivingAnalysisReconciliationResult,
 } from './driving-analysis-reconciliation.types';
 import { parseAnalysisStagesJson } from '../trips/trip-analysis-status';
+import {
+  RENTAL_DRIVING_ANALYSIS_RECONCILIATION_PORT,
+  type RentalDrivingAnalysisReconciliationPort,
+} from './ports/rental-driving-analysis-reconciliation.port';
 
 @Injectable()
 export class DrivingAnalysisReconciliationService {
@@ -31,6 +35,8 @@ export class DrivingAnalysisReconciliationService {
     private readonly analysisInit: DrivingAnalysisInitService,
     private readonly jobDispatcher: DrivingIntelligenceJobDispatcherService,
     private readonly jobRepository: DrivingIntelligenceJobRepository,
+    @Inject(RENTAL_DRIVING_ANALYSIS_RECONCILIATION_PORT)
+    private readonly rentalReconciliation: RentalDrivingAnalysisReconciliationPort,
     @Optional() private readonly clickHouseHealth?: ClickHouseAnalysisHealthService,
     @Optional() private readonly stageRepository?: DrivingAnalysisStageRepository,
     @Optional() private readonly stageOrchestrator?: DrivingAnalysisStageOrchestratorService,
@@ -220,25 +226,13 @@ export class DrivingAnalysisReconciliationService {
       });
     }
 
-    const bookingsWithoutAnalysis = await this.prisma.booking.findMany({
-      where: {
+    const rentalBookingFindings =
+      await this.rentalReconciliation.scanBookingsWithoutRentalAnalysis({
         organizationId,
-        status: BookingStatus.COMPLETED,
-        endDate: { gte: lookbackFrom },
-        rentalDrivingAnalyses: { none: { supersededAt: null } },
-      },
-      select: { id: true, vehicleId: true },
-      take: limit,
-    });
-    for (const booking of bookingsWithoutAnalysis) {
-      findings.push({
-        checkType: DRIVING_ANALYSIS_RECONCILIATION_CHECK_TYPES.BOOKING_WITHOUT_RENTAL_ANALYSIS,
-        organizationId,
-        entityType: 'booking',
-        entityId: booking.id,
-        detail: `vehicle=${booking.vehicleId ?? 'none'}`,
+        lookbackFrom,
+        limit,
       });
-    }
+    findings.push(...rentalBookingFindings);
 
     const healthJobs = await this.prisma.drivingIntelligenceJob.findMany({
       where: {
@@ -473,58 +467,16 @@ export class DrivingAnalysisReconciliationService {
         }
 
         case DRIVING_ANALYSIS_RECONCILIATION_CHECK_TYPES.BOOKING_WITHOUT_RENTAL_ANALYSIS: {
-          const booking = await this.prisma.booking.findFirst({
-            where: { id: finding.entityId, organizationId: finding.organizationId },
-            select: { vehicleId: true, status: true },
-          });
-          if (!booking?.vehicleId || booking.status !== BookingStatus.COMPLETED) {
-            this.recordReconciliation(finding.checkType, 'skipped');
-            return 'skipped';
-          }
-
-          const anchorTrip = await this.prisma.vehicleTrip.findFirst({
-            where: { assignedBookingId: finding.entityId, vehicleId: booking.vehicleId },
-            select: { id: true },
-            orderBy: { endTime: 'desc' },
-          });
-          if (!anchorTrip) {
-            this.recordReconciliation(finding.checkType, 'skipped');
-            return 'skipped';
-          }
-
-          const run = await this.prisma.drivingAnalysisRun.findFirst({
-            where: {
+          const outcome = await this.rentalReconciliation.remediateBookingWithoutRentalAnalysis({
+            finding: {
+              checkType: DRIVING_ANALYSIS_RECONCILIATION_CHECK_TYPES.BOOKING_WITHOUT_RENTAL_ANALYSIS,
               organizationId: finding.organizationId,
-              tripId: anchorTrip.id,
-              analysisType: 'TRIP_ENRICHMENT',
+              entityType: 'booking',
+              entityId: finding.entityId,
+              detail: finding.detail,
             },
-            orderBy: { startedAt: 'desc' },
-          });
-          if (!run) {
-            const init = await this.analysisInit.initializeForCompletedTrip({
-              organizationId: finding.organizationId,
-              vehicleId: booking.vehicleId,
-              tripId: anchorTrip.id,
-              source: 'REPAIR_FINALIZE',
-            });
-            const outcome = init.jobs.some((j) => j.enqueued) ? 'enqueued' : 'skipped';
-            this.recordReconciliation(finding.checkType, outcome);
-            return outcome;
-          }
-
-          const dispatched = await this.jobDispatcher.enqueue({
-            organizationId: finding.organizationId,
-            vehicleId: booking.vehicleId,
-            tripId: anchorTrip.id,
-            bookingId: finding.entityId,
-            analysisRunId: run.id,
-            jobType: 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE',
-            modelVersion: DRIVING_INTELLIGENCE_PIPELINE_MODEL_VERSION,
             idempotencyKey,
-            correlationId: `reconcile-booking:${finding.entityId}`,
-            requestedAt: new Date(),
           });
-          const outcome = dispatched.enqueued ? 'enqueued' : 'skipped';
           this.recordReconciliation(finding.checkType, outcome);
           return outcome;
         }
