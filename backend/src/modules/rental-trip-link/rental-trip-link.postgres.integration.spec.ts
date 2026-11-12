@@ -309,9 +309,9 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
         status: RentalTripLinkStatus.ACTIVE,
         bookingId: booking.id,
         linkSource: TripBookingLinkSource.EXPLICIT,
-        __integrationFailCreateAfterSupersede: true,
+        createdBy: 'INVALID_CREATED_BY' as RentalTripLinkCreatedBy,
       }),
-    ).rejects.toThrow(/rental_trip_links_active_booking_chk|check constraint/i);
+    ).rejects.toThrow(/invalid input value for enum|RentalTripLinkCreatedBy/i);
 
     const reloaded = await prisma.rentalTripLink.findUnique({ where: { id: row.id } });
     expect(reloaded?.status).toBe(RentalTripLinkStatus.ACTIVE);
@@ -323,6 +323,11 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
     });
     expect(currents).toHaveLength(1);
     expect(currents[0]?.id).toBe(row.id);
+
+    const allRows = await prisma.rentalTripLink.count({
+      where: { organizationId: orgId, tripId: trip.id },
+    });
+    expect(allRows).toBe(1);
   });
 
   it('8 — cross-tenant and missing trip/booking rejected', async () => {

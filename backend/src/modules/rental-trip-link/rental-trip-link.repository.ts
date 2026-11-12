@@ -124,19 +124,6 @@ export class RentalTripLinkRepository {
           supersededRowId = current.id;
         }
 
-        if (input.__integrationFailCreateAfterSupersede) {
-          await tx.rentalTripLink.create({
-            data: {
-              organizationId: input.organizationId,
-              tripId: input.tripId,
-              status: RentalTripLinkStatus.ACTIVE,
-              bookingId: null,
-              linkedAt,
-              createdBy: input.createdBy ?? 'SYSTEM',
-            },
-          });
-        }
-
         const created = await tx.rentalTripLink.create({
           data: {
             organizationId: input.organizationId,

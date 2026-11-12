@@ -29,11 +29,6 @@ export type EstablishRentalTripLinkInput = {
   createdBy?: RentalTripLinkCreatedBy;
   createdByUserId?: string | null;
   correlationId?: string | null;
-  /**
-   * Integration tests only: after superseding current, attempt invalid CREATE to verify tx rollback.
-   * Must never be set from product code paths.
-   */
-  __integrationFailCreateAfterSupersede?: boolean;
 };
 
 export type BackfillDryRunIssueCode =
