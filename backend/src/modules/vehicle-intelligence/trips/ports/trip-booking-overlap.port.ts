@@ -71,4 +71,13 @@ export interface TripBookingOverlapPort {
     tripStart: Date;
     tripEnd: Date | null;
   }): Promise<BookingPickupHandoverProof | null>;
+
+  /**
+   * Tenant-scoped booking lookup for job validation.
+   * Throws when booking is missing or foreign to the organization.
+   */
+  resolveBookingVehicleForOrganization(input: {
+    organizationId: string;
+    bookingId: string;
+  }): Promise<{ vehicleId: string | null }>;
 }

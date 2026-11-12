@@ -174,6 +174,7 @@ describe('TripRentalRecomputePort — Core call-site semantics', () => {
         loadDriverPoolForBooking: jest.fn(),
         loadBookingAttributionContext: jest.fn(),
         findPickupHandoverProofForTrip: jest.fn(),
+        resolveBookingVehicleForOrganization: jest.fn(),
       };
       const service = new DriverAttributionService(
         prisma as any,
@@ -226,6 +227,7 @@ describe('TripRentalRecomputePort — Core call-site semantics', () => {
         loadDriverPoolForBooking: jest.fn(),
         loadBookingAttributionContext: jest.fn(),
         findPickupHandoverProofForTrip: jest.fn(),
+        resolveBookingVehicleForOrganization: jest.fn(),
       };
       const service = new DriverAttributionService(
         prisma as any,

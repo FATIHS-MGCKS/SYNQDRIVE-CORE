@@ -1,5 +1,18 @@
 import { DrivingIntelligenceJobRepository } from './driving-intelligence-jobs.repository';
 import type { PersistDrivingIntelligenceJobInput } from './driving-intelligence-jobs.types';
+import type { TripBookingOverlapPort } from '../trips/ports/trip-booking-overlap.port';
+
+function makeOverlapPort(): TripBookingOverlapPort {
+  return {
+    findFirstOverlapForTrip: jest.fn(),
+    findOverlapsForVehicleWindow: jest.fn(),
+    loadDriverPoolsForBookings: jest.fn(),
+    loadDriverPoolForBooking: jest.fn(),
+    loadBookingAttributionContext: jest.fn(),
+    findPickupHandoverProofForTrip: jest.fn(),
+    resolveBookingVehicleForOrganization: jest.fn().mockResolvedValue({ vehicleId: null }),
+  };
+}
 
 function makePrisma() {
   return {
@@ -38,7 +51,7 @@ describe('DrivingIntelligenceJobRepository', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    repository = new DrivingIntelligenceJobRepository(prisma);
+    repository = new DrivingIntelligenceJobRepository(prisma, makeOverlapPort());
     prisma.vehicle.findFirst.mockResolvedValue({ id: 'vehicle-1' });
     prisma.vehicleTrip.findFirst.mockResolvedValue({ id: 'trip-1', vehicleId: 'vehicle-1' });
     prisma.drivingAnalysisRun.findFirst.mockResolvedValue({

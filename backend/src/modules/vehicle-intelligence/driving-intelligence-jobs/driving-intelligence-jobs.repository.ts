@@ -1,6 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
+import {
+  TRIP_BOOKING_OVERLAP_PORT,
+  type TripBookingOverlapPort,
+} from '../trips/ports/trip-booking-overlap.port';
 import { validateEnqueueDrivingIntelligenceJobInput } from './driving-intelligence-jobs.contract';
 import {
   DRIVING_INTELLIGENCE_JOB_DEFAULT_MAX_ATTEMPTS,
@@ -15,7 +19,11 @@ const TERMINAL_STATUSES = new Set(['COMPLETED', 'CANCELLED', 'DEAD_LETTER']);
 
 @Injectable()
 export class DrivingIntelligenceJobRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(TRIP_BOOKING_OVERLAP_PORT)
+    private readonly bookingOverlap: TripBookingOverlapPort,
+  ) {}
 
   async assertVehicleInOrg(organizationId: string, vehicleId: string): Promise<void> {
     const vehicle = await this.prisma.vehicle.findFirst({
@@ -45,14 +53,10 @@ export class DrivingIntelligenceJobRepository {
     organizationId: string,
     bookingId: string,
   ): Promise<{ vehicleId: string | null }> {
-    const booking = await this.prisma.booking.findFirst({
-      where: { id: bookingId, organizationId },
-      select: { id: true, vehicleId: true },
+    return this.bookingOverlap.resolveBookingVehicleForOrganization({
+      organizationId,
+      bookingId,
     });
-    if (!booking) {
-      throw new NotFoundException('Booking not found for organization');
-    }
-    return { vehicleId: booking.vehicleId };
   }
 
   async assertAnalysisRunInOrg(

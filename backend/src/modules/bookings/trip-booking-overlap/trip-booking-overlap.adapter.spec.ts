@@ -148,4 +148,21 @@ describe('TripBookingOverlapPrismaAdapter', () => {
       select: expect.any(Object),
     });
   });
+
+  it('resolveBookingVehicleForOrganization returns vehicleId and throws for missing booking', async () => {
+    prisma.booking.findFirst.mockResolvedValue({ id: 'book-1', vehicleId: null });
+    const result = await adapter.resolveBookingVehicleForOrganization({
+      organizationId: 'org-1',
+      bookingId: 'book-1',
+    });
+    expect(result).toEqual({ vehicleId: null });
+
+    prisma.booking.findFirst.mockResolvedValue(null);
+    await expect(
+      adapter.resolveBookingVehicleForOrganization({
+        organizationId: 'org-1',
+        bookingId: 'missing',
+      }),
+    ).rejects.toThrow('Booking not found for organization');
+  });
 });
