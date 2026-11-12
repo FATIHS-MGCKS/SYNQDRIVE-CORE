@@ -15,6 +15,7 @@ function makeMockBookingOverlap() {
     loadDriverPoolForBooking: jest.fn(),
     loadBookingAttributionContext: jest.fn(),
     findPickupHandoverProofForTrip: jest.fn(),
+    resolveBookingVehicleForOrganization: jest.fn(),
   };
 }
 

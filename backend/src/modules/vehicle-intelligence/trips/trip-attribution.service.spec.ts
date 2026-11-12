@@ -15,6 +15,7 @@ function makeOverlapPort(
     }),
     loadBookingAttributionContext: jest.fn().mockResolvedValue(null),
     findPickupHandoverProofForTrip: jest.fn().mockResolvedValue(null),
+    resolveBookingVehicleForOrganization: jest.fn().mockResolvedValue({ vehicleId: null }),
     ...overrides,
   };
 }

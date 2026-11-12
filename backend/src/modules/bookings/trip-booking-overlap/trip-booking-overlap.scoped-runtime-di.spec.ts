@@ -5,6 +5,7 @@ import { TripAttributionService } from '@modules/vehicle-intelligence/trips/trip
 import { DriverAttributionService } from '@modules/vehicle-intelligence/driver-attribution/driver-attribution.service';
 import { DriverAttributionRepository } from '@modules/vehicle-intelligence/driver-attribution/driver-attribution.repository';
 import { DrivingIntelligenceJobDispatcherService } from '@modules/vehicle-intelligence/driving-intelligence-jobs/driving-intelligence-jobs.dispatcher.service';
+import { DrivingIntelligenceJobRepository } from '@modules/vehicle-intelligence/driving-intelligence-jobs/driving-intelligence-jobs.repository';
 import { TRIP_BOOKING_OVERLAP_PORT } from '@modules/vehicle-intelligence/trips/ports/trip-booking-overlap.port';
 import { TripBookingOverlapModule } from './trip-booking-overlap.module';
 import { TripBookingOverlapPrismaAdapter } from './trip-booking-overlap.adapter';
@@ -24,6 +25,7 @@ describe('TripBookingOverlap — scoped runtime DI', () => {
         TripAnalyticsCanonicalService,
         TripAttributionService,
         DriverAttributionService,
+        DrivingIntelligenceJobRepository,
         {
           provide: PrismaService,
           useValue: {
@@ -76,6 +78,13 @@ describe('TripBookingOverlap — scoped runtime DI', () => {
     const attribution = moduleRef.get(TripAttributionService);
     expect(attribution).toBeInstanceOf(TripAttributionService);
     expect((attribution as unknown as { bookingOverlap: unknown }).bookingOverlap).toBe(port);
+  });
+
+  it('injects TRIP_BOOKING_OVERLAP_PORT into DrivingIntelligenceJobRepository', () => {
+    const port = moduleRef.get(TRIP_BOOKING_OVERLAP_PORT);
+    const jobRepo = moduleRef.get(DrivingIntelligenceJobRepository);
+    expect(jobRepo).toBeInstanceOf(DrivingIntelligenceJobRepository);
+    expect((jobRepo as unknown as { bookingOverlap: unknown }).bookingOverlap).toBe(port);
   });
 
   it('injects TRIP_BOOKING_OVERLAP_PORT into DriverAttributionService', () => {

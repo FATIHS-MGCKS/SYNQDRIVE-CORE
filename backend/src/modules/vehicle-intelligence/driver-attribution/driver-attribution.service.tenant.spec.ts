@@ -22,6 +22,7 @@ describe('DriverAttributionService tenant security', () => {
       findFirstOverlapForTrip: jest.fn(),
       findOverlapsForVehicleWindow: jest.fn(),
       loadDriverPoolsForBookings: jest.fn(),
+      resolveBookingVehicleForOrganization: jest.fn(),
     };
     const service = new DriverAttributionService(
       prisma,
