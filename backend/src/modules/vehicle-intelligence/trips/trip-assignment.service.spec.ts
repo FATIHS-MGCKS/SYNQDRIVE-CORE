@@ -11,7 +11,7 @@ function makeMockPrisma() {
       update: jest.fn(),
     },
     vehicle: {
-      findUnique: jest.fn(),
+      findUnique: jest.fn().mockResolvedValue({ organizationId: 'org-1' }),
     },
   } as any;
 }
@@ -43,6 +43,7 @@ describe('TripAssignmentService', () => {
     metrics = makeMockMetrics();
     bookingOverlap = makeMockBookingOverlap();
     bookingOverlap.findFirstOverlapForTrip.mockResolvedValue(null);
+    prisma.vehicle.findUnique.mockResolvedValue({ organizationId: 'org-1' });
     service = new TripAssignmentService(prisma, bookingOverlap as any, metrics);
   });
 

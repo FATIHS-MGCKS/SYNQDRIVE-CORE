@@ -13,12 +13,14 @@ export class TripBookingOverlapPrismaAdapter implements TripBookingOverlapPort {
   constructor(private readonly prisma: PrismaService) {}
 
   async findFirstOverlapForTrip(input: {
+    organizationId: string;
     vehicleId: string;
     tripStart: Date;
     tripEnd: Date;
   }): Promise<BookingOverlapCandidate | null> {
     const booking = await this.prisma.booking.findFirst({
       where: {
+        organizationId: input.organizationId,
         vehicleId: input.vehicleId,
         status: { in: [BookingStatus.ACTIVE, BookingStatus.COMPLETED] },
         startDate: { lte: input.tripEnd },

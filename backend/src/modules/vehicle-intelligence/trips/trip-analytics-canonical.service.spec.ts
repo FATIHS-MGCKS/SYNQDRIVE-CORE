@@ -37,6 +37,7 @@ function makeMockPrisma() {
     vehicle: {
       findFirst: jest.fn().mockResolvedValue({ id: 'vehicle-1' }),
       findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn().mockResolvedValue({ organizationId: 'org-1' }),
     },
     tripBehaviorEvent: {
       findMany: jest.fn().mockResolvedValue([]),

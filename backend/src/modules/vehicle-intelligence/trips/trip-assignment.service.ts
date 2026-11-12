@@ -82,7 +82,14 @@ export class TripAssignmentService {
     });
     if (!trip) return null;
 
-    const resolution = await this.resolveForTrip(trip, { recordMetric: true });
+    const vehicle = await this.prisma.vehicle.findUnique({
+      where: { id: trip.vehicleId },
+      select: { organizationId: true },
+    });
+    const resolution = await this.resolveForTrip(trip, {
+      recordMetric: true,
+      organizationId: vehicle?.organizationId ?? null,
+    });
     await this.prisma.vehicleTrip.update({
       where: { id: tripId },
       data: {
@@ -99,10 +106,6 @@ export class TripAssignmentService {
     });
 
     if (resolution.assignedBookingId) {
-      const vehicle = await this.prisma.vehicle.findUnique({
-        where: { id: trip.vehicleId },
-        select: { organizationId: true },
-      });
       if (vehicle?.organizationId) {
         void this.rentalRecomputeTrigger
           ?.enqueueForBooking({
@@ -122,10 +125,14 @@ export class TripAssignmentService {
 
   async resolveForTrip(
     trip: TripAssignmentInput,
-    options: { recordMetric?: boolean } = {},
+    options: { recordMetric?: boolean; organizationId?: string | null } = {},
   ): Promise<TripAssignmentResolution> {
     const fallback = this.normalizeFallbackAssignment(trip);
-    const bookingAssignment = await this.findBookingAssignment(trip);
+    const organizationId =
+      options.organizationId !== undefined
+        ? options.organizationId
+        : await this.resolveTrustedOrganizationIdForVehicle(trip.vehicleId);
+    const bookingAssignment = await this.findBookingAssignment(trip, organizationId);
     const resolution = bookingAssignment ?? fallback;
     if (options.recordMetric) {
       this.tripMetrics?.tripAssignmentResolutions.inc({
@@ -343,12 +350,27 @@ export class TripAssignmentService {
     };
   }
 
+  private async resolveTrustedOrganizationIdForVehicle(
+    vehicleId: string,
+  ): Promise<string | null> {
+    const vehicle = await this.prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+      select: { organizationId: true },
+    });
+    return vehicle?.organizationId ?? null;
+  }
+
   private async findBookingAssignment(
     trip: TripAssignmentInput,
+    organizationId: string | null,
   ): Promise<TripAssignmentResolution | null> {
+    if (!organizationId) {
+      return null;
+    }
     const tripEnd = trip.endTime ?? trip.startTime;
 
     const booking = await this.bookingOverlap.findFirstOverlapForTrip({
+      organizationId,
       vehicleId: trip.vehicleId,
       tripStart: trip.startTime,
       tripEnd,

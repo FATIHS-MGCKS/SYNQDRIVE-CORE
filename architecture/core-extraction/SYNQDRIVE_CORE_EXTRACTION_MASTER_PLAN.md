@@ -340,7 +340,9 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Refactor:** `TripAssignmentService.findBookingAssignment` und `CanonicalTripHydrationBatchLoader` (Booking-Queries + Driver-Pools) nutzen ausschließlich den Port — **keine** `prisma.booking`-Aufrufe mehr in diesen Core-Pfaden.
 
-**Unverändert:** Trip-FSM, Finalize, DS4/DBI-Pipelines, Assignment-Outcomes, `VehicleTrip`-Booking-Spalten, Rental-Recompute-Hooks, Query-Batching/`queryCount`.
+**Tenant (Closeout):** `findFirstOverlapForTrip` erfordert `organizationId`; Quelle = **`Vehicle.organizationId`** (serverseitig in `TripAssignmentService`, kein Caller-Trust). Fehlt Vehicle/Org → fail-closed (kein Booking-Lookup; explizite `VehicleTrip`-Links bleiben über `normalizeFallbackAssignment`).
+
+**Unverändert:** Trip-FSM, Finalize, DS4/DBI-Pipelines, Assignment-Outcomes (gültige Daten), `VehicleTrip`-Booking-Spalten, Rental-Recompute-Hooks, Query-Batching/`queryCount`.
 
 **Offen (P2):** `TripAttributionService`/`trip-post-finalize` Rental-Recompute, `VehicleTrip`-Legacy-Spalten-Cutover, `core.vehicle-trip.finalized.v1`, RentalTripLink-Tabelle.
 
@@ -406,7 +408,8 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P1B_PR1_SECURITY_CLOSEOUT` | **DRAFT_PR #3** · HEAD `d2076e504e90962bb73c9bef3fa9b68d9a2d3e45` | R1–R5 Fixes + Tests; Masterplan §6.2; **kein** Deploy/Prod/CI | Merge-Gate |
 | 2026-11-12 | `SYNQDRIVE_CORE_P1B_PR1_FINAL_MERGE_GATE` | **DRAFT_PR #3** · Base `78e66dce51a09d98550eebf780dda25a189d3d2d` · HEAD nach Commit | Disposable-Postgres: P1B `migrate deploy` + Constraint-Test; `m2mProductionReady`-Semantik; CI weiter aus | Owner merge PR #3 (manuell); M2M live weiter blockiert (distributed RL) |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_TRIP_BOOKING_DECOUPLING_AUDIT` | **READ_ONLY** · `main` `77e9843aa…` | Dependency map; P2-PR1 = Booking Overlap Port; DESIGN_READY | P2-PR1 Implementierung |
-| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_BOOKING_OVERLAP_PORT` | **DRAFT_PR** (siehe PR #) · Base `77e9843aaafa7210e75a03ba80898f0a62fc9e20` | Port + Adapter; Tests lokal; **kein** Schema/Deploy | P2-PR2 (Attribution/Recompute seam) |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_BOOKING_OVERLAP_PORT` | **DRAFT_PR #4** · Base `77e9843aa…` · HEAD `9236a5923…` | Port + Adapter; Tests lokal; **kein** Schema/Deploy | Tenant closeout |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_TENANT_AND_INTEGRATION_CLOSEOUT` | **DRAFT_PR #4** (aktualisiert) | Org-scope via Vehicle; Nest-DI + disposable Postgres 3/3 PASS | P2 review / optional merge |
 
 **Updatevorlage für neue Einträge:**
 

@@ -20,6 +20,7 @@ describe('TripBookingOverlapPrismaAdapter', () => {
     const tripStart = new Date('2026-03-01T08:00:00Z');
     const tripEnd = new Date('2026-03-01T09:00:00Z');
     await adapter.findFirstOverlapForTrip({
+      organizationId: 'org-1',
       vehicleId: 'veh-1',
       tripStart,
       tripEnd,
@@ -27,6 +28,7 @@ describe('TripBookingOverlapPrismaAdapter', () => {
 
     expect(prisma.booking.findFirst).toHaveBeenCalledWith({
       where: {
+        organizationId: 'org-1',
         vehicleId: 'veh-1',
         status: { in: [BookingStatus.ACTIVE, BookingStatus.COMPLETED] },
         startDate: { lte: tripEnd },
@@ -60,6 +62,17 @@ describe('TripBookingOverlapPrismaAdapter', () => {
         orderBy: { startDate: 'desc' },
       }),
     );
+  });
+
+  it('scopes findFirst by organizationId (cross-tenant predicate)', async () => {
+    prisma.booking.findFirst.mockResolvedValue(null);
+    await adapter.findFirstOverlapForTrip({
+      organizationId: 'org-b',
+      vehicleId: 'veh-shared',
+      tripStart: new Date('2026-03-01T08:00:00Z'),
+      tripEnd: new Date('2026-03-01T09:00:00Z'),
+    });
+    expect(prisma.booking.findFirst.mock.calls[0][0].where.organizationId).toBe('org-b');
   });
 
   it('loadDriverPoolsForBookings skips query when no booking ids', async () => {
