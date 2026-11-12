@@ -1,14 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import { BookingStatus, Prisma, TripAssignmentStatus } from '@prisma/client';
-import { PrismaService } from '@shared/database/prisma.service';
+import { Inject, Injectable } from '@nestjs/common';
+import { TripAssignmentStatus } from '@prisma/client';
 import type {
   TripAttribution,
   TripAttributionBookingOverlap,
   TripAttributionInput,
 } from './trip-attribution.types';
 import { resolveDrivingAttributionRoles } from './driving-attribution-roles/driving-attribution-roles';
-import { resolveBookingDriverPool } from '../../bookings/booking-allowed-drivers/booking-allowed-drivers.util';
-import { assertBookingInOrganization } from '../tenant/vehicle-intelligence-tenant.scope';
 import { pickBookingOverlapCandidate } from './trip-canonical-hydration.booking-match';
 import type {
   BookingDriverPoolContext,
@@ -16,10 +13,17 @@ import type {
 } from './trip-canonical-hydration.types';
 import type { TripAssignmentResolution } from './trip-assignment.service';
 import type { TripHydrationTripInput } from './trip-canonical-hydration.types';
+import {
+  TRIP_BOOKING_OVERLAP_PORT,
+  type TripBookingOverlapPort,
+} from './ports/trip-booking-overlap.port';
 
 @Injectable()
 export class TripAttributionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(TRIP_BOOKING_OVERLAP_PORT)
+    private readonly bookingOverlap: TripBookingOverlapPort,
+  ) {}
 
   resolveAttribution(input: TripAttributionInput): TripAttribution {
     const roles = resolveDrivingAttributionRoles({
@@ -262,21 +266,7 @@ export class TripAttributionService {
   }
 
   private async loadBookingDriverPool(organizationId: string, bookingId: string) {
-    await assertBookingInOrganization(this.prisma, organizationId, bookingId);
-    const booking = await this.prisma.booking.findFirst({
-      where: { id: bookingId, organizationId },
-      select: {
-        customerId: true,
-        assignedDriverId: true,
-        allowedDrivers: { select: { customerId: true, role: true } },
-      },
-    });
-    if (!booking) return null;
-    return resolveBookingDriverPool({
-      bookingCustomerId: booking.customerId,
-      assignedDriverId: booking.assignedDriverId,
-      allowedRows: booking.allowedDrivers,
-    });
+    return this.bookingOverlap.loadDriverPoolForBooking({ organizationId, bookingId });
   }
 
   async findBookingOverlap(
@@ -289,29 +279,12 @@ export class TripAttributionService {
     },
   ): Promise<TripAttributionBookingOverlap | null> {
     const tripEnd = trip.endTime ?? trip.startTime;
-    const where: Prisma.BookingWhereInput = {
+    const booking = await this.bookingOverlap.findFirstOverlapForTrip({
       organizationId,
       vehicleId: trip.vehicleId,
-      status: { in: [BookingStatus.ACTIVE, BookingStatus.COMPLETED] },
-      startDate: { lte: tripEnd },
-      endDate: { gte: trip.startTime },
-    };
-    if (trip.assignedBookingId) {
-      where.id = trip.assignedBookingId;
-    }
-
-    const booking = await this.prisma.booking.findFirst({
-      where,
-      orderBy: { startDate: 'desc' },
-      select: {
-        id: true,
-        vehicleId: true,
-        customerId: true,
-        assignedDriverId: true,
-        startDate: true,
-        endDate: true,
-        customer: { select: { customerType: true } },
-      },
+      tripStart: trip.startTime,
+      tripEnd,
+      bookingId: trip.assignedBookingId ?? undefined,
     });
     if (!booking) return null;
     return pickBookingOverlapCandidate(trip, [booking]);

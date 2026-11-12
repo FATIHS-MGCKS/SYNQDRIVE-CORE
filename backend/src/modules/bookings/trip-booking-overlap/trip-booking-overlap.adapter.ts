@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { BookingStatus } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
 import { resolveBookingDriverPool } from '../booking-allowed-drivers/booking-allowed-drivers.util';
@@ -17,15 +17,18 @@ export class TripBookingOverlapPrismaAdapter implements TripBookingOverlapPort {
     vehicleId: string;
     tripStart: Date;
     tripEnd: Date;
+    bookingId?: string | null;
   }): Promise<BookingOverlapCandidate | null> {
+    const where = {
+      organizationId: input.organizationId,
+      vehicleId: input.vehicleId,
+      status: { in: [BookingStatus.ACTIVE, BookingStatus.COMPLETED] },
+      startDate: { lte: input.tripEnd },
+      endDate: { gte: input.tripStart },
+      ...(input.bookingId ? { id: input.bookingId } : {}),
+    };
     const booking = await this.prisma.booking.findFirst({
-      where: {
-        organizationId: input.organizationId,
-        vehicleId: input.vehicleId,
-        status: { in: [BookingStatus.ACTIVE, BookingStatus.COMPLETED] },
-        startDate: { lte: input.tripEnd },
-        endDate: { gte: input.tripStart },
-      },
+      where,
       orderBy: { startDate: 'desc' },
       select: {
         id: true,
@@ -99,5 +102,31 @@ export class TripBookingOverlapPrismaAdapter implements TripBookingOverlapPort {
     }
 
     return map;
+  }
+
+  async loadDriverPoolForBooking(input: {
+    organizationId: string;
+    bookingId: string;
+  }): Promise<BookingDriverPoolContext> {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: input.bookingId, organizationId: input.organizationId },
+      select: {
+        customerId: true,
+        assignedDriverId: true,
+        allowedDrivers: { select: { customerId: true, role: true } },
+      },
+    });
+    if (!booking) {
+      throw new NotFoundException('Booking not found for organization');
+    }
+    const pool = resolveBookingDriverPool({
+      bookingCustomerId: booking.customerId,
+      assignedDriverId: booking.assignedDriverId,
+      allowedRows: booking.allowedDrivers,
+    });
+    return {
+      allowedDriverIds: pool.allowedDriverIds,
+      primaryDriverId: pool.primaryDriverId,
+    };
   }
 }

@@ -256,7 +256,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P1D** | Entitlement, Core-Read, Trip-Link Contract Design | **DONE – DESIGN_ONLY** | DESIGN_READY | Keine Codeänderung |
 | **P1A** | Core-Entitlement-Read-API + EntitlementsQueryService + Tests + AGENTS-Governance | **MERGED** (`main` `78e66dce…`, PR #2) | JWT+OrgScoping; nicht produktiv deployed | P1B Service Auth |
 | **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
-| **P2** | Trip ↔ Booking Entkopplung | **IN_PROGRESS** (P2-PR1 merged; P2-PR2 Draft) | Overlap + Recompute Ports; VI↔RDA forwardRef unverändert | Attribution/Recompute-Rest, Cutover |
+| **P2** | Trip ↔ Booking Entkopplung | **IN_PROGRESS** (P2-PR1–PR2 merged; P2-PR3 Draft) | Overlap + Recompute Ports; Attribution Booking-Queries über Port | RentalTripLink/Cutover |
 | **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **NOT_STARTED** | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
@@ -346,7 +346,15 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Unverändert:** Trip-FSM, Finalize, DS4/DBI-Pipelines, Assignment-Outcomes (gültige Daten), `VehicleTrip`-Booking-Spalten, Rental-Recompute-Hooks, Query-Batching/`queryCount`.
 
-**Offen (P2):** `TripAttributionService` Rental-Recompute, weitere VI→Rental-Trigger, Legacy-Spalten-Cutover, RentalTripLink.
+**Offen (P2):** weitere VI→Rental-Trigger außerhalb Port-Pfade, Legacy-Spalten-Cutover, RentalTripLink.
+
+### 6.5 P2-PR3 — TripAttribution Booking decoupling (Draft-PR)
+
+**Scope:** `TripAttributionService` nutzt ausschließlich `TRIP_BOOKING_OVERLAP_PORT` für Overlap- und Driver-Pool-Loads (keine direkten `prisma.booking`-Queries, keine `resolveBookingDriverPool`/`assertBookingInOrganization`-Imports in Core).
+
+**Port-Erweiterung:** `findFirstOverlapForTrip` optional `bookingId` (SQL-Filter vor `findFirst`, gleiche ACTIVE/COMPLETED + Inclusive-Overlap + `startDate desc` Semantik); `loadDriverPoolForBooking` mit `NotFoundException`-Kontrakt (Rental-Adapter).
+
+**Unverändert:** `resolveAttribution`-Entscheidungslogik, PRIVATE/EXPLICIT/TIME_WINDOW, Batch-Hydration über Port, Full VI Bootstrap **BASELINE_BLOCKED** (separates Thema).
 
 ### 6.4 P2-PR2 — Trip Rental Recompute Port (Draft-PR, structural refactor only)
 
@@ -362,7 +370,7 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Scope recovery (PR #5):** P2-PR2 beschränkt auf Port/Adapter + zwei Core-Call-Sites; keine Modulextraktionen, kein PlatformAdmin/Voice/Organizations-`forwardRef` in diesem PR.
 
-### 6.5 Ursprünglich geplanter erster PR — Outbox (verschoben)
+### 6.6 Ursprünglich geplanter erster PR — Outbox (verschoben)
 
 Änderungen an Produktzuweisungen über geprüfte Outbox/Ereignislogik: **nicht** in P1A (kein Schema-Umbau). Separater Follow-up-PR nach Owner-Freigabe.
 
@@ -432,6 +440,8 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_RENTAL_RECOMPUTE_PORT` | **DRAFT_PR #5** · Base `af34303d8…` · structural HEAD `e197dc806…` | Recompute Port; Trigger-Delegation; Scoped DI PASS | Review / merge gate |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_BOOTSTRAP_AND_MODULE_CYCLE_CLOSEOUT` | **DRAFT_PR #5** · Commit `f0f4da93f` (reverted on branch) | Experiment: PlatformAdmin/VI-cycle; **nicht** P2-PR2-Scope | Separates Follow-up |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_SCOPE_RECOVERY` | **DRAFT_PR #5** · Base `af34303d8…` | P2-PR2 Scope wiederhergestellt (Port/Adapter/Call-Sites); Modulextraktionen + unrelated `forwardRef` entfernt; full VI boot **BASELINE_BLOCKED** unverändert; **kein** Prod | Merge mit Baseline-Exception |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2` | **MERGED** · PR #5 → `main` `98a6068f8b1cceb2f8b48be5773a5f8ad6e8826b` | Recompute Port | P2-PR3 Attribution |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR3_TRIP_ATTRIBUTION_BOOKING_DECOUPLING` | **DRAFT_PR** · Base `98a6068f8…` | TripAttribution → `TripBookingOverlapPort`; **kein** Schema/Deploy | Review |
 
 **Updatevorlage für neue Einträge:**
 
