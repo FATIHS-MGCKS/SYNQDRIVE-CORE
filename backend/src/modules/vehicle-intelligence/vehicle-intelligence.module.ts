@@ -266,9 +266,8 @@ import { DrivingAssessmentDeviceQualityService } from './trips/driving-assessmen
 import { TechnicalObservationsModule } from '../technical-observations/technical-observations.module';
 import { BusinessInsightsModule } from '../business-insights/business-insights.module';
 import { NotificationsModule } from '@modules/notifications/notifications.module';
+import { RentalDrivingAnalysisModule } from '../rental-driving-analysis/rental-driving-analysis.module';
 import { TripBookingOverlapModule } from '../bookings/trip-booking-overlap/trip-booking-overlap.module';
-import { TripRentalRecomputeModule } from '../rental-driving-analysis/trip-rental-recompute/trip-rental-recompute.module';
-import { RentalDrivingAnalysisRecomputeHandlerModule } from '../rental-driving-analysis/rental-driving-analysis-recompute-handler.module';
 import { BatteryV2JobsProducerModule } from './battery-health/jobs/battery-v2-jobs-producer.module';
 import { DriveProfileResolverService } from './drive-profile/drive-profile-resolver.service';
 import { FuelStationCandidateRepository } from './fuel-stations/fuel-station-candidate.repository';
@@ -357,9 +356,8 @@ import { FsdDiscoveryIntegrationModule } from './fsd-integration/fsd-integration
     forwardRef(() => RentalHealthModule),
     forwardRef(() => TechnicalObservationsModule),
     forwardRef(() => BusinessInsightsModule),
+    forwardRef(() => RentalDrivingAnalysisModule),
     TripBookingOverlapModule,
-    forwardRef(() => TripRentalRecomputeModule),
-    forwardRef(() => RentalDrivingAnalysisRecomputeHandlerModule),
     forwardRef(() => NotificationsModule),
     DataAuthorizationsModule,
     Dtc02ObservabilityModule,

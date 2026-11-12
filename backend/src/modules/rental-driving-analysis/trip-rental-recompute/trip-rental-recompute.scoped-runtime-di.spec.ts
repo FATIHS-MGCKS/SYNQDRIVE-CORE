@@ -3,7 +3,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { TRIP_RENTAL_RECOMPUTE_PORT } from '@modules/vehicle-intelligence/trips/ports/trip-rental-recompute.port';
 import { TripPostFinalizeAnalysisProducer } from '@modules/vehicle-intelligence/driving-analysis-init/trip-post-finalize-analysis.producer';
 import { TripAssignmentService } from '@modules/vehicle-intelligence/trips/trip-assignment.service';
-import { TripRentalRecomputeModule } from './trip-rental-recompute.module';
+import { RentalDrivingAnalysisModule } from '../rental-driving-analysis.module';
 import { tripRentalRecomputePortProviders } from './trip-rental-recompute.providers';
 import { TripRentalRecomputePortAdapter } from './trip-rental-recompute.adapter';
 import { RentalDrivingAnalysisRecomputeTriggerService } from '../rental-driving-analysis-recompute.trigger';
@@ -32,8 +32,8 @@ describe('TripRentalRecomputePort — scoped runtime DI', () => {
     await moduleRef.close();
   });
 
-  it('TripRentalRecomputeModule exports TRIP_RENTAL_RECOMPUTE_PORT', () => {
-    const exports = Reflect.getMetadata(MODULE_METADATA.EXPORTS, TripRentalRecomputeModule) as
+  it('RentalDrivingAnalysisModule exports TRIP_RENTAL_RECOMPUTE_PORT', () => {
+    const exports = Reflect.getMetadata(MODULE_METADATA.EXPORTS, RentalDrivingAnalysisModule) as
       | unknown[]
       | undefined;
     expect(exports).toContain(TRIP_RENTAL_RECOMPUTE_PORT);

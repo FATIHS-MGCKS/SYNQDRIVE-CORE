@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import dimoR9WebhookHealthConfig from '@config/dimo-r9-webhook-health.config';
 import { RedisModule } from '@shared/redis/redis.module';
@@ -42,7 +42,7 @@ import { DimoR9WebhookHealthService } from './dimo-r9-webhook-health/dimo-r9-web
     AuthApiModule,
     DimoModule,
     BatteryGeneralizedEvidenceModule,
-    forwardRef(() => VehicleIntelligenceModule),
+    VehicleIntelligenceModule,
     HealthModule,
     BillingModule,
     SupportModule,

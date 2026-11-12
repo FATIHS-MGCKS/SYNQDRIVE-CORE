@@ -356,9 +356,11 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Parität:** `notifyTripCompleted` → `TRIP_COMPLETED`; `notifyBookingAssignmentCorrected` → `BOOKING_ASSIGNMENT_CORRECTED`; unveränderte Correlation-Strings, void+catch, keine Finalize-Blockade bei Recompute-Fehler.
 
-**Module (Closeout PR #5):** Direkter VI↔RDA-Modulimport entfernt. VI importiert `TripRentalRecomputeModule` + `RentalDrivingAnalysisRecomputeHandlerModule` (`forwardRef`); RDA importiert nur `forwardRef(VehicleIntelligenceModule)` + `RentalDrivingAnalysisCoreModule`. Mediiertes VI↔`TripRentalRecomputeModule`↔VI (`forwardRef`) für Init/Dispatcher — **kein** VI↔RDA-Zyklus.
+**Module:** `VehicleIntelligenceModule` ↔ `RentalDrivingAnalysisModule` `forwardRef` **unverändert** (Modul-Zyklus nicht Teil von P2-PR2).
 
-**Bootstrap (Closeout):** `PlatformAdminModule` Root Cause = `VehicleIntelligenceModule` in imports[5] ohne `forwardRef` bei Zyklus über `VehiclesModule`→`PlatformAdmin`→`VI`. Fix: `forwardRef(() => VehicleIntelligenceModule)`. Folgefehler in Voice/WhatsApp-Kette (`VoiceMcpGatewayModule`/`WhatsAppModule` `VehiclesModule` undefined bzw. `forwardRef`→Nest-Stack-Overflow) blockiert **full** `VehicleIntelligenceModule`-Compile weiterhin (siehe Journal).
+**Bootstrap:** Full `VehicleIntelligenceModule` `Test.createTestingModule` weiterhin **BASELINE_BLOCKED** (`PlatformAdminModule` imports[5] undefined — gleiche Signatur wie P2-PR1-Baseline). Scoped runtime DI = verbindlicher Port-Nachweis. VI-Vollboot-/Modulzyklus-Closeout (`f0f4da93f`) auf PR #5 **zurückgenommen** — separates Architektur-Thema.
+
+**Scope recovery (PR #5):** P2-PR2 beschränkt auf Port/Adapter + zwei Core-Call-Sites; keine Modulextraktionen, kein PlatformAdmin/Voice/Organizations-`forwardRef` in diesem PR.
 
 ### 6.5 Ursprünglich geplanter erster PR — Outbox (verschoben)
 
@@ -427,8 +429,9 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_FINAL_SECURITY_DI_CLOSEOUT` | **DRAFT_PR #4** | Tenant-Override entfernt (`resolveForTrip` nur Vehicle-Lookup); VI full `Test.createTestingModule` **BLOCKED** (PlatformAdminModule imports[5] undefined / cycle) | VI boot graph fix out-of-scope oder Folge-PR |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_BASELINE_BOOTSTRAP_RECONCILIATION` | **DRAFT_PR #4** | Baseline `main`@`77e9843aa`: identischer `PlatformAdminModule`/`imports[5]`-Fehler (vor TripBookingOverlap); scoped runtime DI PASS; full VI boot = **BASELINE_BLOCKED** (kein PASS) | Merge mit Baseline-Exception; VI full boot separates Architektur-Thema |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1` | **MERGED** · PR #4 → `main` `af34303d8dc0a4eadb2090a6f923697d14e39d06` | Booking Overlap Port + Tenant closeout | P2-PR2 Recompute Port |
-| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_RENTAL_RECOMPUTE_PORT` | **DRAFT_PR #5** · Base `af34303d8…` · HEAD siehe Closeout-Commit | Recompute Port; Trigger-Delegation; Scoped DI PASS | Bootstrap/Cycle Closeout |
-| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_BOOTSTRAP_AND_MODULE_CYCLE_CLOSEOUT` | **DRAFT_PR #5** · Base `af34303d8dc0a4eadb2090a6f923697d14e39d06` | PlatformAdmin `forwardRef(VI)`; VI↔RDA direkt entfernt (`TripRentalRecomputeModule`); full VI Compile **BLOCKED** (Voice/WhatsApp nach PlatformAdmin-Fix) | Voice-Kette `forwardRef`/Scope-Audit; kein Merge/Deploy |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_RENTAL_RECOMPUTE_PORT` | **DRAFT_PR #5** · Base `af34303d8…` · structural HEAD `e197dc806…` | Recompute Port; Trigger-Delegation; Scoped DI PASS | Review / merge gate |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_BOOTSTRAP_AND_MODULE_CYCLE_CLOSEOUT` | **DRAFT_PR #5** · Commit `f0f4da93f` (reverted on branch) | Experiment: PlatformAdmin/VI-cycle; **nicht** P2-PR2-Scope | Separates Follow-up |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_SCOPE_RECOVERY` | **DRAFT_PR #5** · Base `af34303d8…` | P2-PR2 Scope wiederhergestellt (Port/Adapter/Call-Sites); Modulextraktionen + unrelated `forwardRef` entfernt; full VI boot **BASELINE_BLOCKED** unverändert; **kein** Prod | Merge mit Baseline-Exception |
 
 **Updatevorlage für neue Einträge:**
 
