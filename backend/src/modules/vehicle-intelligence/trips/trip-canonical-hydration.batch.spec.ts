@@ -5,9 +5,16 @@ import { CANONICAL_HYDRATION_TRIP_ID_BATCH } from './trip-canonical-hydration.ty
 function makePrisma() {
   return {
     tripDrivingImpact: { findMany: jest.fn() },
-    booking: { findMany: jest.fn() },
     driverAttribution: { findMany: jest.fn() },
   } as any;
+}
+
+function makeBookingOverlap() {
+  return {
+    findFirstOverlapForTrip: jest.fn(),
+    findOverlapsForVehicleWindow: jest.fn(),
+    loadDriverPoolsForBookings: jest.fn(),
+  };
 }
 
 function makeTrips(count: number, vehicleId = 'veh-1') {
@@ -33,10 +40,12 @@ describe('CanonicalTripHydrationBatchLoader', () => {
   it('uses a bounded number of queries for large same-vehicle trip lists', async () => {
     const prisma = makePrisma();
     prisma.tripDrivingImpact.findMany.mockResolvedValue([]);
-    prisma.booking.findMany.mockResolvedValue([]);
+    const overlap = makeBookingOverlap();
+    overlap.findOverlapsForVehicleWindow.mockResolvedValue([]);
+    overlap.loadDriverPoolsForBookings.mockResolvedValue(new Map());
     prisma.driverAttribution.findMany.mockResolvedValue([]);
 
-    const loader = new CanonicalTripHydrationBatchLoader(prisma);
+    const loader = new CanonicalTripHydrationBatchLoader(prisma, overlap as any);
     const trips = makeTrips(120, 'veh-1');
     const prefetch = await loader.prefetch('org-1', trips);
 
@@ -46,7 +55,7 @@ describe('CanonicalTripHydrationBatchLoader', () => {
 
     expect(prefetch.queryCount).toBe(expectedQueries);
     expect(prisma.tripDrivingImpact.findMany).toHaveBeenCalledTimes(impactChunks);
-    expect(prisma.booking.findMany).toHaveBeenCalledTimes(1);
+    expect(overlap.findOverlapsForVehicleWindow).toHaveBeenCalledTimes(1);
     expect(prisma.driverAttribution.findMany).toHaveBeenCalledTimes(decisionChunks);
     expect(prefetch.bookingsByVehicle.get('veh-1')).toEqual([]);
   });
@@ -55,18 +64,18 @@ describe('CanonicalTripHydrationBatchLoader', () => {
     const prisma = makePrisma();
     prisma.tripDrivingImpact.findMany.mockResolvedValue([]);
     prisma.driverAttribution.findMany.mockResolvedValue([]);
-    prisma.booking.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: 'book-1',
-          customerId: 'cust-1',
-          assignedDriverId: 'driver-1',
-          allowedDrivers: [{ customerId: 'driver-2', role: 'ADDITIONAL' }],
-        },
-      ]);
+    const overlap = makeBookingOverlap();
+    overlap.findOverlapsForVehicleWindow.mockResolvedValue([]);
+    overlap.loadDriverPoolsForBookings.mockResolvedValue(
+      new Map([
+        [
+          'book-1',
+          { allowedDriverIds: ['driver-1', 'driver-2'], primaryDriverId: 'driver-1' },
+        ],
+      ]),
+    );
 
-    const loader = new CanonicalTripHydrationBatchLoader(prisma);
+    const loader = new CanonicalTripHydrationBatchLoader(prisma, overlap as any);
     const prefetch = await loader.prefetch('org-1', [
       {
         id: 'trip-1',
@@ -85,13 +94,10 @@ describe('CanonicalTripHydrationBatchLoader', () => {
       },
     ]);
 
-    expect(prisma.booking.findMany).toHaveBeenCalledTimes(2);
-    expect(prisma.booking.findMany).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        where: { organizationId: 'org-1', id: { in: ['book-1'] } },
-      }),
-    );
+    expect(overlap.loadDriverPoolsForBookings).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      bookingIds: ['book-1'],
+    });
     expect(prefetch.driverPoolByBookingId.get('book-1')?.allowedDriverIds).toEqual(
       expect.arrayContaining(['driver-1', 'driver-2']),
     );
@@ -101,18 +107,17 @@ describe('CanonicalTripHydrationBatchLoader', () => {
     const prisma = makePrisma();
     prisma.tripDrivingImpact.findMany.mockResolvedValue([]);
     prisma.driverAttribution.findMany.mockResolvedValue([]);
-    prisma.booking.findMany.mockResolvedValue([]);
+    const overlap = makeBookingOverlap();
+    overlap.findOverlapsForVehicleWindow.mockResolvedValue([]);
+    overlap.loadDriverPoolsForBookings.mockResolvedValue(new Map());
 
-    const loader = new CanonicalTripHydrationBatchLoader(prisma);
+    const loader = new CanonicalTripHydrationBatchLoader(prisma, overlap as any);
     await loader.prefetch('org-secure', makeTrips(2, 'veh-secure'));
 
-    expect(prisma.booking.findMany).toHaveBeenCalledWith(
+    expect(overlap.findOverlapsForVehicleWindow).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          organizationId: 'org-secure',
-          vehicleId: 'veh-secure',
-          status: { in: [BookingStatus.ACTIVE, BookingStatus.COMPLETED] },
-        }),
+        organizationId: 'org-secure',
+        vehicleId: 'veh-secure',
       }),
     );
   });

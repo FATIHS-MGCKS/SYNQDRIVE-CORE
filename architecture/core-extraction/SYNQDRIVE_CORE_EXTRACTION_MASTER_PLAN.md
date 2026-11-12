@@ -255,8 +255,8 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P0** | Repository-Ownership und Dependency Audit | **DONE** | 16 Kopplungen dokumentiert | READ_ONLY |
 | **P1D** | Entitlement, Core-Read, Trip-Link Contract Design | **DONE – DESIGN_ONLY** | DESIGN_READY | Keine Codeänderung |
 | **P1A** | Core-Entitlement-Read-API + EntitlementsQueryService + Tests + AGENTS-Governance | **MERGED** (`main` `78e66dce…`, PR #2) | JWT+OrgScoping; nicht produktiv deployed | P1B Service Auth |
-| **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **DRAFT_PR #3** (`cursor/p1b-service-auth-foundation-5019`) | `CORE_APP_M2M_ENABLED` default off; separate signing secret; security closeout auf PR-Branch | Kein Prod-Deploy |
-| **P2** | Trip ↔ Booking Entkopplung | **NOT_STARTED** | Trip-FSM ohne Booking-Imports oder Booking-DB-Join; RentalLink im Rental-Owner | Gated Cutover, keine unkontrollierten Dual Writes |
+| **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
+| **P2** | Trip ↔ Booking Entkopplung | **IN_PROGRESS** (P2-PR1 Draft) | Booking-Overlap-Port (Core contract, Rental adapter); kein Schema-Event | Gated Cutover, keine unkontrollierten Dual Writes |
 | **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **NOT_STARTED** | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
@@ -334,7 +334,17 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **B1:** teilweise adressiert (Foundation + Closeout); weitere APIs in Folge-PRs.
 
-### 6.3 Ursprünglich geplanter erster PR — Outbox (verschoben)
+### 6.3 P2-PR1 — Trip Booking Overlap Port (Draft-PR, structural refactor only)
+
+**Scope:** Core-owned `TripBookingOverlapPort` (`TRIP_BOOKING_OVERLAP_PORT`) unter `vehicle-intelligence/trips/ports/`; Rental-Implementierung `TripBookingOverlapPrismaAdapter` + `TripBookingOverlapModule` (nur `PrismaModule`, **kein** `BookingsModule`-Zyklus).
+
+**Refactor:** `TripAssignmentService.findBookingAssignment` und `CanonicalTripHydrationBatchLoader` (Booking-Queries + Driver-Pools) nutzen ausschließlich den Port — **keine** `prisma.booking`-Aufrufe mehr in diesen Core-Pfaden.
+
+**Unverändert:** Trip-FSM, Finalize, DS4/DBI-Pipelines, Assignment-Outcomes, `VehicleTrip`-Booking-Spalten, Rental-Recompute-Hooks, Query-Batching/`queryCount`.
+
+**Offen (P2):** `TripAttributionService`/`trip-post-finalize` Rental-Recompute, `VehicleTrip`-Legacy-Spalten-Cutover, `core.vehicle-trip.finalized.v1`, RentalTripLink-Tabelle.
+
+### 6.4 Ursprünglich geplanter erster PR — Outbox (verschoben)
 
 Änderungen an Produktzuweisungen über geprüfte Outbox/Ereignislogik: **nicht** in P1A (kein Schema-Umbau). Separater Follow-up-PR nach Owner-Freigabe.
 
@@ -395,6 +405,8 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P1B_PR1_SERVICE_AUTH_FOUNDATION` | **DRAFT_PR #3** · Base `78e66dce51a09d98550eebf780dda25a189d3d2d` | Core App M2M foundation; migration `20261112120000_core_app_m2m_p1b_pr1`; gate default OFF | Security closeout |
 | 2026-11-12 | `SYNQDRIVE_CORE_P1B_PR1_SECURITY_CLOSEOUT` | **DRAFT_PR #3** · HEAD `d2076e504e90962bb73c9bef3fa9b68d9a2d3e45` | R1–R5 Fixes + Tests; Masterplan §6.2; **kein** Deploy/Prod/CI | Merge-Gate |
 | 2026-11-12 | `SYNQDRIVE_CORE_P1B_PR1_FINAL_MERGE_GATE` | **DRAFT_PR #3** · Base `78e66dce51a09d98550eebf780dda25a189d3d2d` · HEAD nach Commit | Disposable-Postgres: P1B `migrate deploy` + Constraint-Test; `m2mProductionReady`-Semantik; CI weiter aus | Owner merge PR #3 (manuell); M2M live weiter blockiert (distributed RL) |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_TRIP_BOOKING_DECOUPLING_AUDIT` | **READ_ONLY** · `main` `77e9843aa…` | Dependency map; P2-PR1 = Booking Overlap Port; DESIGN_READY | P2-PR1 Implementierung |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_BOOKING_OVERLAP_PORT` | **DRAFT_PR** (siehe PR #) · Base `77e9843aaafa7210e75a03ba80898f0a62fc9e20` | Port + Adapter; Tests lokal; **kein** Schema/Deploy | P2-PR2 (Attribution/Recompute seam) |
 
 **Updatevorlage für neue Einträge:**
 
@@ -412,14 +424,14 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 2. `AGENTS.md`, `architecture/SYNQDRIVE_RENTAL_ARCHITECTURE.md`, `architecture/MODULE_AUTHORITY_STANDARD.md` lesen; betroffene spezifische Module-Authorities konsultieren.
 3. Den **wirklichen aktuellen Main-SHA** in `SYNQDRIVE-CORE` ermitteln; dokumentierte Baseline und offene PRs abgleichen. Nicht von einer unveränderten Kopie ausgehen.
 4. OWNER_DECISION respektieren: **Master Admin komplett in Core; Plattform-SoR und Vehicle Intelligence in Core; Rental und Consumer-Fachlogik in Apps.**
-5. Das Workstream-Gate ermitteln: P0 und P1-Design abgeschlossen; **P1A ist über PR #2 gemergt** (`main` `78e66dce51a09d98550eebf780dda25a189d3d2d`); **P1B-PR1 liegt auf offenem PR #3** (`cursor/p1b-service-auth-foundation-5019`) — P1B-Code **nicht** auf `main` bis Merge; `git rev-parse origin/main` vs. PR-Head (`gh pr view 3`) immer trennen.
+5. Das Workstream-Gate ermitteln: P0/P1-Design abgeschlossen; **P1A MERGED** (PR #2); **P1B-PR1 MERGED** (PR #3 → `main` `77e9843aaafa7210e75a03ba80898f0a62fc9e20`); **P2 Trip/Booking** läuft (P2-PR1 Booking Overlap Port). M2M **nicht** produktiv aktivieren (`CORE_APP_M2M_ENABLED` default off; distributed RL = LIVE_ACTIVATION_BLOCKER).
 6. Vor jeglichem Code die bereits vorhandenen Contracts, Guards, Prisma-Modelle, Outbox-, Billing- und Trip-Eigentumsgrenzen untersuchen; keine Neuentwicklung vorhandener Systeme.
 7. Nur den explizit autorisierten Scope bearbeiten. Kein automatischer Merge/Deploy/Prod-Zugriff; keine Secret-Offenlegung; keine Änderungen in Alpha ohne Erlaubnis.
 8. Abschlussreport mit OPERATION, Base/New SHA, PR, Änderungen, Tests, CI, DB/Prod-Status, Risiken, Owner-Gates ausgeben und dieses Fortschrittsjournal aktualisieren.
 
 ### Kurzkontext für neue Chats
 
-> Wir spalten `FATIHS-MGCKS/SYNQDRIVE-alpha` in ein zentrales `FATIHS-MGCKS/SYNQDRIVE-CORE` und eigenständige **eigene** App-Repositories auf. Core hält Master Admin, Plattform-IAM, Entitlements, SaaS-Billing und Fahrzeugintelligenz; Rental-Apps konsumieren versionierte Core-APIs/Events. **Aktuell:** `main` `78e66dce51a09d98550eebf780dda25a189d3d2d` — **P1A MERGED** (PR #2, Entitlements Read API v1); **P1B-PR1 GO_FOR_MERGE** auf **PR #3** (noch nicht auf `main` bis Owner-Merge). M2M (`CORE_APP_M2M_ENABLED`) **nicht** produktiv aktiviert; verteiltes Rate-Limiting bleibt **LIVE_ACTIVATION_BLOCKER**. P0/P1D Design abgeschlossen. **GitHub Actions deaktiviert** — keine automatische PR-CI; siehe Journal §10. Kein Deploy/Prod ohne Owner-Freigabe. Fortschritt: Journal §10 dieser Datei.
+> Wir spalten `FATIHS-MGCKS/SYNQDRIVE-alpha` in ein zentrales `FATIHS-MGCKS/SYNQDRIVE-CORE` und eigenständige **eigene** App-Repositories auf. **Aktuell:** `main` `77e9843aaafa7210e75a03ba80898f0a62fc9e20` — **P1A MERGED** (PR #2); **P1B MERGED** (PR #3, M2M foundation auf `main`, **nicht** prod-aktiviert). **P2** Trip↔Booking: P2-PR1 Booking Overlap Port (Draft-PR). M2M live = **blockiert** (distributed RL). **GitHub Actions deaktiviert**. Kein Deploy ohne Owner-Freigabe. Journal §10.
 
 ---
 

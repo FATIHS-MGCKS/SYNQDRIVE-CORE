@@ -267,6 +267,7 @@ import { TechnicalObservationsModule } from '../technical-observations/technical
 import { BusinessInsightsModule } from '../business-insights/business-insights.module';
 import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { RentalDrivingAnalysisModule } from '../rental-driving-analysis/rental-driving-analysis.module';
+import { TripBookingOverlapModule } from '../bookings/trip-booking-overlap/trip-booking-overlap.module';
 import { BatteryV2JobsProducerModule } from './battery-health/jobs/battery-v2-jobs-producer.module';
 import { DriveProfileResolverService } from './drive-profile/drive-profile-resolver.service';
 import { FuelStationCandidateRepository } from './fuel-stations/fuel-station-candidate.repository';
@@ -356,6 +357,7 @@ import { FsdDiscoveryIntegrationModule } from './fsd-integration/fsd-integration
     forwardRef(() => TechnicalObservationsModule),
     forwardRef(() => BusinessInsightsModule),
     forwardRef(() => RentalDrivingAnalysisModule),
+    TripBookingOverlapModule,
     forwardRef(() => NotificationsModule),
     DataAuthorizationsModule,
     Dtc02ObservabilityModule,

@@ -10,13 +10,18 @@ function makeMockPrisma() {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
-    booking: {
-      findFirst: jest.fn(),
-    },
     vehicle: {
       findUnique: jest.fn(),
     },
   } as any;
+}
+
+function makeMockBookingOverlap() {
+  return {
+    findFirstOverlapForTrip: jest.fn(),
+    findOverlapsForVehicleWindow: jest.fn(),
+    loadDriverPoolsForBookings: jest.fn(),
+  };
 }
 
 function makeMockMetrics() {
@@ -30,16 +35,18 @@ function makeMockMetrics() {
 describe('TripAssignmentService', () => {
   let prisma: ReturnType<typeof makeMockPrisma>;
   let metrics: ReturnType<typeof makeMockMetrics>;
+  let bookingOverlap: ReturnType<typeof makeMockBookingOverlap>;
   let service: TripAssignmentService;
 
   beforeEach(() => {
     prisma = makeMockPrisma();
     metrics = makeMockMetrics();
-    service = new TripAssignmentService(prisma, metrics);
+    bookingOverlap = makeMockBookingOverlap();
+    bookingOverlap.findFirstOverlapForTrip.mockResolvedValue(null);
+    service = new TripAssignmentService(prisma, bookingOverlap as any, metrics);
   });
 
   it('resolves explicit driver assignment when driverName exists', async () => {
-    prisma.booking.findFirst.mockResolvedValue(null);
     const result = await service.resolveForTrip({
       id: 'trip-1',
       vehicleId: 'vehicle-1',
@@ -61,7 +68,6 @@ describe('TripAssignmentService', () => {
   });
 
   it('marks open trips without assignment as unknown', async () => {
-    prisma.booking.findFirst.mockResolvedValue(null);
     const result = await service.resolveForTrip({
       id: 'trip-2',
       vehicleId: 'vehicle-1',
@@ -81,7 +87,7 @@ describe('TripAssignmentService', () => {
   });
 
   it('prefers overlapping booking customer assignment', async () => {
-    prisma.booking.findFirst.mockResolvedValue({
+    bookingOverlap.findFirstOverlapForTrip.mockResolvedValue({
       id: 'booking-9',
       vehicleId: 'vehicle-1',
       customerId: 'customer-99',
@@ -130,7 +136,7 @@ describe('TripAssignmentService', () => {
       assignedBookingId: null,
       isPrivateTrip: false,
     });
-    prisma.booking.findFirst.mockResolvedValue({
+    bookingOverlap.findFirstOverlapForTrip.mockResolvedValue({
       id: 'booking-11',
       vehicleId: 'vehicle-1',
       customerId: 'cust-11',

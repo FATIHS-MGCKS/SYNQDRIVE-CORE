@@ -7,6 +7,14 @@ import { TripAnalyticsCanonicalService } from './trip-analytics-canonical.servic
 import { TripAssignmentService } from './trip-assignment.service';
 import { TripAttributionService } from './trip-attribution.service';
 
+function makeMockBookingOverlap() {
+  return {
+    findFirstOverlapForTrip: jest.fn().mockResolvedValue(null),
+    findOverlapsForVehicleWindow: jest.fn().mockResolvedValue([]),
+    loadDriverPoolsForBookings: jest.fn().mockResolvedValue(new Map()),
+  };
+}
+
 function makeMockPrisma() {
   return {
     tripDrivingImpact: {
@@ -34,6 +42,7 @@ function makeMockPrisma() {
       findMany: jest.fn().mockResolvedValue([]),
       groupBy: jest.fn().mockResolvedValue([]),
     },
+    $queryRaw: jest.fn().mockResolvedValue([]),
   } as any;
 }
 
@@ -96,10 +105,12 @@ describe('TripAnalyticsCanonicalService', () => {
 
   beforeEach(() => {
     prisma = makeMockPrisma();
+    const overlap = makeMockBookingOverlap();
     service = new TripAnalyticsCanonicalService(
       prisma,
-      new TripAssignmentService(prisma),
+      new TripAssignmentService(prisma, overlap as any),
       new TripAttributionService(prisma),
+      overlap as any,
     );
   });
 
