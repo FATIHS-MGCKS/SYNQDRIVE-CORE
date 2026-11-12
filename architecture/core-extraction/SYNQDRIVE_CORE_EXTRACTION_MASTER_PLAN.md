@@ -356,7 +356,9 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Parität:** `notifyTripCompleted` → `TRIP_COMPLETED`; `notifyBookingAssignmentCorrected` → `BOOKING_ASSIGNMENT_CORRECTED`; unveränderte Correlation-Strings, void+catch, keine Finalize-Blockade bei Recompute-Fehler.
 
-**Module:** `VehicleIntelligenceModule` ↔ `RentalDrivingAnalysisModule` `forwardRef` **unverändert** (kein neuer Zyklus).
+**Module (Closeout PR #5):** Direkter VI↔RDA-Modulimport entfernt. VI importiert `TripRentalRecomputeModule` + `RentalDrivingAnalysisRecomputeHandlerModule` (`forwardRef`); RDA importiert nur `forwardRef(VehicleIntelligenceModule)` + `RentalDrivingAnalysisCoreModule`. Mediiertes VI↔`TripRentalRecomputeModule`↔VI (`forwardRef`) für Init/Dispatcher — **kein** VI↔RDA-Zyklus.
+
+**Bootstrap (Closeout):** `PlatformAdminModule` Root Cause = `VehicleIntelligenceModule` in imports[5] ohne `forwardRef` bei Zyklus über `VehiclesModule`→`PlatformAdmin`→`VI`. Fix: `forwardRef(() => VehicleIntelligenceModule)`. Folgefehler in Voice/WhatsApp-Kette (`VoiceMcpGatewayModule`/`WhatsAppModule` `VehiclesModule` undefined bzw. `forwardRef`→Nest-Stack-Overflow) blockiert **full** `VehicleIntelligenceModule`-Compile weiterhin (siehe Journal).
 
 ### 6.5 Ursprünglich geplanter erster PR — Outbox (verschoben)
 
@@ -425,7 +427,8 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_FINAL_SECURITY_DI_CLOSEOUT` | **DRAFT_PR #4** | Tenant-Override entfernt (`resolveForTrip` nur Vehicle-Lookup); VI full `Test.createTestingModule` **BLOCKED** (PlatformAdminModule imports[5] undefined / cycle) | VI boot graph fix out-of-scope oder Folge-PR |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_BASELINE_BOOTSTRAP_RECONCILIATION` | **DRAFT_PR #4** | Baseline `main`@`77e9843aa`: identischer `PlatformAdminModule`/`imports[5]`-Fehler (vor TripBookingOverlap); scoped runtime DI PASS; full VI boot = **BASELINE_BLOCKED** (kein PASS) | Merge mit Baseline-Exception; VI full boot separates Architektur-Thema |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1` | **MERGED** · PR #4 → `main` `af34303d8dc0a4eadb2090a6f923697d14e39d06` | Booking Overlap Port + Tenant closeout | P2-PR2 Recompute Port |
-| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_RENTAL_RECOMPUTE_PORT` | **DRAFT_PR** · Base `af34303d8…` | Recompute Port; Trigger-Delegation; Tests lokal | P2 Attribution seam |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_RENTAL_RECOMPUTE_PORT` | **DRAFT_PR #5** · Base `af34303d8…` · HEAD siehe Closeout-Commit | Recompute Port; Trigger-Delegation; Scoped DI PASS | Bootstrap/Cycle Closeout |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_BOOTSTRAP_AND_MODULE_CYCLE_CLOSEOUT` | **DRAFT_PR #5** · Base `af34303d8dc0a4eadb2090a6f923697d14e39d06` | PlatformAdmin `forwardRef(VI)`; VI↔RDA direkt entfernt (`TripRentalRecomputeModule`); full VI Compile **BLOCKED** (Voice/WhatsApp nach PlatformAdmin-Fix) | Voice-Kette `forwardRef`/Scope-Audit; kein Merge/Deploy |
 
 **Updatevorlage für neue Einträge:**
 

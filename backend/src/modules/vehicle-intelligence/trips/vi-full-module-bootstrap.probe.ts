@@ -59,6 +59,7 @@ export type ViFullBootstrapProbeResult =
 
 export async function probeVehicleIntelligenceModuleCompile(): Promise<ViFullBootstrapProbeResult> {
   try {
+    process.env.JWT_SECRET ??= 'vi-bootstrap-probe-test-secret';
     let builder = Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true }),

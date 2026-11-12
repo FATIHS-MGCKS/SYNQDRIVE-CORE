@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { OrganizationsController } from './organizations.controller';
 import { TenantOrganizationProfileController } from './tenant-organization-profile.controller';
 import { OrganizationsService } from './organizations.service';
@@ -12,7 +12,7 @@ import { BillingModule } from '@modules/billing/billing.module';
   imports: [
     UsersModule,
     PaymentsModule,
-    VehiclesModule,
+    forwardRef(() => VehiclesModule),
     BillingModule,
   ],
   controllers: [OrganizationsController, TenantOrganizationProfileController],

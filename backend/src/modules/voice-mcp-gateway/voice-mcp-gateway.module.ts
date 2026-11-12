@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '@shared/database/prisma.module';
 import { RedisModule } from '@shared/redis/redis.module';
@@ -48,7 +48,7 @@ import {
     SharedGuardsModule,
     CustomersModule,
     BookingsModule,
-    VehiclesModule,
+    forwardRef(() => VehiclesModule),
     InvoicesModule,
     StationsModule,
     OrganizationsModule,
