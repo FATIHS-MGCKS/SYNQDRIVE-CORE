@@ -4,6 +4,14 @@ export function isCoreAppM2mEnabled(env: NodeJS.ProcessEnv = process.env): boole
   return env.CORE_APP_M2M_ENABLED?.trim().toLowerCase() === 'true';
 }
 
+/** Explicit operator attestation only — never implied by CORE_APP_M2M_ENABLED alone. */
+export function isCoreAppM2mProductionReady(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (!isCoreAppM2mEnabled(env)) {
+    return false;
+  }
+  return env.CORE_APP_M2M_PRODUCTION_READY?.trim().toLowerCase() === 'true';
+}
+
 export function resolveCoreAppM2mSigningSecret(env: NodeJS.ProcessEnv = process.env): string | null {
   const dedicated = env.CORE_APP_M2M_SIGNING_SECRET?.trim();
   if (!dedicated) {

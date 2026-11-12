@@ -8,11 +8,13 @@ export type OrganizationProductExpiresAtPolicy = typeof ORGANIZATION_PRODUCT_EXP
 
 export const CORE_ENTITLEMENTS_CONTRACT_VERSION = 'core.entitlements.v1' as const;
 
-import { isCoreAppM2mEnabled } from '@modules/core-app-m2m/core-app-m2m.config';
+import { isCoreAppM2mProductionReady } from '@modules/core-app-m2m/core-app-m2m.config';
 
-/** True only when CORE_APP_M2M_ENABLED — does not imply production deployment. */
-export function resolveCoreEntitlementsM2mProductionReady(): boolean {
-  return isCoreAppM2mEnabled();
+/** True only when operator sets CORE_APP_M2M_PRODUCTION_READY after validated live gates — not from enablement alone. */
+export function resolveCoreEntitlementsM2mProductionReady(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return isCoreAppM2mProductionReady(env);
 }
 
 export type EntitlementProductRecordV1 = {
