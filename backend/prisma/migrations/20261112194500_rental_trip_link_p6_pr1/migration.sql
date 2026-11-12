@@ -33,7 +33,7 @@ ALTER TABLE "rental_trip_links" ADD CONSTRAINT "rental_trip_links_trip_id_fkey"
     FOREIGN KEY ("trip_id") REFERENCES "vehicle_trips"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "rental_trip_links" ADD CONSTRAINT "rental_trip_links_booking_id_fkey"
-    FOREIGN KEY ("booking_id") REFERENCES "bookings"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    FOREIGN KEY ("booking_id") REFERENCES "bookings"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE "rental_trip_links" ADD CONSTRAINT "rental_trip_links_superseded_by_id_fkey"
     FOREIGN KEY ("superseded_by_id") REFERENCES "rental_trip_links"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -48,3 +48,16 @@ CREATE INDEX "rental_trip_links_trip_id_superseded_at_idx" ON "rental_trip_links
 CREATE UNIQUE INDEX "rental_trip_links_org_trip_current_uq"
     ON "rental_trip_links" ("organization_id", "trip_id")
     WHERE "superseded_at" IS NULL;
+
+-- Status ↔ supersession payload invariants (current row vs history).
+ALTER TABLE "rental_trip_links" ADD CONSTRAINT "rental_trip_links_current_status_chk"
+    CHECK ("superseded_at" IS NOT NULL OR "status" IN ('ACTIVE', 'UNLINKED'));
+
+ALTER TABLE "rental_trip_links" ADD CONSTRAINT "rental_trip_links_superseded_status_chk"
+    CHECK ("status" != 'SUPERSEDED' OR "superseded_at" IS NOT NULL);
+
+ALTER TABLE "rental_trip_links" ADD CONSTRAINT "rental_trip_links_unlinked_payload_chk"
+    CHECK ("status" != 'UNLINKED' OR ("booking_id" IS NULL AND "customer_id" IS NULL AND "link_source" IS NULL));
+
+ALTER TABLE "rental_trip_links" ADD CONSTRAINT "rental_trip_links_active_booking_chk"
+    CHECK ("status" != 'ACTIVE' OR "booking_id" IS NOT NULL);

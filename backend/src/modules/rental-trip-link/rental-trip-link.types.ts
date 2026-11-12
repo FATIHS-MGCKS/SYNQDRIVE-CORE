@@ -38,13 +38,16 @@ export type BackfillDryRunIssueCode =
   | 'TRIP_ORG_MISMATCH'
   | 'LEGACY_NULL_ASSIGNMENT'
   | 'DUPLICATE_CURRENT_OVERLAY'
-  | 'OVERLAY_NEWER_THAN_LEGACY';
+  | 'OVERLAY_NEWER_THAN_LEGACY'
+  | 'OVERLAY_AUTHORIZED_UNLINK';
+
+export type BackfillDryRunProposedStatus = 'ACTIVE' | 'UNLINKED' | 'SKIP';
 
 export type BackfillDryRunRow = {
   organizationId: string;
   tripId: string;
   legacyFingerprint: string | null;
-  proposedStatus: 'ACTIVE' | 'UNLINKED';
+  proposedStatus: BackfillDryRunProposedStatus;
   proposedBookingId: string | null;
   proposedCustomerId: string | null;
   proposedLinkSource: TripBookingLinkSource | null;
@@ -55,6 +58,7 @@ export type BackfillDryRunReport = {
   scannedTrips: number;
   proposedActive: number;
   proposedUnlinked: number;
+  proposedSkip: number;
   issueCounts: Partial<Record<BackfillDryRunIssueCode, number>>;
   rows: BackfillDryRunRow[];
 };

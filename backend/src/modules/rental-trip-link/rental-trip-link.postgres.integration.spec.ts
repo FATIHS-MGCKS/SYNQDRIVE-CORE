@@ -1,7 +1,8 @@
 /**
- * Isolated Postgres for RentalTripLink current-row invariant.
- * Run: RENTAL_TRIP_LINK_POSTGRES_INTEGRATION=1 DATABASE_URL=postgresql://... npm test -- rental-trip-link.postgres
+ * Isolated Postgres gate for RentalTripLink (migration must be applied).
+ * Run: RENTAL_TRIP_LINK_POSTGRES_INTEGRATION=1 DATABASE_URL=postgresql://synqdrive:synqdrive@127.0.0.1:5432/... npm test -- rental-trip-link.postgres
  */
+import { BadRequestException } from '@nestjs/common';
 import {
   BookingStatus,
   PrismaClient,
@@ -15,7 +16,7 @@ import { RentalTripLinkResolver } from './rental-trip-link.resolver';
 
 const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
 
-(LIVE ? describe : describe.skip)('RentalTripLink — postgres', () => {
+(LIVE ? describe : describe.skip)('RentalTripLink — postgres gate', () => {
   const prisma = new PrismaClient();
   let repository: RentalTripLinkRepository;
   let resolver: RentalTripLinkResolver;
@@ -24,6 +25,7 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
   const vehicleIds: string[] = [];
   const tripIds: string[] = [];
   const bookingIds: string[] = [];
+  const customerIds: string[] = [];
   const linkIds: string[] = [];
 
   beforeAll(() => {
@@ -46,6 +48,9 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
     if (bookingIds.length) {
       await prisma.booking.deleteMany({ where: { id: { in: bookingIds } } });
     }
+    if (customerIds.length) {
+      await prisma.customer.deleteMany({ where: { id: { in: customerIds } } });
+    }
     if (vehicleIds.length) {
       await prisma.vehicle.deleteMany({ where: { id: { in: vehicleIds } } });
     }
@@ -54,6 +59,10 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
     }
     await prisma.$disconnect();
   });
+
+  const trackLink = (id: string) => {
+    linkIds.push(id);
+  };
 
   async function seedOrg() {
     const org = await prisma.organization.create({
@@ -67,7 +76,7 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
     const vehicle = await prisma.vehicle.create({
       data: {
         organizationId: orgId,
-        vin: `VIN-RTL-${Date.now()}`,
+        vin: `VIN-RTL-${Date.now()}-${Math.random()}`,
         make: 'Test',
         model: 'Car',
         year: 2024,
@@ -94,15 +103,16 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
     return trip;
   }
 
-  async function seedBooking(orgId: string, vehicleId: string) {
+  async function seedBooking(orgId: string, vehicleId: string, suffix = '') {
     const customer = await prisma.customer.create({
       data: {
         organizationId: orgId,
         firstName: 'RTL',
-        lastName: 'Tester',
+        lastName: `Tester${suffix}`,
         status: 'ACTIVE',
       },
     });
+    customerIds.push(customer.id);
     const booking = await prisma.booking.create({
       data: {
         organizationId: orgId,
@@ -114,25 +124,260 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
       },
     });
     bookingIds.push(booking.id);
-    return booking;
+    return { booking, customerId: customer.id };
   }
 
-  it('enforces partial unique current row at database level', async () => {
+  it('1 — first ACTIVE assignment', async () => {
     const orgId = await seedOrg();
     const vehicleId = await seedVehicle(orgId);
-    const booking = await seedBooking(orgId, vehicleId);
+    const { booking, customerId } = await seedBooking(orgId, vehicleId, '1');
     const trip = await seedTrip(vehicleId, booking.id);
 
-    const first = await repository.supersedeAndEstablishCurrent({
+    const row = await repository.supersedeAndEstablishCurrent({
+      organizationId: orgId,
+      tripId: trip.id,
+      status: RentalTripLinkStatus.ACTIVE,
+      bookingId: booking.id,
+      customerId,
+      linkSource: TripBookingLinkSource.EXPLICIT,
+      createdBy: RentalTripLinkCreatedBy.USER,
+    });
+    trackLink(row.id);
+    expect(row.status).toBe(RentalTripLinkStatus.ACTIVE);
+    expect(row.supersededAt).toBeNull();
+  });
+
+  it('2 — ACTIVE A superseded by ACTIVE B with history', async () => {
+    const orgId = await seedOrg();
+    const vehicleId = await seedVehicle(orgId);
+    const { booking: bookingA } = await seedBooking(orgId, vehicleId, '2a');
+    const { booking: bookingB } = await seedBooking(orgId, vehicleId, '2b');
+    const trip = await seedTrip(vehicleId, bookingA.id);
+
+    const a = await repository.supersedeAndEstablishCurrent({
+      organizationId: orgId,
+      tripId: trip.id,
+      status: RentalTripLinkStatus.ACTIVE,
+      bookingId: bookingA.id,
+      linkSource: TripBookingLinkSource.EXPLICIT,
+    });
+    trackLink(a.id);
+    const b = await repository.supersedeAndEstablishCurrent({
+      organizationId: orgId,
+      tripId: trip.id,
+      status: RentalTripLinkStatus.ACTIVE,
+      bookingId: bookingB.id,
+      linkSource: TripBookingLinkSource.TIME_WINDOW,
+    });
+    trackLink(b.id);
+
+    const prior = await prisma.rentalTripLink.findUnique({ where: { id: a.id } });
+    expect(prior?.status).toBe(RentalTripLinkStatus.SUPERSEDED);
+    expect(prior?.supersededById).toBe(b.id);
+    const current = await repository.findCurrentByTrip(orgId, trip.id);
+    expect(current?.id).toBe(b.id);
+  });
+
+  it('3 — ACTIVE → UNLINKED', async () => {
+    const orgId = await seedOrg();
+    const vehicleId = await seedVehicle(orgId);
+    const { booking } = await seedBooking(orgId, vehicleId, '3');
+    const trip = await seedTrip(vehicleId, booking.id);
+    const active = await repository.supersedeAndEstablishCurrent({
       organizationId: orgId,
       tripId: trip.id,
       status: RentalTripLinkStatus.ACTIVE,
       bookingId: booking.id,
       linkSource: TripBookingLinkSource.EXPLICIT,
-      createdBy: RentalTripLinkCreatedBy.SYSTEM,
     });
-    linkIds.push(first.id);
+    trackLink(active.id);
+    const unlinked = await repository.supersedeAndEstablishCurrent({
+      organizationId: orgId,
+      tripId: trip.id,
+      status: RentalTripLinkStatus.UNLINKED,
+      createdBy: RentalTripLinkCreatedBy.USER,
+    });
+    trackLink(unlinked.id);
+    expect(unlinked.bookingId).toBeNull();
+    expect(unlinked.customerId).toBeNull();
+    expect(unlinked.linkSource).toBeNull();
+  });
 
+  it('4 — UNLINKED → authorized ACTIVE correction', async () => {
+    const orgId = await seedOrg();
+    const vehicleId = await seedVehicle(orgId);
+    const { booking } = await seedBooking(orgId, vehicleId, '4');
+    const trip = await seedTrip(vehicleId, booking.id);
+    const unlinked = await repository.supersedeAndEstablishCurrent({
+      organizationId: orgId,
+      tripId: trip.id,
+      status: RentalTripLinkStatus.UNLINKED,
+      createdBy: RentalTripLinkCreatedBy.USER,
+    });
+    trackLink(unlinked.id);
+    const active = await repository.supersedeAndEstablishCurrent({
+      organizationId: orgId,
+      tripId: trip.id,
+      status: RentalTripLinkStatus.ACTIVE,
+      bookingId: booking.id,
+      linkSource: TripBookingLinkSource.EXPLICIT,
+      createdBy: RentalTripLinkCreatedBy.USER,
+    });
+    trackLink(active.id);
+    expect(active.bookingId).toBe(booking.id);
+  });
+
+  it('5 — EXPLICIT blocks TIME_WINDOW supersession', async () => {
+    const orgId = await seedOrg();
+    const vehicleId = await seedVehicle(orgId);
+    const { booking: b1 } = await seedBooking(orgId, vehicleId, '5a');
+    const { booking: b2 } = await seedBooking(orgId, vehicleId, '5b');
+    const trip = await seedTrip(vehicleId, b1.id);
+    const explicit = await repository.supersedeAndEstablishCurrent({
+      organizationId: orgId,
+      tripId: trip.id,
+      status: RentalTripLinkStatus.ACTIVE,
+      bookingId: b1.id,
+      linkSource: TripBookingLinkSource.EXPLICIT,
+    });
+    trackLink(explicit.id);
+    await expect(
+      repository.supersedeAndEstablishCurrent({
+        organizationId: orgId,
+        tripId: trip.id,
+        status: RentalTripLinkStatus.ACTIVE,
+        bookingId: b2.id,
+        linkSource: TripBookingLinkSource.TIME_WINDOW,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    const current = await repository.findCurrentByTrip(orgId, trip.id);
+    expect(current?.id).toBe(explicit.id);
+  });
+
+  it('6 — concurrent writes leave single current row', async () => {
+    const orgId = await seedOrg();
+    const vehicleId = await seedVehicle(orgId);
+    const { booking: b1 } = await seedBooking(orgId, vehicleId, '6a');
+    const { booking: b2 } = await seedBooking(orgId, vehicleId, '6b');
+    const trip = await seedTrip(vehicleId, null);
+
+    const results = await Promise.allSettled([
+      repository.supersedeAndEstablishCurrent({
+        organizationId: orgId,
+        tripId: trip.id,
+        status: RentalTripLinkStatus.ACTIVE,
+        bookingId: b1.id,
+        linkSource: TripBookingLinkSource.TIME_WINDOW,
+      }),
+      repository.supersedeAndEstablishCurrent({
+        organizationId: orgId,
+        tripId: trip.id,
+        status: RentalTripLinkStatus.ACTIVE,
+        bookingId: b2.id,
+        linkSource: TripBookingLinkSource.TIME_WINDOW,
+      }),
+    ]);
+    const fulfilled = results.filter((r) => r.status === 'fulfilled') as PromiseFulfilledResult<{ id: string }>[];
+    expect(fulfilled.length).toBeGreaterThanOrEqual(1);
+    fulfilled.forEach((r) => trackLink(r.value.id));
+
+    const currents = await prisma.rentalTripLink.findMany({
+      where: { organizationId: orgId, tripId: trip.id, supersededAt: null },
+    });
+    expect(currents).toHaveLength(1);
+  });
+
+  it('7 — failed establish leaves prior current intact', async () => {
+    const orgId = await seedOrg();
+    const vehicleId = await seedVehicle(orgId);
+    const { booking } = await seedBooking(orgId, vehicleId, '7');
+    const trip = await seedTrip(vehicleId, booking.id);
+    const row = await repository.supersedeAndEstablishCurrent({
+      organizationId: orgId,
+      tripId: trip.id,
+      status: RentalTripLinkStatus.ACTIVE,
+      bookingId: booking.id,
+      linkSource: TripBookingLinkSource.EXPLICIT,
+    });
+    trackLink(row.id);
+    await expect(
+      repository.supersedeAndEstablishCurrent({
+        organizationId: orgId,
+        tripId: trip.id,
+        status: RentalTripLinkStatus.ACTIVE,
+        bookingId: booking.id,
+        customerId: 'wrong-customer',
+        linkSource: TripBookingLinkSource.EXPLICIT,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    const current = await repository.findCurrentByTrip(orgId, trip.id);
+    expect(current?.id).toBe(row.id);
+    expect(current?.status).toBe(RentalTripLinkStatus.ACTIVE);
+  });
+
+  it('8 — cross-tenant and missing trip/booking rejected', async () => {
+    const orgA = await seedOrg();
+    const orgB = await seedOrg();
+    const vehicleA = await seedVehicle(orgA);
+    const { booking: bookingB } = await seedBooking(orgB, await seedVehicle(orgB), '8');
+    const tripA = await seedTrip(vehicleA, null);
+
+    await expect(
+      repository.supersedeAndEstablishCurrent({
+        organizationId: orgA,
+        tripId: tripA.id,
+        status: RentalTripLinkStatus.ACTIVE,
+        bookingId: bookingB.id,
+        linkSource: TripBookingLinkSource.EXPLICIT,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    await expect(
+      repository.supersedeAndEstablishCurrent({
+        organizationId: orgA,
+        tripId: 'non-existent-trip',
+        status: RentalTripLinkStatus.UNLINKED,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('9 — SQL constraints block invalid direct inserts', async () => {
+    const orgId = await seedOrg();
+    const vehicleId = await seedVehicle(orgId);
+    const trip = await seedTrip(vehicleId, null);
+
+    await expect(
+      prisma.rentalTripLink.create({
+        data: {
+          organizationId: orgId,
+          tripId: trip.id,
+          status: RentalTripLinkStatus.UNLINKED,
+          bookingId: 'fake-booking',
+          createdBy: RentalTripLinkCreatedBy.SYSTEM,
+        },
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      prisma.rentalTripLink.create({
+        data: {
+          organizationId: orgId,
+          tripId: trip.id,
+          status: RentalTripLinkStatus.ACTIVE,
+          createdBy: RentalTripLinkCreatedBy.SYSTEM,
+        },
+      }),
+    ).rejects.toThrow();
+
+    const { booking } = await seedBooking(orgId, vehicleId, '9');
+    const active = await repository.supersedeAndEstablishCurrent({
+      organizationId: orgId,
+      tripId: trip.id,
+      status: RentalTripLinkStatus.ACTIVE,
+      bookingId: booking.id,
+      linkSource: TripBookingLinkSource.EXPLICIT,
+    });
+    trackLink(active.id);
     await expect(
       prisma.rentalTripLink.create({
         data: {
@@ -145,20 +390,18 @@ const LIVE = process.env.RENTAL_TRIP_LINK_POSTGRES_INTEGRATION === '1';
     ).rejects.toMatchObject({ code: 'P2002' });
   });
 
-  it('resolver returns UNLINKED over legacy trip assignment', async () => {
+  it('resolver returns UNLINKED over legacy assignment', async () => {
     const orgId = await seedOrg();
     const vehicleId = await seedVehicle(orgId);
-    const booking = await seedBooking(orgId, vehicleId);
+    const { booking } = await seedBooking(orgId, vehicleId, 'res');
     const trip = await seedTrip(vehicleId, booking.id);
-
     const row = await repository.supersedeAndEstablishCurrent({
       organizationId: orgId,
       tripId: trip.id,
       status: RentalTripLinkStatus.UNLINKED,
       createdBy: RentalTripLinkCreatedBy.USER,
     });
-    linkIds.push(row.id);
-
+    trackLink(row.id);
     const effective = await resolver.resolveEffectiveLink(orgId, trip.id);
     expect(effective.source).toBe('OVERLAY_UNLINKED');
     expect(effective.bookingId).toBeNull();

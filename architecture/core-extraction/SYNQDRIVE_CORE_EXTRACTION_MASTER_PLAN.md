@@ -415,17 +415,19 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Unverändert:** Trip FSM, Legacy-Write-Pfade, VI-Reader, Recompute-Jobs, Production-Deploy, Shadow-Read.
 
-**P6 Cutover Gates (G1–G7, verbleibend nach PR1):**
+**P6 Cutover Gates (Owner-RFC G1–G7):**
 
-| Gate | Inhalt | PR1 |
+| Gate | Inhalt | Status |
 |---|---|---|
-| G1 | Schema + Migration review | **IN_PR1** |
-| G2 | Backfill dry-run sign-off | **IN_PR1** (dry-run only) |
-| G3 | Resolver parity / shadow compare | NOT_STARTED |
-| G4 | W1 dual-write (overlay + legacy) | NOT_STARTED |
-| G5 | W2 read switch | NOT_STARTED |
-| G6 | Legacy column deprecation plan | NOT_STARTED |
-| G7 | Production cutover + rollback drill | NOT_STARTED |
+| G1 | Schema + migration review (partial unique current row, CHECK invariants, `booking_id` **RESTRICT**) | **IN_PR1** |
+| G2 | Backfill dry-run sign-off — SKIP on legacy null; UNLINKED nur aus autorisierter Overlay-Entscheidung | **IN_PR1** (dry-run only) |
+| G3 | Kritische Leser auf Overlay-only-Write umstellen; **ein** autorisierter Legacy-Kompatibilitätsprojektor (`RentalTripLinkResolver`); Shadow-Compare | NOT_STARTED |
+| G4 | W1 dual-write (overlay + legacy) — **keine** ungeplante Aktivierung außerhalb Owner-Freigabe | NOT_STARTED |
+| G5 | W2 read switch (overlay-first produktiv) | NOT_STARTED |
+| G6 | Legacy-Spalten-Deprecation nach stabiler Parität | NOT_STARTED |
+| G7 | Production cutover + rollback drill; nach Overlay-only-Writes **explizite Daten-Reconciliation** vor Legacy-Read-Rückfall | NOT_STARTED |
+
+**Booking FK:** `ON DELETE RESTRICT` — Buchungslöschung darf referenzierte Overlay-Historie nicht still auf NULL setzen; Cutover-Reconciliation separat.
 
 ### 6.4 P2-PR2 — Trip Rental Recompute Port (MERGED → `main` `98a6068f8…`, PR #5)
 
@@ -528,7 +530,8 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR8` | **MERGED** · PR #11 → `main` `1ccb2bf1b31450bca5def6c47ef759fa2350f1d1` | Job handler port | P6 RentalTripLink |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_POST_PR8_TRIP_BOOKING_OWNERSHIP_PREFLIGHT` | **READ_ONLY** · `main` `1ccb2bf1b…` | Legacy read/write map; P6 scope bestätigt | P6-PR1 Foundation |
 | 2026-11-12 | `SYNQDRIVE_CORE_P6_RENTAL_TRIP_LINK_OWNER_RFC` | **DESIGN_APPROVED** | Overlay owner RFC; current-row invariant | P6-PR1 Implementierung |
-| 2026-11-12 | `SYNQDRIVE_CORE_P6_PR1_RENTAL_TRIP_LINK_FOUNDATION` | **DRAFT_PR** · Base `1ccb2bf1b…` | Schema + Resolver + backfill dry-run; no cutover | G2 / G3 |
+| 2026-11-12 | `SYNQDRIVE_CORE_P6_PR1_RENTAL_TRIP_LINK_FOUNDATION` | **DRAFT_PR #12** · Base `1ccb2bf1b…` | Schema + Resolver + backfill dry-run; no cutover | Remediation |
+| 2026-11-12 | `SYNQDRIVE_CORE_P6_PR1_ARCHITECTURE_REMEDIATION` | **DRAFT_PR #12** (update) | Supersession fix, CHECK/RESTRICT, backfill SKIP semantics | PG gate (isolated) |
 
 **Updatevorlage für neue Einträge:**
 

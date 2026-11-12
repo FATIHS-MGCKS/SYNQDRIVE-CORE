@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { RentalTripLinkStatus } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
 import { buildLegacyTripLinkFingerprint } from './rental-trip-link.fingerprint';
 import { RentalTripLinkRepository } from './rental-trip-link.repository';
@@ -15,7 +16,8 @@ export type BackfillDryRunOptions = {
  *
  * Idempotency: proposed rows key on (organizationId, tripId); `legacyFingerprint` hashes
  * assignedBookingId|linkSource|customerId so re-runs detect drift vs overlay (`OVERLAY_NEWER_THAN_LEGACY`).
- * Automatic backfill activation is out of scope for P6-PR1.
+ * Legacy `assignedBookingId=null` is **SKIP** (NONE), not an implied UNLINKED — explicit UNLINKED only
+ * when a current overlay row already records authorized UNLINKED.
  */
 @Injectable()
 export class RentalTripLinkBackfillDryRunService {
@@ -46,6 +48,7 @@ export class RentalTripLinkBackfillDryRunService {
     const rows: BackfillDryRunRow[] = [];
     let proposedActive = 0;
     let proposedUnlinked = 0;
+    let proposedSkip = 0;
 
     const bump = (code: BackfillDryRunIssueCode) => {
       issueCounts[code] = (issueCounts[code] ?? 0) + 1;
@@ -65,21 +68,34 @@ export class RentalTripLinkBackfillDryRunService {
       }
 
       if (!trip.assignedBookingId) {
-        if (!overlay) {
+        if (overlay?.status === RentalTripLinkStatus.UNLINKED) {
           proposedUnlinked += 1;
-        }
-        rows.push({
-          organizationId: options.organizationId,
-          tripId: trip.id,
-          legacyFingerprint: fingerprint,
-          proposedStatus: 'UNLINKED',
-          proposedBookingId: null,
-          proposedCustomerId: null,
-          proposedLinkSource: null,
-          issues: issues.length ? issues : ['LEGACY_NULL_ASSIGNMENT'],
-        });
-        if (!issues.length) {
+          issues.push('OVERLAY_AUTHORIZED_UNLINK');
+          bump('OVERLAY_AUTHORIZED_UNLINK');
+          rows.push({
+            organizationId: options.organizationId,
+            tripId: trip.id,
+            legacyFingerprint: fingerprint,
+            proposedStatus: 'UNLINKED',
+            proposedBookingId: null,
+            proposedCustomerId: null,
+            proposedLinkSource: null,
+            issues,
+          });
+        } else {
+          proposedSkip += 1;
+          issues.push('LEGACY_NULL_ASSIGNMENT');
           bump('LEGACY_NULL_ASSIGNMENT');
+          rows.push({
+            organizationId: options.organizationId,
+            tripId: trip.id,
+            legacyFingerprint: fingerprint,
+            proposedStatus: 'SKIP',
+            proposedBookingId: null,
+            proposedCustomerId: null,
+            proposedLinkSource: null,
+            issues,
+          });
         }
         continue;
       }
@@ -119,6 +135,7 @@ export class RentalTripLinkBackfillDryRunService {
       scannedTrips: trips.length,
       proposedActive,
       proposedUnlinked,
+      proposedSkip,
       issueCounts,
       rows,
     };

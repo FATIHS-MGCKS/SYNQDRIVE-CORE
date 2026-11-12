@@ -7338,7 +7338,8 @@ model RentalTripLink {
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   trip           VehicleTrip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  booking        Booking?     @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  /// Restrict deletion while overlay rows reference booking (preserves audit history).
+  booking        Booking?     @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   supersededBy   RentalTripLink?  @relation("RentalTripLinkSupersession", fields: [supersededById], references: [id], onDelete: SetNull)
   supersedes     RentalTripLink[] @relation("RentalTripLinkSupersession")
 

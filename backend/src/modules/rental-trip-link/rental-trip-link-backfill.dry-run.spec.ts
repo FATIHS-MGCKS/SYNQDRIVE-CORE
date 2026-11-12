@@ -31,6 +31,7 @@ describe('RentalTripLinkBackfillDryRunService', () => {
     expect(report.scannedTrips).toBe(1);
     expect(create).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
-    expect(report.proposedUnlinked).toBe(1);
+    expect(report.proposedSkip).toBe(1);
+    expect(report.proposedUnlinked).toBe(0);
   });
 });
