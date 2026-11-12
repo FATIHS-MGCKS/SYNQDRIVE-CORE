@@ -344,7 +344,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | 2026-11-12 | Masterplan V1.0 (Entwurf) | **DOKUMENTIERT**, nur Plan/Übergabe – keine Implementierung | Docs-only, Repo-PR/Commit separat nachzuweisen | Owner-Review, dann P1A-Scope |
 | 2026-11-12 | `SYNQDRIVE_CORE_MASTER_PLAN_BOOTSTRAP` | **PASS** (Repo-Abgleich §2.1); Masterplan unter `architecture/core-extraction/`; PR #1 merged | Docs-only | P1A |
 | 2026-11-12 | `SYNQDRIVE_CORE_P1A_ENTITLEMENTS_AND_AGENT_GOVERNANCE` | **DRAFT_PR #2** · Base `97b5a27c4dbd5244a7259bdb303a1f385532aba4` (main post #1) · Branch `cursor/p1a-core-entitlements-5019` | Entitlements Read API v1 + `AGENTS.md` Governance; **kein Deploy/Prod** | Security closeout |
-| 2026-11-12 | `SYNQDRIVE_CORE_P1A_SECURITY_AND_SEMANTIC_CLOSEOUT` | **DRAFT_PR #2** · HEAD `f03806f394a118556ab3e12ec6fd9e7da5f7302e` | expiresAt-Transparenz; HTTP Auth/Tenant-Tests; Guard-Parität; Actions aus | Owner-Review PR #2 |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1A_SECURITY_AND_SEMANTIC_CLOSEOUT` | **DRAFT_PR #2** · HEAD `6eec326886699d0e731d16f09c030bf5ee887008` | expiresAt-Transparenz; HTTP Auth/Tenant-Tests; Guard-Parität; Actions aus | Owner-Review PR #2 |
 
 **Updatevorlage für neue Einträge:**
 
