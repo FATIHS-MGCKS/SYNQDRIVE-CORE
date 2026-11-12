@@ -87,7 +87,8 @@ Geprüft gegen lokalen Clone / `origin/main` zum Zeitpunkt `SYNQDRIVE_CORE_MASTE
 | Commit-Anzahl `main` | 3.688 | 3.688 (`git rev-list --count main`) | keine |
 | Pfad Masterplan | `architecture/core-extraction/…` | vor Bootstrap **fehlend** (werdend angelegt) | erwartet, kein Phasen-Rückschritt |
 | Phase P0 / P1 Design | abgeschlossen (read-only / design-only) | keine Contract-Implementierung im Code (`/api/v1/core/entitlements/v1` etc. nicht vorhanden) | keine |
-| Phase P1A+ | `NOT_STARTED` | unverändert | keine |
+| Phase P1A | `DRAFT_PR #2` (Code auf Branch, **nicht** auf `main`) | `main` enthält P1A noch nicht; Implementierung nur auf `cursor/p1a-core-entitlements-5019` | erwartet bis Merge PR #2 |
+| Phase P1B+ | `NOT_STARTED` | unverändert | keine |
 | GitHub-Sichtbarkeit | PUBLIC | `private: false` (API) | keine |
 
 **Keine zusätzlichen abgeschlossenen Migrationsphasen** über M0, P0, P1D und dieses Docs-Bootstrap hinaus behauptet.
@@ -177,7 +178,7 @@ Diese 16 Positionen sind **Audit-Befunde und keine Umsetzungsgenehmigung**. Bevo
 
 ### 5.1 Contract A – Product Entitlements
 
-**API-Prefix:** `/api/v1/core/entitlements/v1` — **implementiert (P1A, Repository-only; nicht produktiv)**.
+**API-Prefix:** `/api/v1/core/entitlements/v1` — **implementiert in Draft PR #2** (`cursor/p1a-core-entitlements-5019`). **Nicht Bestandteil von `origin/main`** bis Merge von PR #2; nicht produktiv deployed.
 
 | Methode | Pfad (nach globalem `api/v1`) | Auth |
 |---|---|---|
@@ -265,7 +266,14 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 
 **Wichtig:** Phasennummern sind Planungsbezeichner dieses Dokuments und nicht die bestehenden P1/P2-Kürzel fachlicher SYNQDRIVE-Workstreams wie VSI, DBI oder APDS. Diese werden nicht umbenannt oder eigenmächtig aktiviert.
 
-### 6.1 P1A-Implementierung (Repository — siehe Draft-PR im Journal)
+### 6.1 P1A-Implementierung (Draft PR #2 — noch nicht auf `main`)
+
+**GitHub PR #2 (Stand Abruf via API):** Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` (`main` nach Merge PR #1) · Head `3a97da1d0557abe3c0316d1070a4d01c95f07fcb` · Branch `cursor/p1a-core-entitlements-5019` · State: **OPEN / Draft**.  
+**`origin/main` HEAD** (ohne P1A-Code): weiterhin `97b5a27c48a7521ff6f909f764d46fee4940eaec`, bis PR #2 gemergt ist.
+
+**Code-Review P1A:** bestanden (Owner/Review). Merge/Deploy weiterhin nur mit expliziter Owner-Freigabe.
+
+**GitHub CI:** Repository-Workflows **deaktiviert** (Owner) — für PR #2 werden **keine** automatischen Checks gemeldet; Qualitätsnachweis derzeit **lokal** (Jest/tsc/Registry-Validator in der Agent-Umgebung), nicht durch GitHub Actions bestätigt.
 
 **Umgesetzt:** `EntitlementsQueryService`, zentrale Capability-Policy (`canAccessProductUi` / `canActivateVehicles`), versionierte Read-DTOs `core.entitlements.v1`, geschützte GET-Endpunkte, Unit-/Security-Metadaten-Tests, `AGENTS.md` Abschnitt „SYNQDRIVE CORE EXTRACTION — MANDATORY HANDOFF“.
 
@@ -283,9 +291,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 
 **`OrganizationProduct.expiresAt`:** Schema-Feld vorhanden, **in keiner bestehenden Authority durchgesetzt**. P1A liefert `licenseTermExpired` (faktisch) + `expiresAtPolicy=NOT_ENFORCED_STATUS_ONLY_PARITY`; Capabilities folgen weiterhin nur `OrgProductStatus` (Parität zu Guards). **Produktive Nutzung expiry-basierter Denial blockiert** bis Owner-Entscheidung.
 
-**Tests:** Unit-Policy, Query-Service, Controller-Metadaten, **HTTP-Integration** (`AuthGuard` + `OrgScopingGuard`, gemocktes Prisma).
-
-**CI:** GitHub Actions im Repo **deaktiviert** (Owner) — keine automatische PR-CI-Bestätigung; lokale Jest/tsc/registry-Validator als Nachweis.
+**Tests:** Unit-Policy, Query-Service, Controller-Metadaten, **HTTP-Integration** (`AuthGuard` + `OrgScopingGuard`, gemocktes Prisma) — auf PR-Branch verifiziert; **nicht** als `main`-CI belegt.
 
 **Nicht in P1A:** Entitlement-Outbox, M2M (B1), Trip/DBI/VSI, VYMOD-Slug, Schema-Migration, Produktions-Deploy.
 
@@ -343,8 +349,9 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | 2026-11-12 | `SYNQDRIVE_CORE_P1_BOUNDARY_CONTRACT_DESIGN` | **DESIGN_READY**, Entitlements/Read/Trip-Link/Event-Verträge entworfen; B1–B5 offen | Keine Codeänderung, kein Deploy | Docs-Handoff + freigegebener kleiner P1A-PR |
 | 2026-11-12 | Masterplan V1.0 (Entwurf) | **DOKUMENTIERT**, nur Plan/Übergabe – keine Implementierung | Docs-only, Repo-PR/Commit separat nachzuweisen | Owner-Review, dann P1A-Scope |
 | 2026-11-12 | `SYNQDRIVE_CORE_MASTER_PLAN_BOOTSTRAP` | **PASS** (Repo-Abgleich §2.1); Masterplan unter `architecture/core-extraction/`; PR #1 merged | Docs-only | P1A |
-| 2026-11-12 | `SYNQDRIVE_CORE_P1A_ENTITLEMENTS_AND_AGENT_GOVERNANCE` | **DRAFT_PR #2** · Base `97b5a27c4dbd5244a7259bdb303a1f385532aba4` (main post #1) · Branch `cursor/p1a-core-entitlements-5019` | Entitlements Read API v1 + `AGENTS.md` Governance; **kein Deploy/Prod** | Security closeout |
-| 2026-11-12 | `SYNQDRIVE_CORE_P1A_SECURITY_AND_SEMANTIC_CLOSEOUT` | **DRAFT_PR #2** · HEAD `6eec326886699d0e731d16f09c030bf5ee887008` | expiresAt-Transparenz; HTTP Auth/Tenant-Tests; Guard-Parität; Actions aus | Owner-Review PR #2 |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1A_ENTITLEMENTS_AND_AGENT_GOVERNANCE` | **DRAFT_PR #2** · GitHub Base `97b5a27c48a7521ff6f909f764d46fee4940eaec` · Branch `cursor/p1a-core-entitlements-5019` | Entitlements Read API v1 + `AGENTS.md` Governance; **nur PR-Branch, nicht `main`**; kein Deploy/Prod | Security closeout |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1A_SECURITY_AND_SEMANTIC_CLOSEOUT` | **DRAFT_PR #2** · Commit `6eec326886699d0e731d16f09c030bf5ee887008` (Closeout-Code) | expiresAt-Transparenz; HTTP Auth/Tenant-Tests; Guard-Parität | Doc-SHA-Korrektur |
+| 2026-11-12 | `SYNQDRIVE_CORE_P1A_FINAL_DOCUMENTATION_CORRECTION` | **DRAFT_PR #2** · GitHub Head `3a97da1d0557abe3c0316d1070a4d01c95f07fcb` · Code-Review **PASS** | Journal/Handoff-SHAs an GitHub-Refs; CI=Actions aus; P1A bis Merge nicht auf `main` | Owner-Merge PR #2 (wenn freigegeben) |
 
 **Updatevorlage für neue Einträge:**
 
@@ -362,14 +369,14 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 2. `AGENTS.md`, `architecture/SYNQDRIVE_RENTAL_ARCHITECTURE.md`, `architecture/MODULE_AUTHORITY_STANDARD.md` lesen; betroffene spezifische Module-Authorities konsultieren.
 3. Den **wirklichen aktuellen Main-SHA** in `SYNQDRIVE-CORE` ermitteln; dokumentierte Baseline und offene PRs abgleichen. Nicht von einer unveränderten Kopie ausgehen.
 4. OWNER_DECISION respektieren: **Master Admin komplett in Core; Plattform-SoR und Vehicle Intelligence in Core; Rental und Consumer-Fachlogik in Apps.**
-5. Das Workstream-Gate ermitteln: P0 und P1-Design sind abgeschlossen; **Implementierung P1A noch nicht gestartet** (solange Journal keinen späteren belegten Eintrag enthält).
+5. Das Workstream-Gate ermitteln: P0 und P1-Design abgeschlossen; **P1A implementiert auf Draft PR #2**, aber **nicht auf `main`** bis Merge — `git rev-parse origin/main` vs. PR-Head (`gh pr view …`) immer trennen.
 6. Vor jeglichem Code die bereits vorhandenen Contracts, Guards, Prisma-Modelle, Outbox-, Billing- und Trip-Eigentumsgrenzen untersuchen; keine Neuentwicklung vorhandener Systeme.
 7. Nur den explizit autorisierten Scope bearbeiten. Kein automatischer Merge/Deploy/Prod-Zugriff; keine Secret-Offenlegung; keine Änderungen in Alpha ohne Erlaubnis.
 8. Abschlussreport mit OPERATION, Base/New SHA, PR, Änderungen, Tests, CI, DB/Prod-Status, Risiken, Owner-Gates ausgeben und dieses Fortschrittsjournal aktualisieren.
 
 ### Kurzkontext für neue Chats
 
-> Wir spalten `FATIHS-MGCKS/SYNQDRIVE-alpha` in ein zentrales `FATIHS-MGCKS/SYNQDRIVE-CORE` und eigenständige **eigene** App-Repositories auf. `SYNQDRIVE-CORE` enthält dauerhaft den kompletten Master Admin, Organisations-/Benutzerverwaltung, Produktfreischaltung, SaaS-Billing, Infrastruktur und sämtliche DIMO-/Fahrzeugintelligenzmodule (PDI, VDC, VSI, FSD, APDS, Trip FSM, DS4, DBI, Health, OneAuto usw.). Rental erhält nur seine eigene Miet-Fachlogik und konsumiert Core über sichere, versionierte APIs/Events. Der reine Main-only-Clone ist abgeschlossen (SHA `1e6a267c…`); P0-Audit hat 16 Kopplungen identifiziert; P1-Contract-Design ist **DESIGN_READY**, aber **kein Contract wurde durch P1 implementiert**. Nächstes Ziel: minimaler, autorisierter Entitlement-Read-API-PR, erst nach Klärung notwendiger Auth-/Trial-Policies. Keine Löschungen, ungeprüften Dual Writes, neuen Deployments oder Änderungen der laufenden Alpha-Produktion. Der aktuelle Fortschritt steht im Journal dieser Datei.
+> Wir spalten `FATIHS-MGCKS/SYNQDRIVE-alpha` in ein zentrales `FATIHS-MGCKS/SYNQDRIVE-CORE` und eigenständige **eigene** App-Repositories auf. Core hält Master Admin, Plattform-IAM, Entitlements, SaaS-Billing und Fahrzeugintelligenz; Rental-Apps konsumieren versionierte Core-APIs/Events. **Aktuell:** `main` nach Masterplan-Bootstrap `97b5a27c48a7521ff6f909f764d46fee4940eaec`; **P1A Entitlements Read API** ist implementiert und review-bestanden auf **Draft PR #2** (Head laut GitHub), **nicht** auf `main` bis Merge. P0/P1D Design abgeschlossen. **GitHub Actions deaktiviert** — keine automatische PR-CI; siehe Journal §10. Kein Deploy/Prod ohne Owner-Freigabe. Fortschritt: Journal dieser Datei.
 
 ---
 
