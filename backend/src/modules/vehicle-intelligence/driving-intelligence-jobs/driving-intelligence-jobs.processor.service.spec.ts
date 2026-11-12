@@ -1,4 +1,5 @@
 import { DrivingIntelligenceJobProcessorService } from './driving-intelligence-jobs.processor.service';
+import { DrivingIntelligenceJobHandlerRegistry } from './driving-intelligence-jobs.handler.registry';
 import {
   DRIVING_INTELLIGENCE_JOB_ERROR_CODES,
   DrivingIntelligenceJobRetryableError,
@@ -94,6 +95,26 @@ describe('DrivingIntelligenceJobProcessorService', () => {
       DRIVING_INTELLIGENCE_JOB_ERROR_CODES.MAX_ATTEMPTS_EXCEEDED,
       expect.any(String),
     );
+  });
+
+  it('does not mark completed when rental handler is missing (fail-closed registry)', async () => {
+    const registry = new DrivingIntelligenceJobHandlerRegistry();
+    registry.onModuleInit();
+    const processor = new DrivingIntelligenceJobProcessorService(repository, registry);
+    repository.findById.mockResolvedValue(
+      makeJob({ jobType: 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE', bookingId: 'book-1' }),
+    );
+    repository.markInProgress.mockResolvedValue(
+      makeJob({
+        jobType: 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE',
+        bookingId: 'book-1',
+        attemptCount: 1,
+      }),
+    );
+
+    const outcome = await processor.processPersistentJob('org-1', 'job-rental');
+    expect(outcome.result).not.toBe('completed');
+    expect(repository.markCompleted).not.toHaveBeenCalled();
   });
 
   it('re-throws retryable errors for BullMQ worker backoff', async () => {

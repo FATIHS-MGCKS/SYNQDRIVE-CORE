@@ -256,7 +256,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P1D** | Entitlement, Core-Read, Trip-Link Contract Design | **DONE – DESIGN_ONLY** | DESIGN_READY | Keine Codeänderung |
 | **P1A** | Core-Entitlement-Read-API + EntitlementsQueryService + Tests + AGENTS-Governance | **MERGED** (`main` `78e66dce…`, PR #2) | JWT+OrgScoping; nicht produktiv deployed | P1B Service Auth |
 | **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
-| **P2** | Trip ↔ Booking Entkopplung | **IN_PROGRESS** (P2-PR1–PR6 merged; P2-PR7 Draft) | Overlap + Rental-Reconciliation-Port | RentalTripLink / Job-handler decouple |
+| **P2** | Trip ↔ Booking Entkopplung | **IN_PROGRESS** (P2-PR1–PR7 merged; P2-PR8 Draft) | Rental job-handler Port; fail-closed dispatch | RentalTripLink / weiteres |
 | **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **NOT_STARTED** | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
@@ -386,13 +386,19 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Bootstrap:** Full VI **BASELINE_BLOCKED** unverändert.
 
-### 6.9 P2-PR7 — Rental reconciliation port slice (Draft-PR)
+### 6.9 P2-PR7 — Rental reconciliation port slice (MERGED → `main` `35fdb1a24…`, PR #10)
 
-**Scope:** `RENTAL_DRIVING_ANALYSIS_RECONCILIATION_PORT` — `BOOKING_WITHOUT_RENTAL_ANALYSIS` Scan+Remediate in Rental-Adapter; Core `DrivingAnalysisReconciliationService` delegiert ausschließlich diesen Check.
+**Scope:** `RENTAL_DRIVING_ANALYSIS_RECONCILIATION_PORT` — `BOOKING_WITHOUT_RENTAL_ANALYSIS` Scan+Remediate in Rental-Adapter.
 
-**Parität:** Finding-Form, Lookback/Limit, Idempotency-Key, `REPAIR_FINALIZE`, `RENTAL_DRIVING_ANALYSIS_RECOMPUTE`, `reconcile-booking:` correlation; `recordReconciliation` nur in Core.
+**Parität:** Idempotency, `REPAIR_FINALIZE`, `RENTAL_DRIVING_ANALYSIS_RECOMPUTE` enqueue; `recordReconciliation` nur in Core.
 
-**Offen:** `DrivingIntelligenceJobHandlerRegistry` direkter Rental-Handler-Import (P2-PR8).
+**Bootstrap:** Full VI **BASELINE_BLOCKED** unverändert.
+
+### 6.10 P2-PR8 — Rental recompute job handler port (Draft-PR)
+
+**Scope:** `RENTAL_DRIVING_ANALYSIS_RECOMPUTE_JOB_HANDLER_PORT`; Registry ohne direkten Rental-Klassenimport; `useExisting` auf `RentalDrivingAnalysisRecomputeJobHandler`.
+
+**Fail-closed:** Fehlender Port → Dispatch wirft (kein Stub-`COMPLETED` für `RENTAL_DRIVING_ANALYSIS_RECOMPUTE`).
 
 **Bootstrap:** Full VI **BASELINE_BLOCKED** unverändert.
 
@@ -491,7 +497,9 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR6_JOB_BOOKING_VALIDATION_DECOUPLING` | **DRAFT_PR #9** · Base `263c6d84c…` | Job repo booking validation via Overlap-Port | Review |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR6` | **MERGED** · PR #9 → `main` `1c96544f9e19f4b4367c79b2527982f3aaded5a0` | Job booking assert via Overlap-Port | P2-PR7 Reconciliation |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_POST_PR6_REMAINING_RENTAL_COUPLING_AUDIT` | **READ_ONLY** · `main` `1c96544f9…` | P2-PR7 Scope bestätigt | P2-PR7 Implementierung |
-| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR7_RENTAL_RECONCILIATION_PORT` | **DRAFT_PR** · Base `1c96544f9…` | Rental reconciliation port; kein Schema | Review |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR7_RENTAL_RECONCILIATION_PORT` | **DRAFT_PR #10** · Base `1c96544f9…` | Rental reconciliation port; kein Schema | Review |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR7` | **MERGED** · PR #10 → `main` `35fdb1a24c131961ffe2d2c15aceed00cdef1fc1` | Rental reconciliation port | P2-PR8 Handler |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR8_RENTAL_JOB_HANDLER_DECOUPLING` | **DRAFT_PR** · Base `35fdb1a24…` | Job handler port; fail-closed rental dispatch | Review |
 
 **Updatevorlage für neue Einträge:**
 

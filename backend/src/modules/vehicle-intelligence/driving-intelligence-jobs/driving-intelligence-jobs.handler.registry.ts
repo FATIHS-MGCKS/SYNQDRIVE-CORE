@@ -1,11 +1,14 @@
-import { Injectable, Logger, OnModuleInit, Optional, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional, Inject } from '@nestjs/common';
 import type { DrivingIntelligenceJob, DrivingIntelligenceJobType } from '@prisma/client';
 import { DrivingEventContextEnrichJobHandler } from '../event-context/driving-event-context-enrich.handler';
 import { DimoTripSegmentValidateJobHandler } from '../dimo-trip-segment-validation/dimo-trip-segment-validation.handler';
 import { DrivingMisuseReconcileJobHandler } from '../misuse-cases/misuse-case-reconcile/driving-misuse-reconcile.handler';
 import { DrivingAttributionResolveJobHandler } from '../driver-attribution/driving-attribution-resolve.handler';
-import { RentalDrivingAnalysisRecomputeJobHandler } from '../../rental-driving-analysis/rental-driving-analysis-recompute.handler';
 import { DrivingNativeEventsIngestJobHandler } from './handlers/driving-native-events-ingest.handler';
+import {
+  RENTAL_DRIVING_ANALYSIS_RECOMPUTE_JOB_HANDLER_PORT,
+  type RentalDrivingAnalysisRecomputeJobHandlerPort,
+} from './ports/rental-driving-analysis-recompute-job-handler.port';
 import { DrivingRouteEnrichJobHandler } from './handlers/driving-route-enrich.handler';
 import { DrivingImpactComputeJobHandler } from './handlers/driving-impact-compute.handler';
 import { DrivingAssessabilityComputeJobHandler } from './handlers/driving-assessability-compute.handler';
@@ -28,8 +31,8 @@ export class DrivingIntelligenceJobHandlerRegistry implements OnModuleInit {
     @Optional() private readonly misuseReconcileHandler?: DrivingMisuseReconcileJobHandler,
     @Optional() private readonly attributionResolveHandler?: DrivingAttributionResolveJobHandler,
     @Optional()
-    @Inject(forwardRef(() => RentalDrivingAnalysisRecomputeJobHandler))
-    private readonly rentalRecomputeHandler?: RentalDrivingAnalysisRecomputeJobHandler,
+    @Inject(RENTAL_DRIVING_ANALYSIS_RECOMPUTE_JOB_HANDLER_PORT)
+    private readonly rentalRecomputeHandler?: RentalDrivingAnalysisRecomputeJobHandlerPort,
     @Optional() private readonly nativeEventsHandler?: DrivingNativeEventsIngestJobHandler,
     @Optional() private readonly routeEnrichHandler?: DrivingRouteEnrichJobHandler,
     @Optional() private readonly impactComputeHandler?: DrivingImpactComputeJobHandler,
@@ -40,6 +43,18 @@ export class DrivingIntelligenceJobHandlerRegistry implements OnModuleInit {
 
   onModuleInit(): void {
     for (const jobType of DRIVING_INTELLIGENCE_JOB_TYPES) {
+      if (jobType === 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE') {
+        if (this.rentalRecomputeHandler) {
+          this.handlers.set(jobType, (job) => this.rentalRecomputeHandler!.handle(job));
+        } else {
+          this.handlers.set(jobType, async (job) => {
+            throw new Error(
+              `RENTAL_DRIVING_ANALYSIS_RECOMPUTE handler not configured (persistentJobId=${job.id})`,
+            );
+          });
+        }
+        continue;
+      }
       this.handlers.set(jobType, async (job) => {
         this.logger.debug(
           `Stub handler for ${jobType}: persistentJobId=${job.id} analysisRunId=${job.analysisRunId}`,
@@ -68,12 +83,6 @@ export class DrivingIntelligenceJobHandlerRegistry implements OnModuleInit {
     if (this.attributionResolveHandler) {
       this.handlers.set('DRIVING_ATTRIBUTION_RESOLVE', (job) =>
         this.attributionResolveHandler!.handle(job),
-      );
-    }
-
-    if (this.rentalRecomputeHandler) {
-      this.handlers.set('RENTAL_DRIVING_ANALYSIS_RECOMPUTE', (job) =>
-        this.rentalRecomputeHandler!.handle(job),
       );
     }
 

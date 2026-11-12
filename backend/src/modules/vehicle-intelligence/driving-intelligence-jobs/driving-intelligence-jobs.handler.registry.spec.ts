@@ -79,7 +79,8 @@ describe('DrivingIntelligenceJobHandlerRegistry', () => {
       if (
         jobType === 'DRIVING_EVENT_CONTEXT_ENRICH' ||
         jobType === 'DRIVING_MISUSE_RECONCILE' ||
-        jobType === 'DRIVING_ATTRIBUTION_RESOLVE'
+        jobType === 'DRIVING_ATTRIBUTION_RESOLVE' ||
+        jobType === 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE'
       ) {
         continue;
       }
@@ -93,5 +94,48 @@ describe('DrivingIntelligenceJobHandlerRegistry', () => {
         } as any),
       ).resolves.toBeUndefined();
     }
+  });
+
+  it('dispatches RENTAL_DRIVING_ANALYSIS_RECOMPUTE to port handler exactly once when wired', async () => {
+    const handle = jest.fn(async () => undefined);
+    const registry = new DrivingIntelligenceJobHandlerRegistry(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { handle },
+    );
+    registry.onModuleInit();
+
+    const job = {
+      id: 'job-rental',
+      jobType: 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE',
+      organizationId: 'org-1',
+      vehicleId: 'vehicle-1',
+      bookingId: 'book-1',
+      analysisRunId: 'run-1',
+      correlationId: 'reconcile-booking:book-1',
+    } as any;
+
+    await registry.dispatch(job);
+
+    expect(handle).toHaveBeenCalledTimes(1);
+    expect(handle).toHaveBeenCalledWith(job);
+  });
+
+  it('fail-closed: missing rental handler rejects RENTAL_DRIVING_ANALYSIS_RECOMPUTE dispatch', async () => {
+    const registry = new DrivingIntelligenceJobHandlerRegistry();
+    registry.onModuleInit();
+
+    await expect(
+      registry.dispatch({
+        id: 'job-rental-missing',
+        jobType: 'RENTAL_DRIVING_ANALYSIS_RECOMPUTE',
+        organizationId: 'org-1',
+        vehicleId: 'vehicle-1',
+        bookingId: 'book-1',
+        analysisRunId: 'run-1',
+      } as any),
+    ).rejects.toThrow(/handler not configured/);
   });
 });
