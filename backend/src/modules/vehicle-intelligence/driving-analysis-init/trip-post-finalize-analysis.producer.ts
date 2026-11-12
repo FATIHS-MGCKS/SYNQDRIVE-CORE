@@ -1,9 +1,11 @@
-import { Injectable, Logger, Optional, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import { DrivingAnalysisInitService } from './driving-analysis-init.service';
 import type { TripAnalysisInitResult, TripAnalysisInitSource } from './driving-analysis-init.types';
-import { RentalDrivingAnalysisRecomputeTriggerService } from '../../rental-driving-analysis/rental-driving-analysis-recompute.trigger';
-import { RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS } from '../../rental-driving-analysis/rental-driving-analysis.recompute.types';
 import { EventTripAssociationService } from '../trips/event-association/event-trip-association.service';
+import {
+  TRIP_RENTAL_RECOMPUTE_PORT,
+  type TripRentalRecomputePort,
+} from '../trips/ports/trip-rental-recompute.port';
 
 /**
  * Post-finalize producer — awaited durable analysis init only after persisted COMPLETED trip.
@@ -16,8 +18,8 @@ export class TripPostFinalizeAnalysisProducer {
   constructor(
     private readonly analysisInit: DrivingAnalysisInitService,
     @Optional()
-    @Inject(forwardRef(() => RentalDrivingAnalysisRecomputeTriggerService))
-    private readonly rentalRecomputeTrigger?: RentalDrivingAnalysisRecomputeTriggerService,
+    @Inject(TRIP_RENTAL_RECOMPUTE_PORT)
+    private readonly rentalRecompute?: TripRentalRecomputePort,
     @Optional()
     private readonly tripAssociation?: EventTripAssociationService,
   ) {}
@@ -55,13 +57,11 @@ export class TripPostFinalizeAnalysisProducer {
         );
       }
 
-      void this.rentalRecomputeTrigger
-        ?.enqueueForTrip({
+      void this.rentalRecompute
+        ?.notifyTripCompleted({
           organizationId: input.organizationId,
           vehicleId: input.vehicleId,
           tripId: input.tripId,
-          reason: RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.TRIP_COMPLETED,
-          correlationId: `rental-recompute:trip:${input.tripId}:${RENTAL_DRIVING_ANALYSIS_RECOMPUTE_REASONS.TRIP_COMPLETED}`,
         })
         .catch((err) => {
           const message = err instanceof Error ? err.message : String(err);

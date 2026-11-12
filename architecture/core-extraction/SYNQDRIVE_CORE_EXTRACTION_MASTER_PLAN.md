@@ -256,7 +256,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P1D** | Entitlement, Core-Read, Trip-Link Contract Design | **DONE – DESIGN_ONLY** | DESIGN_READY | Keine Codeänderung |
 | **P1A** | Core-Entitlement-Read-API + EntitlementsQueryService + Tests + AGENTS-Governance | **MERGED** (`main` `78e66dce…`, PR #2) | JWT+OrgScoping; nicht produktiv deployed | P1B Service Auth |
 | **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
-| **P2** | Trip ↔ Booking Entkopplung | **IN_PROGRESS** (P2-PR1 Draft) | Booking-Overlap-Port (Core contract, Rental adapter); kein Schema-Event | Gated Cutover, keine unkontrollierten Dual Writes |
+| **P2** | Trip ↔ Booking Entkopplung | **IN_PROGRESS** (P2-PR1 merged; P2-PR2 Draft) | Overlap + Recompute Ports; VI↔RDA forwardRef unverändert | Attribution/Recompute-Rest, Cutover |
 | **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **NOT_STARTED** | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
@@ -334,7 +334,7 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **B1:** teilweise adressiert (Foundation + Closeout); weitere APIs in Folge-PRs.
 
-### 6.3 P2-PR1 — Trip Booking Overlap Port (Draft-PR, structural refactor only)
+### 6.3 P2-PR1 — Trip Booking Overlap Port (MERGED → `main` `af34303d8…`, PR #4)
 
 **Scope:** Core-owned `TripBookingOverlapPort` (`TRIP_BOOKING_OVERLAP_PORT`) unter `vehicle-intelligence/trips/ports/`; Rental-Implementierung `TripBookingOverlapPrismaAdapter` + `TripBookingOverlapModule` (nur `PrismaModule`, **kein** `BookingsModule`-Zyklus).
 
@@ -346,9 +346,23 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Unverändert:** Trip-FSM, Finalize, DS4/DBI-Pipelines, Assignment-Outcomes (gültige Daten), `VehicleTrip`-Booking-Spalten, Rental-Recompute-Hooks, Query-Batching/`queryCount`.
 
-**Offen (P2):** `TripAttributionService`/`trip-post-finalize` Rental-Recompute, `VehicleTrip`-Legacy-Spalten-Cutover, `core.vehicle-trip.finalized.v1`, RentalTripLink-Tabelle.
+**Offen (P2):** `TripAttributionService` Rental-Recompute, weitere VI→Rental-Trigger, Legacy-Spalten-Cutover, RentalTripLink.
 
-### 6.4 Ursprünglich geplanter erster PR — Outbox (verschoben)
+### 6.4 P2-PR2 — Trip Rental Recompute Port (Draft-PR, structural refactor only)
+
+**Scope:** Core-owned `TripRentalRecomputePort` (`TRIP_RENTAL_RECOMPUTE_PORT`); Rental `TripRentalRecomputePortAdapter` in `RentalDrivingAnalysisModule` (`tripRentalRecomputePortProviders`).
+
+**Refactor:** `TripPostFinalizeAnalysisProducer` + `TripAssignmentService` entfernen direkte Imports von `RentalDrivingAnalysisRecomputeTriggerService` / Rental-Reason-Enums.
+
+**Parität:** `notifyTripCompleted` → `TRIP_COMPLETED`; `notifyBookingAssignmentCorrected` → `BOOKING_ASSIGNMENT_CORRECTED`; unveränderte Correlation-Strings, void+catch, keine Finalize-Blockade bei Recompute-Fehler.
+
+**Module:** `VehicleIntelligenceModule` ↔ `RentalDrivingAnalysisModule` `forwardRef` **unverändert** (Modul-Zyklus nicht Teil von P2-PR2).
+
+**Bootstrap:** Full `VehicleIntelligenceModule` `Test.createTestingModule` weiterhin **BASELINE_BLOCKED** (`PlatformAdminModule` imports[5] undefined — gleiche Signatur wie P2-PR1-Baseline). Scoped runtime DI = verbindlicher Port-Nachweis. VI-Vollboot-/Modulzyklus-Closeout (`f0f4da93f`) auf PR #5 **zurückgenommen** — separates Architektur-Thema.
+
+**Scope recovery (PR #5):** P2-PR2 beschränkt auf Port/Adapter + zwei Core-Call-Sites; keine Modulextraktionen, kein PlatformAdmin/Voice/Organizations-`forwardRef` in diesem PR.
+
+### 6.5 Ursprünglich geplanter erster PR — Outbox (verschoben)
 
 Änderungen an Produktzuweisungen über geprüfte Outbox/Ereignislogik: **nicht** in P1A (kein Schema-Umbau). Separater Follow-up-PR nach Owner-Freigabe.
 
@@ -414,6 +428,10 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_TENANT_AND_INTEGRATION_CLOSEOUT` | **DRAFT_PR #4** (aktualisiert) | Org-scope via Vehicle; Nest-DI + disposable Postgres 3/3 PASS | P2 review / optional merge |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_FINAL_SECURITY_DI_CLOSEOUT` | **DRAFT_PR #4** | Tenant-Override entfernt (`resolveForTrip` nur Vehicle-Lookup); VI full `Test.createTestingModule` **BLOCKED** (PlatformAdminModule imports[5] undefined / cycle) | VI boot graph fix out-of-scope oder Folge-PR |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1_BASELINE_BOOTSTRAP_RECONCILIATION` | **DRAFT_PR #4** | Baseline `main`@`77e9843aa`: identischer `PlatformAdminModule`/`imports[5]`-Fehler (vor TripBookingOverlap); scoped runtime DI PASS; full VI boot = **BASELINE_BLOCKED** (kein PASS) | Merge mit Baseline-Exception; VI full boot separates Architektur-Thema |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR1` | **MERGED** · PR #4 → `main` `af34303d8dc0a4eadb2090a6f923697d14e39d06` | Booking Overlap Port + Tenant closeout | P2-PR2 Recompute Port |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_RENTAL_RECOMPUTE_PORT` | **DRAFT_PR #5** · Base `af34303d8…` · structural HEAD `e197dc806…` | Recompute Port; Trigger-Delegation; Scoped DI PASS | Review / merge gate |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_BOOTSTRAP_AND_MODULE_CYCLE_CLOSEOUT` | **DRAFT_PR #5** · Commit `f0f4da93f` (reverted on branch) | Experiment: PlatformAdmin/VI-cycle; **nicht** P2-PR2-Scope | Separates Follow-up |
+| 2026-11-12 | `SYNQDRIVE_CORE_P2_PR2_SCOPE_RECOVERY` | **DRAFT_PR #5** · Base `af34303d8…` | P2-PR2 Scope wiederhergestellt (Port/Adapter/Call-Sites); Modulextraktionen + unrelated `forwardRef` entfernt; full VI boot **BASELINE_BLOCKED** unverändert; **kein** Prod | Merge mit Baseline-Exception |
 
 **Updatevorlage für neue Einträge:**
 

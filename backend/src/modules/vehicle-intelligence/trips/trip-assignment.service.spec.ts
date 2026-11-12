@@ -149,8 +149,19 @@ describe('TripAssignmentService', () => {
     prisma.vehicleTrip.update.mockResolvedValue({});
     prisma.vehicle.findUnique.mockResolvedValue({ organizationId: 'org-1' });
 
+    const rentalRecompute = {
+      notifyBookingAssignmentCorrected: jest.fn().mockResolvedValue({ enqueued: true }),
+    };
+    service = new TripAssignmentService(prisma, bookingOverlap as any, metrics, rentalRecompute as any);
+
     await service.applyAssignmentToTrip('trip-4');
 
+    expect(rentalRecompute.notifyBookingAssignmentCorrected).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      vehicleId: 'vehicle-1',
+      bookingId: 'booking-11',
+      tripId: 'trip-4',
+    });
     expect(metrics.tripAssignmentResolutions.inc).toHaveBeenCalledWith({
       status: TripAssignmentStatus.ASSIGNED_BOOKING_CUSTOMER,
       score_eligible: 'no',
