@@ -200,7 +200,7 @@ Diese 16 Positionen sind **Audit-Befunde und keine Umsetzungsgenehmigung**. Bevo
 
 ### 5.2 Contract B – Vehicle & Intelligence Read API
 
-**API-Prefix (P3):** `/api/v1/core/read/v1/organizations/{orgId}` — **Vehicle-Identity v1** (PR #14); **Trip-Read v1** (P3-PR2 Draft: Fahrzeug-gebundene technische Fahrten); Health/Driving/Intelligence-Reads **noch nicht** implementiert.
+**API-Prefix (P3):** `/api/v1/core/read/v1/organizations/{orgId}` — **Vehicle-Identity v1** (PR #14); **Trip-Read v1** (P3-PR2 **MERGED** #15); **Driving-Assessment-Read v1** (P3-PR3 Draft: DS4 L2-Metadaten, keine Score-Publikation); Health/Intelligence-Reads **noch nicht** implementiert.
 
 - **P3-PR1 Product-Scope (verbindlich):** Listen/Detail sind **organisationsweite** Vehicle-Registry-Reads für berechtigte User-JWTs (`fleet.read` + Org-Scope). `?productSlug=` bestätigt nur eine **aktive `OrganizationProduct`-Lizenz** — **keine** produktbezogene Fahrzeugzuordnung, **kein** ProductVehicle-Filter. Explizite **ProductVehicle-/Produkt-Grants** sind **Voraussetzung für spätere** App-/M2M-Read-Anbindung (DESIGNED, nicht in P3-PR1).
 - Tenant-geschützte, versionierte Leseverträge: Vehicle Identity/Registry, technische Fahrt, Driving Assessment, Vehicle Health, Provenance, Modell-/Qualitätsstatus.
@@ -259,7 +259,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
 | **P2** | Trip ↔ Booking Entkopplung | **DONE** (P2-PR1–PR8 merged; fachlich abgeschlossen) | Core VI booking/recompute/reconcile über Rental-Ports | P6 RentalTripLink Cutover |
 | **P6** | RentalTripLink Overlay + Cutover | **IN_PROGRESS** (P6-PR1 **MERGED** #12; P6-PR2 **MERGED** #13) | Schema + Resolver + Backfill paging/classify; **kein** Live-Cutover | G2 **BLOCKED_BY_DATA_EVIDENCE** |
-| **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **IN_PROGRESS** (P3-PR1 **MERGED** #14; P3-PR2 Trip Read Draft) | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
+| **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **IN_PROGRESS** (P3-PR1 **MERGED** #14; P3-PR2 **MERGED** #15; P3-PR3 Driving Assessment Draft) | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
 | **P6** | Datenhoheit Prisma/Schemata trennen | **NOT_STARTED** | Exklusive Schreib-Owner, Migrationsplan, Backfill-/Cutover-Prüfung | DB-Snapshot, Restore-Pfad, Reconciliation |
@@ -464,6 +464,18 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Unverändert:** Trip FSM, Legacy-Writes, VI-Services, Rental-Overlay, Schema, Production-Deploy.
 
+### 6.15 P3-PR3 — Versioned Driving Assessment Read API (Draft-PR)
+
+**Scope:** `GET .../vehicles/:vehicleId/trips/:tripId/driving-assessment`; DTO `core.driving.assessment.read.v1`; Modul `core-driving-assessment-read/*`; **READ_ONLY** auf `di_v0_ds4_trip_assessment_v1` / `di_v0_ds4_trip_driving_impact_v2` (explizite Prisma-Select-Allowlist).
+
+**Sichtbarkeit:** Identisch `core.trip.read.v1` (kein `isPrivateTrip`-Filter; Gap-Split-Suffix-Ausblendung; Trip 404).
+
+**Publication safety:** Kein numerischer Impact-V2-Score; nur `assessmentStatus` (L2 berechnet/bewertet) und `scorePublicationStatus` (Publikationsgate, z. B. `DISABLED_MODEL_NOT_CALIBRATED`). `assessmentAvailability=NOT_AVAILABLE` wenn keine Assessment-Zeile. Keine Fingerprints, `eventSummaries`, `processingError`, DBI-Outputs. **Kein** M2M; **keine** Produktiv-Score-Freigabe.
+
+**Auth:** Wie P3-PR1/P3-PR2 (User JWT, `fleet.read`, Lizenz-`productSlug`). M2M-Allowlist unverändert.
+
+**Unverändert:** DS4-Worker/Processor, Recompute, Schema, Rental, bestehende VI `trips/:tripId/ds4-assessment` Internal-Read.
+
 ### 6.4 P2-PR2 — Trip Rental Recompute Port (MERGED → `main` `98a6068f8…`, PR #5)
 
 **Scope:** Core-owned `TripRentalRecomputePort` (`TRIP_RENTAL_RECOMPUTE_PORT`); Rental `TripRentalRecomputePortAdapter` in `RentalDrivingAnalysisModule` (`tripRentalRecomputePortProviders`).
@@ -574,6 +586,7 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-13 | `SYNQDRIVE_CORE_P3_PR1_FINAL_CONTRACT_CLOSEOUT` | **DRAFT_PR #14** update | Product-scope contract; pagination 400; stable sort | Architect review |
 | 2026-11-13 | `SYNQDRIVE_CORE_P3_PR2_VERSIONED_TRIP_READ_API` | **DRAFT_PR** · Base `1dcd03083…` | Trip read v1; private trip exclude; M2M unchanged | Architect review |
 | 2026-11-13 | `SYNQDRIVE_CORE_P3_PR2_OPUS_REMEDIATION` | **DRAFT_PR #15** update · Head vorher `bf9fbc6e4…` | F1 isPrivateTrip-Filter entfernt + Vertrag dokumentiert; F2 Gap-Split-Suffix-Ausblendung (Liste/Count/Detail); F3 Same-Org-Vehicle-Binding-Tests | Architect review |
+| 2026-11-13 | `SYNQDRIVE_CORE_P3_PR3_VERSIONED_DRIVING_ASSESSMENT_READ_API` | **DRAFT_PR** · Base `e60949ebe…` | Driving assessment read v1; DS4 L2 metadata only; score publication gate; trip visibility parity; M2M unchanged | Architect review |
 
 **Updatevorlage für neue Einträge:**
 
