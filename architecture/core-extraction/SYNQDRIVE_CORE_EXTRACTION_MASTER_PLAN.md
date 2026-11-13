@@ -200,7 +200,7 @@ Diese 16 Positionen sind **Audit-Befunde und keine Umsetzungsgenehmigung**. Bevo
 
 ### 5.2 Contract B – Vehicle & Intelligence Read API
 
-**API-Prefix (P3):** `/api/v1/core/read/v1/organizations/{orgId}` — **Vehicle-Identity v1** (PR #14); **Trip-Read v1** (P3-PR2 **MERGED** #15); **Driving-Assessment-Read v1** (P3-PR3 **MERGED** #16); **Battery-Read v1** (P3-PR4 **MERGED** #17); **DTC-Read v1** (P3-PR5 Draft); weitere Health-Reads **noch nicht** implementiert.
+**API-Prefix (P3):** `/api/v1/core/read/v1/organizations/{orgId}` — **Vehicle-Identity v1** (PR #14); **Trip-Read v1** (P3-PR2 **MERGED** #15); **Driving-Assessment-Read v1** (P3-PR3 **MERGED** #16); **Battery-Read v1** (P3-PR4 **MERGED** #17); **DTC-Read v1** (P3-PR5 **MERGED** #18); **Service-Intelligence-Read v1** (P3-PR6 Draft); weitere Health-Reads **noch nicht** implementiert.
 
 - **P3-PR1 Product-Scope (verbindlich):** Listen/Detail sind **organisationsweite** Vehicle-Registry-Reads für berechtigte User-JWTs (`fleet.read` + Org-Scope). `?productSlug=` bestätigt nur eine **aktive `OrganizationProduct`-Lizenz** — **keine** produktbezogene Fahrzeugzuordnung, **kein** ProductVehicle-Filter. Explizite **ProductVehicle-/Produkt-Grants** sind **Voraussetzung für spätere** App-/M2M-Read-Anbindung (DESIGNED, nicht in P3-PR1).
 - Tenant-geschützte, versionierte Leseverträge: Vehicle Identity/Registry, technische Fahrt, Driving Assessment, Vehicle Health, Provenance, Modell-/Qualitätsstatus.
@@ -259,7 +259,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
 | **P2** | Trip ↔ Booking Entkopplung | **DONE** (P2-PR1–PR8 merged; fachlich abgeschlossen) | Core VI booking/recompute/reconcile über Rental-Ports | P6 RentalTripLink Cutover |
 | **P6** | RentalTripLink Overlay + Cutover | **IN_PROGRESS** (P6-PR1 **MERGED** #12; P6-PR2 **MERGED** #13) | Schema + Resolver + Backfill paging/classify; **kein** Live-Cutover | G2 **BLOCKED_BY_DATA_EVIDENCE** |
-| **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **IN_PROGRESS** (P3-PR1 **MERGED** #14; P3-PR2 **MERGED** #15; P3-PR3 **MERGED** #16; P3-PR4 **MERGED** #17; P3-PR5 DTC Draft) | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
+| **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **IN_PROGRESS** (P3-PR1 **MERGED** #14; P3-PR2 **MERGED** #15; P3-PR3 **MERGED** #16; P3-PR4 **MERGED** #17; P3-PR5 **MERGED** #18; P3-PR6 Service Intelligence Draft) | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
 | **P6** | Datenhoheit Prisma/Schemata trennen | **NOT_STARTED** | Exklusive Schreib-Owner, Migrationsplan, Backfill-/Cutover-Prüfung | DB-Snapshot, Restore-Pfad, Reconciliation |
@@ -490,17 +490,25 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Unverändert:** Battery-V2-Pipeline, Publication-Flags in Prod, Rental-Health, Schema, Worker.
 
-### 6.17 P3-PR5 — Versioned DTC Read API (Draft-PR)
+### 6.17 P3-PR5 — Versioned DTC Read API (MERGED → #18)
 
-**Scope:** `GET .../vehicles/:vehicleId/dtc?productSlug=`; DTO `core.dtc.read.v1`; Modul `core-dtc-read/*`; **READ_ONLY** via `DtcService.getSummary` (keine Algorithmusänderung).
+**Scope:** `GET .../vehicles/:vehicleId/dtc?productSlug=`; DTO `core.dtc.read.v1`; Modul `core-dtc-read/*`; **READ_ONLY** via `DtcService.getSummary`.
 
-**Fail-closed Core v1:** Bei `monitoringStatus=stale|unavailable` → `activeFaultCount=null`, `worstSeverityBand=null`, `activeFaultPreview=[]` (unterdrückt auch 01A last-known Preview). Bei `clean` → `activeFaultCount=0`, keine Preview/Severity-Aggregat. Nur bei `active_faults` werden Count, Preview (code/category/severityBand) und worstSeverityBand exponiert. Keine `faultConfirmation`, keine Rental-Felder, keine Source-Head/02-Shadow-Metadaten.
+**Fail-closed:** `stale|unavailable` → null counts / empty preview (inkl. 01A mixed-mode). **DI:** `DtcConsumerModule` / `DTC_CONSUMER_EXPORT`. **Auth:** User JWT, `fleet.read`, Lizenz, Org-Fahrzeug-Bindung. **M2M unverändert.**
 
-**DI:** `DtcConsumerModule` exportiert `DTC_CONSUMER_EXPORT` (`useExisting` → `DtcService`); kein RentalHealth-Import im Core-Modul.
+### 6.18 P3-PR6 — Versioned Service Intelligence Read API (Draft-PR)
 
-**Auth:** User JWT, `fleet.read`, Lizenz-`productSlug`, Fahrzeug-`organizationId`. **M2M unverändert.**
+**Scope:** `GET .../vehicles/:vehicleId/service-intelligence?productSlug=`; DTO `core.service.intelligence.read.v1`; Modul `core-service-intelligence-read/*`; **READ_ONLY** via `ServiceComplianceService.evaluateNextServiceDetailed` (ein Aufruf pro Request; kein `buildServiceInfoStatus`, keine OneAuto-Requests).
 
-**Unverändert:** DTC-01A/01F/02 Aktivierung, Snapshot-Apply, Rental-Health, Schema, Worker.
+**Quellenpräzedenz (unverändert):** Frische HM/OEM-Headline; sonst berechnete OneAuto/Manual-Headline; `computedComparison` nur aus Upstream; Konflikte aus `forecast.conflicts` wenn Forecast existiert, sonst `nextService.conflicts`. Keine Rental-/TÜV-/History-Felder.
+
+**Positionen:** Engine-Reihenfolge, max. 20 mit `positionsTotal` / `positionsTruncated`.
+
+**DI:** `ServiceComplianceConsumerModule` / `SERVICE_COMPLIANCE_CONSUMER_EXPORT` (`useExisting` → `ServiceComplianceService`); kein RentalHealth-Import.
+
+**Auth:** User JWT, `fleet.read`, Lizenz, Org-Fahrzeug-Bindung. **M2M unverändert.**
+
+**Unverändert:** Forecast-Engine, OneAuto/HM-Ingestion, Rental Health, TÜV/BOKraft, Service History, Schema, Worker.
 
 ### 6.4 P2-PR2 — Trip Rental Recompute Port (MERGED → `main` `98a6068f8…`, PR #5)
 
