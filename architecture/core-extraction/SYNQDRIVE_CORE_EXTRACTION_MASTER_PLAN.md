@@ -257,7 +257,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P1A** | Core-Entitlement-Read-API + EntitlementsQueryService + Tests + AGENTS-Governance | **MERGED** (`main` `78e66dce…`, PR #2) | JWT+OrgScoping; nicht produktiv deployed | P1B Service Auth |
 | **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
 | **P2** | Trip ↔ Booking Entkopplung | **DONE** (P2-PR1–PR8 merged; fachlich abgeschlossen) | Core VI booking/recompute/reconcile über Rental-Ports | P6 RentalTripLink Cutover |
-| **P6** | RentalTripLink Overlay + Cutover | **IN_PROGRESS** (P6-PR1 Foundation Draft) | Schema + Resolver + Backfill dry-run; **kein** Live-Cutover | G2 Backfill approval |
+| **P6** | RentalTripLink Overlay + Cutover | **IN_PROGRESS** (P6-PR1 **MERGED** #12; P6-PR2 analyzer) | Schema + Resolver + Backfill paging/classify; **kein** Live-Cutover | G2 **BLOCKED_BY_DATA_EVIDENCE** |
 | **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **NOT_STARTED** | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
@@ -405,22 +405,28 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **P2 Abschluss:** Structurelle Entkopplung Trip↔Booking/Recompute/Reconcile über Rental-Ports abgeschlossen. Verbleibende Legacy-**Daten** auf `VehicleTrip` (`assignedBookingId`, …) = **P6** RentalTripLink, nicht weitere P2-PRs.
 
-### 6.11 P6-PR1 — RentalTripLink foundation (Draft-PR)
+### 6.11 P6-PR1 — RentalTripLink foundation (MERGED → `main` `07e09b434…`, PR #12)
 
 **Scope (foundation only):** Additive Prisma `RentalTripLink` + Migration `20261112194500_rental_trip_link_p6_pr1`; Partial-Unique `(organization_id, trip_id) WHERE superseded_at IS NULL` (current = ACTIVE **oder** UNLINKED); Rental-Modul `rental-trip-link/*` (`RentalTripLinkRepository`, `RentalTripLinkResolver`, `RentalTripLinkBackfillDryRunService`).
 
 **Read path:** Overlay-first; Legacy-Fallback nur ohne aktuelle Overlay-Zeile; **UNLINKED** overlay darf Legacy nie wiederbeleben; EXPLICIT blockiert automatische TIME_WINDOW-Supersession (Schreibpfad vorbereitet, **keine** produktiven Write-Switches).
 
-**Backfill:** Read-only Dry-Run (`analyze`); Idempotenz-Fingerprint = `sha256(assignedBookingId|linkSource|customerId)` (32 hex); kein Auto-Backfill, keine Legacy-Mutation.
+**Backfill (PR1):** Read-only Dry-Run (`analyze`); Idempotenz-Fingerprint = `sha256(assignedBookingId|linkSource|customerId)` (32 hex); kein Auto-Backfill, keine Legacy-Mutation.
 
 **Unverändert:** Trip FSM, Legacy-Write-Pfade, VI-Reader, Recompute-Jobs, Production-Deploy, Shadow-Read.
+
+### 6.12 P6-PR2 — Backfill analyzer hardening (Draft-PR)
+
+**Scope:** `analyzePage` mit Cursor-Paging `(startTime desc, id desc)`, `totalTripsInOrg` / `nextCursor` / `coverageCompleteThisScan`; Klassifikation `SAFE_ACTIVE` vs `SKIP_*` vs `BLOCK_*`; Bulk-Reads für Bookings + Current-Overlays pro Seite; **kein** Schema.
+
+**G2:** Tooling-Gate verbessert; **G2_DATA_EVIDENCE = BLOCKED** bis Owner-isolierte repräsentative Datenquelle + Dry-Run-Lauf — synthetische Tests ≠ Produktionsparität.
 
 **P6 Cutover Gates (Owner-RFC G1–G7):**
 
 | Gate | Inhalt | Status |
 |---|---|---|
-| G1 | Schema + migration review (partial unique current row, CHECK invariants, `booking_id` **RESTRICT**) | **IN_PR1** |
-| G2 | Backfill dry-run sign-off — SKIP on legacy null; UNLINKED nur aus autorisierter Overlay-Entscheidung | **IN_PR1** (dry-run only) |
+| G1 | Schema + migration review (partial unique current row, CHECK invariants, `booking_id` **RESTRICT**) | **DONE** (PR #12) |
+| G2 | Backfill dry-run sign-off auf **repräsentativer Datenquelle** | **BLOCKED_BY_DATA_EVIDENCE** (Analyzer PR2; kein Prod-Stichprobennachweis) |
 | G3 | Kritische Leser auf Overlay-only-Write umstellen; **ein** autorisierter Legacy-Kompatibilitätsprojektor (`RentalTripLinkResolver`); Shadow-Compare | NOT_STARTED |
 | G4 | W1 dual-write (overlay + legacy) — **keine** ungeplante Aktivierung außerhalb Owner-Freigabe | NOT_STARTED |
 | G5 | W2 read switch (overlay-first produktiv) | NOT_STARTED |
@@ -530,7 +536,9 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_PR8` | **MERGED** · PR #11 → `main` `1ccb2bf1b31450bca5def6c47ef759fa2350f1d1` | Job handler port | P6 RentalTripLink |
 | 2026-11-12 | `SYNQDRIVE_CORE_P2_POST_PR8_TRIP_BOOKING_OWNERSHIP_PREFLIGHT` | **READ_ONLY** · `main` `1ccb2bf1b…` | Legacy read/write map; P6 scope bestätigt | P6-PR1 Foundation |
 | 2026-11-12 | `SYNQDRIVE_CORE_P6_RENTAL_TRIP_LINK_OWNER_RFC` | **DESIGN_APPROVED** | Overlay owner RFC; current-row invariant | P6-PR1 Implementierung |
-| 2026-11-12 | `SYNQDRIVE_CORE_P6_PR1_RENTAL_TRIP_LINK_FOUNDATION` | **DRAFT_PR #12** · Base `1ccb2bf1b…` | Schema + Resolver + backfill dry-run; no cutover | Remediation |
+| 2026-11-12 | `SYNQDRIVE_CORE_P6_PR1_RENTAL_TRIP_LINK_FOUNDATION` | **MERGED** · PR #12 → `main` `07e09b434…` | Schema + Resolver + backfill dry-run | P6-PR2 analyzer |
+| 2026-11-12 | `SYNQDRIVE_CORE_P6_G2_BACKFILL_READINESS_AUDIT` | **READ_ONLY** | G2 BLOCKED — keine repräsentative Datenquelle | P6-PR2 |
+| 2026-11-12 | `SYNQDRIVE_CORE_P6_PR2_BACKFILL_ANALYZER_HARDENING` | **DRAFT_PR** · Base `07e09b434…` | Paging + classify + bulk reads | G2 data evidence |
 | 2026-11-12 | `SYNQDRIVE_CORE_P6_PR1_ARCHITECTURE_REMEDIATION` | **DRAFT_PR #12** (update) | Supersession fix, CHECK/RESTRICT, backfill SKIP semantics | PG gate (isolated) |
 
 **Updatevorlage für neue Einträge:**
