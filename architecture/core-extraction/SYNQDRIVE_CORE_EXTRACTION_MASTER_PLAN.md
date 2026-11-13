@@ -200,7 +200,7 @@ Diese 16 Positionen sind **Audit-Befunde und keine Umsetzungsgenehmigung**. Bevo
 
 ### 5.2 Contract B – Vehicle & Intelligence Read API
 
-**API-Prefix (P3-PR1):** `/api/v1/core/read/v1/organizations/{orgId}` — **Vehicle-Identity v1** (List + Single) in Draft-PR #14; Health/Driving/Intelligence-Reads **noch nicht** implementiert.
+**API-Prefix (P3):** `/api/v1/core/read/v1/organizations/{orgId}` — **Vehicle-Identity v1** (PR #14); **Trip-Read v1** (P3-PR2 Draft: Fahrzeug-gebundene technische Fahrten); Health/Driving/Intelligence-Reads **noch nicht** implementiert.
 
 - **P3-PR1 Product-Scope (verbindlich):** Listen/Detail sind **organisationsweite** Vehicle-Registry-Reads für berechtigte User-JWTs (`fleet.read` + Org-Scope). `?productSlug=` bestätigt nur eine **aktive `OrganizationProduct`-Lizenz** — **keine** produktbezogene Fahrzeugzuordnung, **kein** ProductVehicle-Filter. Explizite **ProductVehicle-/Produkt-Grants** sind **Voraussetzung für spätere** App-/M2M-Read-Anbindung (DESIGNED, nicht in P3-PR1).
 - Tenant-geschützte, versionierte Leseverträge: Vehicle Identity/Registry, technische Fahrt, Driving Assessment, Vehicle Health, Provenance, Modell-/Qualitätsstatus.
@@ -259,7 +259,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
 | **P2** | Trip ↔ Booking Entkopplung | **DONE** (P2-PR1–PR8 merged; fachlich abgeschlossen) | Core VI booking/recompute/reconcile über Rental-Ports | P6 RentalTripLink Cutover |
 | **P6** | RentalTripLink Overlay + Cutover | **IN_PROGRESS** (P6-PR1 **MERGED** #12; P6-PR2 **MERGED** #13) | Schema + Resolver + Backfill paging/classify; **kein** Live-Cutover | G2 **BLOCKED_BY_DATA_EVIDENCE** |
-| **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **IN_PROGRESS** (P3-PR1 Vehicle Identity Read API Draft) | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
+| **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **IN_PROGRESS** (P3-PR1 **MERGED** #14; P3-PR2 Trip Read Draft) | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
 | **P6** | Datenhoheit Prisma/Schemata trennen | **NOT_STARTED** | Exklusive Schreib-Owner, Migrationsplan, Backfill-/Cutover-Prüfung | DB-Snapshot, Restore-Pfad, Reconciliation |
@@ -450,6 +450,20 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Unverändert:** Trip FSM, DS4, DBI, Health, Rental-Ports, Schema, bestehende `vehicles.controller` Verträge, Production-Deploy.
 
+### 6.14 P3-PR2 — Versioned Trip Read API (Draft-PR)
+
+**Scope:** `GET .../vehicles/:vehicleId/trips` und `.../trips/:tripId`; DTO `core.trip.read.v1` (`tripId`, `vehicleId`, `tripStatus`, `startTime`, `endTime`, `distanceKm`); Modul `core-trip-read/*`; **READ_ONLY** auf `VehicleTrip`.
+
+**Privacy / Sichtbarkeit (Opus-Remediation, Architekturentscheid F1):** `core.trip.read.v1` ist ein technischer, organisationsautorisierter Trip-Read-Vertrag und klassifiziert **nicht** zwischen Privat- und Geschäftsfahrten. `isPrivateTrip` ist der Booking-/Fahrer-Attribution-Fallback (`PRIVATE_UNASSIGNED`, gesetzt erst nach Abschluss + Enrichment, abhängig von Booking-Overlap) und **kein** verlässliches Privacy-Signal — er steuert die Sichtbarkeit **nicht** (vorheriger Filter entfernt; ONGOING und unzugeordnete abgeschlossene Fahrten sind lesbar; Sichtbarkeit unabhängig von Booking-Zuordnung). Nur minimale technische Felder; keine Booking-/Customer-/Driver-/GPS-/Provider-/Analyse-/`rawDetectionMeta`-Felder. Privacy-/Consent-Eignung für künftige App-Consumer erfordert ein **separates Gate**; dieser Vertrag autorisiert **weder** M2M **noch** Production-Aktivierung.
+
+**Gap-Split-Sichtbarkeit (F2):** Wiederverwendung `listReconciledGapSplitSuffixTripIdsHiddenFromCustomerList` + `applyHiddenCustomerSuffixTripExclusion` (identisch zur Customer-Trip-Liste): nur nachweislich rekonziliierte, absorbierte CANCELLED-Suffixe ausgeblendet — Liste, `pagination.total` und Detail (→ 404); andere CANCELLED-Fahrten bleiben lesbar. Ein Raw-Lookup pro Request (fahrzeuggebunden), kein N+1.
+
+**Auth:** Gleiches Muster wie P3-PR1 (User JWT, `fleet.read`, Lizenz-`productSlug`, Fahrzeug `organizationId`-Bindung, Trip `vehicleId`-Bindung). **M2M-Allowlist unverändert.**
+
+**Pagination/Sort:** Wiederverwendung `parseCoreVehicleReadPagination`; `startTime desc`, `id desc`.
+
+**Unverändert:** Trip FSM, Legacy-Writes, VI-Services, Rental-Overlay, Schema, Production-Deploy.
+
 ### 6.4 P2-PR2 — Trip Rental Recompute Port (MERGED → `main` `98a6068f8…`, PR #5)
 
 **Scope:** Core-owned `TripRentalRecomputePort` (`TRIP_RENTAL_RECOMPUTE_PORT`); Rental `TripRentalRecomputePortAdapter` in `RentalDrivingAnalysisModule` (`tripRentalRecomputePortProviders`).
@@ -558,6 +572,8 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-13 | `SYNQDRIVE_CORE_P6_PR2_BACKFILL_ANALYZER_HARDENING` | **MERGED PR #13** · Base `07e09b434…` | Analyzer paging/classify; G2 tooling | G2 data evidence |
 | 2026-11-13 | `SYNQDRIVE_CORE_P3_PR1_VERSIONED_VEHICLE_READ_API` | **DRAFT_PR** · Base `93ded35cdd76d60470080806d8b15958ffc8f930` | Core vehicle read v1 API; M2M unchanged | Architect review |
 | 2026-11-13 | `SYNQDRIVE_CORE_P3_PR1_FINAL_CONTRACT_CLOSEOUT` | **DRAFT_PR #14** update | Product-scope contract; pagination 400; stable sort | Architect review |
+| 2026-11-13 | `SYNQDRIVE_CORE_P3_PR2_VERSIONED_TRIP_READ_API` | **DRAFT_PR** · Base `1dcd03083…` | Trip read v1; private trip exclude; M2M unchanged | Architect review |
+| 2026-11-13 | `SYNQDRIVE_CORE_P3_PR2_OPUS_REMEDIATION` | **DRAFT_PR #15** update · Head vorher `bf9fbc6e4…` | F1 isPrivateTrip-Filter entfernt + Vertrag dokumentiert; F2 Gap-Split-Suffix-Ausblendung (Liste/Count/Detail); F3 Same-Org-Vehicle-Binding-Tests | Architect review |
 
 **Updatevorlage für neue Einträge:**
 
