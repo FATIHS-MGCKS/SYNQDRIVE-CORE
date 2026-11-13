@@ -274,6 +274,32 @@ describe('toCoreBatteryReadV1 — fail-closed disclosure', () => {
     expect(dto.hv.selectedTractionSohPercent).toBe(91);
   });
 
+  it('maps telemetryObservedAt from observationFreshness not currentTelemetry last-seen', () => {
+    const dto = toCoreBatteryReadV1({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: PRODUCT,
+      fuelType: FuelType.ELECTRIC,
+      summary: baseSummary({
+        currentTelemetry: {
+          chargingState: 'not_charging',
+          socPercent: 60,
+          rangeKm: 200,
+          chargingPowerKw: null,
+          observedAt: '2026-06-01T12:30:00.000Z',
+          observationFreshness: {
+            observedAt: '2026-06-01T11:00:00.000Z',
+            observationAgeMs: 0,
+            observationState: 'FRESH',
+          },
+        },
+      } as Partial<CanonicalBatterySummaryForCoreRead>),
+    });
+
+    expect(dto.hv.telemetryObservedAt).toBe('2026-06-01T11:00:00.000Z');
+    expect(dto.hv.telemetryObservedAt).not.toBe('2026-06-01T12:30:00.000Z');
+  });
+
   it('fresh live telemetry exposes soc/range/charging from currentTelemetry authority', () => {
     publicationGateMock.mockReturnValue(false);
 

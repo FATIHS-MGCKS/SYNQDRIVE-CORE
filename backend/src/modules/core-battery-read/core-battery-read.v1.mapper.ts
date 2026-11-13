@@ -28,11 +28,11 @@ function resolveCurrentTelemetryFreshness(summary: CanonicalBatterySummaryForCor
   liveTelemetryUsable: boolean;
 } {
   const observation = summary.currentTelemetry?.observationFreshness ?? null;
-  const telemetryObservedAt = summary.currentTelemetry?.observedAt ?? null;
+  const telemetryObservedAt = observation?.observedAt ?? null;
   if (!observation) {
     return {
       telemetryDecisionFresh: null,
-      telemetryObservedAt,
+      telemetryObservedAt: null,
       liveTelemetryUsable: false,
     };
   }

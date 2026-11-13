@@ -7,9 +7,13 @@ import type { HvSohSource } from '@modules/vehicle-intelligence/battery-health/c
 /**
  * Contract `core.battery.read.v1` — read-only technical battery summary for one vehicle.
  *
- * Fail-closed technical read: no LV/HV publication numerics, no score bands, no
- * `estimatedHealthScore`, `displayBars`, primary-truth scores, rental readiness/blocking,
- * ModuleHealth, or raw `CanonicalBatteryDto`.
+ * Fail-closed technical read: no unpublished LV numeric scores (`lvPublishedHealthPercent`,
+ * `aggregateHealthStatus`, primary-truth `estimatedHealthScore`, `displayBars`), no rental
+ * readiness/blocking, ModuleHealth, or raw `CanonicalBatteryDto`.
+ *
+ * Authorized HV traction SOH (`selectedTractionSohPercent` / `selectedTractionSohSource`) may
+ * surface when upstream conflict resolution and HV SOH observation freshness allow it — separate
+ * from LV publication policy and from live telemetry (SoC/range/charging) fields.
  *
  * `batteryAvailability`: `AVAILABLE` when `CanonicalBatteryHealthService.getSummary` returned
  * a summary for the vehicle; `NOT_AVAILABLE` when the summary is absent (`resolvedAt` null).
@@ -55,6 +59,7 @@ export type CoreBatteryHvReadV1 = {
   observationObservedAt: string | null;
   /** From `currentTelemetry.observationFreshness` (live telemetry authority). */
   telemetryDecisionFresh: boolean | null;
+  /** Source-observation timestamp from `currentTelemetry.observationFreshness.observedAt` (not last-seen). */
   telemetryObservedAt: string | null;
 };
 
