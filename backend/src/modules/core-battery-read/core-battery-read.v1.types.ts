@@ -1,19 +1,19 @@
 import type { FuelType, ProductSlug } from '@prisma/client';
 import type { LvCanonicalTruthSource } from '@modules/vehicle-intelligence/battery-health/lv-canonical/lv-canonical-battery.types';
-import type {
-  BatteryHealthStatus,
-  LvAggregateStatus,
-} from '@modules/vehicle-intelligence/battery-health/battery-status';
+import type { BatteryHealthStatus } from '@modules/vehicle-intelligence/battery-health/battery-status';
 import type { BatteryStatus } from '@modules/vehicle-intelligence/battery-health/canonical-battery-health.service';
 import type { HvSohSource } from '@modules/vehicle-intelligence/battery-health/canonical-battery-health.service';
 
 /**
  * Contract `core.battery.read.v1` — read-only technical battery summary for one vehicle.
  *
- * Does not expose rental readiness/blocking, ModuleHealth, shadow assessments as scores,
- * raw CanonicalBatteryDto, or LV/HV publication numerics unless the existing
- * `isLvPublishedSohCustomerVisible` gate already allows customer LV publication percent.
- * Does not expose `estimatedHealthScore`, `displayBars`, or primary-truth scores.
+ * Fail-closed technical read: no LV/HV publication numerics, no score bands, no
+ * `estimatedHealthScore`, `displayBars`, primary-truth scores, rental readiness/blocking,
+ * ModuleHealth, or raw `CanonicalBatteryDto`.
+ *
+ * `batteryAvailability`: `AVAILABLE` when `CanonicalBatteryHealthService.getSummary` returned
+ * a summary for the vehicle; `NOT_AVAILABLE` when the summary is absent (`resolvedAt` null).
+ *
  * Authorization: user JWT + ACTIVE org membership + `fleet.read` + ACTIVE product license.
  * Not authorized for M2M or production publication activation.
  */
@@ -25,8 +25,9 @@ export type CoreBatteryLvReadV1 = {
   supported: boolean;
   profile: string | null;
   driveProfile: string | null;
+  /** Technical availability/lifecycle (ready/calibrating/…), not a publication score band. */
   liveStatus: BatteryStatus | null;
-  aggregateHealthStatus: LvAggregateStatus | null;
+  /** LV primary-truth label only — never exposes `estimatedHealthScore`. */
   primaryTruthSource: LvCanonicalTruthSource | null;
   restingVoltageV: number | null;
   restingVoltageStatus: string | null;
@@ -35,8 +36,6 @@ export type CoreBatteryLvReadV1 = {
   voltageObservedAt: string | null;
   /** Runtime LV customer-publication gate (BATTERY_V2_PUBLICATION_ENABLED + legacy safety). */
   lvPublicationCustomerVisible: boolean;
-  /** Only populated when `lvPublicationCustomerVisible`; never from primaryTruth alone. */
-  lvPublishedHealthPercent: number | null;
   dataQualityStatus: string | null;
   observationDecisionFresh: boolean | null;
   observationObservedAt: string | null;
@@ -54,6 +53,9 @@ export type CoreBatteryHvReadV1 = {
   dataQualityStatus: string | null;
   observationDecisionFresh: boolean | null;
   observationObservedAt: string | null;
+  /** From `currentTelemetry.observationFreshness` (live telemetry authority). */
+  telemetryDecisionFresh: boolean | null;
+  telemetryObservedAt: string | null;
 };
 
 export type CoreBatteryReadV1 = {
@@ -63,7 +65,8 @@ export type CoreBatteryReadV1 = {
   productSlug: ProductSlug;
   fuelType: FuelType;
   isEv: boolean;
-  resolvedAt: string;
+  /** Summary `generatedAt` when available; null when `batteryAvailability` is NOT_AVAILABLE. */
+  resolvedAt: string | null;
   batteryAvailability: CoreBatteryReadAvailabilityV1;
   lv: CoreBatteryLvReadV1;
   hv: CoreBatteryHvReadV1;

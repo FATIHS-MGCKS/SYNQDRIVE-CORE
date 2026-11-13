@@ -480,9 +480,11 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Scope:** `GET .../vehicles/:vehicleId/battery?productSlug=`; DTO `core.battery.read.v1`; Modul `core-battery-read/*`; **READ_ONLY** via `CanonicalBatteryHealthService.getSummary` (keine Algorithmusänderung).
 
-**Publication safety (F1):** Kein `estimatedHealthScore` / `displayBars`; LV-Prozent nur wenn bestehendes Gate `isLvPublishedSohCustomerVisible` (Runtime-Flag **und** Legacy-Safety) — **nicht** aus `primaryTruth.decisionCapable` allein. Shadow-/Legacy-Truth-Quellen liefern keine LV-Prozentwerte. Keine Rental-Readiness-/Block-Felder.
+**Fail-closed disclosure (technisch, keine Publikationsnumerik):** Kein `estimatedHealthScore` / `displayBars`, kein `lvPublishedHealthPercent`, kein `aggregateHealthStatus` (keine indirekten Score-Bänder). `primaryTruthSource` nur als Label; `lvPublicationCustomerVisible` spiegelt das bestehende Gate `isLvPublishedSohCustomerVisible` wider — **ohne** numerische LV-Werte in Core v1. HV-Livetelemetrie (`socPercent`, `rangeKm`, `chargingState`, `chargingPowerKw`) nur bei decision-fresh `currentTelemetry.observationFreshness` (`telemetryDecisionFresh` / `telemetryObservedAt`). HV-Traction-SOH und `healthStatus` weiter an HV-SOH-Freshness gekoppelt. Keine Rental-Readiness-/Block-Felder.
 
-**DI (F2):** `CanonicalBatteryHealthConsumerModule` → `VehicleIntelligenceModule` (nur Export-Konsum von `CanonicalBatteryHealthService`; kein Rental-Import im Core-Modul).
+**`batteryAvailability`:** `AVAILABLE` wenn `getSummary` ein Ergebnis liefert; `NOT_AVAILABLE` wenn `null` (`resolvedAt` dann `null`, kein 1970-Sentinel).
+
+**DI (F2):** `CanonicalBatteryHealthConsumerModule` exportiert `CANONICAL_BATTERY_HEALTH_CONSUMER_EXPORT` (`useExisting` → `CanonicalBatteryHealthService`; kein Rental-Import im Core-Modul).
 
 **Auth:** User JWT, `fleet.read`, Lizenz-`productSlug`, Fahrzeug-`organizationId`. **M2M unverändert.**
 

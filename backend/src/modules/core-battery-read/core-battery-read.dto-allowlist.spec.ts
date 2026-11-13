@@ -1,5 +1,7 @@
 import { FuelType, ProductSlug } from '@prisma/client';
+import type { LegacyPublicationSafetyResult } from '@modules/vehicle-intelligence/battery-health/battery-legacy-publication-safety';
 import { toCoreBatteryReadV1 } from './core-battery-read.v1.mapper';
+import type { CanonicalBatterySummaryForCoreRead } from './core-battery-read.v1.mapper';
 
 const TOP_LEVEL_KEYS = [
   'version',
@@ -19,7 +21,6 @@ const LV_KEYS = [
   'profile',
   'driveProfile',
   'liveStatus',
-  'aggregateHealthStatus',
   'primaryTruthSource',
   'restingVoltageV',
   'restingVoltageStatus',
@@ -27,7 +28,6 @@ const LV_KEYS = [
   'voltageSource',
   'voltageObservedAt',
   'lvPublicationCustomerVisible',
-  'lvPublishedHealthPercent',
   'dataQualityStatus',
   'observationDecisionFresh',
   'observationObservedAt',
@@ -45,6 +45,8 @@ const HV_KEYS = [
   'dataQualityStatus',
   'observationDecisionFresh',
   'observationObservedAt',
+  'telemetryDecisionFresh',
+  'telemetryObservedAt',
 ] as const;
 
 const FORBIDDEN_TOP_LEVEL = [
@@ -59,10 +61,86 @@ const FORBIDDEN_TOP_LEVEL = [
   'condition',
   'trend7',
   'trend30',
+  'lvPublishedHealthPercent',
+  'aggregateHealthStatus',
 ];
 
+const FORBIDDEN_LV_KEYS = ['lvPublishedHealthPercent', 'aggregateHealthStatus', 'estimatedHealthScore'];
+
+function populatedSummary(): CanonicalBatterySummaryForCoreRead {
+  return {
+    generatedAt: '2026-06-01T12:00:00.000Z',
+    lv: {
+      status: 'ready',
+      healthStatus: 'GOOD',
+      healthPercent: 88,
+      legacyPublicationSafety: {
+        decisionCapable: true,
+        diagnosticLabelDe: 'ok',
+        displayMode: 'DECISION_CAPABLE',
+        reasons: [],
+      } as unknown as LegacyPublicationSafetyResult,
+      restingVoltage: { valueV: 12.4, status: 'GOOD' },
+      telemetry: {
+        voltageV: 12.5,
+        voltageSource: 'live_telemetry',
+        voltageObservedAt: '2026-06-01T11:00:00.000Z',
+      },
+      freshness: { isFresh: true, observedAt: '2026-06-01T11:00:00.000Z', ageMs: 0, isStale: false },
+    },
+    hv: {
+      healthStatus: 'GOOD',
+      sohPct: 91,
+      sohSource: 'PROVIDER',
+      freshness: { isFresh: true, observedAt: '2026-06-01T10:00:00.000Z', ageMs: 0, isStale: false },
+      telemetry: { socPercent: 80, rangeKm: 220, chargingPowerKw: null },
+      dataQualityStatus: 'ESTIMATED',
+    },
+    canonical: {
+      isEv: true,
+      lv: {
+        profile: { profile: 'ICE_LEAD_ACID', driveProfile: 'UNKNOWN', lvAssessmentAllowed: true, supported: true },
+        canonical: {
+          primaryTruth: {
+            source: 'V2_PUBLICATION_STABLE',
+            estimatedHealthScore: 88,
+            decisionCapable: true,
+          },
+        },
+      },
+      hv: { supported: true },
+      dataQuality: { aggregate: { status: 'ESTIMATED' } },
+    },
+    currentTelemetry: {
+      chargingState: 'not_charging',
+      socPercent: 80,
+      rangeKm: 220,
+      chargingPowerKw: null,
+      observedAt: '2026-06-01T11:00:00.000Z',
+      observationFreshness: {
+        observedAt: '2026-06-01T11:00:00.000Z',
+        observationAgeMs: 0,
+        observationState: 'FRESH',
+      },
+    },
+  } as unknown as CanonicalBatterySummaryForCoreRead;
+}
+
+function assertAllowlist(dto: ReturnType<typeof toCoreBatteryReadV1>): void {
+  expect(Object.keys(dto).sort()).toEqual([...TOP_LEVEL_KEYS].sort());
+  expect(Object.keys(dto.lv).sort()).toEqual([...LV_KEYS].sort());
+  expect(Object.keys(dto.hv).sort()).toEqual([...HV_KEYS].sort());
+
+  for (const key of FORBIDDEN_TOP_LEVEL) {
+    expect(dto).not.toHaveProperty(key);
+  }
+  for (const key of FORBIDDEN_LV_KEYS) {
+    expect(dto.lv).not.toHaveProperty(key);
+  }
+}
+
 describe('Core battery read — DTO allowlist', () => {
-  it('top-level, lv, and hv keys match explicit allowlists', () => {
+  it('NOT_AVAILABLE path keys match explicit allowlists', () => {
     const dto = toCoreBatteryReadV1({
       organizationId: 'org',
       vehicleId: 'veh',
@@ -71,12 +149,21 @@ describe('Core battery read — DTO allowlist', () => {
       summary: null,
     });
 
-    expect(Object.keys(dto).sort()).toEqual([...TOP_LEVEL_KEYS].sort());
-    expect(Object.keys(dto.lv).sort()).toEqual([...LV_KEYS].sort());
-    expect(Object.keys(dto.hv).sort()).toEqual([...HV_KEYS].sort());
+    assertAllowlist(dto);
+    expect(dto.resolvedAt).toBeNull();
+  });
 
-    for (const key of FORBIDDEN_TOP_LEVEL) {
-      expect(dto).not.toHaveProperty(key);
-    }
+  it('AVAILABLE path keys match explicit allowlists on populated summary', () => {
+    const dto = toCoreBatteryReadV1({
+      organizationId: 'org',
+      vehicleId: 'veh',
+      productSlug: ProductSlug.RENTAL,
+      fuelType: FuelType.ELECTRIC,
+      summary: populatedSummary(),
+    });
+
+    assertAllowlist(dto);
+    expect(dto.batteryAvailability).toBe('AVAILABLE');
+    expect(dto.resolvedAt).toBe('2026-06-01T12:00:00.000Z');
   });
 });
