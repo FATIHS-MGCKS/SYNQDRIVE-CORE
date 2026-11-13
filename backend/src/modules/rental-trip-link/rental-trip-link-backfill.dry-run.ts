@@ -18,10 +18,27 @@ export type BackfillDryRunOptions = {
   tripIds?: string[];
   cursor?: BackfillDryRunCursor | null;
   pageSize?: number;
+  /** Caller-maintained count from earlier pages in the same scan chain. */
+  priorPagesProcessed?: number;
 };
 
 const DEFAULT_PAGE_SIZE = 500;
+const MIN_PAGE_SIZE = 1;
 const MAX_PAGE_SIZE = 500;
+
+const VALID_LINK_SOURCES = new Set<TripBookingLinkSource>([
+  TripBookingLinkSource.EXPLICIT,
+  TripBookingLinkSource.TIME_WINDOW,
+]);
+
+function clampPageSize(raw: number | undefined): number {
+  const size = raw ?? DEFAULT_PAGE_SIZE;
+  return Math.max(MIN_PAGE_SIZE, Math.min(MAX_PAGE_SIZE, size));
+}
+
+function isValidLinkSource(linkSource: TripBookingLinkSource | null): boolean {
+  return linkSource != null && VALID_LINK_SOURCES.has(linkSource);
+}
 
 type TripRow = {
   id: string;
@@ -67,6 +84,13 @@ export function classifyBackfillDryRunTrip(input: {
       return { classification: 'SKIP_EXISTING_OVERLAY', issues };
     }
     if (overlay.status === RentalTripLinkStatus.ACTIVE) {
+      if (
+        overlay.bookingId &&
+        trip.assignedBookingId &&
+        overlay.bookingId !== trip.assignedBookingId
+      ) {
+        issues.push('OVERLAY_BOOKING_MISMATCH');
+      }
       if (overlay.legacyFingerprint && fingerprint && overlay.legacyFingerprint !== fingerprint) {
         issues.push('OVERLAY_NEWER_THAN_LEGACY');
       }
@@ -101,6 +125,11 @@ export function classifyBackfillDryRunTrip(input: {
   if (trip.bookingCustomerId != null && trip.bookingCustomerId !== booking.customerId) {
     issues.push('BOOKING_CUSTOMER_MISMATCH');
     return { classification: 'BLOCK_CUSTOMER_MISMATCH', issues };
+  }
+
+  if (!isValidLinkSource(trip.bookingLinkSource)) {
+    issues.push('LEGACY_INVALID_LINK_SOURCE');
+    return { classification: 'BLOCK_INCOMPLETE_OR_INVALID_LEGACY', issues };
   }
 
   return { classification: 'SAFE_ACTIVE', issues };
@@ -141,6 +170,10 @@ function toDryRunRow(
     proposedLinkSource: importable ? trip.bookingLinkSource : null,
     issues,
     fingerprintConflict: issues.includes('OVERLAY_NEWER_THAN_LEGACY'),
+    overlayReconciliationRequired:
+      issues.includes('OVERLAY_BOOKING_MISMATCH') ||
+      issues.includes('OVERLAY_NEWER_THAN_LEGACY') ||
+      issues.includes('OVERLAY_EXPLICIT_LEGACY_TIME_WINDOW'),
     proposedStatus: importable ? 'ACTIVE' : classification.startsWith('SKIP_') ? 'SKIP' : 'SKIP',
   };
 }
@@ -157,22 +190,23 @@ export class RentalTripLinkBackfillDryRunService {
 
   async analyzePage(options: BackfillDryRunOptions): Promise<BackfillDryRunPageReport> {
     const organizationId = options.organizationId;
-    const pageSize = Math.min(options.pageSize ?? options.limit ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    const pageSize = clampPageSize(options.pageSize ?? options.limit);
     const cursor = options.cursor ?? null;
+    const priorPagesProcessed = options.priorPagesProcessed ?? 0;
+    const tripIdsFilterActive = Boolean(options.tripIds?.length);
 
-    const tripWhere = options.tripIds?.length
-      ? { vehicle: { organizationId }, id: { in: options.tripIds } }
-      : {
-          vehicle: { organizationId },
-          ...(cursor
-            ? {
-                OR: [
-                  { startTime: { lt: cursor.startTime } },
-                  { AND: [{ startTime: cursor.startTime }, { id: { lt: cursor.id } }] },
-                ],
-              }
-            : {}),
-        };
+    const tripWhere = {
+      vehicle: { organizationId },
+      ...(options.tripIds?.length ? { id: { in: options.tripIds } } : {}),
+      ...(cursor
+        ? {
+            OR: [
+              { startTime: { lt: cursor.startTime } },
+              { AND: [{ startTime: cursor.startTime }, { id: { lt: cursor.id } }] },
+            ],
+          }
+        : {}),
+    };
 
     const [totalTripsInOrg, trips] = await Promise.all([
       options.tripIds?.length
@@ -191,14 +225,17 @@ export class RentalTripLinkBackfillDryRunService {
           bookingCustomerId: true,
         },
         orderBy: [{ startTime: 'desc' }, { id: 'desc' }],
-        take: pageSize,
+        take: pageSize + 1,
       }),
     ]);
 
+    const hasNextPage = trips.length > pageSize;
+    const pageTrips = hasNextPage ? trips.slice(0, pageSize) : trips;
+
     const bookingIds = [
-      ...new Set(trips.map((t) => t.assignedBookingId).filter((id): id is string => !!id)),
+      ...new Set(pageTrips.map((t) => t.assignedBookingId).filter((id): id is string => !!id)),
     ];
-    const tripIds = trips.map((t) => t.id);
+    const tripIds = pageTrips.map((t) => t.id);
 
     const [bookings, overlays] = await Promise.all([
       bookingIds.length
@@ -232,7 +269,7 @@ export class RentalTripLinkBackfillDryRunService {
       issueCounts[code] = (issueCounts[code] ?? 0) + 1;
     };
 
-    for (const trip of trips) {
+    for (const trip of pageTrips) {
       const fingerprint = buildLegacyTripLinkFingerprint({
         assignedBookingId: trip.assignedBookingId,
         bookingLinkSource: trip.bookingLinkSource,
@@ -255,27 +292,35 @@ export class RentalTripLinkBackfillDryRunService {
       rows.push(toDryRunRow(organizationId, trip, classification, fingerprint, booking, issues));
     }
 
-    const last = trips[trips.length - 1];
-    const hasNextPage = !options.tripIds?.length && trips.length === pageSize;
+    const last = pageTrips[pageTrips.length - 1];
     const nextCursor: BackfillDryRunCursor | null =
       hasNextPage && last ? { startTime: last.startTime, id: last.id } : null;
 
-    const processedTripsThisPage = trips.length;
+    const processedTripsThisPage = pageTrips.length;
+    const cumulativeProcessedThisScan = priorPagesProcessed + processedTripsThisPage;
+    const startedFromBeginning = cursor == null && priorPagesProcessed === 0;
+    const singlePageOrg = totalTripsInOrg <= pageSize;
     const coverageCompleteThisScan =
-      !options.tripIds?.length && !hasNextPage && processedTripsThisPage <= totalTripsInOrg;
+      !hasNextPage &&
+      cumulativeProcessedThisScan === totalTripsInOrg &&
+      (singlePageOrg && startedFromBeginning
+        ? true
+        : priorPagesProcessed > 0 && cumulativeProcessedThisScan === totalTripsInOrg);
 
     return {
       organizationId,
       pageSize,
       totalTripsInOrg,
       processedTripsThisPage,
+      cumulativeProcessedThisScan,
       cursorUsed: cursor,
       nextCursor,
       hasNextPage,
+      tripIdsFilterActive,
       coverageCompleteThisScan,
       snapshotRequiredForGuaranteedCompleteness: true,
       completenessNote:
-        'Paging is deterministic on (startTime desc, id desc) for a fixed DB snapshot; concurrent legacy/overlay writes can shift totals between pages.',
+        'Paging uses pageSize+1 probe and (startTime desc, id desc). coverageCompleteThisScan is true only for a proven scan chain (full single page from start, or final page with priorPagesProcessed). tripIds filter participates in paging — pass cursor until hasNextPage is false. Concurrent writes can shift totals between pages.',
       classificationCounts,
       issueCounts,
       rows,

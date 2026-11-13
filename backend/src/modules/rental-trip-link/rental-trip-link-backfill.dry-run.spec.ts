@@ -20,6 +20,18 @@ function trip(id: string, overrides: Partial<typeof baseTrip> & { startTime?: Da
 describe('classifyBackfillDryRunTrip', () => {
   const orgId = 'org-1';
 
+  it('BLOCK_INCOMPLETE_OR_INVALID_LEGACY when booking assigned but linkSource null', () => {
+    const result = classifyBackfillDryRunTrip({
+      organizationId: orgId,
+      trip: trip('t1', { assignedBookingId: 'b1', bookingLinkSource: null }),
+      booking: { id: 'b1', organizationId: orgId, vehicleId: 'v-1', customerId: 'c1' },
+      overlay: null,
+      fingerprint: 'fp',
+    });
+    expect(result.classification).toBe('BLOCK_INCOMPLETE_OR_INVALID_LEGACY');
+    expect(result.issues).toContain('LEGACY_INVALID_LINK_SOURCE');
+  });
+
   it('SAFE_ACTIVE for valid legacy assignment', () => {
     const result = classifyBackfillDryRunTrip({
       organizationId: orgId,
@@ -93,6 +105,27 @@ describe('classifyBackfillDryRunTrip', () => {
       fingerprint: 'fp',
     });
     expect(result.classification).toBe('BLOCK_TENANT_MISMATCH');
+  });
+
+  it('OVERLAY_BOOKING_MISMATCH without fingerprint', () => {
+    const result = classifyBackfillDryRunTrip({
+      organizationId: orgId,
+      trip: trip('t1', {
+        assignedBookingId: 'b-legacy',
+        bookingLinkSource: TripBookingLinkSource.EXPLICIT,
+      }),
+      booking: { id: 'b-legacy', organizationId: orgId, vehicleId: 'v-1', customerId: 'c1' },
+      overlay: {
+        tripId: 't1',
+        status: RentalTripLinkStatus.ACTIVE,
+        bookingId: 'b-overlay',
+        linkSource: TripBookingLinkSource.EXPLICIT,
+        legacyFingerprint: null,
+      },
+      fingerprint: null,
+    });
+    expect(result.issues).toContain('OVERLAY_BOOKING_MISMATCH');
+    expect(result.classification).toBe('SKIP_EXISTING_OVERLAY');
   });
 
   it('flags EXPLICIT overlay vs TIME_WINDOW legacy in issues', () => {
@@ -211,11 +244,18 @@ describe('RentalTripLinkBackfillDryRunService', () => {
     let cursor: { startTime: Date; id: string } | null = null;
     let pages = 0;
     let processed = 0;
+    let prior = 0;
 
     for (;;) {
-      const page = await svc.analyzePage({ organizationId: 'org-1', pageSize, cursor });
+      const page = await svc.analyzePage({
+        organizationId: 'org-1',
+        pageSize,
+        cursor,
+        priorPagesProcessed: prior,
+      });
       pages += 1;
       processed += page.processedTripsThisPage;
+      prior = page.cumulativeProcessedThisScan;
       for (const row of page.rows) {
         expect(seen.has(row.tripId)).toBe(false);
         seen.add(row.tripId);
@@ -305,5 +345,121 @@ describe('RentalTripLinkBackfillDryRunService', () => {
     expect(page.classificationCounts.SAFE_ACTIVE).toBe(1);
     expect(page.classificationCounts.BLOCK_MISSING_BOOKING).toBe(1);
     expect(page.totalTripsInOrg).toBe(2);
+  });
+
+  function orderedTrips(count: number) {
+    return Array.from({ length: count }, (_, i) => ({
+      id: `trip-${String(i).padStart(5, '0')}`,
+      vehicleId: 'v-1',
+      startTime: new Date(`2026-06-${String((i % 28) + 1).padStart(2, '0')}T08:00:00.000Z`),
+      assignedBookingId: null,
+      bookingLinkSource: null,
+      bookingCustomerId: null,
+    })).sort((a, b) => {
+      const dt = b.startTime.getTime() - a.startTime.getTime();
+      if (dt !== 0) return dt;
+      return b.id.localeCompare(a.id);
+    });
+  }
+
+  function pagingPrisma(allTrips: ReturnType<typeof orderedTrips>, total: number) {
+    const findMany = jest.fn(async (args: { take: number; where?: { OR?: unknown[] } }) => {
+      let slice = allTrips;
+      const or = args.where?.OR as
+        | Array<
+            | { startTime: { lt: Date } }
+            | { AND: [{ startTime: Date }, { id: { lt: string } }] }
+          >
+        | undefined;
+      if (or?.length === 2) {
+        const branch = or[1] as { AND: [{ startTime: Date }, { id: { lt: string } }] };
+        const cursorTime = branch.AND[0].startTime;
+        const cursorId = branch.AND[1].id.lt;
+        slice = slice.filter(
+          (t) =>
+            t.startTime.getTime() < cursorTime.getTime() ||
+            (t.startTime.getTime() === cursorTime.getTime() && t.id < cursorId),
+        );
+      }
+      return slice.slice(0, args.take);
+    });
+    return {
+      vehicleTrip: { findMany, count: jest.fn().mockResolvedValue(total) },
+      booking: { findMany: jest.fn().mockResolvedValue([]) },
+      rentalTripLink: { findMany: jest.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+  }
+
+  it('hasNextPage false for exactly pageSize trips', async () => {
+    const pageSize = 500;
+    const total = 500;
+    const prisma = pagingPrisma(orderedTrips(total), total);
+    const svc = new RentalTripLinkBackfillDryRunService(prisma);
+    const page = await svc.analyzePage({ organizationId: 'org-1', pageSize });
+    expect(page.processedTripsThisPage).toBe(500);
+    expect(page.hasNextPage).toBe(false);
+    expect(page.coverageCompleteThisScan).toBe(true);
+  });
+
+  it('hasNextPage true for pageSize+1 trips', async () => {
+    const pageSize = 500;
+    const total = 501;
+    const prisma = pagingPrisma(orderedTrips(total), total);
+    const svc = new RentalTripLinkBackfillDryRunService(prisma);
+    const page = await svc.analyzePage({ organizationId: 'org-1', pageSize });
+    expect(page.processedTripsThisPage).toBe(500);
+    expect(page.hasNextPage).toBe(true);
+    expect(page.coverageCompleteThisScan).toBe(false);
+  });
+
+  it('last page alone does not mark coverage complete without priorPagesProcessed', async () => {
+    const pageSize = 500;
+    const all = orderedTrips(501);
+    const prisma = pagingPrisma(all, 501);
+    const svc = new RentalTripLinkBackfillDryRunService(prisma);
+    const page1 = await svc.analyzePage({ organizationId: 'org-1', pageSize });
+    expect(page1.nextCursor).not.toBeNull();
+    const page2 = await svc.analyzePage({
+      organizationId: 'org-1',
+      pageSize,
+      cursor: page1.nextCursor,
+      priorPagesProcessed: 0,
+    });
+    expect(page2.processedTripsThisPage).toBe(1);
+    expect(page2.hasNextPage).toBe(false);
+    expect(page2.coverageCompleteThisScan).toBe(false);
+    const page2Complete = await svc.analyzePage({
+      organizationId: 'org-1',
+      pageSize,
+      cursor: page1.nextCursor,
+      priorPagesProcessed: page1.processedTripsThisPage,
+    });
+    expect(page2Complete.coverageCompleteThisScan).toBe(true);
+  });
+
+  it('tripIds filter pages when more ids than pageSize', async () => {
+    const pageSize = 10;
+    const ids = Array.from({ length: 25 }, (_, i) => `trip-${String(i).padStart(5, '0')}`);
+    const all = orderedTrips(25);
+    const prisma = pagingPrisma(all, 25);
+    const svc = new RentalTripLinkBackfillDryRunService(prisma);
+    let prior = 0;
+    let cursor: { startTime: Date; id: string } | null = null;
+    let totalProcessed = 0;
+    for (let i = 0; i < 10; i++) {
+      const page = await svc.analyzePage({
+        organizationId: 'org-1',
+        pageSize,
+        tripIds: ids,
+        cursor,
+        priorPagesProcessed: prior,
+      });
+      expect(page.tripIdsFilterActive).toBe(true);
+      totalProcessed += page.processedTripsThisPage;
+      prior = page.cumulativeProcessedThisScan;
+      if (!page.hasNextPage) break;
+      cursor = page.nextCursor;
+    }
+    expect(totalProcessed).toBe(25);
   });
 });

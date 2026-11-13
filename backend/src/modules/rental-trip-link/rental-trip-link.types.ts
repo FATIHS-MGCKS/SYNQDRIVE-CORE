@@ -53,7 +53,9 @@ export type BackfillDryRunIssueCode =
   | 'OVERLAY_NEWER_THAN_LEGACY'
   | 'OVERLAY_AUTHORIZED_UNLINK'
   | 'OVERLAY_ACTIVE_PRESENT'
-  | 'OVERLAY_EXPLICIT_LEGACY_TIME_WINDOW';
+  | 'OVERLAY_EXPLICIT_LEGACY_TIME_WINDOW'
+  | 'OVERLAY_BOOKING_MISMATCH'
+  | 'LEGACY_INVALID_LINK_SOURCE';
 
 export type BackfillDryRunProposedStatus = 'ACTIVE' | 'UNLINKED' | 'SKIP';
 
@@ -74,6 +76,7 @@ export type BackfillDryRunRow = {
   proposedLinkSource: TripBookingLinkSource | null;
   issues: BackfillDryRunIssueCode[];
   fingerprintConflict: boolean;
+  overlayReconciliationRequired: boolean;
 };
 
 export type BackfillDryRunPageReport = {
@@ -81,10 +84,12 @@ export type BackfillDryRunPageReport = {
   pageSize: number;
   totalTripsInOrg: number;
   processedTripsThisPage: number;
+  cumulativeProcessedThisScan: number;
   cursorUsed: BackfillDryRunCursor | null;
   nextCursor: BackfillDryRunCursor | null;
   hasNextPage: boolean;
   coverageCompleteThisScan: boolean;
+  tripIdsFilterActive: boolean;
   snapshotRequiredForGuaranteedCompleteness: boolean;
   completenessNote: string;
   classificationCounts: Record<BackfillDryRunClassification, number>;
