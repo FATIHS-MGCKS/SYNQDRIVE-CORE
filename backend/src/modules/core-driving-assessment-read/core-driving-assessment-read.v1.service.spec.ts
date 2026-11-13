@@ -2,11 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { ProductSlug } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
 import { Test } from '@nestjs/testing';
-import {
-  CORE_DS4_ASSESSMENT_READ_V1_SELECT,
-  CORE_DS4_IMPACT_PUBLICATION_READ_V1_SELECT,
-  CoreDrivingAssessmentReadV1Service,
-} from './core-driving-assessment-read.v1.service';
+import { CoreDrivingAssessmentReadV1Service } from './core-driving-assessment-read.v1.service';
 
 const ORG = 'org-a';
 const VEH = 'veh-a';
@@ -69,7 +65,7 @@ describe('CoreDrivingAssessmentReadV1Service', () => {
     expect(result.scorePublicationStatus).toBe('DISABLED_MODEL_NOT_CALIBRATED');
     expect(prisma.diV0Ds4TripDrivingImpactV2.findUnique).toHaveBeenCalledWith({
       where: { assessmentId: 'asm-1' },
-      select: CORE_DS4_IMPACT_PUBLICATION_READ_V1_SELECT,
+      select: { scorePublicationStatus: true },
     });
   });
 
