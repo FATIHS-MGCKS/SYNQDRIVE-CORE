@@ -2,6 +2,19 @@ import { ProductSlug } from '@prisma/client';
 import { toCoreDrivingAssessmentReadV1 } from './core-driving-assessment-read.v1.mapper';
 import { CORE_DRIVING_ASSESSMENT_READ_CONTRACT_VERSION } from './core-driving-assessment-read.v1.types';
 
+const CORE_DRIVING_ASSESSMENT_DTO_KEYS = [
+  'version',
+  'organizationId',
+  'vehicleId',
+  'tripId',
+  'productSlug',
+  'assessmentAvailability',
+  'assessmentVersion',
+  'assessmentStatus',
+  'assessmentComputedAt',
+  'scorePublicationStatus',
+] as const;
+
 describe('toCoreDrivingAssessmentReadV1', () => {
   const scope = {
     organizationId: 'org-a',
@@ -18,10 +31,11 @@ describe('toCoreDrivingAssessmentReadV1', () => {
       assessmentAvailability: 'NOT_AVAILABLE',
       assessmentVersion: null,
       assessmentStatus: null,
-      evidenceQuality: null,
       assessmentComputedAt: null,
       scorePublicationStatus: null,
     });
+    expect(Object.keys(dto).sort()).toEqual([...CORE_DRIVING_ASSESSMENT_DTO_KEYS].sort());
+    expect(dto).not.toHaveProperty('evidenceQuality');
   });
 
   it('maps AVAILABLE without numeric score fields', () => {
@@ -30,7 +44,6 @@ describe('toCoreDrivingAssessmentReadV1', () => {
       assessment: {
         assessmentVersion: 'DS4_TRIP_ASSESSMENT_V1',
         assessmentStatus: 'UNRATED_COUNTS_ONLY',
-        evidenceQuality: 'PRESENT',
         computedAt: new Date('2026-06-01T12:00:00.000Z'),
       },
       impact: {
@@ -41,21 +54,8 @@ describe('toCoreDrivingAssessmentReadV1', () => {
     expect(dto.assessmentStatus).toBe('UNRATED_COUNTS_ONLY');
     expect(dto.scorePublicationStatus).toBe('DISABLED_MODEL_NOT_CALIBRATED');
     expect(dto).not.toHaveProperty('operationalLoadIndex');
-    expect(Object.keys(dto).sort()).toEqual(
-      [
-        'version',
-        'organizationId',
-        'vehicleId',
-        'tripId',
-        'productSlug',
-        'assessmentAvailability',
-        'assessmentVersion',
-        'assessmentStatus',
-        'evidenceQuality',
-        'assessmentComputedAt',
-        'scorePublicationStatus',
-      ].sort(),
-    );
+    expect(dto).not.toHaveProperty('evidenceQuality');
+    expect(Object.keys(dto).sort()).toEqual([...CORE_DRIVING_ASSESSMENT_DTO_KEYS].sort());
   });
 
   it('nulls unknown assessmentStatus and publication status', () => {
@@ -64,7 +64,6 @@ describe('toCoreDrivingAssessmentReadV1', () => {
       assessment: {
         assessmentVersion: 'DS4_TRIP_ASSESSMENT_V1',
         assessmentStatus: 'UNKNOWN_FUTURE',
-        evidenceQuality: null,
         computedAt: new Date('2026-06-01T12:00:00.000Z'),
       },
       impact: { scorePublicationStatus: 'SHADOW_PRODUCTION' },

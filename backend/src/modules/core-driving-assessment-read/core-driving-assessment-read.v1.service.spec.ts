@@ -45,7 +45,12 @@ describe('CoreDrivingAssessmentReadV1Service', () => {
         { computedAt: 'desc' },
         { id: 'desc' },
       ],
-      select: CORE_DS4_ASSESSMENT_READ_V1_SELECT,
+      select: {
+        id: true,
+        assessmentVersion: true,
+        assessmentStatus: true,
+        computedAt: true,
+      },
     });
   });
 
@@ -54,7 +59,6 @@ describe('CoreDrivingAssessmentReadV1Service', () => {
       id: 'asm-1',
       assessmentVersion: 'DS4_TRIP_ASSESSMENT_V1',
       assessmentStatus: 'RATED',
-      evidenceQuality: 'PRESENT',
       computedAt: new Date('2026-06-01T12:00:00.000Z'),
     });
     prisma.diV0Ds4TripDrivingImpactV2.findUnique.mockResolvedValue({

@@ -15,10 +15,6 @@ import { OrgScopingGuard } from '@shared/auth/org-scoping.guard';
 import { PermissionsGuard } from '@shared/auth/permissions.guard';
 import { PrismaService } from '@shared/database/prisma.service';
 import { CoreVehicleReadProductGuard } from '@modules/core-vehicle-read/core-vehicle-read.product.guard';
-import {
-  CORE_DS4_ASSESSMENT_READ_V1_SELECT,
-  CORE_DS4_IMPACT_PUBLICATION_READ_V1_SELECT,
-} from './core-driving-assessment-read.v1.service';
 import { CoreDrivingAssessmentReadV1Controller } from './core-driving-assessment-read.v1.controller';
 import { CoreDrivingAssessmentReadV1Service } from './core-driving-assessment-read.v1.service';
 import { CORE_DRIVING_ASSESSMENT_READ_CONTRACT_VERSION } from './core-driving-assessment-read.v1.types';
@@ -80,7 +76,6 @@ const ALLOWED_RESPONSE_KEYS = [
   'assessmentAvailability',
   'assessmentVersion',
   'assessmentStatus',
-  'evidenceQuality',
   'assessmentComputedAt',
   'scorePublicationStatus',
 ];
@@ -194,7 +189,6 @@ describe('CoreDrivingAssessmentReadV1Controller — HTTP security integration', 
             id: 'asm-1',
             assessmentVersion: 'DS4_TRIP_ASSESSMENT_V1',
             assessmentStatus: 'UNRATED_COUNTS_ONLY',
-            evidenceQuality: 'PRESENT',
             computedAt: new Date('2026-06-01T12:00:00.000Z'),
           };
         },
@@ -268,10 +262,17 @@ describe('CoreDrivingAssessmentReadV1Controller — HTTP security integration', 
     expect(res.body.scorePublicationStatus).toBe('DISABLED_MODEL_NOT_CALIBRATED');
     expect(Object.keys(res.body).sort()).toEqual(ALLOWED_RESPONSE_KEYS.sort());
     expect(prisma.diV0Ds4TripAssessmentV1.findFirst).toHaveBeenLastCalledWith(
-      expect.objectContaining({ select: CORE_DS4_ASSESSMENT_READ_V1_SELECT }),
+      expect.objectContaining({
+        select: {
+          id: true,
+          assessmentVersion: true,
+          assessmentStatus: true,
+          computedAt: true,
+        },
+      }),
     );
     expect(prisma.diV0Ds4TripDrivingImpactV2.findUnique).toHaveBeenLastCalledWith(
-      expect.objectContaining({ select: CORE_DS4_IMPACT_PUBLICATION_READ_V1_SELECT }),
+      expect.objectContaining({ select: { scorePublicationStatus: true } }),
     );
   });
 

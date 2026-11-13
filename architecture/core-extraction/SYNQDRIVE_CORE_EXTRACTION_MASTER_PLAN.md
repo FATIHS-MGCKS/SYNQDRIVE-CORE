@@ -450,7 +450,7 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Unverändert:** Trip FSM, DS4, DBI, Health, Rental-Ports, Schema, bestehende `vehicles.controller` Verträge, Production-Deploy.
 
-### 6.14 P3-PR2 — Versioned Trip Read API (Draft-PR)
+### 6.14 P3-PR2 — Versioned Trip Read API (MERGED → `main`, PR #15)
 
 **Scope:** `GET .../vehicles/:vehicleId/trips` und `.../trips/:tripId`; DTO `core.trip.read.v1` (`tripId`, `vehicleId`, `tripStatus`, `startTime`, `endTime`, `distanceKm`); Modul `core-trip-read/*`; **READ_ONLY** auf `VehicleTrip`.
 
@@ -470,7 +470,7 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Sichtbarkeit:** Identisch `core.trip.read.v1` (kein `isPrivateTrip`-Filter; Gap-Split-Suffix-Ausblendung; Trip 404).
 
-**Publication safety:** Kein numerischer Impact-V2-Score; nur `assessmentStatus` (L2 berechnet/bewertet) und `scorePublicationStatus` (Publikationsgate, z. B. `DISABLED_MODEL_NOT_CALIBRATED`). `assessmentAvailability=NOT_AVAILABLE` wenn keine Assessment-Zeile. Keine Fingerprints, `eventSummaries`, `processingError`, DBI-Outputs. **Kein** M2M; **keine** Produktiv-Score-Freigabe.
+**Publication safety:** Kein numerischer Impact-V2-Score; nur `assessmentStatus` (L2 berechnet/bewertet) und `scorePublicationStatus` (Publikationsgate, z. B. `DISABLED_MODEL_NOT_CALIBRATED`). `assessmentAvailability=NOT_AVAILABLE` wenn keine Assessment-Zeile. Kein `evidenceQuality` / sparse-channelOutcome im Core-Vertrag (Opus-F1-Closeout). Keine Fingerprints, `eventSummaries`, `processingError`, DBI-Outputs. **Kein** M2M; **keine** Produktiv-Score-Freigabe.
 
 **Auth:** Wie P3-PR1/P3-PR2 (User JWT, `fleet.read`, Lizenz-`productSlug`). M2M-Allowlist unverändert.
 

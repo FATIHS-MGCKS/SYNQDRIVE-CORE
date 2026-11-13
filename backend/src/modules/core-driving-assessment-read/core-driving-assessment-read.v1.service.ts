@@ -13,7 +13,6 @@ export const CORE_DS4_ASSESSMENT_READ_V1_SELECT = {
   id: true,
   assessmentVersion: true,
   assessmentStatus: true,
-  evidenceQuality: true,
   computedAt: true,
 } as const;
 

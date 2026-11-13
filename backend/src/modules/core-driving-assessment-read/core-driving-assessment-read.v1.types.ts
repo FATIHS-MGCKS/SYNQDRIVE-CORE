@@ -9,8 +9,7 @@ import type {
  *
  * Does not classify private vs business journeys (same trip visibility as `core.trip.read.v1`).
  * Does not expose numeric Impact V2 scores, DBI outputs, fingerprints, event summaries,
- * processing errors, or rental fields. `evidenceQuality` is the persisted motion sparse
- * `channelOutcome` (assessment L2), not a customer-facing quality score.
+ * motion sparse channel outcomes, processing errors, or rental fields.
  * Authorization: user JWT + ACTIVE org membership + `fleet.read` + ACTIVE product license.
  * Not authorized for M2M or production customer scoring activation.
  */
@@ -29,8 +28,6 @@ export type CoreDrivingAssessmentReadV1 = {
   assessmentVersion: string | null;
   /** DS4 L2 assessment status (computed/evaluated), not Impact V2 publication. */
   assessmentStatus: Ds4TripAssessmentStatusV1 | null;
-  /** Motion sparse channel outcome persisted on assessment L2; null when unavailable or unset. */
-  evidenceQuality: string | null;
   assessmentComputedAt: string | null;
   /** Impact V2 publication gate only — never a numeric score in this contract. */
   scorePublicationStatus: Ds4ImpactV2ScorePublicationStatusV1 | null;

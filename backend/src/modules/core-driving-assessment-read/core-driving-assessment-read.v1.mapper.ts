@@ -23,7 +23,6 @@ const SCORE_PUBLICATION_STATUS_ALLOWLIST: ReadonlySet<string> = new Set([
 export type CoreDs4AssessmentReadRowV1 = {
   assessmentVersion: string;
   assessmentStatus: string;
-  evidenceQuality: string | null;
   computedAt: Date;
 };
 
@@ -49,7 +48,6 @@ export function toCoreDrivingAssessmentReadV1(input: {
       assessmentAvailability: 'NOT_AVAILABLE',
       assessmentVersion: null,
       assessmentStatus: null,
-      evidenceQuality: null,
       assessmentComputedAt: null,
       scorePublicationStatus: null,
     };
@@ -73,7 +71,6 @@ export function toCoreDrivingAssessmentReadV1(input: {
     assessmentAvailability: 'AVAILABLE',
     assessmentVersion: input.assessment.assessmentVersion,
     assessmentStatus,
-    evidenceQuality: input.assessment.evidenceQuality,
     assessmentComputedAt: input.assessment.computedAt.toISOString(),
     scorePublicationStatus,
   };
