@@ -3,6 +3,8 @@ import { BadRequestException } from '@nestjs/common';
 export const CORE_VEHICLE_READ_DEFAULT_PAGE = 1;
 export const CORE_VEHICLE_READ_DEFAULT_LIMIT = 20;
 export const CORE_VEHICLE_READ_MAX_LIMIT = 100;
+/** Prisma `skip` / `take` use signed 32-bit integers. */
+export const PRISMA_SKIP_TAKE_INT32_MAX = 2_147_483_647;
 
 export type CoreVehicleReadPagination = {
   page: number;
@@ -25,6 +27,18 @@ function parsePositiveIntQueryParam(name: string, raw: string | undefined, fallb
   return value;
 }
 
+function assertPrismaPaginationOffset(skip: number, take: number): void {
+  if (!Number.isSafeInteger(skip) || skip < 0) {
+    throw new BadRequestException('Invalid page: pagination offset is out of range');
+  }
+  if (!Number.isSafeInteger(take) || take < 1) {
+    throw new BadRequestException('Invalid limit: pagination take is out of range');
+  }
+  if (skip > PRISMA_SKIP_TAKE_INT32_MAX || take > PRISMA_SKIP_TAKE_INT32_MAX) {
+    throw new BadRequestException('Invalid pagination: offset exceeds supported range');
+  }
+}
+
 export function parseCoreVehicleReadPagination(
   pageRaw?: string,
   limitRaw?: string,
@@ -34,10 +48,12 @@ export function parseCoreVehicleReadPagination(
   if (limit > CORE_VEHICLE_READ_MAX_LIMIT) {
     throw new BadRequestException(`Invalid limit: must be at most ${CORE_VEHICLE_READ_MAX_LIMIT}`);
   }
+  const skip = (page - 1) * limit;
+  assertPrismaPaginationOffset(skip, limit);
   return {
     page,
     limit,
-    skip: (page - 1) * limit,
+    skip,
     take: limit,
   };
 }

@@ -3,7 +3,7 @@ import { FuelType, ProductSlug, VehicleRegistryLifecycle } from '@prisma/client'
 import { PrismaService } from '@shared/database/prisma.service';
 import { Test } from '@nestjs/testing';
 import { parseCoreVehicleReadPagination } from './core-vehicle-read.pagination';
-import { CoreVehicleReadV1Service } from './core-vehicle-read.v1.service';
+import { CORE_VEHICLE_IDENTITY_V1_SELECT, CoreVehicleReadV1Service } from './core-vehicle-read.v1.service';
 import { CORE_VEHICLE_READ_CONTRACT_VERSION } from './core-vehicle-read.v1.types';
 
 const ORG = 'org-a';
@@ -42,14 +42,13 @@ describe('CoreVehicleReadV1Service', () => {
       const pagination = parseCoreVehicleReadPagination('1', '1');
       const result = await service.listForOrganization(ORG, ProductSlug.RENTAL, pagination);
 
-      expect(prisma.vehicle.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { organizationId: ORG },
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          skip: 0,
-          take: 1,
-        }),
-      );
+      expect(prisma.vehicle.findMany).toHaveBeenCalledWith({
+        where: { organizationId: ORG },
+        select: CORE_VEHICLE_IDENTITY_V1_SELECT,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: 0,
+        take: 1,
+      });
       expect(prisma.vehicle.findMany.mock.calls[0][0].where).toEqual({ organizationId: ORG });
       expect(result.version).toBe(CORE_VEHICLE_READ_CONTRACT_VERSION);
       expect(result.organizationId).toBe(ORG);

@@ -20,7 +20,7 @@ import { PermissionsGuard } from '@shared/auth/permissions.guard';
 import { PrismaService } from '@shared/database/prisma.service';
 import { CoreVehicleReadProductGuard } from './core-vehicle-read.product.guard';
 import { CoreVehicleReadV1Controller } from './core-vehicle-read.v1.controller';
-import { CoreVehicleReadV1Service } from './core-vehicle-read.v1.service';
+import { CORE_VEHICLE_IDENTITY_V1_SELECT, CoreVehicleReadV1Service } from './core-vehicle-read.v1.service';
 import { CORE_VEHICLE_READ_CONTRACT_VERSION } from './core-vehicle-read.v1.types';
 
 const ORG_A = 'org-a';
@@ -28,6 +28,7 @@ const ORG_B = 'org-b';
 const USER_MEMBER = 'user-member';
 const USER_FOREIGN = 'user-foreign';
 const USER_NO_FLEET = 'user-no-fleet';
+const USER_REVOKED_MEMBERSHIP = 'user-revoked-membership';
 const VEHICLE_A = {
   id: 'veh-a',
   organizationId: ORG_A,
@@ -59,7 +60,22 @@ const MEMBERSHIPS: Record<string, MembershipRow | null> = {
     role: 'WORKER',
     permissions: { fleet: { read: false, write: false } },
   },
+  [`${USER_REVOKED_MEMBERSHIP}|${ORG_A}`]: null,
 };
+
+function projectPrismaSelect<T extends Record<string, unknown>>(
+  full: T,
+  select: Record<string, boolean> | undefined,
+): Record<string, unknown> {
+  if (!select) return { ...full };
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(select)) {
+    if (select[key] === true && key in full) {
+      out[key] = full[key];
+    }
+  }
+  return out;
+}
 
 const ALLOWED_VEHICLE_DTO_KEYS = [
   'version',
@@ -112,34 +128,32 @@ describe('CoreVehicleReadV1Controller — HTTP security integration', () => {
       count: jest.fn(async (args: { where: { organizationId: string } }) =>
         args.where.organizationId === ORG_A ? 2 : 0,
       ),
-      findMany: jest.fn(async (args: { where: { organizationId: string }; skip?: number; take?: number }) => {
-        if (args.where.organizationId !== ORG_A) return [];
-        const all = [VEHICLE_A];
-        const skip = args.skip ?? 0;
-        const take = args.take ?? 50;
-        return all.slice(skip, skip + take).map((v) => ({
-          id: v.id,
-          make: v.make,
-          model: v.model,
-          year: v.year,
-          fuelType: v.fuelType,
-          registryLifecycle: v.registryLifecycle,
-        }));
-      }),
+      findMany: jest.fn(
+        async (args: {
+          where: { organizationId: string };
+          select?: Record<string, boolean>;
+          skip?: number;
+          take?: number;
+        }) => {
+          if (args.where.organizationId !== ORG_A) return [];
+          const all = [VEHICLE_A];
+          const skip = args.skip ?? 0;
+          const take = args.take ?? 50;
+          return all
+            .slice(skip, skip + take)
+            .map((v) => projectPrismaSelect(v, args.select));
+        },
+      ),
       findFirst: jest.fn(
-        async (args: { where: { id?: string; organizationId?: string }; select?: unknown }) => {
+        async (args: {
+          where: { id?: string; organizationId?: string };
+          select?: Record<string, boolean>;
+        }) => {
           const id = args.where.id;
           const orgId = args.where.organizationId;
           const row = id === VEHICLE_A.id ? VEHICLE_A : id === VEHICLE_B.id ? VEHICLE_B : null;
           if (!row || (orgId && row.organizationId !== orgId)) return null;
-          return {
-            id: row.id,
-            make: row.make,
-            model: row.model,
-            year: row.year,
-            fuelType: row.fuelType,
-            registryLifecycle: row.registryLifecycle,
-          };
+          return projectPrismaSelect(row, args.select);
         },
       ),
     },
@@ -235,7 +249,30 @@ describe('CoreVehicleReadV1Controller — HTTP security integration', () => {
     expect(res.body.vehicles).toHaveLength(1);
     expect(Object.keys(res.body.vehicles[0]).sort()).toEqual(ALLOWED_VEHICLE_DTO_KEYS.sort());
     expect(res.body.vehicles[0]).not.toHaveProperty('assignedBookingId');
+    expect(res.body.vehicles[0]).not.toHaveProperty('vin');
     expect(res.body.pagination).toMatchObject({ total: 2, page: 1 });
+    expect(prisma.vehicle.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ select: CORE_VEHICLE_IDENTITY_V1_SELECT }),
+    );
+  });
+
+  it('denies when JWT org matches path but membership was revoked', async () => {
+    await request(app.getHttpServer())
+      .get(listRoute(ORG_A))
+      .set(
+        'Authorization',
+        bearerUser({ id: USER_REVOKED_MEMBERSHIP, organizationId: ORG_A }),
+      )
+      .expect(403);
+    expect(prisma.organizationMembership.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: USER_REVOKED_MEMBERSHIP,
+          organizationId: ORG_A,
+          status: 'ACTIVE',
+        }),
+      }),
+    );
   });
 
   it('denies foreign organization access', async () => {
@@ -292,6 +329,11 @@ describe('CoreVehicleReadV1Controller — HTTP security integration', () => {
     await request(app.getHttpServer()).get(`${base}&page=abc`).set('Authorization', auth).expect(400);
     await request(app.getHttpServer()).get(`${base}&page=1.5`).set('Authorization', auth).expect(400);
     await request(app.getHttpServer()).get(`${base}&limit=-1`).set('Authorization', auth).expect(400);
+    await request(app.getHttpServer())
+      .get(`${base}&page=9007199254740991&limit=100`)
+      .set('Authorization', auth)
+      .expect(400);
+    await request(app.getHttpServer()).get(`${base}&limit=101`).set('Authorization', auth).expect(400);
   });
 
   it('active product license does not imply product-scoped vehicle list', async () => {
@@ -344,5 +386,18 @@ describe('CoreVehicleReadV1Controller — HTTP security integration', () => {
 
     expect(res.body.vehicle.vehicleId).toBe(VEHICLE_A.id);
     expect(Object.keys(res.body.vehicle).sort()).toEqual(ALLOWED_VEHICLE_DTO_KEYS.sort());
+    expect(prisma.vehicle.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ select: CORE_VEHICLE_IDENTITY_V1_SELECT }),
+    );
+  });
+
+  it('requires productSlug query parameter', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/v1/core/read/v1/organizations/${ORG_A}/vehicles`)
+      .set(
+        'Authorization',
+        bearerUser({ id: USER_MEMBER, organizationId: ORG_A }),
+      )
+      .expect(400);
   });
 });

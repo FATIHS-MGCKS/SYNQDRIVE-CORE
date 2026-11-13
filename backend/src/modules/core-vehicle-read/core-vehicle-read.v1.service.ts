@@ -12,7 +12,8 @@ import type {
 } from './core-vehicle-read.v1.types';
 import { CORE_VEHICLE_READ_CONTRACT_VERSION } from './core-vehicle-read.v1.types';
 
-const VEHICLE_IDENTITY_SELECT = {
+/** Explicit Prisma allowlist for core.vehicle.read.v1 — referenced by service tests. */
+export const CORE_VEHICLE_IDENTITY_V1_SELECT = {
   id: true,
   make: true,
   model: true,
@@ -36,7 +37,7 @@ export class CoreVehicleReadV1Service {
       this.prisma.vehicle.count({ where }),
       this.prisma.vehicle.findMany({
         where,
-        select: VEHICLE_IDENTITY_SELECT,
+        select: CORE_VEHICLE_IDENTITY_V1_SELECT,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: pagination.skip,
         take: pagination.take,
@@ -59,7 +60,7 @@ export class CoreVehicleReadV1Service {
   ): Promise<CoreVehicleReadSingleV1> {
     const row = await this.prisma.vehicle.findFirst({
       where: { id: vehicleId, organizationId },
-      select: VEHICLE_IDENTITY_SELECT,
+      select: CORE_VEHICLE_IDENTITY_V1_SELECT,
     });
 
     if (!row) {

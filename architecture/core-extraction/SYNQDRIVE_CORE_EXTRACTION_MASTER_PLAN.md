@@ -422,20 +422,6 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **G2:** Tooling-Gate verbessert; **G2_DATA_EVIDENCE = BLOCKED** bis Owner-isolierte repräsentative Datenquelle + Dry-Run-Lauf — synthetische Tests ≠ Produktionsparität.
 
-### 6.13 P3-PR1 — Versioned Vehicle Identity Read API (Draft-PR #14)
-
-**Scope:** `GET /api/v1/core/read/v1/organizations/:orgId/vehicles` und `.../vehicles/:vehicleId`; explizites DTO `core.vehicle.read.v1` (`vehicleId`, `make`, `model`, `year`, `fuelType`, `registryLifecycle`); Modul `core-vehicle-read/*`.
-
-**Product scope (Closeout H1):** Org-weite Registry-Liste/Detail (`where: organizationId`); `productSlug` = Lizenznachweis (`OrganizationProduct` ACTIVE), **nicht** Fahrzeug-Produkt-Mapping. **Keine** ProductVehicle-Isolation in diesem PR. Folge: ProductVehicle Grants + Allowlist-Erweiterung **separater** Gate vor App-/M2M-Reads.
-
-**Pagination (Closeout H2):** `page`/`limit` positive Ganzzahlen (ungültig → 400); `limit` max **100**; Sortierung `createdAt desc`, `id desc`; Response-`pagination` spiegelt validierte Parameter.
-
-**Auth (User-JWT only):** global `AuthGuard` + `OrgScopingGuard` + `PermissionsGuard` (`fleet.read`) + `CoreVehicleReadProductGuard` (`?productSlug=` + aktive `OrganizationProduct`).
-
-**M2M:** **Keine** Erweiterung der P1B-Service-JWT-Allowlist (nur Entitlements-Reads); Service-Tokens auf Vehicle-Read-Routen **401** — **nicht** als App-to-Core-M2M produktionsbereit behandeln.
-
-**Unverändert:** Trip FSM, DS4, DBI, Health, Rental-Ports, Schema, bestehende `vehicles.controller` Verträge, Production-Deploy.
-
 **P6 Cutover Gates (Owner-RFC G1–G7):**
 
 | Gate | Inhalt | Status |
@@ -449,6 +435,20 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | G7 | Production cutover + rollback drill; nach Overlay-only-Writes **explizite Daten-Reconciliation** vor Legacy-Read-Rückfall | NOT_STARTED |
 
 **Booking FK:** `ON DELETE RESTRICT` — Buchungslöschung darf referenzierte Overlay-Historie nicht still auf NULL setzen; Cutover-Reconciliation separat.
+
+### 6.13 P3-PR1 — Versioned Vehicle Identity Read API (Draft-PR #14)
+
+**Scope:** `GET /api/v1/core/read/v1/organizations/:orgId/vehicles` und `.../vehicles/:vehicleId`; explizites DTO `core.vehicle.read.v1` (`vehicleId`, `make`, `model`, `year`, `fuelType`, `registryLifecycle`); Modul `core-vehicle-read/*`.
+
+**Product scope (Closeout H1):** Org-weite Registry-Liste/Detail (`where: organizationId`); `productSlug` = Lizenznachweis (`OrganizationProduct` ACTIVE), **nicht** Fahrzeug-Produkt-Mapping. **Keine** ProductVehicle-Isolation in diesem PR. Folge: ProductVehicle Grants + Allowlist-Erweiterung **separater** Gate vor App-/M2M-Reads.
+
+**Pagination (Closeout H2):** `page`/`limit` positive Ganzzahlen (ungültig → 400); `limit` max **100**; Sortierung `createdAt desc`, `id desc`; Response-`pagination` spiegelt validierte Parameter; `skip`/`take` Safe-Integer + Prisma-Int32-Grenze.
+
+**Auth (User-JWT only):** global `AuthGuard` + `OrgScopingGuard` + `PermissionsGuard` (`fleet.read`) + `CoreVehicleReadProductGuard` (`?productSlug=` + aktive `OrganizationProduct`).
+
+**M2M:** **Keine** Erweiterung der P1B-Service-JWT-Allowlist (nur Entitlements-Reads); Service-Tokens auf Vehicle-Read-Routen **401** — **nicht** als App-to-Core-M2M produktionsbereit behandeln.
+
+**Unverändert:** Trip FSM, DS4, DBI, Health, Rental-Ports, Schema, bestehende `vehicles.controller` Verträge, Production-Deploy.
 
 ### 6.4 P2-PR2 — Trip Rental Recompute Port (MERGED → `main` `98a6068f8…`, PR #5)
 
