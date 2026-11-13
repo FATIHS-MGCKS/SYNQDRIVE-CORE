@@ -24,6 +24,7 @@ import { OrganizationsModule } from '@modules/organizations/organizations.module
 import { UsersModule } from '@modules/users/users.module';
 import { StationsModule } from '@modules/stations/stations.module';
 import { ProductsModule } from '@modules/products/products.module';
+import { CoreVehicleReadModule } from '@modules/core-vehicle-read/core-vehicle-read.module';
 import { VehiclesModule } from '@modules/vehicles/vehicles.module';
 import { VehicleIntelligenceModule } from '@modules/vehicle-intelligence/vehicle-intelligence.module';
 import { ClickHouseModule } from '@modules/clickhouse/clickhouse.module';
@@ -229,6 +230,7 @@ export class AppModule {
         UsersModule,
         StationsModule,
         ProductsModule,
+        CoreVehicleReadModule,
         VehiclesModule,
         ClickHouseModule,
         ObservabilityModule,
