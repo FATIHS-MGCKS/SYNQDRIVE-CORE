@@ -27,6 +27,7 @@ import { ProductsModule } from '@modules/products/products.module';
 import { CoreVehicleReadModule } from '@modules/core-vehicle-read/core-vehicle-read.module';
 import { CoreTripReadModule } from '@modules/core-trip-read/core-trip-read.module';
 import { CoreDrivingAssessmentReadModule } from '@modules/core-driving-assessment-read/core-driving-assessment-read.module';
+import { CoreBatteryReadModule } from '@modules/core-battery-read/core-battery-read.module';
 import { VehiclesModule } from '@modules/vehicles/vehicles.module';
 import { VehicleIntelligenceModule } from '@modules/vehicle-intelligence/vehicle-intelligence.module';
 import { ClickHouseModule } from '@modules/clickhouse/clickhouse.module';
@@ -235,6 +236,7 @@ export class AppModule {
         CoreVehicleReadModule,
         CoreTripReadModule,
         CoreDrivingAssessmentReadModule,
+        CoreBatteryReadModule,
         VehiclesModule,
         ClickHouseModule,
         ObservabilityModule,
