@@ -100,6 +100,56 @@ describe('toCoreBatteryReadV1 — publication safety (F1)', () => {
     expect(dto.lv.lvPublishedHealthPercent).toBe(88);
   });
 
+  it('nulls LV percent when primaryTruthSource is missing', () => {
+    publicationGateMock.mockReturnValue(true);
+
+    const dto = toCoreBatteryReadV1({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: PRODUCT,
+      fuelType: FuelType.GASOLINE,
+      summary: baseSummary({
+        canonical: {
+          isEv: false,
+          lv: {
+            profile: baseSummary().canonical!.lv.profile,
+            canonical: { primaryTruth: { source: undefined } },
+          },
+          hv: { supported: false },
+          dataQuality: { aggregate: { status: 'ESTIMATED' } },
+        },
+      } as unknown as Partial<CanonicalBatterySummaryForCoreRead>),
+    });
+
+    expect(dto.lv.lvPublishedHealthPercent).toBeNull();
+  });
+
+  it('nulls LV percent for unknown primaryTruthSource even when gate ON', () => {
+    publicationGateMock.mockReturnValue(true);
+
+    const dto = toCoreBatteryReadV1({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: PRODUCT,
+      fuelType: FuelType.GASOLINE,
+      summary: baseSummary({
+        canonical: {
+          isEv: false,
+          lv: {
+            profile: baseSummary().canonical!.lv.profile,
+            canonical: {
+              primaryTruth: { source: 'FUTURE_UNKNOWN_SOURCE' },
+            },
+          },
+          hv: { supported: false },
+          dataQuality: { aggregate: { status: 'ESTIMATED' } },
+        },
+      } as unknown as Partial<CanonicalBatterySummaryForCoreRead>),
+    });
+
+    expect(dto.lv.lvPublishedHealthPercent).toBeNull();
+  });
+
   it('never exposes LV percent for shadow primary truth even when gate ON', () => {
     publicationGateMock.mockReturnValue(true);
 
@@ -145,7 +195,7 @@ describe('toCoreBatteryReadV1 — publication safety (F1)', () => {
     expect(dto.hv.selectedTractionSohPercent).toBeNull();
   });
 
-  it('unsupported HV on ICE keeps hv.supported false and nulls traction SOH', () => {
+  it('unsupported HV on ICE nulls all HV technical metrics despite populated upstream', () => {
     const dto = toCoreBatteryReadV1({
       organizationId: ORG,
       vehicleId: VEH,
@@ -161,13 +211,33 @@ describe('toCoreBatteryReadV1 — publication safety (F1)', () => {
         hv: {
           ...baseSummary().hv!,
           sohPct: 70,
+          healthStatus: 'WARNING',
+          telemetry: { socPercent: 77, rangeKm: 300, chargingPowerKw: 11 },
+        },
+        currentTelemetry: {
+          chargingState: 'charging',
+          socPercent: 77,
+          rangeKm: 300,
+          chargingPowerKw: 11,
         },
       } as Partial<CanonicalBatterySummaryForCoreRead>),
     });
 
     expect(dto.isEv).toBe(false);
     expect(dto.hv.supported).toBe(false);
-    expect(dto.hv.selectedTractionSohPercent).toBeNull();
+    expect(dto.hv).toEqual({
+      supported: false,
+      healthStatus: null,
+      selectedTractionSohPercent: null,
+      selectedTractionSohSource: null,
+      socPercent: null,
+      rangeKm: null,
+      chargingState: null,
+      chargingPowerKw: null,
+      dataQualityStatus: null,
+      observationDecisionFresh: null,
+      observationObservedAt: null,
+    });
   });
 
   it('stale HV telemetry nulls selected traction SOH', () => {

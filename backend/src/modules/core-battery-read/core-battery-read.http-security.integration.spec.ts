@@ -10,7 +10,7 @@ import {
   CORE_APP_M2M_ISSUER,
   CORE_APP_SERVICE_TOKEN_TYPE,
 } from '@modules/core-app-m2m/core-app-m2m.constants';
-import { CanonicalBatteryHealthService } from '@modules/vehicle-intelligence/battery-health/canonical-battery-health.service';
+import { CANONICAL_BATTERY_HEALTH_CONSUMER_EXPORT } from '@modules/vehicle-intelligence/battery-health/canonical-battery-health-consumer.tokens';
 import { AuthGuard } from '@shared/auth/auth.guard';
 import { OrgScopingGuard } from '@shared/auth/org-scoping.guard';
 import { PermissionsGuard } from '@shared/auth/permissions.guard';
@@ -165,7 +165,7 @@ describe('CoreBatteryReadV1Controller — HTTP security integration', () => {
         OrgScopingGuard,
         PermissionsGuard,
         { provide: PrismaService, useValue: prisma },
-        { provide: CanonicalBatteryHealthService, useValue: canonicalBatteryHealth },
+        { provide: CANONICAL_BATTERY_HEALTH_CONSUMER_EXPORT, useValue: canonicalBatteryHealth },
         { provide: APP_GUARD, useClass: AuthGuard },
       ],
     }).compile();

@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ProductSlug } from '@prisma/client';
-import { CanonicalBatteryHealthService } from '@modules/vehicle-intelligence/battery-health/canonical-battery-health.service';
+import type { CanonicalBatteryHealthService } from '@modules/vehicle-intelligence/battery-health/canonical-battery-health.service';
+import { CANONICAL_BATTERY_HEALTH_CONSUMER_EXPORT } from '@modules/vehicle-intelligence/battery-health/canonical-battery-health-consumer.tokens';
 import { PrismaService } from '@shared/database/prisma.service';
 import { toCoreBatteryReadV1 } from './core-battery-read.v1.mapper';
 import type { CoreBatteryReadV1 } from './core-battery-read.v1.types';
@@ -15,6 +16,7 @@ const CORE_BATTERY_READ_VEHICLE_SELECT = {
 export class CoreBatteryReadV1Service {
   constructor(
     private readonly prisma: PrismaService,
+    @Inject(CANONICAL_BATTERY_HEALTH_CONSUMER_EXPORT)
     private readonly canonicalBatteryHealth: CanonicalBatteryHealthService,
   ) {}
 

@@ -1,7 +1,10 @@
 import type { FuelType, ProductSlug } from '@prisma/client';
 import type { CanonicalBatteryHealthService } from '@modules/vehicle-intelligence/battery-health/canonical-battery-health.service';
 import { isLvPublishedSohCustomerVisible } from '@modules/vehicle-intelligence/battery-health/battery-v2-user-facing-lv.policy';
-import type { LvCanonicalTruthSource } from '@modules/vehicle-intelligence/battery-health/lv-canonical/lv-canonical-battery.types';
+import {
+  LV_CANONICAL_TRUTH_SOURCES,
+  type LvCanonicalTruthSource,
+} from '@modules/vehicle-intelligence/battery-health/lv-canonical/lv-canonical-battery.types';
 import {
   CORE_BATTERY_READ_CONTRACT_VERSION,
   type CoreBatteryHvReadV1,
@@ -9,13 +12,22 @@ import {
   type CoreBatteryReadV1,
 } from './core-battery-read.v1.types';
 
-const NON_PUBLISHABLE_LV_TRUTH_SOURCES: ReadonlySet<LvCanonicalTruthSource> = new Set([
-  'V2_SHADOW_DIAGNOSTIC',
-  'LEGACY_UNVERIFIED',
-  'LIVE_TELEMETRY',
-  'UNSUPPORTED',
-  'UNAVAILABLE',
+/** Authority-verified LV sources that may surface customer publication percent (v1 allowlist). */
+const PUBLISHABLE_LV_TRUTH_SOURCES: ReadonlySet<LvCanonicalTruthSource> = new Set([
+  'WORKSHOP_MANUAL_EVIDENCE',
+  'V2_PUBLICATION_STABLE',
+  'V2_PUBLICATION_PROVISIONAL',
 ]);
+
+function isKnownLvPrimaryTruthSource(
+  source: string | null | undefined,
+): source is LvCanonicalTruthSource {
+  return source != null && (LV_CANONICAL_TRUTH_SOURCES as readonly string[]).includes(source);
+}
+
+function isPublishableLvPrimaryTruthSource(source: LvCanonicalTruthSource | null | undefined): boolean {
+  return source != null && PUBLISHABLE_LV_TRUTH_SOURCES.has(source);
+}
 
 export type CanonicalBatterySummaryForCoreRead = NonNullable<
   Awaited<ReturnType<CanonicalBatteryHealthService['getSummary']>>
@@ -40,9 +52,8 @@ function resolveLvPublishedHealthPercent(
 ): number | null {
   if (!lvPublicationCustomerVisible) return null;
 
-  const primarySource: LvCanonicalTruthSource | null =
-    summary.canonical?.lv?.canonical?.primaryTruth?.source ?? null;
-  if (primarySource && NON_PUBLISHABLE_LV_TRUTH_SOURCES.has(primarySource)) {
+  const rawSource = summary.canonical?.lv?.canonical?.primaryTruth?.source ?? null;
+  if (!isKnownLvPrimaryTruthSource(rawSource) || !isPublishableLvPrimaryTruthSource(rawSource)) {
     return null;
   }
 
@@ -78,16 +89,33 @@ function mapLvSection(
   };
 }
 
+function emptyHvMetricsV1(supported: boolean): CoreBatteryHvReadV1 {
+  return {
+    supported,
+    healthStatus: null,
+    selectedTractionSohPercent: null,
+    selectedTractionSohSource: null,
+    socPercent: null,
+    rangeKm: null,
+    chargingState: null,
+    chargingPowerKw: null,
+    dataQualityStatus: null,
+    observationDecisionFresh: null,
+    observationObservedAt: null,
+  };
+}
+
 function mapHvSection(summary: CanonicalBatterySummaryForCoreRead): CoreBatteryHvReadV1 {
   const isEv = summary.canonical?.isEv ?? false;
   const hvSupported = summary.canonical?.hv?.supported ?? isEv;
+
+  if (!hvSupported) {
+    return emptyHvMetricsV1(false);
+  }
+
   const decisionFresh = summary.hv?.freshness?.isFresh ?? null;
   const sohPct =
-    isEv &&
-    hvSupported &&
-    decisionFresh === true &&
-    summary.hv?.sohPct != null &&
-    Number.isFinite(summary.hv.sohPct)
+    decisionFresh === true && summary.hv?.sohPct != null && Number.isFinite(summary.hv.sohPct)
       ? summary.hv.sohPct
       : null;
 
@@ -98,7 +126,7 @@ function mapHvSection(summary: CanonicalBatterySummaryForCoreRead): CoreBatteryH
       : null;
 
   return {
-    supported: hvSupported,
+    supported: true,
     healthStatus: summary.hv?.healthStatus ?? null,
     selectedTractionSohPercent: sohPct,
     selectedTractionSohSource: sohPct != null ? (summary.hv?.sohSource ?? null) : null,
@@ -165,19 +193,7 @@ function emptyCoreBatteryReadV1(input: {
     observationObservedAt: null,
   };
 
-  const emptyHv: CoreBatteryHvReadV1 = {
-    supported: false,
-    healthStatus: null,
-    selectedTractionSohPercent: null,
-    selectedTractionSohSource: null,
-    socPercent: null,
-    rangeKm: null,
-    chargingState: null,
-    chargingPowerKw: null,
-    dataQualityStatus: null,
-    observationDecisionFresh: null,
-    observationObservedAt: null,
-  };
+  const emptyHv = emptyHvMetricsV1(false);
 
   return {
     version: CORE_BATTERY_READ_CONTRACT_VERSION,
