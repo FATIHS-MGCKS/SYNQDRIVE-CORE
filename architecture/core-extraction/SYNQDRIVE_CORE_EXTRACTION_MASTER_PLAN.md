@@ -200,7 +200,7 @@ Diese 16 Positionen sind **Audit-Befunde und keine Umsetzungsgenehmigung**. Bevo
 
 ### 5.2 Contract B – Vehicle & Intelligence Read API
 
-**Geplanter API-Prefix:** `/api/v1/core/read/v1/organizations/{orgId}` (noch **nicht** implementiert).
+**API-Prefix (P3-PR1):** `/api/v1/core/read/v1/organizations/{orgId}` — **Vehicle-Identity v1** (List + Single) in Draft-PR; Health/Driving/Intelligence-Reads **noch nicht** implementiert.
 
 - Tenant-geschützte, versionierte Leseverträge: Vehicle Identity/Registry, technische Fahrt, Driving Assessment, Vehicle Health, Provenance, Modell-/Qualitätsstatus.
 - Keine Cross-Repo-Prisma-Zugriffe, keine Exposition providerinterner Rohdaten oder Rental-Booking-Felder als kanonische Trip-API.
@@ -257,8 +257,8 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P1A** | Core-Entitlement-Read-API + EntitlementsQueryService + Tests + AGENTS-Governance | **MERGED** (`main` `78e66dce…`, PR #2) | JWT+OrgScoping; nicht produktiv deployed | P1B Service Auth |
 | **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
 | **P2** | Trip ↔ Booking Entkopplung | **DONE** (P2-PR1–PR8 merged; fachlich abgeschlossen) | Core VI booking/recompute/reconcile über Rental-Ports | P6 RentalTripLink Cutover |
-| **P6** | RentalTripLink Overlay + Cutover | **IN_PROGRESS** (P6-PR1 **MERGED** #12; P6-PR2 analyzer) | Schema + Resolver + Backfill paging/classify; **kein** Live-Cutover | G2 **BLOCKED_BY_DATA_EVIDENCE** |
-| **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **NOT_STARTED** | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
+| **P6** | RentalTripLink Overlay + Cutover | **IN_PROGRESS** (P6-PR1 **MERGED** #12; P6-PR2 **MERGED** #13) | Schema + Resolver + Backfill paging/classify; **kein** Live-Cutover | G2 **BLOCKED_BY_DATA_EVIDENCE** |
+| **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **IN_PROGRESS** (P3-PR1 Vehicle Identity Read API Draft) | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
 | **P6** | Datenhoheit Prisma/Schemata trennen | **NOT_STARTED** | Exklusive Schreib-Owner, Migrationsplan, Backfill-/Cutover-Prüfung | DB-Snapshot, Restore-Pfad, Reconciliation |
@@ -415,11 +415,21 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Unverändert:** Trip FSM, Legacy-Write-Pfade, VI-Reader, Recompute-Jobs, Production-Deploy, Shadow-Read.
 
-### 6.12 P6-PR2 — Backfill analyzer hardening (Draft-PR)
+### 6.12 P6-PR2 — Backfill analyzer hardening (**MERGED** → `main`, PR #13)
 
 **Scope:** `analyzePage` mit Cursor-Paging `(startTime desc, id desc)`, `totalTripsInOrg` / `nextCursor` / `coverageCompleteThisScan`; Klassifikation `SAFE_ACTIVE` vs `SKIP_*` vs `BLOCK_*`; Bulk-Reads für Bookings + Current-Overlays pro Seite; **kein** Schema.
 
 **G2:** Tooling-Gate verbessert; **G2_DATA_EVIDENCE = BLOCKED** bis Owner-isolierte repräsentative Datenquelle + Dry-Run-Lauf — synthetische Tests ≠ Produktionsparität.
+
+### 6.13 P3-PR1 — Versioned Vehicle Identity Read API (Draft-PR)
+
+**Scope:** `GET /api/v1/core/read/v1/organizations/:orgId/vehicles` und `.../vehicles/:vehicleId`; explizites DTO `core.vehicle.read.v1` (`vehicleId`, `make`, `model`, `year`, `fuelType`, `registryLifecycle`); Modul `core-vehicle-read/*`.
+
+**Auth (User-JWT only):** global `AuthGuard` + `OrgScopingGuard` + `PermissionsGuard` (`fleet.read`) + `CoreVehicleReadProductGuard` (`?productSlug=` + aktive `OrganizationProduct`).
+
+**M2M:** **Keine** Erweiterung der P1B-Service-JWT-Allowlist (nur Entitlements-Reads); Service-Tokens auf Vehicle-Read-Routen **401** — **nicht** als App-to-Core-M2M produktionsbereit behandeln.
+
+**Unverändert:** Trip FSM, DS4, DBI, Health, Rental-Ports, Schema, bestehende `vehicles.controller` Verträge, Production-Deploy.
 
 **P6 Cutover Gates (Owner-RFC G1–G7):**
 
@@ -540,6 +550,8 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-12 | `SYNQDRIVE_CORE_P6_G2_BACKFILL_READINESS_AUDIT` | **READ_ONLY** | G2 BLOCKED — keine repräsentative Datenquelle | P6-PR2 |
 | 2026-11-12 | `SYNQDRIVE_CORE_P6_PR2_BACKFILL_ANALYZER_HARDENING` | **DRAFT_PR** · Base `07e09b434…` | Paging + classify + bulk reads | G2 data evidence |
 | 2026-11-12 | `SYNQDRIVE_CORE_P6_PR1_ARCHITECTURE_REMEDIATION` | **DRAFT_PR #12** (update) | Supersession fix, CHECK/RESTRICT, backfill SKIP semantics | PG gate (isolated) |
+| 2026-11-13 | `SYNQDRIVE_CORE_P6_PR2_BACKFILL_ANALYZER_HARDENING` | **MERGED PR #13** · Base `07e09b434…` | Analyzer paging/classify; G2 tooling | G2 data evidence |
+| 2026-11-13 | `SYNQDRIVE_CORE_P3_PR1_VERSIONED_VEHICLE_READ_API` | **DRAFT_PR** · Base `93ded35cdd76d60470080806d8b15958ffc8f930` | Core vehicle read v1 API; M2M unchanged | Architect review |
 
 **Updatevorlage für neue Einträge:**
 
