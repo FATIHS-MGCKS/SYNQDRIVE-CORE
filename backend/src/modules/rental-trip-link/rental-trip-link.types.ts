@@ -31,27 +31,70 @@ export type EstablishRentalTripLinkInput = {
   correlationId?: string | null;
 };
 
+export type BackfillDryRunClassification =
+  | 'SAFE_ACTIVE'
+  | 'SKIP_NO_ASSIGNMENT'
+  | 'SKIP_EXISTING_OVERLAY'
+  | 'BLOCK_MISSING_BOOKING'
+  | 'BLOCK_TENANT_MISMATCH'
+  | 'BLOCK_VEHICLE_MISMATCH'
+  | 'BLOCK_CUSTOMER_MISMATCH'
+  | 'BLOCK_INCOMPLETE_OR_INVALID_LEGACY'
+  | 'BLOCK_OTHER_CONFLICT';
+
 export type BackfillDryRunIssueCode =
   | 'MISSING_BOOKING'
   | 'BOOKING_ORG_MISMATCH'
   | 'BOOKING_VEHICLE_MISMATCH'
+  | 'BOOKING_CUSTOMER_MISMATCH'
   | 'TRIP_ORG_MISMATCH'
   | 'LEGACY_NULL_ASSIGNMENT'
   | 'DUPLICATE_CURRENT_OVERLAY'
   | 'OVERLAY_NEWER_THAN_LEGACY'
-  | 'OVERLAY_AUTHORIZED_UNLINK';
+  | 'OVERLAY_AUTHORIZED_UNLINK'
+  | 'OVERLAY_ACTIVE_PRESENT'
+  | 'OVERLAY_EXPLICIT_LEGACY_TIME_WINDOW'
+  | 'OVERLAY_BOOKING_MISMATCH'
+  | 'LEGACY_INVALID_LINK_SOURCE';
 
 export type BackfillDryRunProposedStatus = 'ACTIVE' | 'UNLINKED' | 'SKIP';
+
+export type BackfillDryRunCursor = {
+  startTime: Date;
+  id: string;
+};
 
 export type BackfillDryRunRow = {
   organizationId: string;
   tripId: string;
   legacyFingerprint: string | null;
+  classification: BackfillDryRunClassification;
+  /** Legacy summary field — SAFE_ACTIVE only. */
   proposedStatus: BackfillDryRunProposedStatus;
   proposedBookingId: string | null;
   proposedCustomerId: string | null;
   proposedLinkSource: TripBookingLinkSource | null;
   issues: BackfillDryRunIssueCode[];
+  fingerprintConflict: boolean;
+  overlayReconciliationRequired: boolean;
+};
+
+export type BackfillDryRunPageReport = {
+  organizationId: string;
+  pageSize: number;
+  totalTripsInOrg: number;
+  processedTripsThisPage: number;
+  cumulativeProcessedThisScan: number;
+  cursorUsed: BackfillDryRunCursor | null;
+  nextCursor: BackfillDryRunCursor | null;
+  hasNextPage: boolean;
+  coverageCompleteThisScan: boolean;
+  tripIdsFilterActive: boolean;
+  snapshotRequiredForGuaranteedCompleteness: boolean;
+  completenessNote: string;
+  classificationCounts: Record<BackfillDryRunClassification, number>;
+  issueCounts: Partial<Record<BackfillDryRunIssueCode, number>>;
+  rows: BackfillDryRunRow[];
 };
 
 export type BackfillDryRunReport = {
@@ -61,4 +104,7 @@ export type BackfillDryRunReport = {
   proposedSkip: number;
   issueCounts: Partial<Record<BackfillDryRunIssueCode, number>>;
   rows: BackfillDryRunRow[];
+  totalTripsInOrg: number;
+  hasNextPage: boolean;
+  nextCursor: BackfillDryRunCursor | null;
 };
