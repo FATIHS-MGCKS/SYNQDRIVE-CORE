@@ -8,6 +8,6 @@ import { CoreVehicleReadV1Service } from './core-vehicle-read.v1.service';
   imports: [PrismaModule],
   controllers: [CoreVehicleReadV1Controller],
   providers: [CoreVehicleReadV1Service, CoreVehicleReadProductGuard],
-  exports: [CoreVehicleReadV1Service],
+  exports: [CoreVehicleReadV1Service, CoreVehicleReadProductGuard],
 })
 export class CoreVehicleReadModule {}
