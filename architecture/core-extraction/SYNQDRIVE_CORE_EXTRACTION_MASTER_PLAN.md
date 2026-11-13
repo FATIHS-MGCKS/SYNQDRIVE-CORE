@@ -200,7 +200,7 @@ Diese 16 Positionen sind **Audit-Befunde und keine Umsetzungsgenehmigung**. Bevo
 
 ### 5.2 Contract B – Vehicle & Intelligence Read API
 
-**API-Prefix (P3):** `/api/v1/core/read/v1/organizations/{orgId}` — **Vehicle-Identity v1** (PR #14); **Trip-Read v1** (P3-PR2 **MERGED** #15); **Driving-Assessment-Read v1** (P3-PR3 **MERGED** #16); **Battery-Read v1** (P3-PR4 Draft: kanonisches LV/HV-Summary-Subset, keine Rental-Readiness); weitere Health-Reads **noch nicht** implementiert.
+**API-Prefix (P3):** `/api/v1/core/read/v1/organizations/{orgId}` — **Vehicle-Identity v1** (PR #14); **Trip-Read v1** (P3-PR2 **MERGED** #15); **Driving-Assessment-Read v1** (P3-PR3 **MERGED** #16); **Battery-Read v1** (P3-PR4 **MERGED** #17); **DTC-Read v1** (P3-PR5 Draft); weitere Health-Reads **noch nicht** implementiert.
 
 - **P3-PR1 Product-Scope (verbindlich):** Listen/Detail sind **organisationsweite** Vehicle-Registry-Reads für berechtigte User-JWTs (`fleet.read` + Org-Scope). `?productSlug=` bestätigt nur eine **aktive `OrganizationProduct`-Lizenz** — **keine** produktbezogene Fahrzeugzuordnung, **kein** ProductVehicle-Filter. Explizite **ProductVehicle-/Produkt-Grants** sind **Voraussetzung für spätere** App-/M2M-Read-Anbindung (DESIGNED, nicht in P3-PR1).
 - Tenant-geschützte, versionierte Leseverträge: Vehicle Identity/Registry, technische Fahrt, Driving Assessment, Vehicle Health, Provenance, Modell-/Qualitätsstatus.
@@ -259,7 +259,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
 | **P2** | Trip ↔ Booking Entkopplung | **DONE** (P2-PR1–PR8 merged; fachlich abgeschlossen) | Core VI booking/recompute/reconcile über Rental-Ports | P6 RentalTripLink Cutover |
 | **P6** | RentalTripLink Overlay + Cutover | **IN_PROGRESS** (P6-PR1 **MERGED** #12; P6-PR2 **MERGED** #13) | Schema + Resolver + Backfill paging/classify; **kein** Live-Cutover | G2 **BLOCKED_BY_DATA_EVIDENCE** |
-| **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **IN_PROGRESS** (P3-PR1 **MERGED** #14; P3-PR2 **MERGED** #15; P3-PR3 **MERGED** #16; P3-PR4 Battery Draft) | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
+| **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **IN_PROGRESS** (P3-PR1 **MERGED** #14; P3-PR2 **MERGED** #15; P3-PR3 **MERGED** #16; P3-PR4 **MERGED** #17; P3-PR5 DTC Draft) | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
 | **P6** | Datenhoheit Prisma/Schemata trennen | **NOT_STARTED** | Exklusive Schreib-Owner, Migrationsplan, Backfill-/Cutover-Prüfung | DB-Snapshot, Restore-Pfad, Reconciliation |
@@ -476,19 +476,31 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Unverändert:** DS4-Worker/Processor, Recompute, Schema, Rental, bestehende VI `trips/:tripId/ds4-assessment` Internal-Read.
 
-### 6.16 P3-PR4 — Versioned Battery Read API (Draft-PR)
+### 6.16 P3-PR4 — Versioned Battery Read API (MERGED → #17)
 
 **Scope:** `GET .../vehicles/:vehicleId/battery?productSlug=`; DTO `core.battery.read.v1`; Modul `core-battery-read/*`; **READ_ONLY** via `CanonicalBatteryHealthService.getSummary` (keine Algorithmusänderung).
 
-**Fail-closed disclosure (technisch, keine Publikationsnumerik):** Kein `estimatedHealthScore` / `displayBars`, kein `lvPublishedHealthPercent`, kein `aggregateHealthStatus` (keine indirekten Score-Bänder). `primaryTruthSource` nur als Label; `lvPublicationCustomerVisible` spiegelt das bestehende Gate `isLvPublishedSohCustomerVisible` wider — **ohne** numerische LV-Werte in Core v1. HV-Livetelemetrie (`socPercent`, `rangeKm`, `chargingState`, `chargingPowerKw`) nur bei decision-fresh `currentTelemetry.observationFreshness` (`telemetryDecisionFresh` / `telemetryObservedAt`). HV-Traction-SOH und `healthStatus` weiter an HV-SOH-Freshness gekoppelt. Keine Rental-Readiness-/Block-Felder.
+**Fail-closed disclosure (technisch, keine Publikationsnumerik):** Kein `estimatedHealthScore` / `displayBars`, kein `lvPublishedHealthPercent`, kein `aggregateHealthStatus` (keine indirekten Score-Bänder). `primaryTruthSource` nur als Label; `lvPublicationCustomerVisible` spiegelt das bestehende Gate `isLvPublishedSohCustomerVisible` wider — **ohne** numerische LV-Werte in Core v1. HV-Livetelemetrie nur bei decision-fresh `currentTelemetry.observationFreshness`. Keine Rental-Readiness-/Block-Felder.
 
-**`batteryAvailability`:** `AVAILABLE` wenn `getSummary` ein Ergebnis liefert; `NOT_AVAILABLE` wenn `null` (`resolvedAt` dann `null`, kein 1970-Sentinel).
+**`batteryAvailability`:** `AVAILABLE` wenn `getSummary` ein Ergebnis liefert; `NOT_AVAILABLE` wenn `null` (`resolvedAt` dann `null`).
 
-**DI (F2):** `CanonicalBatteryHealthConsumerModule` exportiert `CANONICAL_BATTERY_HEALTH_CONSUMER_EXPORT` (`useExisting` → `CanonicalBatteryHealthService`; kein Rental-Import im Core-Modul).
+**DI:** `CanonicalBatteryHealthConsumerModule` exportiert `CANONICAL_BATTERY_HEALTH_CONSUMER_EXPORT` (`useExisting` → `CanonicalBatteryHealthService`); kein Rental-Import im Core-Modul.
 
 **Auth:** User JWT, `fleet.read`, Lizenz-`productSlug`, Fahrzeug-`organizationId`. **M2M unverändert.**
 
 **Unverändert:** Battery-V2-Pipeline, Publication-Flags in Prod, Rental-Health, Schema, Worker.
+
+### 6.17 P3-PR5 — Versioned DTC Read API (Draft-PR)
+
+**Scope:** `GET .../vehicles/:vehicleId/dtc?productSlug=`; DTO `core.dtc.read.v1`; Modul `core-dtc-read/*`; **READ_ONLY** via `DtcService.getSummary` (keine Algorithmusänderung).
+
+**Fail-closed Core v1:** Bei `monitoringStatus=stale|unavailable` → `activeFaultCount=null`, `worstSeverityBand=null`, `activeFaultPreview=[]` (unterdrückt auch 01A last-known Preview). Bei `clean` → `activeFaultCount=0`, keine Preview/Severity-Aggregat. Nur bei `active_faults` werden Count, Preview (code/category/severityBand) und worstSeverityBand exponiert. Keine `faultConfirmation`, keine Rental-Felder, keine Source-Head/02-Shadow-Metadaten.
+
+**DI:** `DtcConsumerModule` exportiert `DTC_CONSUMER_EXPORT` (`useExisting` → `DtcService`); kein RentalHealth-Import im Core-Modul.
+
+**Auth:** User JWT, `fleet.read`, Lizenz-`productSlug`, Fahrzeug-`organizationId`. **M2M unverändert.**
+
+**Unverändert:** DTC-01A/01F/02 Aktivierung, Snapshot-Apply, Rental-Health, Schema, Worker.
 
 ### 6.4 P2-PR2 — Trip Rental Recompute Port (MERGED → `main` `98a6068f8…`, PR #5)
 
