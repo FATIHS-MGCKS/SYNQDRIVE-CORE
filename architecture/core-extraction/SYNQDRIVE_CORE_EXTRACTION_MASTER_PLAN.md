@@ -454,7 +454,9 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Scope:** `GET .../vehicles/:vehicleId/trips` und `.../trips/:tripId`; DTO `core.trip.read.v1` (`tripId`, `vehicleId`, `tripStatus`, `startTime`, `endTime`, `distanceKm`); Modul `core-trip-read/*`; **READ_ONLY** auf `VehicleTrip`.
 
-**Privacy:** `isPrivateTrip=true` ausgeschlossen (Liste + Detail → 404); keine Booking-/Customer-/GPS-/Provider-/Analyse-Felder.
+**Privacy / Sichtbarkeit (Opus-Remediation, Architekturentscheid F1):** `core.trip.read.v1` ist ein technischer, organisationsautorisierter Trip-Read-Vertrag und klassifiziert **nicht** zwischen Privat- und Geschäftsfahrten. `isPrivateTrip` ist der Booking-/Fahrer-Attribution-Fallback (`PRIVATE_UNASSIGNED`, gesetzt erst nach Abschluss + Enrichment, abhängig von Booking-Overlap) und **kein** verlässliches Privacy-Signal — er steuert die Sichtbarkeit **nicht** (vorheriger Filter entfernt; ONGOING und unzugeordnete abgeschlossene Fahrten sind lesbar; Sichtbarkeit unabhängig von Booking-Zuordnung). Nur minimale technische Felder; keine Booking-/Customer-/Driver-/GPS-/Provider-/Analyse-/`rawDetectionMeta`-Felder. Privacy-/Consent-Eignung für künftige App-Consumer erfordert ein **separates Gate**; dieser Vertrag autorisiert **weder** M2M **noch** Production-Aktivierung.
+
+**Gap-Split-Sichtbarkeit (F2):** Wiederverwendung `listReconciledGapSplitSuffixTripIdsHiddenFromCustomerList` + `applyHiddenCustomerSuffixTripExclusion` (identisch zur Customer-Trip-Liste): nur nachweislich rekonziliierte, absorbierte CANCELLED-Suffixe ausgeblendet — Liste, `pagination.total` und Detail (→ 404); andere CANCELLED-Fahrten bleiben lesbar. Ein Raw-Lookup pro Request (fahrzeuggebunden), kein N+1.
 
 **Auth:** Gleiches Muster wie P3-PR1 (User JWT, `fleet.read`, Lizenz-`productSlug`, Fahrzeug `organizationId`-Bindung, Trip `vehicleId`-Bindung). **M2M-Allowlist unverändert.**
 
@@ -571,6 +573,7 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 | 2026-11-13 | `SYNQDRIVE_CORE_P3_PR1_VERSIONED_VEHICLE_READ_API` | **DRAFT_PR** · Base `93ded35cdd76d60470080806d8b15958ffc8f930` | Core vehicle read v1 API; M2M unchanged | Architect review |
 | 2026-11-13 | `SYNQDRIVE_CORE_P3_PR1_FINAL_CONTRACT_CLOSEOUT` | **DRAFT_PR #14** update | Product-scope contract; pagination 400; stable sort | Architect review |
 | 2026-11-13 | `SYNQDRIVE_CORE_P3_PR2_VERSIONED_TRIP_READ_API` | **DRAFT_PR** · Base `1dcd03083…` | Trip read v1; private trip exclude; M2M unchanged | Architect review |
+| 2026-11-13 | `SYNQDRIVE_CORE_P3_PR2_OPUS_REMEDIATION` | **DRAFT_PR #15** update · Head vorher `bf9fbc6e4…` | F1 isPrivateTrip-Filter entfernt + Vertrag dokumentiert; F2 Gap-Split-Suffix-Ausblendung (Liste/Count/Detail); F3 Same-Org-Vehicle-Binding-Tests | Architect review |
 
 **Updatevorlage für neue Einträge:**
 

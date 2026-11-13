@@ -15,7 +15,7 @@ type CoreTripReadRequest = {
  * Versioned core technical trip read API (P3-PR2).
  *
  * User JWT only (service JWT not allowlisted). Org scope + fleet.read + product license.
- * Private trips excluded at query level (`isPrivateTrip=false`).
+ * No private/business classification; see `core-trip-read.v1.types.ts` for the visibility contract.
  */
 @Controller('core/read/v1')
 @UseGuards(OrgScopingGuard, PermissionsGuard, CoreVehicleReadProductGuard)

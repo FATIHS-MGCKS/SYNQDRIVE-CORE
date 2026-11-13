@@ -5,6 +5,10 @@ import {
   coreVehicleReadPaginationMeta,
   type CoreVehicleReadPagination,
 } from '@modules/core-vehicle-read/core-vehicle-read.pagination';
+import {
+  applyHiddenCustomerSuffixTripExclusion,
+  listReconciledGapSplitSuffixTripIdsHiddenFromCustomerList,
+} from '@modules/vehicle-intelligence/trips/trip-customer-list-reconciled-gap-split-suffix.util';
 import { toCoreTripReadV1 } from './core-trip-read.v1.mapper';
 import type { CoreTripReadListV1, CoreTripReadSingleV1 } from './core-trip-read.v1.types';
 import { CORE_TRIP_READ_CONTRACT_VERSION } from './core-trip-read.v1.types';
@@ -19,8 +23,11 @@ export const CORE_TRIP_READ_V1_SELECT = {
   distanceKm: true,
 } as const;
 
-const PUBLIC_TRIP_WHERE = { isPrivateTrip: false } as const;
-
+/**
+ * Visibility is technical only: `isPrivateTrip` is the booking/driver attribution fallback
+ * (PRIVATE_UNASSIGNED), not a privacy signal, and must not filter this contract.
+ * Reconciled, absorbed gap-split suffixes are hidden exactly as in the customer trip list.
+ */
 @Injectable()
 export class CoreTripReadV1Service {
   constructor(private readonly prisma: PrismaService) {}
@@ -33,11 +40,14 @@ export class CoreTripReadV1Service {
   ): Promise<CoreTripReadListV1> {
     await this.assertVehicleInOrganization(organizationId, vehicleId);
 
-    const where = {
+    const hiddenSuffixIds = await listReconciledGapSplitSuffixTripIdsHiddenFromCustomerList(
+      this.prisma,
       vehicleId,
-      ...PUBLIC_TRIP_WHERE,
-      vehicle: { organizationId },
-    };
+    );
+    const where = applyHiddenCustomerSuffixTripExclusion(
+      { vehicleId, vehicle: { organizationId } },
+      hiddenSuffixIds,
+    );
 
     const [total, rows] = await Promise.all([
       this.prisma.vehicleTrip.count({ where }),
@@ -68,13 +78,15 @@ export class CoreTripReadV1Service {
   ): Promise<CoreTripReadSingleV1> {
     await this.assertVehicleInOrganization(organizationId, vehicleId);
 
+    const hiddenSuffixIds = await listReconciledGapSplitSuffixTripIdsHiddenFromCustomerList(
+      this.prisma,
+      vehicleId,
+    );
     const row = await this.prisma.vehicleTrip.findFirst({
-      where: {
-        id: tripId,
-        vehicleId,
-        ...PUBLIC_TRIP_WHERE,
-        vehicle: { organizationId },
-      },
+      where: applyHiddenCustomerSuffixTripExclusion(
+        { id: { equals: tripId }, vehicleId, vehicle: { organizationId } },
+        hiddenSuffixIds,
+      ),
       select: CORE_TRIP_READ_V1_SELECT,
     });
 

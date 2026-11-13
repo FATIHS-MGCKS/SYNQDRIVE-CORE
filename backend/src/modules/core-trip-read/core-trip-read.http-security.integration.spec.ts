@@ -23,9 +23,15 @@ const ORG_A = 'org-a';
 const ORG_B = 'org-b';
 const VEH_A = 'veh-a';
 const VEH_B = 'veh-b';
+const VEH_A2 = 'veh-a2';
 const TRIP_PUBLIC = 'trip-public';
-const TRIP_PRIVATE = 'trip-private';
+const TRIP_UNASSIGNED = 'trip-unassigned';
+const TRIP_ONGOING = 'trip-ongoing';
 const TRIP_OTHER_VEHICLE = 'trip-other-veh';
+const TRIP_SAME_ORG_OTHER_VEHICLE = 'trip-same-org-other-veh';
+const TRIP_GAP_PARENT = 'trip-gap-parent';
+const TRIP_GAP_SUFFIX = 'trip-gap-suffix';
+const TRIP_CANCELLED_UNRELATED = 'trip-cancelled-unrelated';
 const USER_MEMBER = 'user-member';
 const USER_FOREIGN = 'user-foreign';
 const USER_NO_FLEET = 'user-no-fleet';
@@ -42,7 +48,11 @@ const TRIPS: Record<
     endTime: Date | null;
     distanceKm: number | null;
     assignedBookingId?: string;
+    bookingCustomerId?: string;
+    assignedDriverId?: string;
+    driverName?: string;
     startLatitude?: number;
+    rawDetectionMeta?: Record<string, unknown>;
   }
 > = {
   [TRIP_PUBLIC]: {
@@ -55,17 +65,72 @@ const TRIPS: Record<
     endTime: new Date('2026-05-01T11:00:00.000Z'),
     distanceKm: 22,
     assignedBookingId: 'booking-secret',
+    bookingCustomerId: 'customer-secret',
+    assignedDriverId: 'driver-secret',
+    driverName: 'Driver Secret',
     startLatitude: 48.1,
+    rawDetectionMeta: { splitFrom: 'secret' },
   },
-  [TRIP_PRIVATE]: {
-    id: TRIP_PRIVATE,
+  // PRIVATE_UNASSIGNED attribution fallback: completed, no booking, no driver.
+  [TRIP_UNASSIGNED]: {
+    id: TRIP_UNASSIGNED,
     vehicleId: VEH_A,
     organizationId: ORG_A,
     isPrivateTrip: true,
     tripStatus: TripStatus.COMPLETED,
     startTime: new Date('2026-05-02T10:00:00.000Z'),
-    endTime: null,
+    endTime: new Date('2026-05-02T10:30:00.000Z'),
     distanceKm: 5,
+  },
+  [TRIP_ONGOING]: {
+    id: TRIP_ONGOING,
+    vehicleId: VEH_A,
+    organizationId: ORG_A,
+    isPrivateTrip: false,
+    tripStatus: TripStatus.ONGOING,
+    startTime: new Date('2026-05-04T10:00:00.000Z'),
+    endTime: null,
+    distanceKm: null,
+  },
+  [TRIP_SAME_ORG_OTHER_VEHICLE]: {
+    id: TRIP_SAME_ORG_OTHER_VEHICLE,
+    vehicleId: VEH_A2,
+    organizationId: ORG_A,
+    isPrivateTrip: false,
+    tripStatus: TripStatus.COMPLETED,
+    startTime: new Date('2026-05-03T12:00:00.000Z'),
+    endTime: null,
+    distanceKm: 3,
+  },
+  [TRIP_GAP_PARENT]: {
+    id: TRIP_GAP_PARENT,
+    vehicleId: VEH_A,
+    organizationId: ORG_A,
+    isPrivateTrip: false,
+    tripStatus: TripStatus.COMPLETED,
+    startTime: new Date('2026-04-20T08:00:00.000Z'),
+    endTime: new Date('2026-04-20T09:00:00.000Z'),
+    distanceKm: 40,
+  },
+  [TRIP_GAP_SUFFIX]: {
+    id: TRIP_GAP_SUFFIX,
+    vehicleId: VEH_A,
+    organizationId: ORG_A,
+    isPrivateTrip: false,
+    tripStatus: TripStatus.CANCELLED,
+    startTime: new Date('2026-04-20T08:40:00.000Z'),
+    endTime: new Date('2026-04-20T08:41:00.000Z'),
+    distanceKm: null,
+  },
+  [TRIP_CANCELLED_UNRELATED]: {
+    id: TRIP_CANCELLED_UNRELATED,
+    vehicleId: VEH_A,
+    organizationId: ORG_A,
+    isPrivateTrip: false,
+    tripStatus: TripStatus.CANCELLED,
+    startTime: new Date('2026-04-18T08:00:00.000Z'),
+    endTime: new Date('2026-04-18T08:01:00.000Z'),
+    distanceKm: null,
   },
   [TRIP_OTHER_VEHICLE]: {
     id: TRIP_OTHER_VEHICLE,
@@ -102,7 +167,45 @@ const TRIPS: Record<
 const VEHICLES: Record<string, { id: string; organizationId: string }> = {
   [VEH_A]: { id: VEH_A, organizationId: ORG_A },
   [VEH_B]: { id: VEH_B, organizationId: ORG_B },
+  [VEH_A2]: { id: VEH_A2, organizationId: ORG_A },
 };
+
+/**
+ * Rows the reconciled-suffix SQL would return per vehicle. Lineage is still checked by the real
+ * helper: the unrelated CANCELLED trip's start does not match the parent's split anchor, so it stays visible.
+ */
+const SUFFIX_SQL_CANDIDATES: Record<
+  string,
+  Array<{
+    suffix_id: string;
+    parent_id: string;
+    suffix_start: Date;
+    split_from: string | null;
+    split_second_start_at: string | null;
+  }>
+> = {
+  [VEH_A]: [
+    {
+      suffix_id: TRIP_GAP_SUFFIX,
+      parent_id: TRIP_GAP_PARENT,
+      suffix_start: TRIPS[TRIP_GAP_SUFFIX].startTime,
+      split_from: TRIP_GAP_PARENT,
+      split_second_start_at: null,
+    },
+    {
+      suffix_id: TRIP_CANCELLED_UNRELATED,
+      parent_id: TRIP_GAP_PARENT,
+      suffix_start: TRIPS[TRIP_CANCELLED_UNRELATED].startTime,
+      split_from: null,
+      split_second_start_at: TRIPS[TRIP_GAP_SUFFIX].startTime.toISOString(),
+    },
+  ],
+};
+
+const VEH_A_VISIBLE_TRIP_IDS = Object.values(TRIPS)
+  .filter((t) => t.vehicleId === VEH_A && t.id !== TRIP_GAP_SUFFIX)
+  .map((t) => t.id)
+  .sort();
 
 const ALLOWED_TRIP_KEYS = [
   'version',
@@ -126,13 +229,17 @@ function projectSelect(full: Record<string, unknown>, select?: Record<string, bo
 function matchesTripWhere(
   trip: (typeof TRIPS)[string],
   where: {
-    id?: string;
+    id?: string | { equals?: string; notIn?: string[] };
     vehicleId?: string;
     isPrivateTrip?: boolean;
     vehicle?: { organizationId?: string };
   },
 ): boolean {
-  if (where.id && trip.id !== where.id) return false;
+  if (typeof where.id === 'string' && trip.id !== where.id) return false;
+  if (where.id && typeof where.id === 'object') {
+    if (where.id.equals !== undefined && trip.id !== where.id.equals) return false;
+    if (where.id.notIn?.includes(trip.id)) return false;
+  }
   if (where.vehicleId && trip.vehicleId !== where.vehicleId) return false;
   if (where.isPrivateTrip !== undefined && trip.isPrivateTrip !== where.isPrivateTrip) return false;
   if (where.vehicle?.organizationId && trip.organizationId !== where.vehicle.organizationId) {
@@ -148,6 +255,9 @@ describe('CoreTripReadV1Controller — HTTP security integration', () => {
   const m2mSecret = 'p3-trip-read-m2m-secret';
 
   const prisma = {
+    $queryRaw: jest.fn(async (_sql: TemplateStringsArray, vehicleId: string) =>
+      SUFFIX_SQL_CANDIDATES[vehicleId] ?? [],
+    ),
     organization: {
       findUnique: jest.fn(async (args: { where: { id: string } }) =>
         args.where.id === ORG_A || args.where.id === ORG_B ? { id: args.where.id } : null,
@@ -348,26 +458,83 @@ describe('CoreTripReadV1Controller — HTTP security integration', () => {
       .expect(401);
   });
 
-  it('excludes private trips from list and single read', async () => {
-    const list = await request(app.getHttpServer())
-      .get(listRoute(ORG_A, VEH_A))
-      .set('Authorization', bearerUser({ id: USER_MEMBER, organizationId: ORG_A }))
-      .expect(200);
-    expect(list.body.trips.every((t: { tripId: string }) => t.tripId !== TRIP_PRIVATE)).toBe(true);
+  it('returns 404 for a trip of another vehicle in the same organization', async () => {
     await request(app.getHttpServer())
-      .get(singleRoute(ORG_A, VEH_A, TRIP_PRIVATE))
+      .get(singleRoute(ORG_A, VEH_A, TRIP_SAME_ORG_OTHER_VEHICLE))
       .set('Authorization', bearerUser({ id: USER_MEMBER, organizationId: ORG_A }))
       .expect(404);
+    await request(app.getHttpServer())
+      .get(singleRoute(ORG_A, VEH_A2, TRIP_SAME_ORG_OTHER_VEHICLE))
+      .set('Authorization', bearerUser({ id: USER_MEMBER, organizationId: ORG_A }))
+      .expect(200);
   });
 
-  it('does not expose booking or GPS fields in response', async () => {
+  it('keeps unassigned completed and ONGOING trips readable regardless of booking assignment', async () => {
+    const list = await request(app.getHttpServer())
+      .get(`${listRoute(ORG_A, VEH_A)}&limit=100`)
+      .set('Authorization', bearerUser({ id: USER_MEMBER, organizationId: ORG_A }))
+      .expect(200);
+    const ids = list.body.trips.map((t: { tripId: string }) => t.tripId);
+    expect(ids).toEqual(expect.arrayContaining([TRIP_PUBLIC, TRIP_UNASSIGNED, TRIP_ONGOING]));
+    expect(prisma.vehicleTrip.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: expect.not.objectContaining({ isPrivateTrip: expect.anything() }) }),
+    );
+
+    for (const tripId of [TRIP_PUBLIC, TRIP_UNASSIGNED, TRIP_ONGOING]) {
+      const res = await request(app.getHttpServer())
+        .get(singleRoute(ORG_A, VEH_A, tripId))
+        .set('Authorization', bearerUser({ id: USER_MEMBER, organizationId: ORG_A }))
+        .expect(200);
+      expect(Object.keys(res.body.trip).sort()).toEqual([...ALLOWED_TRIP_KEYS].sort());
+    }
+    const ongoing = list.body.trips.find((t: { tripId: string }) => t.tripId === TRIP_ONGOING);
+    expect(ongoing).toMatchObject({ tripStatus: TripStatus.ONGOING, endTime: null, distanceKm: null });
+  });
+
+  it('hides reconciled gap-split suffix in list, count and detail; keeps parent and unrelated CANCELLED', async () => {
+    const list = await request(app.getHttpServer())
+      .get(`${listRoute(ORG_A, VEH_A)}&limit=100`)
+      .set('Authorization', bearerUser({ id: USER_MEMBER, organizationId: ORG_A }))
+      .expect(200);
+    const ids = list.body.trips.map((t: { tripId: string }) => t.tripId);
+    expect([...ids].sort()).toEqual(VEH_A_VISIBLE_TRIP_IDS);
+    expect(ids).toContain(TRIP_GAP_PARENT);
+    expect(ids).toContain(TRIP_CANCELLED_UNRELATED);
+    expect(ids).not.toContain(TRIP_GAP_SUFFIX);
+    expect(list.body.pagination.total).toBe(VEH_A_VISIBLE_TRIP_IDS.length);
+
+    await request(app.getHttpServer())
+      .get(singleRoute(ORG_A, VEH_A, TRIP_GAP_SUFFIX))
+      .set('Authorization', bearerUser({ id: USER_MEMBER, organizationId: ORG_A }))
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(singleRoute(ORG_A, VEH_A, TRIP_GAP_PARENT))
+      .set('Authorization', bearerUser({ id: USER_MEMBER, organizationId: ORG_A }))
+      .expect(200);
+    const unrelated = await request(app.getHttpServer())
+      .get(singleRoute(ORG_A, VEH_A, TRIP_CANCELLED_UNRELATED))
+      .set('Authorization', bearerUser({ id: USER_MEMBER, organizationId: ORG_A }))
+      .expect(200);
+    expect(unrelated.body.trip.tripStatus).toBe(TripStatus.CANCELLED);
+  });
+
+  it('does not expose booking, driver, customer, GPS or detection fields in response', async () => {
     const res = await request(app.getHttpServer())
       .get(singleRoute(ORG_A, VEH_A, TRIP_PUBLIC))
       .set('Authorization', bearerUser({ id: USER_MEMBER, organizationId: ORG_A }))
       .expect(200);
-    expect(res.body.trip).not.toHaveProperty('assignedBookingId');
-    expect(res.body.trip).not.toHaveProperty('startLatitude');
-    expect(res.body.trip).not.toHaveProperty('bookingCustomerId');
+    for (const key of [
+      'assignedBookingId',
+      'bookingCustomerId',
+      'assignedDriverId',
+      'actualDriverId',
+      'driverName',
+      'isPrivateTrip',
+      'startLatitude',
+      'rawDetectionMeta',
+    ]) {
+      expect(res.body.trip).not.toHaveProperty(key);
+    }
   });
 
   it('paginates with stable startTime and id ordering', async () => {

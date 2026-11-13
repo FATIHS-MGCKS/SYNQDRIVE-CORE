@@ -7,6 +7,8 @@ import { CORE_TRIP_READ_V1_SELECT, CoreTripReadV1Service } from './core-trip-rea
 
 const ORG = 'org-a';
 const VEH = 'veh-a';
+const GAP_PARENT = 'trip-gap-parent';
+const GAP_SUFFIX = 'trip-gap-suffix';
 const tripRow = {
   id: 'trip-1',
   vehicleId: VEH,
@@ -15,10 +17,18 @@ const tripRow = {
   endTime: new Date('2026-01-01T01:00:00.000Z'),
   distanceKm: 10,
 };
+const reconciledSuffixCandidate = {
+  suffix_id: GAP_SUFFIX,
+  parent_id: GAP_PARENT,
+  suffix_start: new Date('2026-01-02T00:00:00.000Z'),
+  split_from: GAP_PARENT,
+  split_second_start_at: null,
+};
 
 describe('CoreTripReadV1Service', () => {
   let service: CoreTripReadV1Service;
   const prisma = {
+    $queryRaw: jest.fn(),
     vehicle: { findFirst: jest.fn() },
     vehicleTrip: {
       count: jest.fn(),
@@ -32,27 +42,51 @@ describe('CoreTripReadV1Service', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     prisma.vehicle.findFirst.mockResolvedValue({ id: VEH });
+    prisma.$queryRaw.mockResolvedValue([]);
     const moduleRef = await Test.createTestingModule({
       providers: [CoreTripReadV1Service, { provide: PrismaService, useValue: prisma }],
     }).compile();
     service = moduleRef.get(CoreTripReadV1Service);
   });
 
-  it('excludes private trips in list query', async () => {
+  it('list query is bound to vehicle and organization without isPrivateTrip filter', async () => {
     prisma.vehicleTrip.count.mockResolvedValue(0);
     prisma.vehicleTrip.findMany.mockResolvedValue([]);
     const pagination = parseCoreVehicleReadPagination('1', '20');
     await service.listForVehicle(ORG, VEH, ProductSlug.RENTAL, pagination);
+    const where = { vehicleId: VEH, vehicle: { organizationId: ORG } };
+    expect(prisma.vehicleTrip.count).toHaveBeenCalledWith({ where });
     expect(prisma.vehicleTrip.findMany).toHaveBeenCalledWith({
-      where: {
-        vehicleId: VEH,
-        isPrivateTrip: false,
-        vehicle: { organizationId: ORG },
-      },
+      where,
       select: CORE_TRIP_READ_V1_SELECT,
       orderBy: [{ startTime: 'desc' }, { id: 'desc' }],
       skip: pagination.skip,
       take: pagination.take,
+    });
+  });
+
+  it('excludes reconciled gap-split suffix from list and count with one lookup', async () => {
+    prisma.$queryRaw.mockResolvedValue([reconciledSuffixCandidate]);
+    prisma.vehicleTrip.count.mockResolvedValue(0);
+    prisma.vehicleTrip.findMany.mockResolvedValue([]);
+    await service.listForVehicle(ORG, VEH, ProductSlug.RENTAL, parseCoreVehicleReadPagination());
+    const where = {
+      vehicleId: VEH,
+      vehicle: { organizationId: ORG },
+      id: { notIn: [GAP_SUFFIX] },
+    };
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.vehicleTrip.count).toHaveBeenCalledWith({ where });
+    expect(prisma.vehicleTrip.findMany).toHaveBeenCalledWith(expect.objectContaining({ where }));
+  });
+
+  it('does not exclude suffix candidates without conclusive lineage', async () => {
+    prisma.$queryRaw.mockResolvedValue([{ ...reconciledSuffixCandidate, split_from: 'trip-unrelated' }]);
+    prisma.vehicleTrip.count.mockResolvedValue(0);
+    prisma.vehicleTrip.findMany.mockResolvedValue([]);
+    await service.listForVehicle(ORG, VEH, ProductSlug.RENTAL, parseCoreVehicleReadPagination());
+    expect(prisma.vehicleTrip.count).toHaveBeenCalledWith({
+      where: { vehicleId: VEH, vehicle: { organizationId: ORG } },
     });
   });
 
@@ -61,14 +95,35 @@ describe('CoreTripReadV1Service', () => {
     await expect(
       service.listForVehicle(ORG, 'veh-foreign', ProductSlug.RENTAL, parseCoreVehicleReadPagination()),
     ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
     expect(prisma.vehicleTrip.findMany).not.toHaveBeenCalled();
   });
 
-  it('returns 404 when trip not on vehicle', async () => {
+  it('detail query binds trip id, vehicleId and organization', async () => {
     prisma.vehicleTrip.findFirst.mockResolvedValue(null);
     await expect(
       service.getForVehicle(ORG, VEH, 'trip-other-vehicle', ProductSlug.RENTAL),
     ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.vehicleTrip.findFirst).toHaveBeenCalledWith({
+      where: { id: { equals: 'trip-other-vehicle' }, vehicleId: VEH, vehicle: { organizationId: ORG } },
+      select: CORE_TRIP_READ_V1_SELECT,
+    });
+  });
+
+  it('detail query excludes reconciled gap-split suffix', async () => {
+    prisma.$queryRaw.mockResolvedValue([reconciledSuffixCandidate]);
+    prisma.vehicleTrip.findFirst.mockResolvedValue(null);
+    await expect(service.getForVehicle(ORG, VEH, GAP_SUFFIX, ProductSlug.RENTAL)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.vehicleTrip.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: { equals: GAP_SUFFIX, notIn: [GAP_SUFFIX] },
+        vehicleId: VEH,
+        vehicle: { organizationId: ORG },
+      },
+      select: CORE_TRIP_READ_V1_SELECT,
+    });
   });
 
   it('returns single trip DTO', async () => {
