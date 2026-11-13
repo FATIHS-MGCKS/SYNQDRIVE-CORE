@@ -10,10 +10,19 @@ import {
 
 export type DtcSummaryForCoreRead = Awaited<ReturnType<DtcService['getSummary']>>;
 
+const CORE_DTC_MONITORING_STATUS_ALLOWLIST: ReadonlySet<CoreDtcMonitoringStatusV1> = new Set([
+  'unavailable',
+  'stale',
+  'clean',
+  'active_faults',
+]);
+
+const CORE_DTC_PREVIEW_MAX = 3;
+
 function mapPreview(
   preview: DtcSummaryForCoreRead['activeFaultPreview'],
 ): CoreDtcActiveFaultPreviewV1[] {
-  return preview.map((item) => ({
+  return preview.slice(0, CORE_DTC_PREVIEW_MAX).map((item) => ({
     code: item.code,
     category: item.category,
     severityBand: item.severityBand as DtcSeverityBand,
@@ -28,13 +37,57 @@ function resolveWorstSeverityBand(
   return upstream;
 }
 
+function parseAllowlistedStatus(
+  raw: DtcSummaryForCoreRead['status'] | undefined,
+): CoreDtcMonitoringStatusV1 | null {
+  if (typeof raw !== 'string') return null;
+  return CORE_DTC_MONITORING_STATUS_ALLOWLIST.has(raw as CoreDtcMonitoringStatusV1)
+    ? (raw as CoreDtcMonitoringStatusV1)
+    : null;
+}
+
+/**
+ * Normalizes upstream monitoringStatus and isStale so the Core contract never
+ * exposes unknown status labels or stale/fresh contradictions.
+ */
+function resolveEffectiveMonitoring(summary: DtcSummaryForCoreRead): {
+  monitoringStatus: CoreDtcMonitoringStatusV1;
+  isStale: boolean;
+} {
+  const allowlisted = parseAllowlistedStatus(summary.status);
+  if (allowlisted === null) {
+    return { monitoringStatus: 'unavailable', isStale: true };
+  }
+
+  const upstreamStale = summary.isStale;
+  const freshnessContradictsFreshState =
+    upstreamStale !== false && (allowlisted === 'clean' || allowlisted === 'active_faults');
+
+  if (freshnessContradictsFreshState) {
+    return { monitoringStatus: 'stale', isStale: true };
+  }
+
+  if (allowlisted === 'stale') {
+    return { monitoringStatus: 'stale', isStale: true };
+  }
+
+  if (allowlisted === 'unavailable') {
+    return {
+      monitoringStatus: 'unavailable',
+      isStale: upstreamStale === false ? false : true,
+    };
+  }
+
+  return { monitoringStatus: allowlisted, isStale: false };
+}
+
 export function toCoreDtcReadV1(input: {
   organizationId: string;
   vehicleId: string;
   productSlug: ProductSlug;
   summary: DtcSummaryForCoreRead;
 }): CoreDtcReadV1 {
-  const monitoringStatus = input.summary.status as CoreDtcMonitoringStatusV1;
+  const { monitoringStatus, isStale } = resolveEffectiveMonitoring(input.summary);
   const worstUpstream = input.summary.worstSeverityBand as DtcSeverityBand;
 
   let activeFaultCount: number | null;
@@ -70,7 +123,7 @@ export function toCoreDtcReadV1(input: {
     vehicleId: input.vehicleId,
     productSlug: input.productSlug,
     monitoringStatus,
-    isStale: input.summary.isStale,
+    isStale,
     lastPollAttemptAt: input.summary.lastCheckedAt,
     lastSuccessfulCheckAt: input.summary.lastSuccessfulCheckAt,
     activeFaultCount,
