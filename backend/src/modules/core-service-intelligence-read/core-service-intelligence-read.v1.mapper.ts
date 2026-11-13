@@ -1,6 +1,7 @@
 import type { ProductSlug } from '@prisma/client';
 import type { ServiceComplianceService } from '@modules/vehicle-intelligence/service-compliance/service-compliance.service';
 import type {
+  MaintenanceConflict,
   MaintenancePositionForecast,
   MaintenanceProvenance,
 } from '@modules/vehicle-intelligence/service-compliance/maintenance-forecast/maintenance-forecast.types';
@@ -60,6 +61,21 @@ function mapProvenance(p: MaintenanceProvenance | null | undefined): Maintenance
     odometerSource: p.odometerSource,
     calculationMethod: p.calculationMethod,
   };
+}
+
+function mapConflict(conflict: MaintenanceConflict): MaintenanceConflict {
+  return {
+    code: conflict.code,
+    positionId: conflict.positionId,
+    hmRemainingKm: conflict.hmRemainingKm,
+    computedRemainingKm: conflict.computedRemainingKm,
+    hmRemainingDays: conflict.hmRemainingDays,
+    computedRemainingDays: conflict.computedRemainingDays,
+  };
+}
+
+function mapConflicts(conflicts: MaintenanceConflict[] | undefined): MaintenanceConflict[] {
+  return (conflicts ?? []).map(mapConflict);
 }
 
 function mapComputedComparison(
@@ -146,7 +162,7 @@ function mapPosition(position: MaintenancePositionForecast): CoreServiceMaintena
     remainingDays: position.remainingDays,
     remainingMonths: position.remainingMonths,
     computationMode: position.computationMode,
-    provenance: position.provenance,
+    provenance: mapProvenance(position.provenance)!,
     dataQuality: position.dataQuality,
   };
 }
@@ -167,7 +183,8 @@ export function toCoreServiceIntelligenceReadV1(input: {
   detailed: ServiceComplianceDetailedForCore;
 }): CoreServiceIntelligenceReadV1 {
   const { nextService, forecast } = input.detailed;
-  const conflicts = forecast ? forecast.conflicts : (nextService.conflicts ?? []);
+  const conflictSource = forecast ? forecast.conflicts : nextService.conflicts;
+  const conflicts = mapConflicts(conflictSource);
 
   if (!forecast) {
     return {

@@ -294,4 +294,71 @@ describe('toCoreServiceIntelligenceReadV1', () => {
     expect(dto.freshness.odometerObservedAt).toBe('2026-06-01T09:00:00.000Z');
     expect(dto.forecastComputedAt).toBe('2026-06-01T12:00:00.000Z');
   });
+
+  it('NO_TRACKING with null source and null forecast — fail-closed Core contract', () => {
+    const dto = map({
+      nextService: baseNext({
+        trackingStatus: 'NO_TRACKING',
+        source: null,
+        distanceToNextServiceKm: 999,
+        timeToNextServiceDays: 99,
+        projectedDueDate: '2026-12-01T00:00:00.000Z',
+        severity: 'INFO',
+        provenance: null,
+        computedComparison: {
+          source: 'COMPUTED_ONEAUTO_SCHEDULE',
+          positionId: 'pos-0',
+          remainingKm: 1,
+          remainingDays: 2,
+          projectedDueDate: '2026-08-01T00:00:00.000Z',
+        },
+      }),
+      forecast: null,
+    });
+
+    expect(dto.nextServiceHeadline.trackingStatus).toBe('NO_TRACKING');
+    expect(dto.nextServiceHeadline.source).toBeNull();
+    expect(dto.nextServiceHeadline.remainingKm).toBeNull();
+    expect(dto.nextServiceHeadline.remainingDays).toBeNull();
+    expect(dto.nextServiceHeadline.projectedDueDate).toBeNull();
+    expect(dto.nextServiceHeadline.computedComparison).toBeNull();
+    expect(dto.maintenancePositions).toEqual([]);
+    expect(dto.positionsTotal).toBe(0);
+    expect(dto.positionsTruncated).toBe(false);
+    expect(dto.forecastComputedAt).toBeNull();
+    expect(dto.freshness).toEqual({
+      odometerObservedAt: null,
+      scheduleFetchedAt: null,
+      hmLastUpdatedAt: null,
+      latestEventDate: null,
+    });
+  });
+
+  it('projects conflicts without forwarding unknown properties', () => {
+    const dto = map({
+      nextService: baseNext(),
+      forecast: baseForecast({
+        conflicts: [
+          {
+            code: 'CONFLICT_HM_VS_COMPUTED',
+            positionId: 'pos-0',
+            hmRemainingKm: 100,
+            computedRemainingKm: 200,
+            hmRemainingDays: null,
+            computedRemainingDays: null,
+            injected: true,
+          } as unknown as import('@modules/vehicle-intelligence/service-compliance/maintenance-forecast/maintenance-forecast.types').MaintenanceConflict,
+        ],
+      }),
+    });
+    expect(dto.conflicts[0]).toEqual({
+      code: 'CONFLICT_HM_VS_COMPUTED',
+      positionId: 'pos-0',
+      hmRemainingKm: 100,
+      computedRemainingKm: 200,
+      hmRemainingDays: null,
+      computedRemainingDays: null,
+    });
+    expect(dto.conflicts[0]).not.toHaveProperty('injected');
+  });
 });
