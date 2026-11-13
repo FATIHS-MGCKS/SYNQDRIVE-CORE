@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ProductSlug } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
-import { buildPaginatedResult, parsePagination, type PaginationParams } from '@shared/utils/pagination';
+import {
+  coreVehicleReadPaginationMeta,
+  type CoreVehicleReadPagination,
+} from './core-vehicle-read.pagination';
 import { toCoreVehicleIdentityV1 } from './core-vehicle-read.v1.mapper';
 import type {
   CoreVehicleReadListV1,
@@ -25,9 +28,8 @@ export class CoreVehicleReadV1Service {
   async listForOrganization(
     organizationId: string,
     productSlug: ProductSlug,
-    pagination: PaginationParams,
+    pagination: CoreVehicleReadPagination,
   ): Promise<CoreVehicleReadListV1> {
-    const { skip, take } = parsePagination(pagination);
     const where = { organizationId };
 
     const [total, rows] = await Promise.all([
@@ -35,24 +37,18 @@ export class CoreVehicleReadV1Service {
       this.prisma.vehicle.findMany({
         where,
         select: VEHICLE_IDENTITY_SELECT,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: pagination.skip,
+        take: pagination.take,
       }),
     ]);
-
-    const page = buildPaginatedResult(
-      rows.map(toCoreVehicleIdentityV1),
-      total,
-      pagination,
-    );
 
     return {
       version: CORE_VEHICLE_READ_CONTRACT_VERSION,
       organizationId,
       productSlug,
-      vehicles: page.data,
-      pagination: page.meta,
+      vehicles: rows.map(toCoreVehicleIdentityV1),
+      pagination: coreVehicleReadPaginationMeta(total, pagination),
     };
   }
 

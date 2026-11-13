@@ -286,6 +286,34 @@ describe('CoreVehicleReadV1Controller — HTTP security integration', () => {
       .expect(401);
   });
 
+  it('rejects invalid pagination query parameters with 400', async () => {
+    const auth = bearerUser({ id: USER_MEMBER, organizationId: ORG_A });
+    const base = listRoute(ORG_A);
+    await request(app.getHttpServer()).get(`${base}&page=abc`).set('Authorization', auth).expect(400);
+    await request(app.getHttpServer()).get(`${base}&page=1.5`).set('Authorization', auth).expect(400);
+    await request(app.getHttpServer()).get(`${base}&limit=-1`).set('Authorization', auth).expect(400);
+  });
+
+  it('active product license does not imply product-scoped vehicle list', async () => {
+    const res = await request(app.getHttpServer())
+      .get(listRoute(ORG_A))
+      .set(
+        'Authorization',
+        bearerUser({ id: USER_MEMBER, organizationId: ORG_A }),
+      )
+      .expect(200);
+
+    expect(prisma.vehicle.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { organizationId: ORG_A },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
+    );
+    const where = (prisma.vehicle.findMany as jest.Mock).mock.calls.at(-1)?.[0]?.where;
+    expect(where).toEqual({ organizationId: ORG_A });
+    expect(res.body.productSlug).toBe(ProductSlug.RENTAL);
+  });
+
   it('paginates vehicle list', async () => {
     const res = await request(app.getHttpServer())
       .get(`${listRoute(ORG_A)}&page=1&limit=1`)
@@ -296,9 +324,13 @@ describe('CoreVehicleReadV1Controller — HTTP security integration', () => {
       .expect(200);
 
     expect(prisma.vehicle.findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({ skip: 0, take: 1 }),
+      expect.objectContaining({
+        skip: 0,
+        take: 1,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
     );
-    expect(res.body.pagination.limit).toBe(1);
+    expect(res.body.pagination).toMatchObject({ page: 1, limit: 1, total: 2, totalPages: 2 });
   });
 
   it('returns single vehicle without rental or internal fields', async () => {

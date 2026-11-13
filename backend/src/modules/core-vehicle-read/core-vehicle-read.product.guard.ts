@@ -12,6 +12,7 @@ const ALLOWED_PRODUCT_SLUGS = new Set<string>(Object.values(ProductSlug));
 
 /**
  * Validates `?productSlug=` for core vehicle read routes (user JWT only).
+ * Confirms ACTIVE `OrganizationProduct` only — does not filter vehicles by product assignment.
  * Not added to M2M allowlist — service tokens remain blocked by global AuthGuard.
  */
 @Injectable()

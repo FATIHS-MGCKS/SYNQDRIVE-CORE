@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { FuelType, ProductSlug, VehicleRegistryLifecycle } from '@prisma/client';
 import { PrismaService } from '@shared/database/prisma.service';
 import { Test } from '@nestjs/testing';
+import { parseCoreVehicleReadPagination } from './core-vehicle-read.pagination';
 import { CoreVehicleReadV1Service } from './core-vehicle-read.v1.service';
 import { CORE_VEHICLE_READ_CONTRACT_VERSION } from './core-vehicle-read.v1.types';
 
@@ -38,23 +39,38 @@ describe('CoreVehicleReadV1Service', () => {
       prisma.vehicle.count.mockResolvedValue(3);
       prisma.vehicle.findMany.mockResolvedValue([vehicleRow]);
 
-      const result = await service.listForOrganization(ORG, ProductSlug.RENTAL, {
-        page: 1,
-        limit: 1,
-      });
+      const pagination = parseCoreVehicleReadPagination('1', '1');
+      const result = await service.listForOrganization(ORG, ProductSlug.RENTAL, pagination);
 
       expect(prisma.vehicle.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { organizationId: ORG },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           skip: 0,
           take: 1,
         }),
       );
+      expect(prisma.vehicle.findMany.mock.calls[0][0].where).toEqual({ organizationId: ORG });
       expect(result.version).toBe(CORE_VEHICLE_READ_CONTRACT_VERSION);
       expect(result.organizationId).toBe(ORG);
       expect(result.productSlug).toBe(ProductSlug.RENTAL);
       expect(result.vehicles).toHaveLength(1);
-      expect(result.pagination.total).toBe(3);
+      expect(result.pagination).toMatchObject({ total: 3, page: 1, limit: 1, totalPages: 3 });
+    });
+
+    it('does not filter vehicles by product — org-wide registry only', async () => {
+      prisma.vehicle.count.mockResolvedValue(0);
+      prisma.vehicle.findMany.mockResolvedValue([]);
+      const pagination = parseCoreVehicleReadPagination();
+      await service.listForOrganization(ORG, ProductSlug.FLEET, pagination);
+      expect(prisma.vehicle.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { organizationId: ORG },
+        }),
+      );
+      const where = prisma.vehicle.findMany.mock.calls[0][0].where as Record<string, unknown>;
+      expect(where).not.toHaveProperty('product');
+      expect(where).not.toHaveProperty('productSlug');
     });
   });
 
