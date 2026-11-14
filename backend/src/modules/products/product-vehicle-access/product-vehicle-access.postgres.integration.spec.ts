@@ -83,8 +83,7 @@ const LIVE = process.env.PRODUCT_VEHICLE_ACCESS_POSTGRES_INTEGRATION === '1';
   it('ORGANIZATION_WIDE authorizes all ACTIVE lifecycle vehicles', async () => {
     const orgId = await seedOrgWithProduct(OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE);
     await seedVehicle(orgId);
-    const access = await service.resolveProductVehicleAccess(orgId, ProductSlug.RENTAL);
-    const where = service.buildAuthorizedVehicleWhere(access);
+    const where = await service.getAuthorizedVehicleWhere(orgId, ProductSlug.RENTAL);
     const count = await prisma.vehicle.count({ where });
     expect(count).toBeGreaterThanOrEqual(1);
   });
@@ -92,8 +91,7 @@ const LIVE = process.env.PRODUCT_VEHICLE_ACCESS_POSTGRES_INTEGRATION === '1';
   it('SELECTED_VEHICLES zero grants yields zero authorized vehicles', async () => {
     const orgId = await seedOrgWithProduct(OrganizationProductVehicleAccessMode.SELECTED_VEHICLES);
     await seedVehicle(orgId);
-    const access = await service.resolveProductVehicleAccess(orgId, ProductSlug.RENTAL);
-    const where = service.buildAuthorizedVehicleWhere(access);
+    const where = await service.getAuthorizedVehicleWhere(orgId, ProductSlug.RENTAL);
     expect(await prisma.vehicle.count({ where })).toBe(0);
   });
 
@@ -110,10 +108,26 @@ const LIVE = process.env.PRODUCT_VEHICLE_ACCESS_POSTGRES_INTEGRATION === '1';
         grantedByUserId: 'admin-test',
       },
     });
-    const access = await service.resolveProductVehicleAccess(orgId, ProductSlug.RENTAL);
-    const where = service.buildAuthorizedVehicleWhere(access);
+    const where = await service.getAuthorizedVehicleWhere(orgId, ProductSlug.RENTAL);
     expect(await prisma.vehicle.count({ where })).toBe(1);
-    await expect(service.assertVehicleAuthorized(orgId, granted.id, ProductSlug.RENTAL, access)).resolves.toBeUndefined();
+    await expect(service.assertVehicleAuthorized(orgId, granted.id, ProductSlug.RENTAL)).resolves.toBeUndefined();
+  });
+
+  it('wrong product grant does not authorize vehicle under SELECTED', async () => {
+    const orgId = await seedOrgWithProduct(OrganizationProductVehicleAccessMode.SELECTED_VEHICLES);
+    const vehicle = await seedVehicle(orgId);
+    await prisma.vehicleProductGrant.create({
+      data: {
+        organizationId: orgId,
+        vehicleId: vehicle.id,
+        productSlug: ProductSlug.FLEET,
+        status: VehicleProductGrantStatus.ACTIVE,
+        grantedByUserId: 'admin-test',
+      },
+    });
+    await expect(service.assertVehicleAuthorized(orgId, vehicle.id, ProductSlug.RENTAL)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('revoked grant does not authorize vehicle', async () => {
@@ -154,6 +168,10 @@ const LIVE = process.env.PRODUCT_VEHICLE_ACCESS_POSTGRES_INTEGRATION === '1';
     await expect(service.resolveProductVehicleAccess(org.id, ProductSlug.RENTAL)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+    const vehicle = await seedVehicle(org.id);
+    await expect(service.assertVehicleAuthorized(org.id, vehicle.id, ProductSlug.RENTAL)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   it('transferred vehicle not visible in foreign org', async () => {
@@ -169,6 +187,14 @@ const LIVE = process.env.PRODUCT_VEHICLE_ACCESS_POSTGRES_INTEGRATION === '1';
     const orgId = await seedOrgWithProduct(OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE);
     const offboarded = await seedVehicle(orgId, VehicleRegistryLifecycle.OFFBOARDED);
     await expect(service.assertVehicleAuthorized(orgId, offboarded.id, ProductSlug.RENTAL)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('ARCHIVED vehicle not in authorized where', async () => {
+    const orgId = await seedOrgWithProduct(OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE);
+    const archived = await seedVehicle(orgId, VehicleRegistryLifecycle.ARCHIVED);
+    await expect(service.assertVehicleAuthorized(orgId, archived.id, ProductSlug.RENTAL)).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });

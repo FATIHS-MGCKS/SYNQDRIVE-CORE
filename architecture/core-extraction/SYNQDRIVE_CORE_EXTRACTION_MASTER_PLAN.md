@@ -536,7 +536,7 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 ### 6.23 P3-PR11A — Product vehicle access foundation (Draft-PR)
 
-**Scope:** `ProductVehicleAccessService` — ACTIVE license + mode resolve; Prisma vehicle `where` for list/count; `assertVehicleAuthorized` → 404. Not wired to `core.read.v1`. Blockers: `P3_PR11A_PRODUCT_VEHICLE_ACCESS_FOUNDATION.md`.
+**Scope:** `ProductVehicleAccessService` — DB-backed license resolve; `getAuthorizedVehicleWhere` for list/count; `assertVehicleAuthorized` (no caller context) → 404. Not wired to `core.read.v1`. Blockers: `P3_PR11A_PRODUCT_VEHICLE_ACCESS_FOUNDATION.md`.
 
 ### 6.22 P3-PR10 — OrganizationProduct vehicle access mode (Draft-PR)
 

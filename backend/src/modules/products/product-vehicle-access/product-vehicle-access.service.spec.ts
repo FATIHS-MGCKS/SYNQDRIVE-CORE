@@ -16,44 +16,52 @@ describe('ProductVehicleAccessService', () => {
 
   let service: ProductVehicleAccessService;
   const ORG_A = 'org-a';
-  const ORG_B = 'org-b';
   const VEH_1 = 'veh-1';
-  const VEH_2 = 'veh-2';
+
+  const activeRentalOrgProduct = {
+    id: 'op-1',
+    status: OrgProductStatus.ACTIVE,
+    vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+    product: { slug: ProductSlug.RENTAL },
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
     service = new ProductVehicleAccessService(prisma as never);
   });
 
-  const wideAccess = {
-    organizationId: ORG_A,
-    productSlug: ProductSlug.RENTAL,
-    organizationProductId: 'op-1',
-    vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
-    licenseStatus: OrgProductStatus.ACTIVE,
-  };
-
-  const selectedAccess = {
-    ...wideAccess,
-    vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
-  };
-
-  it('rejects inactive OrganizationProduct', async () => {
+  it('rejects inactive OrganizationProduct on resolve', async () => {
     prisma.organizationProduct.findFirst.mockResolvedValue(null);
     await expect(service.resolveProductVehicleAccess(ORG_A, ProductSlug.RENTAL)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
   });
 
-  it('ORGANIZATION_WIDE where excludes grant predicate', () => {
-    const where = service.buildAuthorizedVehicleWhere(wideAccess);
+  it('inactive license cannot authorize any vehicle via assert', async () => {
+    prisma.organizationProduct.findFirst.mockResolvedValue(null);
+    await expect(service.assertVehicleAuthorized(ORG_A, VEH_1, ProductSlug.RENTAL)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(prisma.vehicle.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('ORGANIZATION_WIDE where excludes grant predicate', async () => {
+    prisma.organizationProduct.findFirst.mockResolvedValue({
+      ...activeRentalOrgProduct,
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+    });
+    const where = await service.getAuthorizedVehicleWhere(ORG_A, ProductSlug.RENTAL);
     expect(where.organizationId).toBe(ORG_A);
     expect(where.registryLifecycle).toEqual({ in: [VehicleRegistryLifecycle.ACTIVE] });
     expect(where).not.toHaveProperty('vehicleProductGrants');
   });
 
-  it('SELECTED_VEHICLES where requires ACTIVE grant relation', () => {
-    const where = service.buildAuthorizedVehicleWhere(selectedAccess);
+  it('SELECTED_VEHICLES where requires ACTIVE grant relation', async () => {
+    prisma.organizationProduct.findFirst.mockResolvedValue({
+      ...activeRentalOrgProduct,
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+    });
+    const where = await service.getAuthorizedVehicleWhere(ORG_A, ProductSlug.RENTAL);
     expect(where.vehicleProductGrants).toEqual({
       some: {
         organizationId: ORG_A,
@@ -65,13 +73,10 @@ describe('ProductVehicleAccessService', () => {
 
   it('SELECTED with zero grants yields empty list when used as Prisma where', async () => {
     prisma.organizationProduct.findFirst.mockResolvedValue({
-      id: 'op-1',
-      status: OrgProductStatus.ACTIVE,
+      ...activeRentalOrgProduct,
       vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
-      product: { slug: ProductSlug.RENTAL },
     });
-    const access = await service.resolveProductVehicleAccess(ORG_A, ProductSlug.RENTAL);
-    const where = service.buildAuthorizedVehicleWhere(access);
+    const where = await service.getAuthorizedVehicleWhere(ORG_A, ProductSlug.RENTAL);
     prisma.vehicle.count.mockResolvedValue(0);
     const total = await prisma.vehicle.count({ where });
     expect(total).toBe(0);
@@ -79,10 +84,8 @@ describe('ProductVehicleAccessService', () => {
 
   it('assertVehicleAuthorized denies revoked grant under SELECTED', async () => {
     prisma.organizationProduct.findFirst.mockResolvedValue({
-      id: 'op-1',
-      status: OrgProductStatus.ACTIVE,
+      ...activeRentalOrgProduct,
       vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
-      product: { slug: ProductSlug.RENTAL },
     });
     prisma.vehicle.findFirst.mockResolvedValue(null);
     await expect(service.assertVehicleAuthorized(ORG_A, VEH_1, ProductSlug.RENTAL)).rejects.toBeInstanceOf(
@@ -91,64 +94,69 @@ describe('ProductVehicleAccessService', () => {
   });
 
   it('cross-organization vehicle denied as not found', async () => {
-    prisma.organizationProduct.findFirst.mockResolvedValue({
-      id: 'op-1',
-      status: OrgProductStatus.ACTIVE,
-      vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
-      product: { slug: ProductSlug.RENTAL },
-    });
+    prisma.organizationProduct.findFirst.mockResolvedValue(activeRentalOrgProduct);
     prisma.vehicle.findFirst.mockResolvedValue(null);
     await expect(service.assertVehicleAuthorized(ORG_A, VEH_1, ProductSlug.RENTAL)).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });
 
-  it('offboarded vehicle excluded from wide where', async () => {
-    prisma.organizationProduct.findFirst.mockResolvedValue({
-      id: 'op-1',
-      status: OrgProductStatus.ACTIVE,
-      vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
-      product: { slug: ProductSlug.RENTAL },
-    });
-    const access = await service.resolveProductVehicleAccess(ORG_A, ProductSlug.RENTAL);
-    const where = service.buildAuthorizedVehicleWhere(access);
-    prisma.vehicle.findFirst.mockImplementation(async (args: { where: Record<string, unknown> }) => {
-      if (args.where.registryLifecycle) {
-        return null;
-      }
-      return { id: VEH_1 };
-    });
+  it('offboarded vehicle excluded — assert denies without caller context', async () => {
+    prisma.organizationProduct.findFirst.mockResolvedValue(activeRentalOrgProduct);
     prisma.vehicle.findFirst.mockResolvedValue(null);
-    await expect(service.assertVehicleAuthorized(ORG_A, VEH_1, ProductSlug.RENTAL, access)).rejects.toBeInstanceOf(
+    await expect(service.assertVehicleAuthorized(ORG_A, VEH_1, ProductSlug.RENTAL)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+    expect(prisma.organizationProduct.findFirst).toHaveBeenCalled();
+  });
+
+  it('ARCHIVED lifecycle excluded from authorized where', async () => {
+    prisma.organizationProduct.findFirst.mockResolvedValue(activeRentalOrgProduct);
+    const where = await service.getAuthorizedVehicleWhere(ORG_A, ProductSlug.RENTAL);
     expect(where.registryLifecycle).toEqual({ in: [VehicleRegistryLifecycle.ACTIVE] });
+    expect(where.registryLifecycle).not.toEqual(expect.objectContaining({ in: expect.arrayContaining([VehicleRegistryLifecycle.ARCHIVED]) }));
   });
 
   it('list filter uses same where for count and findMany', async () => {
     prisma.organizationProduct.findFirst.mockResolvedValue({
-      id: 'op-1',
-      status: OrgProductStatus.ACTIVE,
+      ...activeRentalOrgProduct,
       vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
-      product: { slug: ProductSlug.RENTAL },
     });
-    const access = await service.resolveProductVehicleAccess(ORG_A, ProductSlug.RENTAL);
-    const where = service.buildAuthorizedVehicleWhere(access);
+    const where = await service.getAuthorizedVehicleWhere(ORG_A, ProductSlug.RENTAL);
     await prisma.vehicle.count({ where });
     await prisma.vehicle.findMany({ where, take: 10, skip: 0 });
     expect(prisma.vehicle.count).toHaveBeenCalledWith({ where });
     expect(prisma.vehicle.findMany).toHaveBeenCalledWith(expect.objectContaining({ where }));
   });
 
-  it('multi-product: FLEET selected does not authorize RENTAL grant vehicle', async () => {
-    const fleetAccess = {
-      organizationId: ORG_A,
-      productSlug: ProductSlug.FLEET,
-      organizationProductId: 'op-fleet',
+  it('wrong product grant cannot authorize vehicle — FLEET grant under RENTAL product', async () => {
+    prisma.organizationProduct.findFirst.mockResolvedValue({
+      ...activeRentalOrgProduct,
       vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
-      licenseStatus: OrgProductStatus.ACTIVE,
-    };
-    const where = service.buildAuthorizedVehicleWhere(fleetAccess);
+    });
+    const where = await service.getAuthorizedVehicleWhere(ORG_A, ProductSlug.RENTAL);
+    expect(where.vehicleProductGrants).toEqual({
+      some: {
+        organizationId: ORG_A,
+        productSlug: ProductSlug.RENTAL,
+        status: VehicleProductGrantStatus.ACTIVE,
+      },
+    });
+    expect(where.vehicleProductGrants).not.toEqual(
+      expect.objectContaining({
+        some: expect.objectContaining({ productSlug: ProductSlug.FLEET }),
+      }),
+    );
+  });
+
+  it('multi-product: FLEET selected does not authorize RENTAL grant vehicle', async () => {
+    prisma.organizationProduct.findFirst.mockResolvedValue({
+      id: 'op-fleet',
+      status: OrgProductStatus.ACTIVE,
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+      product: { slug: ProductSlug.FLEET },
+    });
+    const where = await service.getAuthorizedVehicleWhere(ORG_A, ProductSlug.FLEET);
     expect(where.vehicleProductGrants).toEqual({
       some: {
         organizationId: ORG_A,
@@ -156,5 +164,23 @@ describe('ProductVehicleAccessService', () => {
         status: VehicleProductGrantStatus.ACTIVE,
       },
     });
+  });
+
+  it('assertVehicleAuthorized always resolves license from DB', async () => {
+    prisma.organizationProduct.findFirst.mockResolvedValue(activeRentalOrgProduct);
+    prisma.vehicle.findFirst.mockResolvedValue({ id: VEH_1 });
+    await service.assertVehicleAuthorized(ORG_A, VEH_1, ProductSlug.RENTAL);
+    expect(prisma.organizationProduct.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          organizationId: ORG_A,
+          status: OrgProductStatus.ACTIVE,
+        }),
+      }),
+    );
+  });
+
+  it('no preResolved bypass — public assert accepts only org, vehicle, productSlug', async () => {
+    expect(service.assertVehicleAuthorized.length).toBe(3);
   });
 });

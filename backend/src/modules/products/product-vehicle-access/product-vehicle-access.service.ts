@@ -46,7 +46,7 @@ export class ProductVehicleAccessService {
     };
   }
 
-  buildAuthorizedVehicleWhere(
+  private buildAuthorizedVehicleWhere(
     access: ResolvedProductVehicleAccess,
   ): AuthorizedVehicleWhereInput {
     const base: AuthorizedVehicleWhereInput = {
@@ -70,14 +70,20 @@ export class ProductVehicleAccessService {
     };
   }
 
+  async getAuthorizedVehicleWhere(
+    organizationId: string,
+    productSlug: ProductSlug,
+  ): Promise<AuthorizedVehicleWhereInput> {
+    const access = await this.resolveProductVehicleAccess(organizationId, productSlug);
+    return this.buildAuthorizedVehicleWhere(access);
+  }
+
   async assertVehicleAuthorized(
     organizationId: string,
     vehicleId: string,
     productSlug: ProductSlug,
-    preResolved?: ResolvedProductVehicleAccess,
   ): Promise<void> {
-    const access = preResolved ?? (await this.resolveProductVehicleAccess(organizationId, productSlug));
-    const where = this.buildAuthorizedVehicleWhere(access);
+    const where = await this.getAuthorizedVehicleWhere(organizationId, productSlug);
 
     const vehicle = await this.prisma.vehicle.findFirst({
       where: {
