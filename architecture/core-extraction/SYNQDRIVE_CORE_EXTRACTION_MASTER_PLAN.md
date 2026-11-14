@@ -328,7 +328,7 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Limitierungen / LIVE_ACTIVATION_BLOCKER:**
 
-- **Distributed rate limiting:** Nest `ThrottlerModule` + Exchange-Limiter sind **pro Replica in-memory**; Redis (BullMQ) wird **nicht** als Throttler-Storage genutzt → **M2M bleibt mit `CORE_APP_M2M_ENABLED=false` bis verteiltes Rate-Limit verifiziert**
+- **Distributed rate limiting:** P3-PR11C (DRAFT) — Redis-backed exchange + vehicle-read limits; **M2M bleibt mit `CORE_APP_M2M_ENABLED=false` bis unabhängiger Architektur-Audit** (`architecture/core-extraction/P3_PR11C_DISTRIBUTED_M2M_RATE_LIMIT.md`)
 - Kein Vehicle/Trip/Master-Admin für Service-JWT; keine auto-provisioned clients; **kein Produktions-Deploy** in diesem Workstream
 - **Postgres greenfield `migrate deploy` (447 Migrations):** historische `CREATE INDEX CONCURRENTLY`-Migrationen schlagen in Prisma-Transaktion fehl — **nicht** der P1B-PR1-Normpfad; Production incrementell deployen
 - **P1B-Migration verifiziert (Merge-Gate):** disposable DB `synqdrive_core_p1b_disposable_merge_gate` @ `127.0.0.1` — Main-Schema-Baseline (`78e66dce` `schema.prisma` + `db push`), `migrate resolve` für 446 Vorgänger, `prisma migrate deploy` → nur `20261112120000_core_app_m2m_p1b_pr1`; `migrate status` up-to-date; Jest `CORE_APP_M2M_POSTGRES_INTEGRATION=1`
@@ -539,6 +539,8 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 **Scope:** `ProductVehicleAccessService` — DB-backed license resolve; `getAuthorizedVehicleWhere` for list/count; `assertVehicleAuthorized` (no caller context) → 404. Not wired to `core.read.v1`. Blockers: `P3_PR11A_PRODUCT_VEHICLE_ACCESS_FOUNDATION.md`.
 
 **P3-PR11B (draft):** M2M-only `/core/app/read/v1` vehicle identity; product-bound principal; flag-gated. See `P3_PR11B_CORE_APP_VEHICLE_READ.md`.
+
+**P3-PR11C (draft):** Distributed Redis rate limits for M2M exchange + vehicle read (fail-closed). See `P3_PR11C_DISTRIBUTED_M2M_RATE_LIMIT.md`.
 
 ### 6.22 P3-PR10 — OrganizationProduct vehicle access mode (Draft-PR)
 
