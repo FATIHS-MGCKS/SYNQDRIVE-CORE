@@ -6,11 +6,12 @@ import { CoreEntitlementsReadController } from './entitlements/core-entitlements
 import { EntitlementsQueryService } from './entitlements/entitlements-query.service';
 import { CoreAppM2mModule } from '@modules/core-app-m2m/core-app-m2m.module';
 import { VehicleProductGrantModule } from './vehicle-product-grants/vehicle-product-grant.module';
+import { ProductVehicleAccessModule } from './product-vehicle-access/product-vehicle-access.module';
 
 @Module({
-  imports: [ActivityLogModule, CoreAppM2mModule, VehicleProductGrantModule],
+  imports: [ActivityLogModule, CoreAppM2mModule, VehicleProductGrantModule, ProductVehicleAccessModule],
   controllers: [ProductsController, CoreEntitlementsReadController],
   providers: [ProductsService, EntitlementsQueryService],
-  exports: [ProductsService, EntitlementsQueryService, VehicleProductGrantModule],
+  exports: [ProductsService, EntitlementsQueryService, VehicleProductGrantModule, ProductVehicleAccessModule],
 })
 export class ProductsModule {}
