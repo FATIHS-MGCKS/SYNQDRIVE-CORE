@@ -534,6 +534,10 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Unverändert:** Wear-Model V2, `TripDrivingImpact`, DS4-Migration, Evidence-Ingest, Rental-Policy, Worker, Schema.
 
+### 6.23 P3-PR11A — Product vehicle access foundation (Draft-PR)
+
+**Scope:** `ProductVehicleAccessService` — ACTIVE license + mode resolve; Prisma vehicle `where` for list/count; `assertVehicleAuthorized` → 404. Not wired to `core.read.v1`. Blockers: `P3_PR11A_PRODUCT_VEHICLE_ACCESS_FOUNDATION.md`.
+
 ### 6.22 P3-PR10 — OrganizationProduct vehicle access mode (Draft-PR)
 
 **Scope:** `OrganizationProduct.vehicleAccessMode` (`ORGANIZATION_WIDE` | `SELECTED_VEHICLES`); migration backfill WIDE, no DB default on column; `ProductsService` assign (explicit mode on create), PATCH mode with conditional update + 409; Master Admin MFA on assign/delete/PATCH; admin GET additive fields.
