@@ -1665,6 +1665,7 @@ model Organization {
 
   memberships                                               OrganizationMembership[]
   organizationProducts                                      OrganizationProduct[]
+  vehicleProductGrants                                      VehicleProductGrant[]
   coreAppServiceOrgGrants                                   CoreAppServiceOrgGrant[]
   stations                                                  Station[]
   vehicleStationTransfers                                   VehicleStationTransfer[]
@@ -3002,6 +3003,34 @@ model OrganizationProduct {
   @@map("organization_products")
 }
 
+enum VehicleProductGrantStatus {
+  ACTIVE
+  REVOKED
+}
+
+model VehicleProductGrant {
+  id              String                    @id @default(uuid())
+  organizationId  String                    @map("organization_id")
+  vehicleId       String                    @map("vehicle_id")
+  productSlug     ProductSlug               @map("product_slug")
+  status          VehicleProductGrantStatus @default(ACTIVE)
+  grantVersion    Int                       @default(1) @map("grant_version")
+  grantedAt       DateTime                  @default(now()) @map("granted_at")
+  revokedAt       DateTime?                 @map("revoked_at")
+  grantedByUserId String                    @map("granted_by_user_id")
+  revokedByUserId String?                   @map("revoked_by_user_id")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleId, productSlug])
+  @@index([organizationId, productSlug, status])
+  @@index([vehicleId])
+  @@map("vehicle_product_grants")
+}
+
 // ------------------------------------------------
 // VEHICLES (registered SynqDrive vehicles)
 // ------------------------------------------------
@@ -3246,6 +3275,7 @@ model Vehicle {
   licensePlateAssignments                VehicleLicensePlateAssignment[]
   completedOnboardingCases               VehicleOnboardingCase[]         @relation("OnboardingCaseCompletedVehicle")
   registryLifecycleOutboxEvents          VehicleRegistryLifecycleOutbox[]
+  vehicleProductGrants                   VehicleProductGrant[]
   oneAutoProviderJobs                    OneAutoProviderJob[]
   oneAutoOemVinLookupEuSuggestionSnapshots OneAutoOemVinLookupEuSuggestionSnapshot[]
   oneAutoOeServiceHistoryEuIngestions    OneAutoOeServiceHistoryEuIngestion[]

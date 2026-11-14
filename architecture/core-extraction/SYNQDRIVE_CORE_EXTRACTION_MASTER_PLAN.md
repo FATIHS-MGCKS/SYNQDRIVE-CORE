@@ -200,7 +200,7 @@ Diese 16 Positionen sind **Audit-Befunde und keine Umsetzungsgenehmigung**. Bevo
 
 ### 5.2 Contract B – Vehicle & Intelligence Read API
 
-**API-Prefix (P3):** `/api/v1/core/read/v1/organizations/{orgId}` — **Vehicle-Identity v1** (PR #14); **Trip-Read v1** (P3-PR2 **MERGED** #15); **Driving-Assessment-Read v1** (P3-PR3 **MERGED** #16); **Battery-Read v1** (P3-PR4 **MERGED** #17); **DTC-Read v1** (P3-PR5 **MERGED** #18); **Service-Intelligence-Read v1** (P3-PR6 **MERGED** #19); **Tire-Read v1** (P3-PR7 **MERGED** #20); **Brake-Read v1** (P3-PR8 Draft).
+**API-Prefix (P3):** `/api/v1/core/read/v1/organizations/{orgId}` — **Vehicle-Identity v1** (PR #14); **Trip-Read v1** (P3-PR2 **MERGED** #15); **Driving-Assessment-Read v1** (P3-PR3 **MERGED** #16); **Battery-Read v1** (P3-PR4 **MERGED** #17); **DTC-Read v1** (P3-PR5 **MERGED** #18); **Service-Intelligence-Read v1** (P3-PR6 **MERGED** #19); **Tire-Read v1** (P3-PR7 **MERGED** #20); **Brake-Read v1** (P3-PR8 **MERGED** #21); **Vehicle-Product-Grant foundation** (P3-PR9 Draft — admin ledger only).
 
 - **P3-PR1 Product-Scope (verbindlich):** Listen/Detail sind **organisationsweite** Vehicle-Registry-Reads für berechtigte User-JWTs (`fleet.read` + Org-Scope). `?productSlug=` bestätigt nur eine **aktive `OrganizationProduct`-Lizenz** — **keine** produktbezogene Fahrzeugzuordnung, **kein** ProductVehicle-Filter. Explizite **ProductVehicle-/Produkt-Grants** sind **Voraussetzung für spätere** App-/M2M-Read-Anbindung (DESIGNED, nicht in P3-PR1).
 - Tenant-geschützte, versionierte Leseverträge: Vehicle Identity/Registry, technische Fahrt, Driving Assessment, Vehicle Health, Provenance, Modell-/Qualitätsstatus.
@@ -259,7 +259,7 @@ Infra-Vorgabe: Vorhandenes Postgres-Outbox-Muster aus Billing Domain Event Outbo
 | **P1B** | Core App M2M Foundation (Entitlements allowlist only) | **MERGED** (PR #3 → `main` `77e9843aa…`) | `CORE_APP_M2M_ENABLED` default off; M2M live weiter blockiert (distributed RL) | P2 Trip/Booking |
 | **P2** | Trip ↔ Booking Entkopplung | **DONE** (P2-PR1–PR8 merged; fachlich abgeschlossen) | Core VI booking/recompute/reconcile über Rental-Ports | P6 RentalTripLink Cutover |
 | **P6** | RentalTripLink Overlay + Cutover | **IN_PROGRESS** (P6-PR1 **MERGED** #12; P6-PR2 **MERGED** #13) | Schema + Resolver + Backfill paging/classify; **kein** Live-Cutover | G2 **BLOCKED_BY_DATA_EVIDENCE** |
-| **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **IN_PROGRESS** (P3-PR1 **MERGED** #14; P3-PR2 **MERGED** #15; P3-PR3 **MERGED** #16; P3-PR4 **MERGED** #17; P3-PR5 **MERGED** #18; P3-PR6 **MERGED** #19; P3-PR7 **MERGED** #20; P3-PR8 Brake Read Draft) | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
+| **P3** | Provider-/Vehicle-/Health-/Driving-Read-Contracts | **IN_PROGRESS** (P3-PR1 **MERGED** #14; P3-PR2 **MERGED** #15; P3-PR3 **MERGED** #16; P3-PR4 **MERGED** #17; P3-PR5 **MERGED** #18; P3-PR6 **MERGED** #19; P3-PR7 **MERGED** #20; P3-PR8 **MERGED** #21; P3-PR9 Vehicle-Product-Grant Draft) | Versionierte DTOs, Provenance, Privacy, Tenant-Tests | Bestands-API weiter betreiben |
 | **P4** | Voice, WhatsApp, AI, Documents, Tasks trennen | **NOT_STARTED** | Keine direkte Core→Rental-Booking-Injection | Adapter-/Compatibility-Layer |
 | **P5** | Worker/Queue/Ereignis-Isolation | **NOT_STARTED** | Core-Jobs unabhängig von Rental; keine doppelten Verbraucher | Gesicherte Worker-Gates |
 | **P6** | Datenhoheit Prisma/Schemata trennen | **NOT_STARTED** | Exklusive Schreib-Owner, Migrationsplan, Backfill-/Cutover-Prüfung | DB-Snapshot, Restore-Pfad, Reconciliation |
@@ -533,6 +533,19 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 **Auth:** User JWT, `fleet.read`, Lizenz, Org-Fahrzeug-Bindung. **M2M unverändert.**
 
 **Unverändert:** Wear-Model V2, `TripDrivingImpact`, DS4-Migration, Evidence-Ingest, Rental-Policy, Worker, Schema.
+
+### 6.21 P3-PR9 — Vehicle Product Grant Foundation (Draft-PR)
+
+**Scope:** Persistente `VehicleProductGrant`-Authority (`vehicle_product_grants`); `VehicleProductGrantService` (grant, revoke, hasActiveGrant, list); Master-Admin-HTTP (`admin/organizations/:orgId/...`) mit `RolesGuard` + `MasterAdminMfaGuard` (`MASTER_ORGANIZATION` step-up); Audit via `MasterAdminAuditService`.
+
+**Product access modes (server-authoritativ, nicht client-wählbar):** `ORGANIZATION_WIDE` (bestehende B2B-Produkte RENTAL/FLEET/TAXI — **keine** Grant-Pflicht auf `core.read.v1`); `EXPLICIT_VEHICLE` (künftige Consumer-Apps — erfordert aktiven Grant + spätere User-Fahrzeug-Bindung). Policy: `product-access-mode.policy.ts`.
+
+**Fail-closed / Tenant:** Grant nur bei ACTIVE `OrganizationProduct`, Fahrzeug `organizationId`-Bindung, `registryLifecycle=ACTIVE`; kein Bulk-Grant; Re-Grant explizit (grantVersion++); Revoke idempotent; **keine** Auto-Reaktivierung bei Lizenz-Wiederherstellung.
+
+**Nicht production-ready für Consumer-Isolation:** `core.read.v1` **unverändert** (kein Grant-Guard); M2M-Allowlist unverändert; kein VYMOD-`ProductSlug`, kein Backfill, kein Provider/Telemetry-Copy.
+
+**Unverändert:** P3-PR1..8 Read-Controller, Rental, M2M, Schema außer Grant-Tabelle, Worker.
+
 ### 6.4 P2-PR2 — Trip Rental Recompute Port (MERGED → `main` `98a6068f8…`, PR #5)
 
 **Scope:** Core-owned `TripRentalRecomputePort` (`TRIP_RENTAL_RECOMPUTE_PORT`); Rental `TripRentalRecomputePortAdapter` in `RentalDrivingAnalysisModule` (`tripRentalRecomputePortProviders`).
