@@ -1,5 +1,8 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ProductSlug } from '@prisma/client';
+import type { TireWearV3CutoverConfig } from '@config/tire-wear-v3-cutover.config';
+import { isTireWearV3CustomerReadAuthoritative } from '@config/tire-wear-v3-cutover.policy';
 import type { TireHealthService } from '@modules/vehicle-intelligence/tires/tire-health.service';
 import { TIRE_HEALTH_CONSUMER_EXPORT } from '@modules/vehicle-intelligence/tires/tire-health-consumer.tokens';
 import { HmSignalUsageService } from '@modules/high-mobility/high-mobility-signal-usage.service';
@@ -18,7 +21,17 @@ export class CoreTireReadV1Service {
     @Inject(TIRE_HEALTH_CONSUMER_EXPORT)
     private readonly tireHealth: TireHealthService,
     private readonly hm: HmSignalUsageService,
+    private readonly config: ConfigService,
   ) {}
+
+  private isV3AuthoritativeConfigured(): boolean {
+    const flags =
+      this.config.get<TireWearV3CutoverConfig>('tireWearV3Cutover') ?? {
+        customerReadEnabled: false,
+        customerReadAuthoritative: false,
+      };
+    return isTireWearV3CustomerReadAuthoritative(flags);
+  }
 
   async getForVehicle(
     organizationId: string,
@@ -45,6 +58,7 @@ export class CoreTireReadV1Service {
       vehicleId,
       productSlug,
       summary,
+      v3AuthoritativeConfigured: this.isV3AuthoritativeConfigured(),
     });
   }
 }

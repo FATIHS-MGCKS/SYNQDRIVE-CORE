@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
@@ -152,6 +153,15 @@ describe('CoreTireReadV1Controller — HTTP security integration', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: TIRE_HEALTH_CONSUMER_EXPORT, useValue: tireHealth },
         { provide: HmSignalUsageService, useValue: hm },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue({
+              customerReadEnabled: false,
+              customerReadAuthoritative: false,
+            }),
+          },
+        },
         { provide: APP_GUARD, useClass: AuthGuard },
       ],
     }).compile();

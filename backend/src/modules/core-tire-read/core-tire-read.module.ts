@@ -1,4 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import tireWearV3CutoverConfig from '@config/tire-wear-v3-cutover.config';
 import { TireHealthConsumerModule } from '@modules/vehicle-intelligence/tires/tire-health-consumer.module';
 import { HighMobilityModule } from '@modules/high-mobility/high-mobility.module';
 import { CoreVehicleReadModule } from '@modules/core-vehicle-read/core-vehicle-read.module';
@@ -13,6 +15,7 @@ import { CoreTireReadV1Service } from './core-tire-read.v1.service';
   imports: [
     PrismaModule,
     CoreVehicleReadModule,
+    ConfigModule.forFeature(tireWearV3CutoverConfig),
     HighMobilityModule,
     forwardRef(() => TireHealthConsumerModule),
   ],

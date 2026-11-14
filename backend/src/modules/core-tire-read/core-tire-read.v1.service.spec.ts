@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ProductSlug } from '@prisma/client';
 import { CoreTireReadV1Service } from './core-tire-read.v1.service';
 import { TIRE_HEALTH_CONSUMER_EXPORT } from '@modules/vehicle-intelligence/tires/tire-health-consumer.tokens';
@@ -15,12 +16,27 @@ describe('CoreTireReadV1Service', () => {
   const hm = {
     getTirePressureSignals: jest.fn(),
   };
+  const config = {
+    get: jest.fn().mockReturnValue({
+      customerReadEnabled: false,
+      customerReadAuthoritative: false,
+    }),
+  };
 
   let service: CoreTireReadV1Service;
 
   beforeEach(() => {
     jest.resetAllMocks();
-    service = new CoreTireReadV1Service(prisma as never, tireHealth as never, hm as never);
+    service = new CoreTireReadV1Service(
+      prisma as never,
+      tireHealth as never,
+      hm as never,
+      config as unknown as ConfigService,
+    );
+    config.get.mockReturnValue({
+      customerReadEnabled: false,
+      customerReadAuthoritative: false,
+    });
   });
 
   it('binds organization before HM prefetch and getSummary', async () => {

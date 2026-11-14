@@ -104,7 +104,10 @@ export type CoreTireReadV1 = {
   vehicleId: string;
   productSlug: ProductSlug;
   tireAvailability: CoreTireReadAvailabilityV1;
-  /** Best-effort freshness anchor (V3 computedAt when authoritative and valid; else last tread measurement). */
+  /**
+   * Freshness anchor: V3 model computation time only when customerWearReadModel=v3 and V3 is authoritative+valid.
+   * For V2/attached reads, tread evidence timestamps — never V3 computedAt.
+   */
   resolvedAt: string | null;
   productiveWearModelVersion: string;
   customerWearReadModel: CoreTireWearReadModelV1;
