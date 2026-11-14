@@ -105,7 +105,7 @@ const LIVE = process.env.ORGANIZATION_PRODUCT_ACCESS_MODE_POSTGRES_INTEGRATION =
         status: 'AVAILABLE',
       },
     });
-  const grant = await prisma.vehicleProductGrant.create({
+    const grant = await prisma.vehicleProductGrant.create({
       data: {
         organizationId: org.id,
         vehicleId: vehicle.id,
