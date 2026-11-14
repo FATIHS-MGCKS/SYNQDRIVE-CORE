@@ -534,6 +534,12 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Unverändert:** Wear-Model V2, `TripDrivingImpact`, DS4-Migration, Evidence-Ingest, Rental-Policy, Worker, Schema.
 
+### 6.22 P3-PR10 — OrganizationProduct vehicle access mode (Draft-PR)
+
+**Scope:** `OrganizationProduct.vehicleAccessMode` (`ORGANIZATION_WIDE` | `SELECTED_VEHICLES`); migration backfill WIDE, no DB default on column; `ProductsService` assign (explicit mode on create), PATCH mode with conditional update + 409; Master Admin MFA on assign/delete/PATCH; admin GET additive fields.
+
+**Non-scope:** `core.read.v1` enforcement, M2M, VYMOD, billing, frontend. Deploy gate: `P3_PR10_MASTER_ADMIN_FRONTEND_DEPLOY_GATE.md`.
+
 ### 6.21 P3-PR9 — Vehicle Product Grant Foundation (Draft-PR)
 
 **Scope:** Persistente `VehicleProductGrant`-Authority (`vehicle_product_grants`); `VehicleProductGrantService` (grant, revoke, hasActiveGrant, list); Master-Admin-HTTP (`admin/organizations/:orgId/...`) mit `RolesGuard` + `MasterAdminMfaGuard` (`MASTER_ORGANIZATION` step-up); Audit via `MasterAdminAuditService`.
