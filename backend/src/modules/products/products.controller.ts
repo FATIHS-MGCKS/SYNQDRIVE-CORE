@@ -18,6 +18,7 @@ import { RequireMasterAdminMfa } from '@shared/decorators/require-master-admin-m
 import { STEP_UP_ACTION } from '@modules/iam-mfa/iam-mfa.policy';
 import { randomUUID } from 'crypto';
 import { parseVehicleAccessModeParam } from './parse-vehicle-access-mode';
+import { parseProductSlugParam } from './vehicle-product-grants/parse-product-slug';
 
 type MasterAdminRequest = {
   user?: { id: string };
@@ -64,9 +65,10 @@ export class ProductsController {
       throw new UnauthorizedException();
     }
     const vehicleAccessMode = parseVehicleAccessModeParam(body.vehicleAccessMode);
+    const productSlug = parseProductSlugParam(body.productSlug);
     return this.productsService.assignProduct({
       orgId: body.orgId,
-      productSlug: body.productSlug,
+      productSlug,
       plan: body.plan,
       vehicleAccessMode,
       actorUserId: actorId,
@@ -82,7 +84,7 @@ export class ProductsController {
   @Patch('org/:orgId/:productSlug/vehicle-access-mode')
   async patchVehicleAccessMode(
     @Param('orgId') orgId: string,
-    @Param('productSlug') productSlug: string,
+    @Param('productSlug') productSlugParam: string,
     @Body()
     body: {
       vehicleAccessMode?: unknown;
@@ -94,6 +96,7 @@ export class ProductsController {
     if (!actorId) {
       throw new UnauthorizedException();
     }
+    const productSlug = parseProductSlugParam(productSlugParam);
     const vehicleAccessMode = parseVehicleAccessModeParam(body.vehicleAccessMode);
     const ifCurrentVehicleAccessMode = parseVehicleAccessModeParam(
       body.ifCurrentVehicleAccessMode,
@@ -117,13 +120,14 @@ export class ProductsController {
   @Delete(':orgId/:productSlug')
   async removeFromOrganization(
     @Param('orgId') orgId: string,
-    @Param('productSlug') productSlug: string,
+    @Param('productSlug') productSlugParam: string,
     @Req() req: MasterAdminRequest,
   ) {
     const actorId = req.user?.id;
     if (!actorId) {
       throw new UnauthorizedException();
     }
+    const productSlug = parseProductSlugParam(productSlugParam);
     return this.productsService.removeProduct(orgId, productSlug, actorId, {
       correlationId: randomUUID(),
       route: req.route?.path,

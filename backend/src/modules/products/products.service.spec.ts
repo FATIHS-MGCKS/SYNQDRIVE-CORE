@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import {
   OrganizationProductVehicleAccessMode,
+  OrgProductPlan,
   OrgProductStatus,
   ProductSlug,
 } from '@prisma/client';
@@ -62,6 +63,8 @@ describe('ProductsService — vehicle access mode', () => {
     prisma.organizationProduct.findUnique.mockResolvedValue({
       id: 'op-1',
       vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+      plan: OrgProductPlan.STARTER,
+      status: OrgProductStatus.ACTIVE,
     });
     await expect(
       service.assignProduct({
@@ -71,32 +74,102 @@ describe('ProductsService — vehicle access mode', () => {
         actorUserId: ADMIN,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
 
+  it('audits reassignment when plan or status mutates', async () => {
     prisma.organizationProduct.findUnique.mockResolvedValue({
       id: 'op-1',
-      vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+      plan: OrgProductPlan.STARTER,
+      status: OrgProductStatus.SUSPENDED,
     });
     prisma.organizationProduct.update.mockResolvedValue({
       id: 'op-1',
-      vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+      plan: OrgProductPlan.BUSINESS,
+      status: OrgProductStatus.ACTIVE,
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
     });
 
-    const row = await service.assignProduct({
+    await service.assignProduct({
+      orgId: ORG,
+      productSlug: ProductSlug.RENTAL,
+      plan: OrgProductPlan.BUSINESS,
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+      actorUserId: ADMIN,
+      audit: { correlationId: 'c-reassign' },
+    });
+
+    expect(masterAdminAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changeSummary: 'reassign',
+        targetOrganizationId: ORG,
+        actorUserId: ADMIN,
+        correlationId: 'c-reassign',
+      }),
+    );
+  });
+
+  it('does not audit reassignment no-op', async () => {
+    prisma.organizationProduct.findUnique.mockResolvedValue({
+      id: 'op-1',
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+      plan: OrgProductPlan.STARTER,
+      status: OrgProductStatus.ACTIVE,
+    });
+    await service.assignProduct({
       orgId: ORG,
       productSlug: ProductSlug.RENTAL,
       vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
       actorUserId: ADMIN,
+      audit: { correlationId: 'c-noop' },
     });
-    expect(row.vehicleAccessMode).toBe(OrganizationProductVehicleAccessMode.SELECTED_VEHICLES);
-    expect(prisma.organizationProduct.update).toHaveBeenCalled();
-    expect(prisma.organizationProduct.create).not.toHaveBeenCalled();
+    expect(prisma.organizationProduct.update).not.toHaveBeenCalled();
+    expect(masterAdminAudit.record).not.toHaveBeenCalled();
   });
 
-  it('returns 409 on conflicting mode PATCH', async () => {
+  it('returns 409 when current=WIDE expected=SELECTED target=WIDE (CAS)', async () => {
+    prisma.organizationProduct.findUnique.mockResolvedValue({
+      id: 'op-1',
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+    });
+
+    await expect(
+      service.updateVehicleAccessMode({
+        orgId: ORG,
+        productSlug: ProductSlug.RENTAL,
+        vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+        ifCurrentVehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+        actorUserId: ADMIN,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.organizationProduct.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('returns idempotent success when current equals expected equals target', async () => {
+    prisma.organizationProduct.findUnique.mockResolvedValue({
+      id: 'op-1',
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+    });
+
+    const row = await service.updateVehicleAccessMode({
+      orgId: ORG,
+      productSlug: ProductSlug.RENTAL,
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+      ifCurrentVehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+      actorUserId: ADMIN,
+      audit: { correlationId: 'c-idem' },
+    });
+
+    expect(row.vehicleAccessMode).toBe(OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE);
+    expect(prisma.organizationProduct.updateMany).not.toHaveBeenCalled();
+    expect(masterAdminAudit.record).not.toHaveBeenCalled();
+  });
+
+  it('returns 409 on conflicting mode PATCH after failed updateMany', async () => {
     prisma.organizationProduct.findUnique
       .mockResolvedValueOnce({
         id: 'op-1',
-        vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+        vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
       })
       .mockResolvedValueOnce({
         id: 'op-1',
@@ -108,7 +181,7 @@ describe('ProductsService — vehicle access mode', () => {
       service.updateVehicleAccessMode({
         orgId: ORG,
         productSlug: ProductSlug.RENTAL,
-        vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+        vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
         ifCurrentVehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
         actorUserId: ADMIN,
       }),
@@ -137,6 +210,38 @@ describe('ProductsService — vehicle access mode', () => {
 
     expect(masterAdminAudit.record).toHaveBeenCalledWith(
       expect.objectContaining({ changeSummary: 'vehicle-access-mode-broaden' }),
+    );
+  });
+
+  it('audits narrowing ORGANIZATION_WIDE -> SELECTED_VEHICLES', async () => {
+    prisma.organizationProduct.findUnique.mockResolvedValue({
+      id: 'op-1',
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+    });
+    prisma.organizationProduct.updateMany.mockResolvedValue({ count: 1 });
+    prisma.organizationProduct.findUniqueOrThrow.mockResolvedValue({
+      id: 'op-1',
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+    });
+
+    await service.updateVehicleAccessMode({
+      orgId: ORG,
+      productSlug: ProductSlug.RENTAL,
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+      ifCurrentVehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+      actorUserId: ADMIN,
+      audit: { correlationId: 'c-narrow' },
+    });
+
+    expect(masterAdminAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changeSummary: 'vehicle-access-mode-narrow',
+        actorUserId: ADMIN,
+        targetOrganizationId: ORG,
+        correlationId: 'c-narrow',
+        before: { vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE },
+        after: { vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES },
+      }),
     );
   });
 });

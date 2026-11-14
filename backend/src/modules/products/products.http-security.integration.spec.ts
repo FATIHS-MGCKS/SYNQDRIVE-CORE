@@ -1,5 +1,5 @@
+import { ConflictException } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import {
   OrganizationProductVehicleAccessMode,
@@ -144,6 +144,136 @@ describe('ProductsController — HTTP security', () => {
         vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
       }),
     );
+
+    await app.close();
+  });
+
+  it('rejects invalid productSlug on PATCH with 400', async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [ProductsController],
+      providers: [
+        { provide: ProductsService, useValue: products },
+        { provide: APP_GUARD, useValue: authGuard },
+      ],
+    })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(MasterAdminMfaGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+
+    const app = moduleRef.createNestApplication();
+    await app.init();
+
+    await request(app.getHttpServer())
+      .patch(`/admin/products/org/${ORG}/INVALID/vehicle-access-mode`)
+      .set('Authorization', 'Bearer master-x')
+      .send({
+        vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+        ifCurrentVehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+      })
+      .expect(400);
+
+    await app.close();
+  });
+
+  it('PATCH returns 409 on stale expected mode', async () => {
+    products.updateVehicleAccessMode.mockRejectedValue(
+      new ConflictException('Vehicle access mode expectation mismatch'),
+    );
+
+    const moduleRef = await Test.createTestingModule({
+      controllers: [ProductsController],
+      providers: [
+        { provide: ProductsService, useValue: products },
+        { provide: APP_GUARD, useValue: authGuard },
+      ],
+    })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(MasterAdminMfaGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+
+    const app = moduleRef.createNestApplication();
+    await app.init();
+
+    await request(app.getHttpServer())
+      .patch(`/admin/products/org/${ORG}/${ProductSlug.RENTAL}/vehicle-access-mode`)
+      .set('Authorization', 'Bearer master-x')
+      .send({
+        vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+        ifCurrentVehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+      })
+      .expect(409);
+
+    await app.close();
+  });
+
+  it('PATCH returns 200 on valid mode change', async () => {
+    products.updateVehicleAccessMode.mockResolvedValue({
+      id: 'op-1',
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+    });
+
+    const moduleRef = await Test.createTestingModule({
+      controllers: [ProductsController],
+      providers: [
+        { provide: ProductsService, useValue: products },
+        { provide: APP_GUARD, useValue: authGuard },
+      ],
+    })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(MasterAdminMfaGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+
+    const app = moduleRef.createNestApplication();
+    await app.init();
+
+    await request(app.getHttpServer())
+      .patch(`/admin/products/org/${ORG}/${ProductSlug.RENTAL}/vehicle-access-mode`)
+      .set('Authorization', 'Bearer master-x')
+      .send({
+        vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+        ifCurrentVehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+      })
+      .expect(200);
+
+    await app.close();
+  });
+
+  it('PATCH returns 200 on idempotent unchanged mode with valid expected', async () => {
+    products.updateVehicleAccessMode.mockResolvedValue({
+      id: 'op-1',
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+    });
+
+    const moduleRef = await Test.createTestingModule({
+      controllers: [ProductsController],
+      providers: [
+        { provide: ProductsService, useValue: products },
+        { provide: APP_GUARD, useValue: authGuard },
+      ],
+    })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(MasterAdminMfaGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+
+    const app = moduleRef.createNestApplication();
+    await app.init();
+
+    await request(app.getHttpServer())
+      .patch(`/admin/products/org/${ORG}/${ProductSlug.RENTAL}/vehicle-access-mode`)
+      .set('Authorization', 'Bearer master-x')
+      .send({
+        vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+        ifCurrentVehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
+      })
+      .expect(200);
 
     await app.close();
   });

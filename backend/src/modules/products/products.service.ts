@@ -136,6 +136,11 @@ export class ProductsService {
           'vehicleAccessMode cannot be changed via assign; use PATCH vehicle-access-mode',
         );
       }
+      const willMutate =
+        existing.plan !== planValue || existing.status !== OrgProductStatus.ACTIVE;
+      if (!willMutate) {
+        return existing;
+      }
       const updated = await this.prisma.organizationProduct.update({
         where: { id: existing.id },
         data: {
@@ -143,6 +148,29 @@ export class ProductsService {
           status: OrgProductStatus.ACTIVE,
         },
       });
+      if (input.audit) {
+        await this.masterAdminAudit.record({
+          auditAction: MasterAdminAuditAction.PRIVILEGED_HTTP_MUTATION,
+          actorUserId: input.actorUserId,
+          actorPlatformRole: 'MASTER_ADMIN',
+          targetOrganizationId: input.orgId,
+          entityId: updated.id,
+          description: `Organization product reassigned (${input.productSlug})`,
+          correlationId: input.audit.correlationId,
+          route: input.audit.route,
+          ipAddress: input.audit.ipAddress,
+          userAgent: input.audit.userAgent,
+          changeSummary: 'reassign',
+          before: { plan: existing.plan, status: existing.status },
+          after: { plan: updated.plan, status: updated.status },
+          metadata: {
+            domain: 'organization_product',
+            action: 'reassign',
+            productSlug: input.productSlug,
+            vehicleAccessMode: existing.vehicleAccessMode,
+          },
+        });
+      }
       return updated;
     }
 
@@ -206,6 +234,12 @@ export class ProductsService {
       throw new NotFoundException('Organization product assignment not found');
     }
 
+    if (orgProduct.vehicleAccessMode !== input.ifCurrentVehicleAccessMode) {
+      throw new ConflictException(
+        `Vehicle access mode expectation mismatch; expected ${input.ifCurrentVehicleAccessMode}, found ${orgProduct.vehicleAccessMode}`,
+      );
+    }
+
     if (orgProduct.vehicleAccessMode === input.vehicleAccessMode) {
       return orgProduct;
     }
@@ -225,9 +259,6 @@ export class ProductsService {
       const current = await this.prisma.organizationProduct.findUnique({ where: { id: orgProduct.id } });
       if (!current) {
         throw new NotFoundException('Organization product assignment not found');
-      }
-      if (current.vehicleAccessMode === input.vehicleAccessMode) {
-        return current;
       }
       throw new ConflictException(
         `Vehicle access mode changed concurrently; expected ${input.ifCurrentVehicleAccessMode}, found ${current.vehicleAccessMode}`,

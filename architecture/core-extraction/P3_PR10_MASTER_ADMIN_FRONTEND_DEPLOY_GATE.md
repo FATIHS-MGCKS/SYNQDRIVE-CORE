@@ -9,3 +9,10 @@ Before deploying backend P3-PR10 to an environment used by Master Admin product 
 5. License removal (`DELETE`) does not delete `VehicleProductGrant` rows; grants are **dormant** until explicit cleanup or future enforcement.
 
 Backend may ship before frontend only when Master Admin assignment is not used in that environment, or the UI is updated first.
+
+## License and grant lifecycle (P3-PR10 closeout — not app enforcement)
+
+- **Reassign** (`POST assign` on an existing row) may set `OrganizationProduct.status` back to **ACTIVE** (legacy behavior; unchanged in P3-PR10).
+- **License removal** (`DELETE`) deletes the `OrganizationProduct` row; **`VehicleProductGrant` rows are retained** (dormant ledger).
+- **Reassign after removal** creates a new assignment; retained grants can become **effective again** once **SELECTED_VEHICLES** read enforcement is enabled — requires a **separate lifecycle / test gate** before consumer-facing enforcement.
+- **No automatic grant mutation** on mode change or license events in this PR.
