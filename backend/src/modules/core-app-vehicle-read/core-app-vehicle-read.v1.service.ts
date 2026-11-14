@@ -56,10 +56,16 @@ export class CoreAppVehicleReadV1Service {
     vehicleId: string,
     productSlug: ProductSlug,
   ): Promise<CoreVehicleReadSingleV1> {
-    await this.productVehicleAccess.assertVehicleAuthorized(organizationId, vehicleId, productSlug);
+    const authorizedWhere = await this.productVehicleAccess.getAuthorizedVehicleWhere(
+      organizationId,
+      productSlug,
+    );
 
     const row = await this.prisma.vehicle.findFirst({
-      where: { id: vehicleId, organizationId },
+      where: {
+        id: vehicleId,
+        ...authorizedWhere,
+      },
       select: CORE_VEHICLE_IDENTITY_V1_SELECT,
     });
 

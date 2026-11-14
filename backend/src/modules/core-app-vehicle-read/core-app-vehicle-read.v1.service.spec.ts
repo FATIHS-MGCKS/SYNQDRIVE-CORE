@@ -32,25 +32,31 @@ describe('CoreAppVehicleReadV1Service', () => {
     expect(countWhere).toHaveProperty('vehicleProductGrants');
   });
 
-  it('asserts vehicle authorization before detail fetch', async () => {
+  it('detail uses one findFirst with authorized where', async () => {
     prisma.organizationProduct.findFirst.mockResolvedValue({
       id: 'op',
       status: OrgProductStatus.ACTIVE,
       vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
       product: { slug: ProductSlug.RENTAL },
     });
-    prisma.vehicle.findFirst
-      .mockResolvedValueOnce({ id: 'veh-1' })
-      .mockResolvedValueOnce({
-        id: 'veh-1',
-        make: 'VW',
-        model: 'Golf',
-        year: 2022,
-        fuelType: 'GASOLINE',
-        registryLifecycle: 'ACTIVE',
-      });
+    prisma.vehicle.findFirst.mockResolvedValue({
+      id: 'veh-1',
+      make: 'VW',
+      model: 'Golf',
+      year: 2022,
+      fuelType: 'GASOLINE',
+      registryLifecycle: 'ACTIVE',
+    });
     await service.getForProduct('org-a', 'veh-1', ProductSlug.RENTAL);
-    expect(prisma.vehicle.findFirst).toHaveBeenCalledTimes(2);
+    expect(prisma.vehicle.findFirst).toHaveBeenCalledTimes(1);
+    expect(prisma.vehicle.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'veh-1',
+          organizationId: 'org-a',
+        }),
+      }),
+    );
   });
 
   it('returns not found when vehicle not authorized', async () => {

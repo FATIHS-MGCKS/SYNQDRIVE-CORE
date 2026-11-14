@@ -95,8 +95,12 @@ describe('CoreAppVehicleReadV1Controller — HTTP security integration', () => {
         }
         return [row];
       }),
-      findFirst: jest.fn(async (args: { where: { id?: string; organizationId?: string } }) => {
-        if (args.where.id === VEH_1 && args.where.organizationId === ORG_A) {
+      findFirst: jest.fn(async (args: { where: Record<string, unknown> }) => {
+        const where = args.where;
+        if (where.vehicleProductGrants) {
+          return null;
+        }
+        if (where.id === VEH_1 && where.organizationId === ORG_A) {
           return {
             id: vehicleRow.id,
             make: vehicleRow.make,
@@ -240,6 +244,33 @@ describe('CoreAppVehicleReadV1Controller — HTTP security integration', () => {
     expect(prisma.vehicle.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ select: CORE_VEHICLE_IDENTITY_V1_SELECT }),
     );
+  });
+
+  it('SELECTED_VEHICLES with zero grants returns empty list and total 0', async () => {
+    (prisma.organizationProduct.findFirst as jest.Mock).mockResolvedValueOnce({
+      id: 'op-rental',
+      status: OrgProductStatus.ACTIVE,
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.SELECTED_VEHICLES,
+      product: { slug: ProductSlug.RENTAL },
+    });
+    prisma.vehicle.count.mockResolvedValueOnce(0);
+    prisma.vehicle.findMany.mockResolvedValueOnce([]);
+    const token = signVehicleM2mToken({
+      orgId: ORG_A,
+      product: ProductSlug.RENTAL,
+      scope: CORE_APP_M2M_SCOPE_VEHICLE_READ,
+    });
+    const res = await request(app.getHttpServer())
+      .get(listRoute(ORG_A, ProductSlug.RENTAL))
+      .set('Authorization', bearerM2m(token))
+      .expect(200);
+
+    expect(res.body.vehicles).toEqual([]);
+    expect(res.body.pagination).toMatchObject({ total: 0, page: 1 });
+    const countWhere = (prisma.vehicle.count as jest.Mock).mock.calls.at(-1)?.[0]?.where;
+    const findWhere = (prisma.vehicle.findMany as jest.Mock).mock.calls.at(-1)?.[0]?.where;
+    expect(countWhere).toEqual(findWhere);
+    expect(countWhere).toHaveProperty('vehicleProductGrants');
   });
 
   it('denies different product in URL (403)', async () => {
