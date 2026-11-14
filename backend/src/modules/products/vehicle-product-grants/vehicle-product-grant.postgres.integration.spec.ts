@@ -6,6 +6,7 @@
  *   npm test -- --runInBand vehicle-product-grant.postgres
  */
 import {
+  OrganizationProductVehicleAccessMode,
   OrgProductStatus,
   PrismaClient,
   ProductSlug,
@@ -71,6 +72,7 @@ function assertEphemeralDatabaseUrl() {
         organizationId: org.id,
         productId: product.id,
         status: OrgProductStatus.ACTIVE,
+        vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
       },
     });
     return org.id;

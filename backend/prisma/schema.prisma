@@ -2984,16 +2984,22 @@ model CoreAppServiceOrgGrant {
   @@map("core_app_service_org_grants")
 }
 
+enum OrganizationProductVehicleAccessMode {
+  ORGANIZATION_WIDE
+  SELECTED_VEHICLES
+}
+
 model OrganizationProduct {
-  id             String           @id @default(uuid())
-  organizationId String           @map("organization_id")
-  productId      String           @map("product_id")
-  status         OrgProductStatus @default(ACTIVE)
-  plan           OrgProductPlan   @default(STARTER)
-  activatedAt    DateTime?        @map("activated_at")
-  expiresAt      DateTime?        @map("expires_at")
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  id                  String                               @id @default(uuid())
+  organizationId      String                               @map("organization_id")
+  productId           String                               @map("product_id")
+  status              OrgProductStatus                     @default(ACTIVE)
+  plan                OrgProductPlan                       @default(STARTER)
+  vehicleAccessMode   OrganizationProductVehicleAccessMode @map("vehicle_access_mode")
+  activatedAt         DateTime?                            @map("activated_at")
+  expiresAt           DateTime?                            @map("expires_at")
+  createdAt           DateTime                             @default(now()) @map("created_at")
+  updatedAt           DateTime                             @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   product      Product      @relation(fields: [productId], references: [id])

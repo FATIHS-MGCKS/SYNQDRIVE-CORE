@@ -1,4 +1,10 @@
-import { OrgProductPlan, OrgProductStatus, ProductSlug, type PrismaClient } from '@prisma/client';
+import {
+  OrganizationProductVehicleAccessMode,
+  OrgProductPlan,
+  OrgProductStatus,
+  ProductSlug,
+  type PrismaClient,
+} from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
 export async function ensureOrganizationProductEntitlement(
@@ -27,6 +33,7 @@ export async function ensureOrganizationProductEntitlement(
       productId: product.id,
       status,
       plan: OrgProductPlan.STARTER,
+      vehicleAccessMode: OrganizationProductVehicleAccessMode.ORGANIZATION_WIDE,
       activatedAt: new Date(),
     },
     update: { status },
