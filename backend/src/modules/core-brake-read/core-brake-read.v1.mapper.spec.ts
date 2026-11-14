@@ -212,6 +212,110 @@ describe('toCoreBrakeReadV1', () => {
     expect(dto.remaining.reliable).toBe(false);
   });
 
+  it('excludes non-safety displayMode from safetySignals.alerts', () => {
+    const mixed = [
+      ...Array.from({ length: 3 }, () => ({
+        code: 'BRAKE_COVERAGE_GAP' as const,
+        alertType: 'gap',
+        category: 'DATA_QUALITY' as const,
+        reasonCode: 'x',
+        severity: 'warning' as const,
+        message: 'hidden',
+        messageEn: 'hidden',
+        displayMode: 'DATA_GAP' as const,
+      })),
+      {
+        code: 'BRAKE_SYSTEM_DTC' as const,
+        alertType: 'dtc',
+        category: 'SAFETY' as const,
+        reasonCode: 'x',
+        severity: 'critical' as const,
+        message: 'hidden',
+        messageEn: 'hidden',
+        displayMode: 'SAFETY_EVIDENCE' as const,
+      },
+    ];
+    const dto = toCoreBrakeReadV1({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: PRODUCT,
+      summary: baseSummary({ openAlerts: mixed, alerts: mixed }),
+    });
+    expect(dto.safetySignals.alerts).toHaveLength(1);
+    expect(dto.safetySignals.alerts[0].code).toBe('BRAKE_SYSTEM_DTC');
+    expect(dto.safetySignals.hasActiveSafetyAlert).toBe(true);
+  });
+
+  it('hasActiveSafetyAlert true when safety alert follows many non-safety alerts', () => {
+    const alerts = [
+      ...Array.from({ length: 5 }, () => ({
+        code: 'BRAKE_PAD_WARNING' as const,
+        alertType: 'wear',
+        category: 'WEAR' as const,
+        reasonCode: 'x',
+        severity: 'warning' as const,
+        message: 'hidden',
+        messageEn: 'hidden',
+        displayMode: 'ESTIMATED' as const,
+      })),
+      {
+        code: 'BRAKE_ABS_WARNING' as const,
+        alertType: 'abs',
+        category: 'SAFETY' as const,
+        reasonCode: 'x',
+        severity: 'warning' as const,
+        message: 'hidden',
+        messageEn: 'hidden',
+        displayMode: 'SAFETY_EVIDENCE' as const,
+        axle: 'FRONT' as const,
+      },
+    ];
+    const dto = toCoreBrakeReadV1({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: PRODUCT,
+      summary: baseSummary({ openAlerts: alerts, alerts }),
+    });
+    expect(dto.safetySignals.hasActiveSafetyAlert).toBe(true);
+    expect(dto.safetySignals.alerts).toEqual([
+      {
+        code: 'BRAKE_ABS_WARNING',
+        severity: 'warning',
+        axle: 'FRONT',
+        displayMode: 'SAFETY_EVIDENCE',
+      },
+    ]);
+  });
+
+  it('fail-closes exactRemainingKm when presentation is unreliable', () => {
+    const summary = baseSummary();
+    summary.evidencePresentation = {
+      ...summary.evidencePresentation!,
+      overallRemainingKm: {
+        reliable: false,
+        displayDe: 'x',
+        displayEn: 'x',
+        exactKm: 9999,
+        bandMinKm: 5000,
+        bandMaxKm: 9000,
+        reasonDe: null,
+        reasonEn: null,
+      },
+    };
+    const dto = toCoreBrakeReadV1({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: PRODUCT,
+      summary,
+    });
+    expect(dto.remaining).toEqual({
+      reliable: false,
+      exactRemainingKm: null,
+      bandMinRemainingKm: 5000,
+      bandMaxRemainingKm: 9000,
+    });
+  });
+
   it('caps safety alerts at 5 and allowlists fields', () => {
     const alerts = Array.from({ length: 8 }, (_, i) => ({
       code: 'BRAKE_SYSTEM_DTC' as const,

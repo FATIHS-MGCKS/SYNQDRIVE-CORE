@@ -43,22 +43,33 @@ function mapRemaining(summary: BrakeHealthSummaryForCoreRead): CoreBrakeRemainin
       bandMaxRemainingKm: null,
     };
   }
+  const reliable = pres.reliable === true;
   return {
-    reliable: pres.reliable === true,
-    exactRemainingKm: pres.exactKm ?? null,
+    reliable,
+    exactRemainingKm: reliable ? (pres.exactKm ?? null) : null,
     bandMinRemainingKm: pres.bandMinKm ?? null,
     bandMaxRemainingKm: pres.bandMaxKm ?? null,
   };
 }
 
-function mapSafetyAlerts(summary: BrakeHealthSummaryForCoreRead): CoreBrakeSafetyAlertV1[] {
-  const source = summary.openAlerts ?? [];
-  return source.slice(0, SAFETY_ALERT_CAP).map((alert) => ({
-    code: alert.code,
-    severity: alert.severity,
-    ...(alert.axle != null ? { axle: alert.axle } : {}),
-    displayMode: alert.displayMode,
-  }));
+export function mapSafetyAlertsFromSummary(
+  summary: BrakeHealthSummaryForCoreRead,
+): {
+  alerts: CoreBrakeSafetyAlertV1[];
+  hasActiveSafetyAlert: boolean;
+} {
+  const safetyOnly = (summary.openAlerts ?? []).filter(
+    (alert) => alert.displayMode === 'SAFETY_EVIDENCE',
+  );
+  return {
+    hasActiveSafetyAlert: safetyOnly.length > 0,
+    alerts: safetyOnly.slice(0, SAFETY_ALERT_CAP).map((alert) => ({
+      code: alert.code,
+      severity: alert.severity,
+      ...(alert.axle != null ? { axle: alert.axle } : {}),
+      displayMode: alert.displayMode,
+    })),
+  };
 }
 
 export function toCoreBrakeReadV1(args: {
@@ -68,7 +79,7 @@ export function toCoreBrakeReadV1(args: {
   summary: BrakeHealthSummaryForCoreRead;
 }): CoreBrakeReadV1 {
   const { organizationId, vehicleId, productSlug, summary } = args;
-  const alerts = mapSafetyAlerts(summary);
+  const { alerts, hasActiveSafetyAlert } = mapSafetyAlertsFromSummary(summary);
 
   return {
     version: CORE_BRAKE_READ_CONTRACT_VERSION,
@@ -118,7 +129,7 @@ export function toCoreBrakeReadV1(args: {
       lastRecalculatedAt: summary.lastRecalculatedAt ?? null,
     },
     safetySignals: {
-      hasActiveSafetyAlert: alerts.some((a) => a.displayMode === 'SAFETY_EVIDENCE'),
+      hasActiveSafetyAlert,
       alerts,
     },
   };
