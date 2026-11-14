@@ -18,6 +18,7 @@ import {
   CORE_APP_SERVICE_TOKEN_TYPE,
 } from '@modules/core-app-m2m/core-app-m2m.constants';
 import { CoreAppM2mClientService } from '@modules/core-app-m2m/core-app-m2m-client.service';
+import { CoreAppM2mRedisRateLimitService } from '@modules/core-app-m2m/core-app-m2m-redis-rate-limit.service';
 import { CoreAppM2mTokenService } from '@modules/core-app-m2m/core-app-m2m-token.service';
 import { ProductVehicleAccessService } from '@modules/products/product-vehicle-access/product-vehicle-access.service';
 import { AuthGuard } from '@shared/auth/auth.guard';
@@ -193,6 +194,10 @@ describe('CoreAppVehicleReadV1Controller — HTTP security integration', () => {
         CoreAppVehicleReadAuthGuard,
         CoreAppM2mTokenService,
         { provide: CoreAppM2mClientService, useValue: clients },
+        {
+          provide: CoreAppM2mRedisRateLimitService,
+          useValue: { assertVehicleReadAllowed: jest.fn().mockResolvedValue(undefined) },
+        },
         { provide: PrismaService, useValue: prisma },
         { provide: APP_GUARD, useClass: AuthGuard },
       ],

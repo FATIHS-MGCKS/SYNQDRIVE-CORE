@@ -1,15 +1,20 @@
-import { ForbiddenException, INestApplication } from '@nestjs/common';
+import { ForbiddenException, HttpException, HttpStatus, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 import { CoreAppM2mExchangeController } from './core-app-m2m-exchange.controller';
 import { CoreAppM2mExchangeRateLimitService } from './core-app-m2m-exchange-rate-limit.service';
+import { CoreAppM2mRedisRateLimitService } from './core-app-m2m-redis-rate-limit.service';
 import { CoreAppM2mClientService } from './core-app-m2m-client.service';
 import { CoreAppM2mTokenService } from './core-app-m2m-token.service';
 
 describe('Core app M2M token exchange — rate limit security', () => {
   let app: INestApplication;
   const originalEnv = process.env;
-  const rateLimit = new CoreAppM2mExchangeRateLimitService();
+  const distributed = { assertExchangeAllowed: jest.fn() };
+  let exchangeAttempts = 0;
+  const rateLimit = new CoreAppM2mExchangeRateLimitService(
+    distributed as unknown as CoreAppM2mRedisRateLimitService,
+  );
   const clients = {
     assertAllowedScope: jest.fn(),
     validateExchangeCredentials: jest
@@ -25,8 +30,6 @@ describe('Core app M2M token exchange — rate limit security', () => {
       CORE_APP_M2M_SIGNING_SECRET:
         '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
     };
-    rateLimit.resetForTests();
-
     const moduleRef = await Test.createTestingModule({
       controllers: [CoreAppM2mExchangeController],
       providers: [
@@ -47,7 +50,13 @@ describe('Core app M2M token exchange — rate limit security', () => {
   });
 
   beforeEach(() => {
-    rateLimit.resetForTests();
+    exchangeAttempts = 0;
+    distributed.assertExchangeAllowed.mockImplementation(async () => {
+      exchangeAttempts += 1;
+      if (exchangeAttempts > 20) {
+        throw new HttpException('Too many token exchange attempts', HttpStatus.TOO_MANY_REQUESTS);
+      }
+    });
   });
 
   it('does not key rate limits on spoofed x-forwarded-for alone', async () => {

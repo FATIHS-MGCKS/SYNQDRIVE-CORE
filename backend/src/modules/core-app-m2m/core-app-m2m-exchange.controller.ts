@@ -33,7 +33,7 @@ export class CoreAppM2mExchangeController {
     }
 
     const ip = req.ip ?? req.socket?.remoteAddress ?? 'unknown';
-    this.rateLimit.assertAllowed(ip);
+    await this.rateLimit.assertAllowed(ip);
 
     const scope = body.scope ?? CORE_APP_M2M_SCOPE_ENTITLEMENTS_READ;
     this.clients.assertAllowedScope(scope);

@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { CoreAppM2mTokenService } from '@modules/core-app-m2m/core-app-m2m-token.service';
+import { CoreAppM2mRedisRateLimitService } from '@modules/core-app-m2m/core-app-m2m-redis-rate-limit.service';
 import { CORE_APP_M2M_SCOPE_VEHICLE_READ } from '@modules/core-app-m2m/core-app-m2m.constants';
 import type { CoreAppServicePrincipal } from '@modules/core-app-m2m/core-app-m2m.types';
 import { parseProductSlugParam } from '@modules/products/vehicle-product-grants/parse-product-slug';
@@ -15,7 +16,7 @@ type VehicleReadRequest = {
   coreAppServiceBearerToken?: string;
   coreAppServicePrincipal?: CoreAppServicePrincipal;
   user?: unknown;
-  params?: { orgId?: string; productSlug?: string };
+  params?: { orgId?: string; productSlug?: string; vehicleId?: string };
 };
 
 /**
@@ -24,7 +25,10 @@ type VehicleReadRequest = {
  */
 @Injectable()
 export class CoreAppVehicleReadAuthGuard implements CanActivate {
-  constructor(private readonly tokenService: CoreAppM2mTokenService) {}
+  constructor(
+    private readonly tokenService: CoreAppM2mTokenService,
+    private readonly rateLimit: CoreAppM2mRedisRateLimitService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest() as VehicleReadRequest;
@@ -55,6 +59,14 @@ export class CoreAppVehicleReadAuthGuard implements CanActivate {
     }
 
     request.coreAppServicePrincipal = principal;
+
+    const operation = request.params?.vehicleId ? 'detail' : 'list';
+    await this.rateLimit.assertVehicleReadAllowed({
+      clientId: principal.clientId,
+      organizationId: principal.organizationId,
+      operation,
+    });
+
     return true;
   }
 }
