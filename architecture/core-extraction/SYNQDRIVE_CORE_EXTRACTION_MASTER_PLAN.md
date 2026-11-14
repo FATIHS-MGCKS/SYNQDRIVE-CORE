@@ -533,7 +533,6 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 **Auth:** User JWT, `fleet.read`, Lizenz, Org-Fahrzeug-Bindung. **M2M unverändert.**
 
 **Unverändert:** Wear-Model V2, `TripDrivingImpact`, DS4-Migration, Evidence-Ingest, Rental-Policy, Worker, Schema.
-
 ### 6.4 P2-PR2 — Trip Rental Recompute Port (MERGED → `main` `98a6068f8…`, PR #5)
 
 **Scope:** Core-owned `TripRentalRecomputePort` (`TRIP_RENTAL_RECOMPUTE_PORT`); Rental `TripRentalRecomputePortAdapter` in `RentalDrivingAnalysisModule` (`tripRentalRecomputePortProviders`).
