@@ -125,4 +125,33 @@ describe('Vehicle product grants — HTTP security integration', () => {
 
     await localApp.close();
   });
+
+  it('rejects invalid productSlug on POST with 400', async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [VehicleProductGrantAdminController],
+      providers: [
+        { provide: VehicleProductGrantService, useValue: grants },
+        { provide: APP_GUARD, useValue: authGuard },
+      ],
+    })
+      .overrideGuard(RolesGuard)
+      .useValue({
+        canActivate: (ctx: { switchToHttp: () => { getRequest: () => { user?: { platformRole?: string } } } }) =>
+          ctx.switchToHttp().getRequest().user?.platformRole === UserPlatformRole.MASTER_ADMIN,
+      })
+      .overrideGuard(MasterAdminMfaGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+
+    const localApp = moduleRef.createNestApplication();
+    await localApp.init();
+
+    await request(localApp.getHttpServer())
+      .post(`/admin/organizations/${ORG}/vehicles/${VEH}/product-grants`)
+      .set('Authorization', bearerMaster())
+      .send({ productSlug: 'INVALID' })
+      .expect(400);
+
+    await localApp.close();
+  });
 });

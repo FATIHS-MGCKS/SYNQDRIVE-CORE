@@ -10,13 +10,13 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { ProductSlug } from '@prisma/client';
 import { Roles } from '@shared/decorators/roles.decorator';
 import { RolesGuard } from '@shared/auth/roles.guard';
 import { MasterAdminMfaGuard } from '@shared/auth/master-admin-mfa.guard';
 import { RequireMasterAdminMfa } from '@shared/decorators/require-master-admin-mfa.decorator';
 import { STEP_UP_ACTION } from '@modules/iam-mfa/iam-mfa.policy';
 import { randomUUID } from 'crypto';
+import { parseProductSlugParam } from './parse-product-slug';
 import { VehicleProductGrantService } from './vehicle-product-grant.service';
 
 type MasterAdminRequest = {
@@ -35,7 +35,7 @@ export class VehicleProductGrantAdminController {
 
   @Get('product-vehicle-grants')
   listGrants(@Param('orgId') orgId: string, @Query('productSlug') productSlug: string) {
-    const slug = String(productSlug ?? '').toUpperCase() as ProductSlug;
+    const slug = parseProductSlugParam(productSlug);
     return this.grants.listGrantedVehicles(orgId, slug, { activeOnly: true });
   }
 
@@ -43,17 +43,18 @@ export class VehicleProductGrantAdminController {
   grant(
     @Param('orgId') orgId: string,
     @Param('vehicleId') vehicleId: string,
-    @Body() body: { productSlug: ProductSlug },
+    @Body() body: { productSlug?: unknown },
     @Req() req: MasterAdminRequest,
   ) {
     const actorId = req.user?.id;
     if (!actorId) {
       throw new UnauthorizedException();
     }
+    const productSlug = parseProductSlugParam(body?.productSlug);
     return this.grants.grantExplicit({
       organizationId: orgId,
       vehicleId,
-      productSlug: body.productSlug,
+      productSlug,
       grantedByUserId: actorId,
       audit: {
         correlationId: randomUUID(),
@@ -68,13 +69,14 @@ export class VehicleProductGrantAdminController {
   revoke(
     @Param('orgId') orgId: string,
     @Param('vehicleId') vehicleId: string,
-    @Param('productSlug') productSlug: ProductSlug,
+    @Param('productSlug') productSlugParam: string,
     @Req() req: MasterAdminRequest,
   ) {
     const actorId = req.user?.id;
     if (!actorId) {
       throw new UnauthorizedException();
     }
+    const productSlug = parseProductSlugParam(productSlugParam);
     return this.grants.revokeGrant({
       organizationId: orgId,
       vehicleId,

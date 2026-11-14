@@ -32,73 +32,118 @@ export class VehicleProductGrantService {
     audit?: { correlationId: string; route?: string; ipAddress?: string; userAgent?: string };
   }): Promise<VehicleProductGrantRecord> {
     await this.assertOrganizationProductActive(input.organizationId, input.productSlug);
-    const vehicle = await this.loadGrantEligibleVehicle(input.organizationId, input.vehicleId);
-
-    const existing = await this.prisma.vehicleProductGrant.findUnique({
-      where: {
-        vehicleId_productSlug: {
-          vehicleId: input.vehicleId,
-          productSlug: input.productSlug,
-        },
-      },
-    });
-
-    if (existing?.status === VehicleProductGrantStatus.ACTIVE) {
-      this.assertGrantOrganizationBinding(existing.organizationId, input.organizationId, vehicle.id);
-      return existing;
-    }
+    await this.loadGrantEligibleVehicle(input.organizationId, input.vehicleId);
 
     const now = new Date();
-    const record = await this.prisma.vehicleProductGrant.upsert({
-      where: {
-        vehicleId_productSlug: {
-          vehicleId: input.vehicleId,
-          productSlug: input.productSlug,
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.vehicleProductGrant.findUnique({
+        where: {
+          vehicleId_productSlug: {
+            vehicleId: input.vehicleId,
+            productSlug: input.productSlug,
+          },
         },
-      },
-      create: {
-        organizationId: input.organizationId,
-        vehicleId: input.vehicleId,
-        productSlug: input.productSlug,
-        status: VehicleProductGrantStatus.ACTIVE,
-        grantVersion: 1,
-        grantedAt: now,
-        grantedByUserId: input.grantedByUserId,
-      },
-      update: {
-        organizationId: input.organizationId,
-        status: VehicleProductGrantStatus.ACTIVE,
-        grantVersion: (existing?.grantVersion ?? 0) + 1,
-        grantedAt: now,
-        grantedByUserId: input.grantedByUserId,
-        revokedAt: null,
-        revokedByUserId: null,
-      },
+      });
+
+      if (existing?.status === VehicleProductGrantStatus.ACTIVE) {
+        if (existing.organizationId !== input.organizationId) {
+          throw new BadRequestException(
+            `Grant organization mismatch for vehicle ${input.vehicleId}`,
+          );
+        }
+        return { record: existing, auditKind: null as null | 'grant' | 're-grant' };
+      }
+
+      if (existing?.status === VehicleProductGrantStatus.REVOKED) {
+        if (existing.organizationId !== input.organizationId) {
+          throw new NotFoundException('Vehicle product grant not found');
+        }
+        const activated = await tx.vehicleProductGrant.updateMany({
+          where: {
+            id: existing.id,
+            status: VehicleProductGrantStatus.REVOKED,
+          },
+          data: {
+            organizationId: input.organizationId,
+            status: VehicleProductGrantStatus.ACTIVE,
+            grantVersion: { increment: 1 },
+            grantedAt: now,
+            grantedByUserId: input.grantedByUserId,
+            revokedAt: null,
+            revokedByUserId: null,
+          },
+        });
+        if (activated.count !== 1) {
+          const raced = await tx.vehicleProductGrant.findUnique({
+            where: { id: existing.id },
+          });
+          if (raced?.status === VehicleProductGrantStatus.ACTIVE) {
+            return { record: raced, auditKind: null };
+          }
+          throw new BadRequestException('Grant state changed concurrently; retry');
+        }
+        const activatedRow = await tx.vehicleProductGrant.findUniqueOrThrow({
+          where: { id: existing.id },
+        });
+        return { record: activatedRow, auditKind: 're-grant' as const };
+      }
+
+      try {
+        const created = await tx.vehicleProductGrant.create({
+          data: {
+            organizationId: input.organizationId,
+            vehicleId: input.vehicleId,
+            productSlug: input.productSlug,
+            status: VehicleProductGrantStatus.ACTIVE,
+            grantVersion: 1,
+            grantedAt: now,
+            grantedByUserId: input.grantedByUserId,
+          },
+        });
+        return { record: created, auditKind: 'grant' as const };
+      } catch (err: unknown) {
+        const code = (err as { code?: string })?.code;
+        if (code !== 'P2002') {
+          throw err;
+        }
+        const raced = await tx.vehicleProductGrant.findUnique({
+          where: {
+            vehicleId_productSlug: {
+              vehicleId: input.vehicleId,
+              productSlug: input.productSlug,
+            },
+          },
+        });
+        if (raced?.status === VehicleProductGrantStatus.ACTIVE && raced.organizationId === input.organizationId) {
+          return { record: raced, auditKind: null };
+        }
+        throw new BadRequestException('Grant state changed concurrently; retry');
+      }
     });
 
-    if (input.audit) {
+  if (input.audit && outcome.auditKind) {
       await this.masterAdminAudit.record({
         auditAction: MasterAdminAuditAction.PRIVILEGED_HTTP_MUTATION,
         actorUserId: input.grantedByUserId,
         actorPlatformRole: 'MASTER_ADMIN',
         targetOrganizationId: input.organizationId,
-        entityId: record.id,
+        entityId: outcome.record.id,
         description: `Vehicle product grant activated (${input.productSlug}) for vehicle ${input.vehicleId}`,
         correlationId: input.audit.correlationId,
         route: input.audit.route,
         ipAddress: input.audit.ipAddress,
         userAgent: input.audit.userAgent,
-        changeSummary: existing?.status === VehicleProductGrantStatus.REVOKED ? 're-grant' : 'grant',
+        changeSummary: outcome.auditKind,
         after: {
-          vehicleId: record.vehicleId,
-          productSlug: record.productSlug,
-          grantVersion: record.grantVersion,
+          vehicleId: outcome.record.vehicleId,
+          productSlug: outcome.record.productSlug,
+          grantVersion: outcome.record.grantVersion,
         },
         metadata: { domain: 'vehicle_product_grant', action: 'grant' },
       });
     }
 
-    return record;
+    return outcome.record;
   }
 
   async revokeGrant(input: {
@@ -108,38 +153,52 @@ export class VehicleProductGrantService {
     revokedByUserId: string;
     audit?: { correlationId: string; route?: string; ipAddress?: string; userAgent?: string };
   }): Promise<VehicleProductGrantRecord> {
-    const existing = await this.prisma.vehicleProductGrant.findUnique({
-      where: {
-        vehicleId_productSlug: {
-          vehicleId: input.vehicleId,
-          productSlug: input.productSlug,
-        },
-      },
-    });
-
-    if (!existing) {
-      throw new NotFoundException('Vehicle product grant not found');
-    }
-
-    if (existing.organizationId !== input.organizationId) {
-      throw new NotFoundException('Vehicle product grant not found');
-    }
-
-    if (existing.status === VehicleProductGrantStatus.REVOKED) {
-      return existing;
-    }
-
     const now = new Date();
-    const record = await this.prisma.vehicleProductGrant.update({
-      where: { id: existing.id },
-      data: {
-        status: VehicleProductGrantStatus.REVOKED,
-        revokedAt: now,
-        revokedByUserId: input.revokedByUserId,
-      },
+    const { record, transitioned } = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.vehicleProductGrant.findUnique({
+        where: {
+          vehicleId_productSlug: {
+            vehicleId: input.vehicleId,
+            productSlug: input.productSlug,
+          },
+        },
+      });
+
+      if (!existing || existing.organizationId !== input.organizationId) {
+        throw new NotFoundException('Vehicle product grant not found');
+      }
+
+      if (existing.status === VehicleProductGrantStatus.REVOKED) {
+        return { record: existing, transitioned: false };
+      }
+
+      const revoked = await tx.vehicleProductGrant.updateMany({
+        where: {
+          id: existing.id,
+          status: VehicleProductGrantStatus.ACTIVE,
+          organizationId: input.organizationId,
+        },
+        data: {
+          status: VehicleProductGrantStatus.REVOKED,
+          grantVersion: { increment: 1 },
+          revokedAt: now,
+          revokedByUserId: input.revokedByUserId,
+        },
+      });
+
+      if (revoked.count !== 1) {
+        const raced = await tx.vehicleProductGrant.findUnique({ where: { id: existing.id } });
+        if (raced?.status === VehicleProductGrantStatus.REVOKED) {
+          return { record: raced, transitioned: false };
+        }
+        throw new BadRequestException('Grant state changed concurrently; retry');
+      }
+
+      const updated = await tx.vehicleProductGrant.findUniqueOrThrow({ where: { id: existing.id } });
+      return { record: updated, transitioned: true };
     });
 
-    if (input.audit) {
+    if (input.audit && transitioned) {
       await this.masterAdminAudit.record({
         auditAction: MasterAdminAuditAction.PRIVILEGED_HTTP_MUTATION,
         actorUserId: input.revokedByUserId,
@@ -251,17 +310,5 @@ export class VehicleProductGrantService {
       );
     }
     return vehicle;
-  }
-
-  private assertGrantOrganizationBinding(
-    grantOrganizationId: string,
-    expectedOrganizationId: string,
-    vehicleId: string,
-  ): void {
-    if (grantOrganizationId !== expectedOrganizationId) {
-      throw new BadRequestException(
-        `Grant organization mismatch for vehicle ${vehicleId}`,
-      );
-    }
   }
 }

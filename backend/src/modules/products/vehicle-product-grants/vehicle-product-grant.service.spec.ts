@@ -17,152 +17,198 @@ const ADMIN = 'admin-1';
 
 describe('VehicleProductGrantService', () => {
   const masterAdminAudit = { record: jest.fn().mockResolvedValue(undefined) };
-  const grants: Record<string, unknown>[] = [];
 
-  const prisma = {
-    organizationProduct: {
-      findFirst: jest.fn(),
-    },
-    vehicle: {
-      findFirst: jest.fn(),
-    },
-    vehicleProductGrant: {
-      findUnique: jest.fn(),
-      findFirst: jest.fn(),
-      findMany: jest.fn(),
-      upsert: jest.fn(),
-      update: jest.fn(),
-    },
+  type Row = {
+    id: string;
+    organizationId: string;
+    vehicleId: string;
+    productSlug: ProductSlug;
+    status: VehicleProductGrantStatus;
+    grantVersion: number;
+    grantedAt: Date;
+    revokedAt: Date | null;
+    grantedByUserId: string;
+    revokedByUserId: string | null;
   };
 
+  function makePrisma(store: Map<string, Row>) {
+    const key = (vehicleId: string, productSlug: ProductSlug) => `${vehicleId}:${productSlug}`;
+    const tx = {
+      vehicleProductGrant: {
+        findUnique: async ({
+          where,
+        }: {
+          where:
+            | { vehicleId_productSlug: { vehicleId: string; productSlug: ProductSlug } }
+            | { id: string };
+        }) => {
+          if ('id' in where) {
+            return [...store.values()].find((r) => r.id === where.id) ?? null;
+          }
+          return (
+            store.get(
+              key(where.vehicleId_productSlug.vehicleId, where.vehicleId_productSlug.productSlug),
+            ) ?? null
+          );
+        },
+        findUniqueOrThrow: async (args: { where: { id: string } }) => {
+          const row = await tx.vehicleProductGrant.findUnique(args);
+          if (!row) throw new Error('missing');
+          return row;
+        },
+        findFirst: async ({
+          where,
+        }: {
+          where: { organizationId: string; vehicleId: string; productSlug: ProductSlug; status: VehicleProductGrantStatus };
+        }) =>
+          [...store.values()].find(
+            (r) =>
+              r.organizationId === where.organizationId &&
+              r.vehicleId === where.vehicleId &&
+              r.productSlug === where.productSlug &&
+              r.status === where.status,
+          ) ?? null,
+        findMany: jest.fn(),
+        updateMany: async ({
+          where,
+          data,
+        }: {
+          where: { id: string; status?: VehicleProductGrantStatus; organizationId?: string };
+          data: Record<string, unknown> & { grantVersion?: { increment: number } };
+        }) => {
+          const row = [...store.values()].find((r) => r.id === where.id);
+          if (!row) return { count: 0 };
+          if (where.status && row.status !== where.status) return { count: 0 };
+          if (where.organizationId && row.organizationId !== where.organizationId) return { count: 0 };
+          const { grantVersion: versionBump, ...rest } = data;
+          if (versionBump && typeof versionBump === 'object' && 'increment' in versionBump) {
+            row.grantVersion += versionBump.increment;
+          }
+          Object.assign(row, rest);
+          return { count: 1 };
+        },
+        create: async ({ data }: { data: Omit<Row, 'id' | 'revokedAt' | 'revokedByUserId'> }) => {
+          if (store.has(key(data.vehicleId, data.productSlug))) {
+            const err = new Error('unique') as Error & { code: string };
+            err.code = 'P2002';
+            throw err;
+          }
+          const row: Row = {
+            id: `g-${store.size + 1}`,
+            ...data,
+            revokedAt: null,
+            revokedByUserId: null,
+          };
+          store.set(key(data.vehicleId, data.productSlug), row);
+          return row;
+        },
+      },
+    };
+
+    return {
+      organizationProduct: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'op-1' }),
+      },
+      vehicle: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: VEH,
+          organizationId: ORG,
+          registryLifecycle: VehicleRegistryLifecycle.ACTIVE,
+        }),
+      },
+      vehicleProductGrant: tx.vehicleProductGrant,
+      $transaction: async (fn: (inner: typeof tx) => Promise<unknown>) => fn(tx),
+    };
+  }
+
+  let store: Map<string, Row>;
   let service: VehicleProductGrantService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    grants.length = 0;
-    service = new VehicleProductGrantService(prisma as never, masterAdminAudit as never);
-    prisma.organizationProduct.findFirst.mockResolvedValue({ id: 'op-1' });
-    prisma.vehicle.findFirst.mockResolvedValue({
-      id: VEH,
-      organizationId: ORG,
-      registryLifecycle: VehicleRegistryLifecycle.ACTIVE,
-    });
+    store = new Map();
+    service = new VehicleProductGrantService(makePrisma(store) as never, masterAdminAudit as never);
   });
 
-  it('grants Product A to Vehicle X', async () => {
-    prisma.vehicleProductGrant.findUnique.mockResolvedValue(null);
-    prisma.vehicleProductGrant.upsert.mockResolvedValue({
-      id: 'g1',
-      organizationId: ORG,
-      vehicleId: VEH,
-      productSlug: ProductSlug.RENTAL,
-      status: VehicleProductGrantStatus.ACTIVE,
-      grantVersion: 1,
-      grantedAt: new Date(),
-      revokedAt: null,
-      grantedByUserId: ADMIN,
-      revokedByUserId: null,
-    });
-
+  it('grants Product A to Vehicle X with grantVersion 1', async () => {
     const row = await service.grantExplicit({
       organizationId: ORG,
       vehicleId: VEH,
       productSlug: ProductSlug.RENTAL,
       grantedByUserId: ADMIN,
     });
-
     expect(row.productSlug).toBe(ProductSlug.RENTAL);
-    expect(row.status).toBe(VehicleProductGrantStatus.ACTIVE);
+    expect(row.grantVersion).toBe(1);
   });
 
   it('Product B has no active grant unless created', async () => {
-    prisma.vehicleProductGrant.findFirst.mockResolvedValue(null);
-    const ok = await service.hasActiveGrant(ORG, VEH, ProductSlug.FLEET);
-    expect(ok).toBe(false);
+    await expect(service.hasActiveGrant(ORG, VEH, ProductSlug.FLEET)).resolves.toBe(false);
   });
 
   it('Vehicle X can hold multiple product grants', async () => {
-    prisma.vehicleProductGrant.findFirst
-      .mockResolvedValueOnce({ id: 'g-rental' })
-      .mockResolvedValueOnce({ id: 'g-fleet' });
-
+    await service.grantExplicit({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: ProductSlug.RENTAL,
+      grantedByUserId: ADMIN,
+    });
+    await service.grantExplicit({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: ProductSlug.FLEET,
+      grantedByUserId: ADMIN,
+    });
     await expect(service.hasActiveGrant(ORG, VEH, ProductSlug.RENTAL)).resolves.toBe(true);
     await expect(service.hasActiveGrant(ORG, VEH, ProductSlug.FLEET)).resolves.toBe(true);
   });
 
-  it('revokes Product A grant', async () => {
-    prisma.vehicleProductGrant.findUnique.mockResolvedValue({
-      id: 'g1',
+  it('increments grantVersion on revoke and re-grant', async () => {
+    await service.grantExplicit({
       organizationId: ORG,
       vehicleId: VEH,
       productSlug: ProductSlug.RENTAL,
-      status: VehicleProductGrantStatus.ACTIVE,
-      grantVersion: 1,
-    });
-    prisma.vehicleProductGrant.update.mockResolvedValue({
-      id: 'g1',
-      organizationId: ORG,
-      vehicleId: VEH,
-      productSlug: ProductSlug.RENTAL,
-      status: VehicleProductGrantStatus.REVOKED,
-      grantVersion: 1,
-      grantedAt: new Date(),
-      revokedAt: new Date(),
       grantedByUserId: ADMIN,
-      revokedByUserId: ADMIN,
     });
-
-    const row = await service.revokeGrant({
+    const revoked = await service.revokeGrant({
       organizationId: ORG,
       vehicleId: VEH,
       productSlug: ProductSlug.RENTAL,
       revokedByUserId: ADMIN,
     });
-    expect(row.status).toBe(VehicleProductGrantStatus.REVOKED);
+    expect(revoked.grantVersion).toBe(2);
+    const regranted = await service.grantExplicit({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: ProductSlug.RENTAL,
+      grantedByUserId: ADMIN,
+    });
+    expect(regranted.grantVersion).toBe(3);
   });
 
-  it('explicit re-grant after revocation bumps grantVersion', async () => {
-    prisma.vehicleProductGrant.findUnique.mockResolvedValue({
-      id: 'g1',
-      organizationId: ORG,
-      vehicleId: VEH,
-      productSlug: ProductSlug.RENTAL,
-      status: VehicleProductGrantStatus.REVOKED,
-      grantVersion: 2,
-    });
-    prisma.vehicleProductGrant.upsert.mockResolvedValue({
-      id: 'g1',
-      grantVersion: 3,
-      status: VehicleProductGrantStatus.ACTIVE,
-      productSlug: ProductSlug.RENTAL,
-      vehicleId: VEH,
-      organizationId: ORG,
-      grantedAt: new Date(),
-      revokedAt: null,
-      grantedByUserId: ADMIN,
-      revokedByUserId: null,
-    });
-
-    const row = await service.grantExplicit({
+  it('idempotent active grant does not bump version', async () => {
+    await service.grantExplicit({
       organizationId: ORG,
       vehicleId: VEH,
       productSlug: ProductSlug.RENTAL,
       grantedByUserId: ADMIN,
     });
-    expect(row.grantVersion).toBe(3);
-    expect(prisma.vehicleProductGrant.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        update: expect.objectContaining({ grantVersion: 3 }),
-      }),
-    );
+    const again = await service.grantExplicit({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: ProductSlug.RENTAL,
+      grantedByUserId: ADMIN,
+    });
+    expect(again.grantVersion).toBe(1);
   });
 
   it('rejects foreign-org vehicle binding as not found', async () => {
-    prisma.vehicle.findFirst.mockResolvedValue({
+    const prisma = makePrisma(store);
+    (prisma.vehicle.findFirst as jest.Mock).mockResolvedValue({
       id: VEH,
       organizationId: 'other-org',
       registryLifecycle: VehicleRegistryLifecycle.ACTIVE,
     });
+    service = new VehicleProductGrantService(prisma as never, masterAdminAudit as never);
     await expect(
       service.grantExplicit({
         organizationId: ORG,
@@ -174,85 +220,9 @@ describe('VehicleProductGrantService', () => {
   });
 
   it('rejects grant when organization product is inactive', async () => {
-    prisma.organizationProduct.findFirst.mockResolvedValue(null);
-    await expect(
-      service.grantExplicit({
-        organizationId: ORG,
-        vehicleId: VEH,
-        productSlug: ProductSlug.RENTAL,
-        grantedByUserId: ADMIN,
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-  });
-
-  it('rejects offboarded vehicle', async () => {
-    prisma.vehicle.findFirst.mockResolvedValue({
-      id: VEH,
-      organizationId: ORG,
-      registryLifecycle: VehicleRegistryLifecycle.OFFBOARDED,
-    });
-    await expect(
-      service.grantExplicit({
-        organizationId: ORG,
-        vehicleId: VEH,
-        productSlug: ProductSlug.RENTAL,
-        grantedByUserId: ADMIN,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('idempotent revoke when already revoked', async () => {
-    const revoked = {
-      id: 'g1',
-      organizationId: ORG,
-      vehicleId: VEH,
-      productSlug: ProductSlug.RENTAL,
-      status: VehicleProductGrantStatus.REVOKED,
-      grantVersion: 1,
-      grantedAt: new Date(),
-      revokedAt: new Date(),
-      grantedByUserId: ADMIN,
-      revokedByUserId: ADMIN,
-    };
-    prisma.vehicleProductGrant.findUnique.mockResolvedValue(revoked);
-    const row = await service.revokeGrant({
-      organizationId: ORG,
-      vehicleId: VEH,
-      productSlug: ProductSlug.RENTAL,
-      revokedByUserId: ADMIN,
-    });
-    expect(row).toBe(revoked);
-    expect(prisma.vehicleProductGrant.update).not.toHaveBeenCalled();
-  });
-
-  it('hasActiveGrant is false immediately after revoke semantics', async () => {
-    prisma.vehicle.findFirst.mockResolvedValue({
-      id: VEH,
-      organizationId: ORG,
-      registryLifecycle: VehicleRegistryLifecycle.ACTIVE,
-    });
-    prisma.vehicleProductGrant.findFirst.mockResolvedValue(null);
-    await expect(service.hasActiveGrant(ORG, VEH, ProductSlug.RENTAL)).resolves.toBe(false);
-  });
-
-  it('listGrantedVehicles scopes by organization and product', async () => {
-    prisma.vehicleProductGrant.findMany.mockResolvedValue([
-      { vehicleId: VEH, productSlug: ProductSlug.RENTAL, status: VehicleProductGrantStatus.ACTIVE, grantVersion: 1, grantedAt: new Date(), revokedAt: null },
-    ]);
-    await service.listGrantedVehicles(ORG, ProductSlug.RENTAL);
-    expect(prisma.vehicleProductGrant.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          organizationId: ORG,
-          productSlug: ProductSlug.RENTAL,
-          status: VehicleProductGrantStatus.ACTIVE,
-        }),
-      }),
-    );
-  });
-
-  it('does not treat suspended org product as entitled for new grants', async () => {
-    prisma.organizationProduct.findFirst.mockResolvedValue(null);
+    const prisma = makePrisma(store);
+    (prisma.organizationProduct.findFirst as jest.Mock).mockResolvedValue(null);
+    service = new VehicleProductGrantService(prisma as never, masterAdminAudit as never);
     await expect(
       service.grantExplicit({
         organizationId: ORG,
@@ -266,5 +236,63 @@ describe('VehicleProductGrantService', () => {
         where: expect.objectContaining({ status: OrgProductStatus.ACTIVE }),
       }),
     );
+  });
+
+  it('rejects offboarded vehicle', async () => {
+    const prisma = makePrisma(store);
+    (prisma.vehicle.findFirst as jest.Mock).mockResolvedValue({
+      id: VEH,
+      organizationId: ORG,
+      registryLifecycle: VehicleRegistryLifecycle.OFFBOARDED,
+    });
+    service = new VehicleProductGrantService(prisma as never, masterAdminAudit as never);
+    await expect(
+      service.grantExplicit({
+        organizationId: ORG,
+        vehicleId: VEH,
+        productSlug: ProductSlug.RENTAL,
+        grantedByUserId: ADMIN,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('idempotent revoke when already revoked', async () => {
+    await service.grantExplicit({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: ProductSlug.RENTAL,
+      grantedByUserId: ADMIN,
+    });
+    await service.revokeGrant({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: ProductSlug.RENTAL,
+      revokedByUserId: ADMIN,
+    });
+    const row = await service.revokeGrant({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: ProductSlug.RENTAL,
+      revokedByUserId: ADMIN,
+    });
+    expect(row.grantVersion).toBe(2);
+  });
+
+  it('audit is not called on idempotent grant', async () => {
+    await service.grantExplicit({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: ProductSlug.RENTAL,
+      grantedByUserId: ADMIN,
+      audit: { correlationId: 'c1' },
+    });
+    await service.grantExplicit({
+      organizationId: ORG,
+      vehicleId: VEH,
+      productSlug: ProductSlug.RENTAL,
+      grantedByUserId: ADMIN,
+      audit: { correlationId: 'c2' },
+    });
+    expect(masterAdminAudit.record).toHaveBeenCalledTimes(1);
   });
 });

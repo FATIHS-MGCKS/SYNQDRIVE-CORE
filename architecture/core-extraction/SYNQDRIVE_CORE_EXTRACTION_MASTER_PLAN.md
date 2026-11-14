@@ -538,9 +538,9 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Scope:** Persistente `VehicleProductGrant`-Authority (`vehicle_product_grants`); `VehicleProductGrantService` (grant, revoke, hasActiveGrant, list); Master-Admin-HTTP (`admin/organizations/:orgId/...`) mit `RolesGuard` + `MasterAdminMfaGuard` (`MASTER_ORGANIZATION` step-up); Audit via `MasterAdminAuditService`.
 
-**Product access modes (server-authoritativ, nicht client-wählbar):** `ORGANIZATION_WIDE` (bestehende B2B-Produkte RENTAL/FLEET/TAXI — **keine** Grant-Pflicht auf `core.read.v1`); `EXPLICIT_VEHICLE` (künftige Consumer-Apps — erfordert aktiven Grant + spätere User-Fahrzeug-Bindung). Policy: `product-access-mode.policy.ts`.
+**Product access mode (Owner, Follow-up):** Pro `OrganizationProduct`-Zuordnung `ORGANIZATION_WIDE` | `SELECTED_VEHICLES` — **nicht** in P3-PR9 persistiert; keine ProductSlug-Hardcodierung als finale Policy. Foundation: Grant-Ledger + Master-Admin-API nur. Tenant-Gates: `architecture/core-extraction/P3_PR9_VEHICLE_PRODUCT_GRANT_TENANT_INTEGRITY.md`.
 
-**Fail-closed / Tenant:** Grant nur bei ACTIVE `OrganizationProduct`, Fahrzeug `organizationId`-Bindung, `registryLifecycle=ACTIVE`; kein Bulk-Grant; Re-Grant explizit (grantVersion++); Revoke idempotent; **keine** Auto-Reaktivierung bei Lizenz-Wiederherstellung.
+**Fail-closed / Tenant:** Grant nur bei ACTIVE `OrganizationProduct`, Fahrzeug `organizationId`-Bindung, `registryLifecycle=ACTIVE`; kein Bulk-Grant; `grantVersion` erhöht bei Grant-, Revoke- und Re-Grant-Zustandswechsel (nicht bei idempotenten Wiederholungen); status-bedingte atomische Updates; **keine** Auto-Reaktivierung bei Lizenz-Wiederherstellung.
 
 **Nicht production-ready für Consumer-Isolation:** `core.read.v1` **unverändert** (kein Grant-Guard); M2M-Allowlist unverändert; kein VYMOD-`ProductSlug`, kein Backfill, kein Provider/Telemetry-Copy.
 
