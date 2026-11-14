@@ -64,7 +64,11 @@ export class CoreAppM2mTokenService {
     return { accessToken, expiresIn: ttlSeconds, tokenType: 'Bearer' };
   }
 
-  async verifyBearerToken(token: string, routeOrgId: string): Promise<CoreAppServicePrincipal> {
+  async verifyBearerToken(
+    token: string,
+    routeOrgId: string,
+    requiredScope?: CoreAppM2mAllowedScope,
+  ): Promise<CoreAppServicePrincipal> {
     if (!isCoreAppM2mEnabled()) {
       throw new ForbiddenException('Service authentication is disabled');
     }
@@ -102,11 +106,19 @@ export class CoreAppM2mTokenService {
     const scopes = Array.isArray(decoded.scopes)
       ? decoded.scopes.map((s) => String(s))
       : [];
-    const allowedScope = scopes.find((s) =>
-      (CORE_APP_M2M_ALLOWED_SCOPES as readonly string[]).includes(s),
-    ) as CoreAppM2mAllowedScope | undefined;
-    if (!allowedScope) {
-      throw new ForbiddenException('Missing required service scope');
+    let allowedScope: CoreAppM2mAllowedScope | undefined;
+    if (requiredScope) {
+      if (!scopes.includes(requiredScope)) {
+        throw new ForbiddenException('Missing required service scope');
+      }
+      allowedScope = requiredScope;
+    } else {
+      allowedScope = scopes.find((s) =>
+        (CORE_APP_M2M_ALLOWED_SCOPES as readonly string[]).includes(s),
+      ) as CoreAppM2mAllowedScope | undefined;
+      if (!allowedScope) {
+        throw new ForbiddenException('Missing required service scope');
+      }
     }
 
     const { client, grant } = await this.clients.loadClientGrantForVerification({

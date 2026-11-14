@@ -538,6 +538,8 @@ Entitlements Read API v1 auf `main`; **nicht** als produktiv deployed markiert.
 
 **Scope:** `ProductVehicleAccessService` — DB-backed license resolve; `getAuthorizedVehicleWhere` for list/count; `assertVehicleAuthorized` (no caller context) → 404. Not wired to `core.read.v1`. Blockers: `P3_PR11A_PRODUCT_VEHICLE_ACCESS_FOUNDATION.md`.
 
+**P3-PR11B (draft):** M2M-only `/core/app/read/v1` vehicle identity; product-bound principal; flag-gated. See `P3_PR11B_CORE_APP_VEHICLE_READ.md`.
+
 ### 6.22 P3-PR10 — OrganizationProduct vehicle access mode (Draft-PR)
 
 **Scope:** `OrganizationProduct.vehicleAccessMode` (`ORGANIZATION_WIDE` | `SELECTED_VEHICLES`); migration backfill WIDE, no DB default on column; `ProductsService` assign (explicit mode on create), PATCH mode with conditional update + 409; Master Admin MFA on assign/delete/PATCH; admin GET additive fields.
