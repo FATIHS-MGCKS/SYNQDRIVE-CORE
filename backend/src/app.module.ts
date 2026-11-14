@@ -25,6 +25,8 @@ import { UsersModule } from '@modules/users/users.module';
 import { StationsModule } from '@modules/stations/stations.module';
 import { ProductsModule } from '@modules/products/products.module';
 import { CoreVehicleReadModule } from '@modules/core-vehicle-read/core-vehicle-read.module';
+import { CoreAppVehicleReadModule } from '@modules/core-app-vehicle-read/core-app-vehicle-read.module';
+import { isCoreAppVehicleReadV1ModuleRegistered } from '@modules/core-app-vehicle-read/core-app-vehicle-read.config';
 import { CoreTripReadModule } from '@modules/core-trip-read/core-trip-read.module';
 import { CoreDrivingAssessmentReadModule } from '@modules/core-driving-assessment-read/core-driving-assessment-read.module';
 import { CoreBatteryReadModule } from '@modules/core-battery-read/core-battery-read.module';
@@ -238,6 +240,7 @@ export class AppModule {
         StationsModule,
         ProductsModule,
         CoreVehicleReadModule,
+        ...(isCoreAppVehicleReadV1ModuleRegistered() ? [CoreAppVehicleReadModule] : []),
         CoreTripReadModule,
         CoreDrivingAssessmentReadModule,
         CoreBatteryReadModule,

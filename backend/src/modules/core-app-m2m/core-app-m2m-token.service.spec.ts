@@ -54,6 +54,21 @@ describe('CoreAppM2mTokenService', () => {
     expect(decoded.aud).toBe(CORE_APP_M2M_AUDIENCE);
   });
 
+  it('verify enforces requiredScope when provided', async () => {
+    const { accessToken } = service.issue({
+      clientDbId: 'cid-db',
+      clientId: 'rental-test',
+      organizationId: 'org-a',
+      productSlug: 'RENTAL',
+      credentialVersion: 2,
+      grantVersion: 3,
+      scope: 'core:entitlements:read',
+    });
+    await expect(
+      service.verifyBearerToken(accessToken, 'org-a', 'core:app:vehicle:read'),
+    ).rejects.toThrow(/Missing required service scope/);
+  });
+
   it('verify rejects foreign organization', async () => {
     const { accessToken } = service.issue({
       clientDbId: 'cid-db',
