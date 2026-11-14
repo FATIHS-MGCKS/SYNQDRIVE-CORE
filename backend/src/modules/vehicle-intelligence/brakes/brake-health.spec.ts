@@ -407,6 +407,73 @@ describe('BRAKE_HEALTH_CONFIG integrity', () => {
 //  SUMMARY DTO (not-initialized)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+describe('getSummary — syncAlerts option', () => {
+  const mockBrakeHealthAlerts = {
+    syncAlerts: jest.fn().mockResolvedValue({ opened: [], resolved: [] }),
+  };
+
+  const svcWithAlerts = new BrakeHealthService(
+    mockPrisma,
+    mockDI,
+    mockBrakeEvidence,
+    mockRecalcInputLoader as any,
+    mockObservability as any,
+    mockRecalcOrchestrator as any,
+    undefined,
+    mockBrakeHealthAlerts as any,
+  );
+
+  beforeEach(() => {
+    mockBrakeHealthAlerts.syncAlerts.mockClear();
+  });
+
+  it('default getSummary syncs alerts when alert service is configured', async () => {
+    mockPrisma.brakeHealthCurrent.findUnique.mockResolvedValueOnce(null);
+    await svcWithAlerts.getSummary('v1');
+    expect(mockBrakeHealthAlerts.syncAlerts).toHaveBeenCalled();
+  });
+
+  it('getSummary with syncAlerts:false does not persist alert sync', async () => {
+    mockPrisma.brakeHealthCurrent.findUnique.mockResolvedValueOnce(null);
+    await svcWithAlerts.getSummary('v1', { syncAlerts: false });
+    expect(mockBrakeHealthAlerts.syncAlerts).not.toHaveBeenCalled();
+  });
+
+  it('initialized read with syncAlerts:false does not persist alert sync', async () => {
+    mockPrisma.brakeHealthCurrent.findUnique.mockResolvedValueOnce({
+      isInitialized: true,
+      anchorOdometerKm: 42000,
+      organizationId: 'org-1',
+      frontPadAnchorMm: 12,
+      rearPadAnchorMm: 10,
+      frontDiscAnchorMm: 28,
+      rearDiscAnchorMm: 26,
+      padsHealthPct: 72,
+      padsRemainingKm: 28000,
+      discsHealthPct: 88,
+      discsRemainingKm: 55000,
+      anchorServiceDate: new Date('2024-06-01'),
+      distanceSinceAnchorKm: 8000,
+      modeledDistanceKm: 7200,
+      modeledTripCount: 44,
+      modelCoverageRatio: 0.9,
+      modelingSource: 'trip_impacts',
+      baselineWarnings: [],
+      confidenceScore: 62,
+      confidenceLabel: 'Medium',
+      hasAlert: false,
+    });
+    await svcWithAlerts.getSummary('v1', { syncAlerts: false });
+    expect(mockBrakeHealthAlerts.syncAlerts).not.toHaveBeenCalled();
+  });
+
+  it('syncAlerts:false still returns computed openAlerts in memory', async () => {
+    mockPrisma.brakeHealthCurrent.findUnique.mockResolvedValueOnce(null);
+    const summary = await svcWithAlerts.getSummary('v1', { syncAlerts: false });
+    expect(Array.isArray(summary.openAlerts)).toBe(true);
+  });
+});
+
 describe('getSummary', () => {
   it('returns no-baseline summary when no current record', async () => {
     mockPrisma.brakeHealthCurrent.findUnique.mockResolvedValueOnce(null);

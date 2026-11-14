@@ -365,6 +365,14 @@ export interface BrakeHealthDetailLegacyDto {
   rearDiscs: AxleEstimate | null;
 }
 
+export interface BrakeHealthGetSummaryOptions {
+  /**
+   * When `false`, skip {@link BrakeHealthAlertService.syncAlerts} (Core read-only GET).
+   * In-memory alert computation is unchanged. Default: sync enabled.
+   */
+  syncAlerts?: boolean;
+}
+
 export interface BrakeHealthDetailDto {
   summary: BrakeHealthSummaryDto;
   /** Legacy wear-model estimates (mm/healthPct). Not part of canonical brake truth. */
@@ -453,9 +461,16 @@ export class BrakeHealthService {
     );
   }
 
-  async getSummary(vehicleId: string): Promise<BrakeHealthSummaryDto> {
+  async getSummary(
+    vehicleId: string,
+    options?: BrakeHealthGetSummaryOptions,
+  ): Promise<BrakeHealthSummaryDto> {
     const current = await this.prisma.brakeHealthCurrent.findUnique({ where: { vehicleId } });
     const modeledComponents = this.deriveModeledComponents(current);
+    const canonicalReadOptions = {
+      emitNotifications: false as const,
+      syncAlerts: options?.syncAlerts !== false,
+    };
 
     if (
       !current ||
@@ -463,7 +478,7 @@ export class BrakeHealthService {
       current.anchorOdometerKm == null ||
       !modeledComponents.hasAnyModeled
     ) {
-      return this.buildNoBaselineSummary(vehicleId, current, modeledComponents);
+      return this.buildNoBaselineSummary(vehicleId, current, modeledComponents, canonicalReadOptions);
     }
 
     const padPct = current.padsHealthPct != null ? round2(current.padsHealthPct) : null;
@@ -487,9 +502,12 @@ export class BrakeHealthService {
     );
     const roundedRemainingKm = Number.isFinite(remainingKm) ? Math.round(remainingKm) : null;
 
-    const canonical = await this.buildCanonicalReadModel(vehicleId, current, modeledComponents, {
-      emitNotifications: false,
-    });
+    const canonical = await this.buildCanonicalReadModel(
+      vehicleId,
+      current,
+      modeledComponents,
+      canonicalReadOptions,
+    );
     const wearThresholds = await this.loadWearThresholds(vehicleId, current);
 
     return this.composeSummaryDto({
@@ -3015,10 +3033,12 @@ export class BrakeHealthService {
     vehicleId: string,
     current: BrakeHealthCurrent | null,
     modeledComponents: BrakeModeledComponentsDto,
+    canonicalReadOptions?: { emitNotifications?: boolean; syncAlerts?: boolean },
   ): Promise<BrakeHealthSummaryDto> {
     const baselineWarnings = this.readWarningArray(current?.baselineWarnings);
     const canonical = await this.buildCanonicalReadModel(vehicleId, current, modeledComponents, {
-      emitNotifications: false,
+      emitNotifications: canonicalReadOptions?.emitNotifications ?? false,
+      syncAlerts: canonicalReadOptions?.syncAlerts !== false,
     });
     const wearThresholds = await this.loadWearThresholds(vehicleId, current);
     const legacyState = await this.prisma.vehicleLatestState.findUnique({
@@ -3204,7 +3224,11 @@ export class BrakeHealthService {
     vehicleId: string,
     current: BrakeHealthCurrent | null,
     modeledComponents: BrakeModeledComponentsDto,
-    options?: { modelSnapshotId?: string | null; emitNotifications?: boolean },
+    options?: {
+      modelSnapshotId?: string | null;
+      emitNotifications?: boolean;
+      syncAlerts?: boolean;
+    },
   ): Promise<BrakeCanonicalBuildResult> {
     const c = this.cfg;
     const initialized = !!current?.isInitialized && modeledComponents.hasAnyModeled;
@@ -3513,7 +3537,7 @@ export class BrakeHealthService {
 
     const openAlerts = candidatesToCanonicalAlerts(alertCandidates);
 
-    if (organizationId && this.brakeHealthAlerts) {
+    if (organizationId && this.brakeHealthAlerts && options?.syncAlerts !== false) {
       await this.brakeHealthAlerts.syncAlerts({
         organizationId,
         vehicleId,
