@@ -365,7 +365,7 @@ function mapAuthoritativeWearSuppressedDto(args: {
     overallStatus: 'UNKNOWN' as TireStatus,
     pressureStatus: summary.pressureStatus,
     seasonStatus: summary.seasonStatus,
-    unevenWearStatus: summary.unevenWearStatus,
+    unevenWearStatus: 'UNKNOWN',
     confidence: null,
     measurement: null,
     pressure: mapPressure(summary.pressureContext),

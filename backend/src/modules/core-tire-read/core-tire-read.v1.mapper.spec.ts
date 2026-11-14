@@ -291,6 +291,9 @@ describe('CoreTireReadV1 mapper', () => {
         wearRateMmPer1000km: null,
         displayTreadMm: 7,
         overallStatus: 'GOOD',
+        unevenWearStatus: 'WARNING',
+        seasonStatus: 'GOOD',
+        pressureStatus: 'GOOD',
         confidence: 'LOW',
         measurementState: 'estimated',
       }),
@@ -301,6 +304,9 @@ describe('CoreTireReadV1 mapper', () => {
     expect(dto.remainingV2).toBeNull();
     expect(dto.remainingV3).toBeNull();
     expect(dto.overallStatus).toBe('UNKNOWN');
+    expect(dto.unevenWearStatus).toBe('UNKNOWN');
+    expect(dto.seasonStatus).toBe('GOOD');
+    expect(dto.pressureStatus).toBe('GOOD');
     expect(dto.confidence).toBeNull();
     expect(dto.resolvedAt).toBeNull();
     expect(dto.pressure).not.toBeNull();
