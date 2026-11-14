@@ -1,6 +1,6 @@
 # Tires Health — Current State (bootstrap V0.1, 2026-10-24)
 
-Registry coverage: `AUDIT_IN_PROGRESS`. Repository baseline `1c1e3bfa4`; Production baseline `c169ddfab` (`VERIFIED_READ_ONLY`). Three status axes are kept separate: registry coverage (this header), epistemic state (per statement below), decision/validation status (`decisions/DECISION_REGISTER.md`).
+Registry coverage: `AUDIT_IN_PROGRESS`. Repository baseline `7a993eca6` (P3-PR6 main; P3-PR7 adds `core.tire.read.v1` only); Production baseline `c169ddfab` (`VERIFIED_READ_ONLY`, not re-verified this change). Three status axes are kept separate: registry coverage (this header), epistemic state (per statement below), decision/validation status (`decisions/DECISION_REGISTER.md`).
 
 ## 1. Ownership and boundaries
 
@@ -9,7 +9,8 @@ Registry coverage: `AUDIT_IN_PROGRESS`. Repository baseline `1c1e3bfa4`; Product
 | Tire setups, lifecycle, mount periods, odometer anchor | **Tires Health** | CONFIRMED |
 | Tread/pressure measurements, evidence provenance, ground truth | **Tires Health** | CONFIRMED |
 | Tire Wear Model V2 (`tire-wear-v2`), snapshots, fingerprint dedupe, alerts | **Tires Health** | CONFIRMED |
-| Tire Wear V3 P3A distance prior (`tire-wear-v3-prior-0.1.0`, β=0, shadow table) | **Tires Health** (shadow only) | INFERRED (code on branch; not deployed) |
+| Tire Wear V3 customer read (`TireHealthV3ReadService`, cutover env defaults **OFF**) | **Tires Health** | CONFIRMED (code on `main`; production flag state **UNKNOWN**) |
+| Tire Wear V3 P3A distance prior (`tire-wear-v3-prior-*`, β=0; shadow persist gated separately) | **Tires Health** | CONFIRMED (productive prior path wired; DS4 β=0) |
 | Trip usage ledger + canonical-finalization attribution | **Tires Health** (hook lives in Trips coordinator) | CONFIRMED |
 | REST `/vehicles/:vehicleId/tires/*` | **Tires Health** (controller shared in `vehicle-intelligence.controller.ts`) | CONFIRMED |
 | Driving-Impact aggregates (`vehicle_driving_impact_current`, `trip_driving_impact`) | **Driving Intelligence** | CONFIRMED |

@@ -6,7 +6,7 @@ Living architecture authority for the SynqDrive **Tires Health** module: tire se
 |-------|-------|
 | Registry coverage status | `AUDIT_IN_PROGRESS` (from `NOT_STARTED`, 2026-10-24) — **not** a complete usable authority |
 | Authority-native status | Bootstrap V0.1 · Tire Intelligence P1 · owner decisions recorded (PROPOSED) · Production `VERIFIED_READ_ONLY` @ `c169ddfab` |
-| Repository baseline | `origin/main` `1c1e3bfa48f3a912e051fb8f1bba50397b00cf25` |
+| Repository baseline | `origin/main` `7a993eca6ebb39cbf632e119f8dfce411b17d5d1` (update on substantive tire PRs) |
 | Standard | [`architecture/MODULE_AUTHORITY_STANDARD.md`](../MODULE_AUTHORITY_STANDARD.md); structural reference [`architecture/tankstellenerkennung/`](../tankstellenerkennung/) |
 | Registry | [`architecture/SYNQDRIVE_RENTAL_ARCHITECTURE.md`](../SYNQDRIVE_RENTAL_ARCHITECTURE.md) → "Tires Health" |
 

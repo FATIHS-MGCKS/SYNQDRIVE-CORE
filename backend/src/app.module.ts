@@ -30,6 +30,7 @@ import { CoreDrivingAssessmentReadModule } from '@modules/core-driving-assessmen
 import { CoreBatteryReadModule } from '@modules/core-battery-read/core-battery-read.module';
 import { CoreDtcReadModule } from '@modules/core-dtc-read/core-dtc-read.module';
 import { CoreServiceIntelligenceReadModule } from '@modules/core-service-intelligence-read/core-service-intelligence-read.module';
+import { CoreTireReadModule } from '@modules/core-tire-read/core-tire-read.module';
 import { VehiclesModule } from '@modules/vehicles/vehicles.module';
 import { VehicleIntelligenceModule } from '@modules/vehicle-intelligence/vehicle-intelligence.module';
 import { ClickHouseModule } from '@modules/clickhouse/clickhouse.module';
@@ -241,6 +242,7 @@ export class AppModule {
         CoreBatteryReadModule,
         CoreDtcReadModule,
         CoreServiceIntelligenceReadModule,
+        CoreTireReadModule,
         VehiclesModule,
         ClickHouseModule,
         ObservabilityModule,
